@@ -1,0 +1,20 @@
+[project]
+name = "governed-llm-gateway-api"
+version = "0.1.0"
+description = "Composition-root placeholder for the Governed LLM Gateway API"
+requires-python = ">=3.13,<3.15"
+dependencies = [
+    "governed-llm-gateway-contracts",
+    "governed-llm-gateway-core",
+]
+
+[tool.uv.sources]
+governed-llm-gateway-contracts = { workspace = true }
+governed-llm-gateway-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/governed_llm_gateway_api"]

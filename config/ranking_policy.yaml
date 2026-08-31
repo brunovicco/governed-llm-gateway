@@ -1,0 +1,4 @@
+schema_version: "1.0-draft"
+policy_version: "phase0-no-runtime-ranking"
+workloads: {}
+# Deterministic ranking is designed but not implemented until Phase 5.

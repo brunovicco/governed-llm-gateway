@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "post_write": [
+      {
+        "name": "architecture-boundary-check",
+        "command": ["python", "scripts/architecture_check.py"],
+        "timeout_ms": 15000
+      }
+    ]
+  }
+}

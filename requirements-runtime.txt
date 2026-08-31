@@ -1,0 +1,2 @@
+# Phase 0 has no third-party runtime dependencies.
+# Workspace members depend only on each other and Python stdlib.

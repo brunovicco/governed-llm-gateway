@@ -1,0 +1,51 @@
+"""Controlled vocabularies owned by the provider-neutral contract package."""
+
+from enum import StrEnum
+
+
+class DataClassification(StrEnum):
+    """Controlled data-classification vocabulary."""
+
+    PUBLIC = "public"
+    INTERNAL = "internal"
+    CONFIDENTIAL = "confidential"
+    RESTRICTED = "restricted"
+
+
+class RiskLevel(StrEnum):
+    """Controlled workload risk vocabulary."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class MessageRole(StrEnum):
+    """Canonical message roles for the initial request contract."""
+
+    SYSTEM = "system"
+    USER = "user"
+    ASSISTANT = "assistant"
+    TOOL = "tool"
+
+
+class ExecutionStatus(StrEnum):
+    """Provider-neutral terminal execution status."""
+
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    REJECTED = "rejected"
+
+
+class RejectionReason(StrEnum):
+    """Machine-readable reasons for candidate rejection."""
+
+    WRONG_MODEL_GROUP = "wrong_model_group"
+    MISSING_CAPABILITY = "missing_capability"
+    CONTEXT_TOO_SMALL = "context_too_small"
+    PROVIDER_NOT_AUTHORIZED = "provider_not_authorized"
+    DEPLOYMENT_UNHEALTHY = "deployment_unhealthy"
+    CIRCUIT_BREAKER_OPEN = "circuit_breaker_open"
+    COST_LIMIT_EXCEEDED = "cost_limit_exceeded"
+    LATENCY_LIMIT_EXCEEDED = "latency_limit_exceeded"

@@ -1,0 +1,91 @@
+[project]
+name = "governed-llm-gateway"
+version = "0.1.0"
+description = "Governed, provider-neutral LLM resolution and execution gateway"
+requires-python = ">=3.13,<3.15"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = [
+    "apps/gateway-api",
+    "packages/gateway-contracts",
+    "packages/gateway-core",
+    "packages/gateway-client",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF", "ANN", "D", "S"]
+ignore = ["ANN401", "D203", "D213"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**/*.py" = ["D", "S101", "ANN"]
+"scripts/**/*.py" = ["D", "S603", "S607"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_configs = true
+warn_unused_ignores = true
+show_error_codes = true
+mypy_path = [
+    "packages/gateway-contracts/src",
+    "packages/gateway-core/src",
+    "packages/gateway-client/src",
+    "apps/gateway-api/src",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers --strict-config"
+markers = [
+    "integration: tests that cross package/process boundaries",
+    "e2e: end-to-end gateway behavior",
+    "live_provider: requires external provider credentials and network access",
+]
+
+[tool.coverage.run]
+branch = true
+source = [
+    "governed_llm_gateway_contracts",
+    "governed_llm_gateway_core",
+    "governed_llm_gateway_client",
+    "governed_llm_gateway_api",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = []
+
+[tool.engineering-harness.quality]
+source-roots = ["packages/*/src", "apps/*/src"]
+test-roots = ["tests"]
+
+[tool.engineering-harness.architecture]
+source-roots = ["packages/*/src", "apps/*/src"]
+clean-architecture = false
+
+[[tool.engineering-harness.architecture.boundaries]]
+path = "packages/gateway-contracts/src/governed_llm_gateway_contracts"
+allowed-imports = ["stdlib", "governed_llm_gateway_contracts"]
+deny-dynamic-imports = true
+
+[[tool.engineering-harness.architecture.boundaries]]
+path = "packages/gateway-core/src/governed_llm_gateway_core/domain"
+allowed-imports = ["stdlib", "governed_llm_gateway_contracts", "governed_llm_gateway_core"]
+deny-dynamic-imports = true

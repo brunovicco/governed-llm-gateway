@@ -1,0 +1,1941 @@
+Governed LLM Gateway — Project Plan
+
+Working repository name: governed-llm-gateway
+Status: Proposed / Architecture Gate
+Primary language: Python 3.13+
+Development harness: codex-python-engineering-harness
+Primary coding agent: Codex
+Independent reviewer: Claude Code
+
+⸻
+
+1. Project purpose
+
+Build a reusable, provider-neutral LLM execution gateway that selects and invokes the most appropriate authorized model for a workload while preserving:
+
+* deterministic governance boundaries;
+* task-aware model selection;
+* provider abstraction;
+* capability enforcement;
+* safe fallback;
+* runtime availability handling;
+* cost and latency constraints;
+* evaluation-driven model ranking;
+* OpenTelemetry observability;
+* privacy-safe audit evidence;
+* explainable routing decisions.
+
+The gateway must become the standard LLM access layer for future projects.
+
+Applications should not need to know:
+
+* provider API keys;
+* concrete model identifiers;
+* provider-specific APIs;
+* fallback ordering;
+* model pricing;
+* live provider health;
+* benchmark scores;
+* routing policy implementation.
+
+Applications should declare what they need, not which model to call.
+
+Example conceptual call:
+
+result = await gateway.generate(
+    workload="agent.orchestration",
+    messages=messages,
+    requirements={
+        "tool_calling": True,
+        "structured_output": True,
+        "min_context_tokens": 128_000,
+    },
+)
+
+The platform decides the authorized model group and concrete deployment.
+
+⸻
+
+2. Core architectural principle
+
+The system must separate three decisions:
+
+Can this workload use this class of model?
+                  │
+                  ▼
+        Policy Model Router
+        Policy Decision Point
+                  │
+            model group
+                  │
+                  ▼
+Which authorized deployment is best right now?
+                  │
+                  ▼
+         Governed LLM Gateway
+     Operational Selection + PEP
+                  │
+        provider + model
+                  │
+                  ▼
+             LLM Provider
+
+The gateway must never override an authorization decision from the Policy Model Router.
+
+It may further restrict the available models.
+
+It may never broaden the authorization.
+
+Invariant:
+
+Gateway allowed set
+        ⊆
+Policy Router authorized set
+
+⸻
+
+3. Relationship with existing repositories
+
+3.1 policy-model-router
+
+Decision
+
+Reuse and evolve. Do not merge into the gateway.
+
+Role:
+
+Policy Decision Point — PDP
+
+Responsibilities:
+
+* workload → logical model-group authorization;
+* data-classification constraints;
+* risk constraints;
+* tool-calling requirement;
+* structured-output requirement;
+* context ceiling;
+* policy cost ceiling;
+* policy latency ceiling;
+* agent allowlist;
+* deterministic explainability;
+* policy provenance;
+* fail-closed authorization.
+
+It must continue to not perform inference.
+
+Required evolution
+
+The current implementation contains domain-specific closed enums for workloads and model groups.
+
+Before production integration with the gateway, create a new Policy Model Router contract where:
+
+Workload
+
+becomes a validated policy-defined identifier rather than a Python enum.
+
+Example:
+
+classification.simple
+extraction.structured
+rag.answer
+reasoning.complex
+security.analysis
+code.generate
+code.review
+agent.orchestration
+agent.tool-use
+multimodal.analysis
+
+Likewise, logical model groups should be policy-defined.
+
+Example:
+
+fast-small
+balanced
+reasoning-strong
+agentic-strong
+multimodal
+structured-fast
+
+DataClassification and RiskLevel should remain controlled vocabularies.
+
+Unknown workloads must continue to fail closed.
+
+The existing credit-desk policy should become an example policy rather than the system-wide vocabulary.
+
+Recommended migration:
+
+policy-model-router 0.x
+        │
+        ▼
+generalization ADR
+        │
+        ▼
+policy-model-router 1.0
+
+Do not make the gateway responsible for translating generic workloads into credit-specific ones.
+
+⸻
+
+4. a2a-otel-kit
+
+Decision
+
+Use as a real runtime dependency.
+
+Primary purposes:
+
+* OpenTelemetry lifecycle;
+* OTLP export;
+* trace context;
+* structured events;
+* metadata sanitization;
+* W3C propagation;
+* future A2A/MCP integration;
+* optional governance-runtime telemetry.
+
+The gateway should not create another observability abstraction when one already exists.
+
+Gateway-specific spans can be application spans built on the a2a-otel-kit observability foundation.
+
+Default telemetry must remain metadata-only.
+
+Never record by default:
+
+* prompts;
+* completions;
+* MCP arguments;
+* tool results;
+* API keys;
+* Authorization headers;
+* arbitrary customer payloads.
+
+⸻
+
+5. controlled-autonomy-lab
+
+Decision
+
+Reuse design and code patterns, but do not make it a production dependency.
+
+Useful existing assets:
+
+* native OpenAI Responses adapter;
+* Anthropic Messages adapter;
+* generic OpenAI-compatible adapter;
+* Groq configuration;
+* OpenRouter configuration;
+* tool-call normalization;
+* usage extraction;
+* provider error normalization;
+* opaque reasoning-state preservation;
+* provider/model separation.
+
+The new gateway should own its provider adapters.
+
+Where implementation is generic enough, port it with history/provenance rather than import the experimental repository.
+
+Long term, dependency direction may be reversed:
+
+controlled-autonomy-lab
+          │
+          ▼
+   gateway client SDK
+
+This would let future benchmark runs exercise the same model infrastructure used by other projects.
+
+⸻
+
+6. RAGForge
+
+Decision
+
+Reuse benchmarking methodology, not runtime code.
+
+Relevant concepts:
+
+* empirical oracle;
+* dev/test split;
+* provider/model/configuration provenance;
+* versioned evaluation datasets;
+* latency/cost measurement;
+* evidence directories;
+* deterministic/replayable benchmark design;
+* independent judge calibration;
+* avoiding anecdotal router decisions.
+
+The gateway benchmark must follow the same philosophy:
+
+Model routing is an empirical optimization problem, not a collection of personal preferences.
+
+RAGForge remains independent.
+
+⸻
+
+7. verifiable-ai-governance
+
+Decision
+
+Integrate through an optional governance boundary. Do not make the gateway core depend directly on the governance application.
+
+Long-term execution chain:
+
+Governance
+    │
+    │ authorization
+    ▼
+Application / Agent
+    │
+    ▼
+LLM Gateway
+    │
+    ├──── Policy Model Router
+    │
+    ▼
+Provider
+    │
+    ▼
+Runtime telemetry / evidence
+    │
+    ▼
+Governance
+
+The gateway should eventually be a true Policy Enforcement Point.
+
+Useful evidence fields:
+
+authorization_id
+routing_decision_id
+policy_id
+policy_version
+policy_digest
+model_registry_digest
+selected_model_group
+provider
+model
+deployment
+fallback_count
+execution_status
+latency
+token usage
+
+No prompt or model response is required to prove those facts.
+
+⸻
+
+8. engineering-loop-schemas
+
+Decision
+
+Do not use as an LLM gateway runtime dependency.
+
+Use through the engineering harness / development process when applicable.
+
+Its role remains evidence for the software engineering loop, not evidence for individual LLM inference calls.
+
+⸻
+
+9. alicerce
+
+Decision
+
+Do not add to the gateway runtime.
+
+Alicerce is useful later if autonomous engineering loops are used to maintain or improve the project itself.
+
+That is a development-control concern, not an LLM execution concern.
+
+⸻
+
+10. MCP authentication templates
+
+Repositories:
+
+mcp-client-auth-template
+mcp-server-auth-template
+
+Decision
+
+Do not copy them into the MVP.
+
+Reuse their security principles if the gateway later exposes:
+
+* MCP administration;
+* model catalog tools;
+* routing-explain tools;
+* benchmark tools.
+
+The initial gateway API should remain HTTP-native.
+
+⸻
+
+11. Consumer repositories
+
+The following projects should eventually become integration examples or consumers:
+
+controlled-autonomy-lab
+getnet-multi-agent-support-v2
+ragforge
+opslens
+verifiable-ai-governance
+multi-agent-credit-desk
+
+They must not become gateway dependencies.
+
+Dependency direction:
+
+gateway
+  ▲
+  │
+consumers
+
+Never:
+
+gateway
+  │
+  ▼
+business project
+
+⸻
+
+12. Repository architecture
+
+Use a uv workspace.
+
+Proposed structure:
+
+governed-llm-gateway/
+│
+├── AGENTS.md
+├── CLAUDE.md
+├── README.md
+├── pyproject.toml
+├── uv.lock
+│
+├── apps/
+│   └── gateway-api/
+│
+├── packages/
+│   ├── gateway-contracts/
+│   ├── gateway-core/
+│   └── gateway-client/
+│
+├── config/
+│   ├── model_registry.yaml
+│   ├── ranking_policy.yaml
+│   └── providers/
+│
+├── benchmarks/
+│   ├── datasets/
+│   ├── runners/
+│   ├── results/
+│   └── scorecards/
+│
+├── tests/
+│   ├── contract/
+│   ├── integration/
+│   └── e2e/
+│
+├── docs/
+│   ├── project/
+│   ├── architecture/
+│   ├── providers/
+│   ├── evaluation/
+│   ├── security/
+│   └── adr/
+│
+└── examples/
+
+⸻
+
+13. Package responsibilities
+
+gateway-contracts
+
+Provider-neutral immutable contracts.
+
+Contains:
+
+GatewayRequest
+GatewayResponse
+WorkloadRequirements
+Usage
+ToolDefinition
+ToolCall
+ToolResult
+RoutingProvenance
+ProviderExecution
+GatewayError
+
+No provider SDK.
+
+No FastAPI.
+
+No database.
+
+No OpenTelemetry SDK.
+
+Keep this package lightweight enough for consumer projects.
+
+⸻
+
+gateway-core
+
+Contains:
+
+domain/
+application/
+adapters/
+
+Responsibilities:
+
+* model registry;
+* candidate filtering;
+* scoring;
+* model selection;
+* provider ports;
+* fallback policy;
+* circuit breaker;
+* runtime health;
+* execution orchestration;
+* routing-decision validation;
+* telemetry events.
+
+Provider SDKs must stay in adapters.
+
+⸻
+
+gateway-client
+
+Thin async client used by other projects.
+
+Example:
+
+from governed_llm_gateway import GatewayClient
+client = GatewayClient(
+    base_url="https://llm-gateway.internal",
+    api_key=...,
+)
+response = await client.generate(...)
+
+Consumer projects should normally depend only on this package.
+
+They should not receive provider credentials.
+
+⸻
+
+gateway-api
+
+FastAPI composition root.
+
+Endpoints eventually include:
+
+POST /v1/generate
+POST /v1/route/explain
+GET  /v1/models
+GET  /health
+GET  /readyz
+GET  /metrics
+
+Later compatibility surface:
+
+POST /v1/chat/completions
+POST /v1/responses
+
+Do not attempt complete OpenAI API compatibility in Phase 1.
+
+⸻
+
+14. Request contract
+
+Applications explicitly describe the workload.
+
+The gateway must not initially use an LLM to classify the task.
+
+Conceptual request:
+
+{
+  "schema_version": "1.0",
+  "request_id": "uuid",
+  "workload": "agent.orchestration",
+  "risk_level": "medium",
+  "data_classification": "public",
+  "requirements": {
+    "tool_calling": true,
+    "structured_output": true,
+    "vision": false,
+    "min_context_tokens": 128000
+  },
+  "limits": {
+    "max_latency_ms": 15000,
+    "max_cost_usd": 0.05
+  },
+  "messages": []
+}
+
+The metadata sent to Policy Model Router must not include the message payload.
+
+⸻
+
+15. Model registry
+
+Concrete models are data, not application code.
+
+Example conceptual structure:
+
+schema_version: "1.0"
+deployments:
+  nvidia-kimi:
+    provider: nvidia
+    model_id: moonshotai/kimi-...
+    model_group: agentic-strong
+    api_family: openai-compatible
+    capabilities:
+      text: true
+      vision: true
+      tool_calling: true
+      structured_output: true
+    context_tokens: 1000000
+    environments:
+      - development
+      - benchmark
+  google-gemini:
+    provider: google
+    model_id: ...
+    model_group: balanced
+    api_family: gemini
+
+Each entry should contain:
+
+provider
+model ID
+deployment ID
+logical group
+API family
+capabilities
+context window
+supported modalities
+structured-output support
+tool support
+streaming support
+pricing metadata
+data-policy classification
+allowed environments
+source date
+catalog version
+
+The registry receives a deterministic SHA-256 digest.
+
+Every inference result records the registry digest used to choose the model.
+
+⸻
+
+16. Provider strategy
+
+Initial native adapters
+
+Implement:
+
+OpenAI Responses
+Anthropic Messages
+Google Gemini
+
+Initial OpenAI-compatible adapter
+
+Support provider configurations for:
+
+NVIDIA
+Groq
+OpenRouter
+custom compatible endpoint
+
+Kimi, DeepSeek and Nemotron can initially be reached through one of these compatible providers instead of creating a dedicated adapter for every model family.
+
+Important rule:
+
+OpenAI-compatible does not mean behaviorally identical.
+
+Provider quirks must remain explicit.
+
+Never hide unsupported features through fake compatibility.
+
+⸻
+
+17. Routing algorithm
+
+Routing has two distinct stages.
+
+Stage A — authorization
+
+Performed by policy-model-router.
+
+Input:
+
+workload
+risk
+data classification
+required capabilities
+context
+cost ceiling
+latency ceiling
+agent identity
+
+Output:
+
+authorized logical model group
++
+decision provenance
+
+No inference.
+
+⸻
+
+Stage B — operational model selection
+
+Performed by the gateway.
+
+Candidates must first satisfy:
+
+belongs to authorized group
+provider enabled
+deployment enabled
+required modality available
+tool calling available if required
+structured output available if required
+context capacity sufficient
+provider allowed for environment/data
+live circuit breaker not open
+deployment healthy enough
+cost fits remaining limit
+
+Only eligible deployments are ranked.
+
+⸻
+
+18. Ranking
+
+Initial ranking should be deterministic and explainable.
+
+Example:
+
+score =
+    task_quality_score
+  + reliability_score
+  + latency_score
+  + cost_score
+  + availability_score
+
+Weights are configured per workload.
+
+Example:
+
+agent.orchestration:
+  quality: 0.40
+  reliability: 0.25
+  latency: 0.15
+  cost: 0.10
+  availability: 0.10
+
+Do not hard-code rankings such as:
+
+Kimi is always best for agents.
+
+Instead:
+
+benchmark snapshot X
+        ↓
+task score
+        ↓
+ranking policy Y
+        ↓
+routing decision
+
+Both snapshot and ranking policy must be versioned.
+
+⸻
+
+19. Benchmark-driven routing
+
+Create gateway-specific benchmark classes:
+
+classification
+structured extraction
+JSON/schema compliance
+RAG answer
+PT-BR RAG
+reasoning
+code generation
+code review
+security analysis
+tool selection
+tool argument generation
+multi-step tool use
+agent orchestration
+multimodal analysis
+long context
+
+Measure at minimum:
+
+task success
+schema validity
+tool-selection accuracy
+tool-argument accuracy
+trajectory success
+grounding
+PT-BR quality
+latency p50
+latency p95
+TTFT
+input tokens
+output tokens
+cost
+provider errors
+rate-limit errors
+fallback frequency
+
+Model ranking must use gateway benchmark results rather than public leaderboard scores alone.
+
+⸻
+
+20. Existing project fixtures
+
+Existing repositories can provide realistic synthetic/public benchmark inspiration.
+
+Examples:
+
+Controlled Autonomy Lab
+    → bounded tools and agent trajectories
+Getnet
+    → PT-BR support/RAG/tool routing
+OpsLens
+    → security analysis and structured findings
+RAGForge
+    → grounded PT-BR retrieval answers
+Verifiable AI Governance
+    → policy-analysis language tasks
+
+Do not use deterministic governance decisions themselves as LLM benchmark targets.
+
+Do not expose private or confidential datasets to free provider APIs.
+
+⸻
+
+21. Offline vs online scores
+
+Separate:
+
+offline benchmark quality
+
+from:
+
+online operational health
+
+Offline:
+
+quality
+grounding
+tool accuracy
+schema compliance
+
+Online:
+
+latency
+error rate
+timeouts
+rate limits
+availability
+
+Runtime score can combine the latest approved benchmark snapshot with recent operational measurements.
+
+⸻
+
+22. Adaptive routing
+
+Do not start with reinforcement learning or a bandit.
+
+Evolution:
+
+Phase 1
+static deterministic ranking
+Phase 2
+benchmark-derived ranking
+Phase 3
+benchmark + online telemetry
+Phase 4
+controlled adaptive optimization
+Phase 5
+optional contextual bandit
+
+No autonomous routing-policy change should occur without:
+
+* bounded policy;
+* versioning;
+* rollback;
+* evaluation;
+* audit record.
+
+⸻
+
+23. Fallback safety
+
+Fallback must be treated as an execution-safety problem, not only an availability feature.
+
+Safe example:
+
+request
+  ↓
+model A
+  ↓
+HTTP 503 before response
+  ↓
+model B
+
+Potentially unsafe example:
+
+model A
+  ↓
+tool call
+  ↓
+external operation executed
+  ↓
+switch to model B
+
+Default policy:
+
+transport failure before model output
+    → fallback allowed
+rate limit before model output
+    → fallback allowed
+schema failure, no side effect
+    → bounded repair/retry allowed
+tool call generated but not executed
+    → conservative policy
+tool side effect executed
+    → no cross-provider fallback
+opaque reasoning state established
+    → no cross-provider continuation unless replay strategy explicitly supports it
+
+Fallback candidate must remain inside the authorized model group.
+
+Never fallback outside policy authorization.
+
+⸻
+
+24. Retry policy
+
+Distinguish:
+
+retry
+
+from:
+
+fallback
+
+Retry:
+
+same deployment
+
+Fallback:
+
+different eligible deployment
+
+Retry only transient failures:
+
+408
+429
+5xx
+network timeout
+connection reset
+
+Use bounded exponential backoff with jitter.
+
+Do not retry permanent validation or authorization errors.
+
+⸻
+
+25. Circuit breaker
+
+Maintain state per concrete deployment:
+
+CLOSED
+  ↓ excessive transient failures
+OPEN
+  ↓ cooldown
+HALF_OPEN
+  ↓ successful probes
+CLOSED
+
+Initial implementation may be per-process.
+
+Later add Redis-backed shared state.
+
+Metrics:
+
+request count
+success rate
+timeout rate
+429 rate
+5xx rate
+p95 latency
+breaker state
+
+⸻
+
+26. Streaming
+
+Streaming should be a dedicated phase.
+
+Normalized gateway events:
+
+response.started
+content.delta
+tool_call.started
+tool_call.arguments.delta
+tool_call.completed
+usage.completed
+response.completed
+response.failed
+
+Provider-specific streaming representations must never leak into the domain contract.
+
+Cancellation and client disconnect must be explicitly tested.
+
+⸻
+
+27. Structured output
+
+Structured output is a capability, not a prompt convention.
+
+The gateway must distinguish:
+
+provider-native schema enforcement
+
+from:
+
+prompted JSON
+
+They are not equivalent capabilities.
+
+Schema validation happens after provider response even when the provider claims native enforcement.
+
+Invalid output should produce a typed failure.
+
+Optional bounded repair can be added later.
+
+⸻
+
+28. Tool calling
+
+Normalize:
+
+ToolDefinition
+ToolCall
+ToolResult
+
+Provider adapters translate the canonical representation.
+
+The gateway does not execute business tools.
+
+Tool execution remains the responsibility of the agent/application/MCP layer.
+
+Therefore:
+
+gateway
+    → chooses/invokes model
+agent runtime
+    → authorizes and executes tool
+
+This preserves authority boundaries.
+
+⸻
+
+29. Observability
+
+Use OpenTelemetry from the beginning.
+
+Conceptual span:
+
+llm.gateway.request
+│
+├── workload
+├── routing.policy_id
+├── routing.policy_version
+├── routing.decision_id
+├── routing.model_group
+├── registry.digest
+├── provider
+├── model
+├── deployment
+├── retry_count
+├── fallback_count
+├── input_tokens
+├── output_tokens
+├── latency_ms
+├── ttft_ms
+└── outcome
+
+Avoid unbounded/high-cardinality business values.
+
+Do not attach prompts or completions.
+
+⸻
+
+30. Trace topology
+
+Example future agent execution:
+
+application
+└── agent.run
+    └── llm.gateway.request
+        ├── policy.route
+        └── provider.inference
+            └── agent continues
+                └── mcp.client
+                    └── mcp.server
+
+With A2A:
+
+orchestrator
+└── gateway
+    └── model
+        └── A2A agent
+            └── gateway
+                └── model
+
+W3C context should remain continuous across boundaries.
+
+⸻
+
+31. Evidence and provenance
+
+For each request retain metadata sufficient to reconstruct the decision:
+
+request ID
+correlation ID
+workload
+policy decision ID
+policy ID/version/digest
+model group
+model registry digest
+ranking policy version
+benchmark score snapshot
+provider
+model
+deployment
+fallback sequence
+token usage
+latency
+result status
+
+Do not require storage of prompt content.
+
+⸻
+
+32. Data classification
+
+Provider authorization is explicit.
+
+Example default:
+
+public
+    → free/dev providers may be allowed
+internal
+    → explicitly approved providers only
+confidential
+    → enterprise-approved providers only
+restricted
+    → private/approved controlled deployments only
+
+Free-tier endpoints should default to:
+
+development
+benchmark
+public data
+
+until provider terms and organizational policy explicitly authorize something broader.
+
+⸻
+
+33. Secret management
+
+Consumer applications receive only:
+
+gateway credential
+
+They do not receive:
+
+NVIDIA_API_KEY
+GEMINI_API_KEY
+OPENROUTER_API_KEY
+GROQ_API_KEY
+ANTHROPIC_API_KEY
+OPENAI_API_KEY
+
+Provider secrets belong to the gateway deployment.
+
+Never write them to:
+
+model registry
+routing policy
+logs
+traces
+benchmark artifacts
+error responses
+
+⸻
+
+34. Authentication
+
+MVP:
+
+per-client API key
+
+Then evolve toward:
+
+OAuth 2.0 / OIDC
+workload identity
+service-to-service authentication
+
+Client identity should participate in policy decisions.
+
+⸻
+
+35. Explainability endpoint
+
+Provide:
+
+POST /v1/route/explain
+
+No LLM call.
+
+Example response:
+
+{
+  "authorized_model_group": "agentic-strong",
+  "selected_deployment": "nvidia-kimi",
+  "policy": {
+    "decision_id": "...",
+    "version": "..."
+  },
+  "ranking": {
+    "selected_score": 0.912,
+    "alternatives": [
+      {
+        "deployment": "candidate-b",
+        "score": 0.884
+      }
+    ]
+  }
+}
+
+Rejected candidates receive machine-readable reason codes.
+
+Examples:
+
+wrong_model_group
+missing_capability
+context_too_small
+provider_not_authorized
+deployment_unhealthy
+circuit_breaker_open
+cost_limit_exceeded
+latency_limit_exceeded
+
+⸻
+
+36. Development harness
+
+Use:
+
+codex-python-engineering-harness
+
+Profile:
+
+workspace
+
+Governance profile:
+
+agentic
+
+Do not add regulatory overlays during initial implementation.
+
+They can be evaluated after the technical architecture stabilizes.
+
+Why workspace:
+
+gateway-contracts
+gateway-core
+gateway-client
+gateway-api
+
+are genuinely separate package/application boundaries.
+
+⸻
+
+37. Codex vs Claude workflow
+
+Codex — primary builder
+
+Use for:
+
+implementation
+multi-file changes
+workspace refactors
+test generation
+provider adapters
+integration work
+parallel worktrees
+CI fixes
+
+Codex-native files:
+
+AGENTS.md
+.codex/
+.agents/
+
+⸻
+
+Claude — independent reviewer
+
+Create only a minimal compatibility file:
+
+CLAUDE.md
+
+Its instruction should essentially be:
+
+Read AGENTS.md first.
+Then read the architecture and current-state documents referenced there.
+Do not change repository policy or architecture without an ADR.
+
+Use Claude for independent:
+
+architecture review
+threat modeling
+provider-contract review
+fallback review
+security review
+edge-case review
+API review
+
+Do not install the complete Claude engineering harness into the same repository.
+
+One repository should have one harness authority.
+
+⸻
+
+38. Agent development strategy
+
+Do not ask one coding agent to implement the entire project from one giant prompt.
+
+Use bounded workstreams.
+
+Example:
+
+Worktree A
+    contracts
+Worktree B
+    provider abstraction
+Worktree C
+    model registry
+Worktree D
+    Policy Model Router client
+Worktree E
+    observability
+Worktree F
+    benchmark framework
+
+Merge only after shared contracts are stable.
+
+Architecture and contracts should land before parallel provider implementation.
+
+⸻
+
+39. Project source documents
+
+Create and maintain:
+
+PROJECT_INSTRUCTIONS.md
+CURRENT_STATE.md
+ARCHITECTURE.md
+ROADMAP.md
+PROVIDER_CONTRACT.md
+MODEL_REGISTRY.md
+ROUTING.md
+FALLBACK_AND_RETRY.md
+OBSERVABILITY.md
+EVALUATION.md
+SECURITY_MODEL.md
+THREAT_MODEL.md
+SOURCES.md
+
+CURRENT_STATE.md must be the checkpoint for continuation across coding-agent sessions.
+
+⸻
+
+40. ADR backlog
+
+Create at least:
+
+ADR-0001 — Gateway vs Policy Router boundary
+ADR-0002 — Workspace/package topology
+ADR-0003 — Provider-neutral request/response contract
+ADR-0004 — Native APIs vs OpenAI-compatible adapters
+ADR-0005 — Model registry and provenance
+ADR-0006 — Deterministic candidate ranking
+ADR-0007 — Fallback safety semantics
+ADR-0008 — Metadata-only telemetry
+ADR-0009 — Benchmark-derived routing scores
+ADR-0010 — Client SDK boundary
+ADR-0011 — Streaming normalization
+ADR-0012 — Governance authorization integration
+
+⸻
+
+41. Implementation roadmap
+
+Phase 0 — Architecture Gate
+
+Deliver:
+
+repository
+harness
+workspace
+architecture
+ADRs 0001–0005
+contracts draft
+threat model draft
+
+No provider API calls yet.
+
+Acceptance:
+
+quality gate passes
+workspace boundaries enforced
+no provider dependency in contracts/domain
+architecture reviewed independently
+
+⸻
+
+Phase 1 — Policy Model Router generalization
+
+Work in the existing policy-model-router repository.
+
+Deliver:
+
+generic workload identifiers
+generic model-group identifiers
+migration guide
+credit-desk example policy
+contract tests
+versioned API
+
+Preserve:
+
+determinism
+fail-closed behavior
+reason codes
+policy provenance
+data classification
+risk constraints
+
+Also evaluate upgrading its a2a-otel-kit dependency from the currently pinned older release to the current compatible version.
+
+Acceptance:
+
+same request + same policy = same decision
+unknown workload = rejection
+old credit policy reproducible through example config
+gateway-oriented generic policy passes tests
+
+⸻
+
+Phase 2 — Contracts and Model Registry
+
+Deliver:
+
+gateway-contracts
+registry loader
+registry validation
+registry digest
+capability vocabulary
+provider/deployment identities
+
+No external inference.
+
+Acceptance:
+
+unknown registry fields rejected
+duplicate deployment IDs rejected
+invalid capability combinations rejected
+registry digest deterministic
+domain imports no provider SDK
+
+⸻
+
+Phase 3 — Provider execution foundation
+
+Implement:
+
+ProviderPort
+ProviderResponse
+ProviderUsage
+ProviderError
+
+First adapters:
+
+OpenAI Responses
+OpenAI-compatible
+Google Gemini
+Anthropic Messages
+
+Use existing Controlled Autonomy Lab implementations as migration references.
+
+Acceptance:
+
+text generation
+usage extraction
+timeouts
+typed provider errors
+no secret leakage
+contract tests per adapter
+
+⸻
+
+Phase 4 — Policy Router integration
+
+Gateway calls Policy Model Router.
+
+Flow:
+
+GatewayRequest
+      ↓
+policy metadata projection
+      ↓
+Policy Model Router
+      ↓
+authorized group
+      ↓
+gateway candidate set
+
+Acceptance:
+
+gateway cannot select outside authorized group
+router rejection prevents provider call
+routing provenance returned
+provider receives no policy-only metadata it does not need
+policy router never receives prompt
+
+⸻
+
+Phase 5 — Deterministic operational ranking
+
+Implement:
+
+eligibility filtering
+score calculation
+ranking explanation
+selection provenance
+
+Inputs initially static/versioned.
+
+Acceptance:
+
+same inputs produce same ranking
+ineligible deployment can never win
+ties resolved deterministically
+decision explain endpoint implemented
+
+⸻
+
+Phase 6 — Resilience
+
+Implement:
+
+timeouts
+bounded retry
+fallback
+circuit breaker
+health state
+
+Acceptance:
+
+429 retry behavior verified
+5xx fallback verified
+fallback stays in model group
+non-transient errors do not retry
+side-effect boundary tests pass
+open circuit removes deployment from eligibility
+
+⸻
+
+Phase 7 — Structured output and tools
+
+Implement:
+
+normalized schema
+structured-output capabilities
+ToolDefinition
+ToolCall
+ToolResult
+
+Acceptance:
+
+provider-native schema support identified accurately
+invalid schema output rejected
+tool call arguments validated
+gateway never executes business tool
+
+⸻
+
+Phase 8 — Streaming
+
+Implement normalized streaming and cancellation.
+
+Acceptance:
+
+SSE lifecycle deterministic
+disconnect closes provider stream
+usage finalization tested
+partial result handling explicit
+fallback semantics during streaming documented
+
+⸻
+
+Phase 9 — OpenTelemetry
+
+Integrate a2a-otel-kit.
+
+Deliver:
+
+gateway request span
+policy route span
+provider inference span
+retry/fallback events
+W3C propagation
+privacy tests
+
+Acceptance:
+
+single trace across gateway boundary
+no prompts in trace
+no completions in trace
+no secrets in trace
+routing decision correlated
+
+⸻
+
+Phase 10 — Evaluation framework
+
+Create datasets and runners.
+
+Initial provider/model matrix should include free/dev-accessible options where available plus at least one strong paid/control model when practical.
+
+Do not publish “best model” without specifying:
+
+provider
+model
+API
+configuration
+date
+benchmark version
+
+Acceptance:
+
+benchmark reproducible
+score snapshots versioned
+failed provider calls remain availability evidence
+quality failures are not confused with provider outages
+
+⸻
+
+Phase 11 — Evidence-driven ranking
+
+Ranking policy consumes approved benchmark snapshots.
+
+Acceptance:
+
+benchmark score provenance visible
+changing snapshot changes registry/routing evidence
+manual override possible
+rollback possible
+no automatic self-modification
+
+⸻
+
+Phase 12 — Client SDK
+
+Publish the thin client.
+
+Target experience:
+
+gateway = GatewayClient.from_env()
+result = await gateway.generate(
+    workload="rag.answer",
+    messages=messages,
+)
+
+Acceptance:
+
+consumer needs no provider SDK
+consumer needs no provider API key
+consumer does not implement retry/fallback
+consumer can inspect routing provenance
+
+⸻
+
+Phase 13 — Governance integration
+
+Optional integration with Verifiable AI Governance.
+
+Add:
+
+authorization context
+scope validation
+governance event sink
+runtime evidence
+
+Acceptance:
+
+gateway enforces authorized model group
+unauthorized expansion fails closed
+denial produces evidence
+execution evidence correlates to authorization
+
+⸻
+
+Phase 14 — Real project integrations
+
+Recommended order:
+
+1. controlled-autonomy-lab
+2. getnet-multi-agent-support-v2
+3. OpsLens
+4. RAGForge
+5. Verifiable AI Governance
+
+Each migration becomes an integration case.
+
+Do not migrate all consumers simultaneously.
+
+⸻
+
+42. First benchmark workloads
+
+Start with five.
+
+structured_extraction
+rag_ptbr
+code_generation
+tool_use
+agent_orchestration
+
+This provides different model behavior without exploding scope.
+
+Add multimodal only after core execution is stable.
+
+⸻
+
+43. Initial provider matrix
+
+Development priority:
+
+OpenAI-compatible
+    ├── NVIDIA
+    ├── Groq
+    └── OpenRouter
+Google
+    └── Gemini
+OpenAI
+    └── Responses
+Anthropic
+    └── Messages
+
+Do not create one adapter per concrete model.
+
+Provider API defines adapter.
+
+Model defines registry entry.
+
+⸻
+
+44. Free provider policy
+
+Free endpoints are valuable for:
+
+development
+benchmarks
+public datasets
+experimentation
+fallback experiments
+
+They should not automatically be considered production-capable.
+
+Registry metadata must distinguish:
+
+free/dev endpoint
+production-approved deployment
+
+Production authorization is policy, not price.
+
+⸻
+
+45. Quality gates
+
+Every PR must run:
+
+uv lock --check
+ruff check
+ruff format --check
+mypy
+pytest
+coverage
+Bandit
+pip-audit
+architecture validation
+secret scanning
+
+Provider integration tests requiring credentials must be separately marked.
+
+Default CI must remain deterministic and credential-free.
+
+⸻
+
+46. Testing strategy
+
+Use:
+
+unit tests
+contract tests
+adapter tests
+fake-provider tests
+HTTP integration tests
+live-provider smoke tests
+E2E routing tests
+failure-injection tests
+privacy tests
+
+Failure injection is mandatory for:
+
+timeout
+429
+500
+invalid JSON
+invalid schema
+truncated stream
+provider disconnect
+policy rejection
+all deployments unavailable
+circuit open
+
+⸻
+
+47. Security requirements
+
+Threat model at least:
+
+API-key leakage
+prompt/data leakage
+provider substitution
+model registry tampering
+routing policy tampering
+unauthorized model escalation
+fallback policy bypass
+malicious provider error bodies
+log injection
+trace data leakage
+SSRF through custom endpoint config
+unbounded retries
+denial of wallet
+rate-limit exhaustion
+malicious tool schema
+dependency compromise
+
+Fail closed for policy and identity failures.
+
+Operational availability failures may fail over only inside already-authorized boundaries.
+
+⸻
+
+48. Important non-goals
+
+The gateway is not:
+
+an agent framework
+a LangGraph replacement
+an MCP tool executor
+an A2A orchestrator
+a RAG framework
+a governance system
+an LLM judge
+a prompt-management platform
+a general API-management product
+
+Its responsibility is narrow:
+
+Governed model resolution and execution.
+
+⸻
+
+49. Portfolio architecture
+
+The resulting repositories tell one coherent story:
+
+                    Verifiable AI Governance
+                         authorization
+                              │
+                              ▼
+                      Policy Model Router
+                     deterministic decision
+                              │
+                              ▼
+                     Governed LLM Gateway
+                  enforcement + model execution
+                     │                   │
+                     ▼                   ▼
+               Model providers       a2a-otel-kit
+                                         │
+                                         ▼
+                                  runtime evidence
+Consumers
+├── OpsLens
+├── RAGForge
+├── Getnet Agentic Support
+├── Controlled Autonomy Lab
+└── Multi-Agent Credit Desk
+
+Each repository owns one responsibility.
+
+⸻
+
+50. Definition of success
+
+The project is successful when a new application can declare:
+
+workload="agent.orchestration"
+
+without knowing whether the actual request will execute on:
+
+Kimi
+Gemini
+DeepSeek
+Nemotron
+OpenAI
+Claude
+or another future model
+
+while still being able to answer afterward:
+
+Why was this model authorized?
+Why was this deployment selected?
+What alternatives were rejected?
+Which policy was used?
+Which registry was used?
+Which benchmark influenced the ranking?
+Did fallback happen?
+How long did it take?
+How many tokens were consumed?
+Was the request within its cost budget?
+Was the execution permitted for this data classification?
+Can the decision be reconstructed later?
+
+That is the central engineering objective of the project.

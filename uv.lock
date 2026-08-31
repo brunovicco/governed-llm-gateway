@@ -1,0 +1,59 @@
+version = 1
+revision = 3
+requires-python = ">=3.13, <3.15"
+
+[manifest]
+members = [
+    "governed-llm-gateway",
+    "governed-llm-gateway-api",
+    "governed-llm-gateway-client",
+    "governed-llm-gateway-contracts",
+    "governed-llm-gateway-core",
+]
+
+[[package]]
+name = "governed-llm-gateway"
+version = "0.1.0"
+source = { virtual = "." }
+
+[[package]]
+name = "governed-llm-gateway-api"
+version = "0.1.0"
+source = { editable = "apps/gateway-api" }
+dependencies = [
+    { name = "governed-llm-gateway-contracts" },
+    { name = "governed-llm-gateway-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "governed-llm-gateway-contracts", editable = "packages/gateway-contracts" },
+    { name = "governed-llm-gateway-core", editable = "packages/gateway-core" },
+]
+
+[[package]]
+name = "governed-llm-gateway-client"
+version = "0.1.0"
+source = { editable = "packages/gateway-client" }
+dependencies = [
+    { name = "governed-llm-gateway-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "governed-llm-gateway-contracts", editable = "packages/gateway-contracts" }]
+
+[[package]]
+name = "governed-llm-gateway-contracts"
+version = "0.1.0"
+source = { editable = "packages/gateway-contracts" }
+
+[[package]]
+name = "governed-llm-gateway-core"
+version = "0.1.0"
+source = { editable = "packages/gateway-core" }
+dependencies = [
+    { name = "governed-llm-gateway-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "governed-llm-gateway-contracts", editable = "packages/gateway-contracts" }]
