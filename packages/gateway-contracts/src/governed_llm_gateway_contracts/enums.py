@@ -49,3 +49,20 @@ class RejectionReason(StrEnum):
     CIRCUIT_BREAKER_OPEN = "circuit_breaker_open"
     COST_LIMIT_EXCEEDED = "cost_limit_exceeded"
     LATENCY_LIMIT_EXCEEDED = "latency_limit_exceeded"
+
+
+class Capability(StrEnum):
+    """Provider-neutral capabilities that registry entries may advertise."""
+
+    TEXT = "text"
+    VISION = "vision"
+    TOOL_CALLING = "tool_calling"
+    STRUCTURED_OUTPUT = "structured_output"
+    STREAMING = "streaming"
+
+
+class Modality(StrEnum):
+    """Provider-neutral input modalities relevant to model eligibility."""
+
+    TEXT = "text"
+    IMAGE = "image"

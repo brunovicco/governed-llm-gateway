@@ -3,7 +3,7 @@
 Reusable provider-neutral LLM execution gateway whose responsibility is **governed model resolution
 and execution**.
 
-Status: **Phase 0 — Architecture Gate complete baseline**.
+Status: **Phase 2 — Contracts and Model Registry implemented; under review**.
 
 The project separates authorization from operational selection:
 
@@ -29,18 +29,28 @@ Gateway allowed set ⊆ Policy Router authorized set
 The gateway may make authorization narrower due to capability, health, environment, cost, latency,
 or other operational constraints. It must never make authorization broader.
 
-## Phase 0 contents
+## Current implementation
 
-- uv workspace with `gateway-contracts`, `gateway-core`, `gateway-client`, and `gateway-api` boundaries;
-- Codex-native harness instructions and minimal Claude reviewer compatibility;
-- provider-neutral immutable contract draft;
-- architecture and security source documents;
-- ADR-0001 through ADR-0005 accepted;
-- trust-boundary and PDP/PEP contract drafts;
-- model-registry and ranking-policy draft configuration;
-- threat model draft;
-- architecture/phase gates and contract tests;
+Phase 0 established the uv workspace, architecture boundaries, security model, provider-neutral
+contract baseline, ADR-0001 through ADR-0005, and fail-closed authorization invariant.
+
+Phase 1 was completed in the existing `policy-model-router` repository, generalizing workload and
+logical model-group identifiers while preserving deterministic policy decisions and provenance.
+
+Phase 2 adds:
+
+- provider-neutral capability and modality vocabularies;
+- immutable model-registry domain objects;
+- strict safe-YAML loading with duplicate-key rejection;
+- closed-schema and semantic validation;
+- explicit versioned pricing metadata and unknown-pricing representation;
+- deterministic canonicalization and SHA-256 registry provenance digest;
+- contract tests for invalid fields, duplicate IDs, capability combinations, safe YAML, and digest
+  determinism;
 - no provider SDK and no provider API call.
+
+The checked-in `config/model_registry.yaml` remains intentionally empty in Phase 2. Concrete provider
+entries arrive only with later provider work and evidence-backed catalog changes.
 
 ## Repository layout
 
@@ -56,18 +66,15 @@ tests/                     contract/integration/e2e suites
 docs/                      durable project sources and ADRs
 ```
 
-## Validate Phase 0
-
-```bash
-python scripts/phase0_gate.py
-```
-
-Full quality gate after dependencies are synchronized:
+## Validate
 
 ```bash
 uv sync --frozen
-python scripts/quality_gate.py
+uv run python scripts/quality_gate.py
 ```
+
+The quality gate includes Ruff, mypy, pytest/coverage, Bandit, pip-audit, architecture validation,
+secret scanning, and the Phase 0 architecture regression gate.
 
 ## Source of truth
 

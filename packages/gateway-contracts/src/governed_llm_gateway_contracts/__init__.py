@@ -15,11 +15,20 @@ from .contracts import (
     Usage,
     WorkloadRequirements,
 )
-from .enums import DataClassification, ExecutionStatus, MessageRole, RejectionReason, RiskLevel
+from .enums import (
+    Capability,
+    DataClassification,
+    ExecutionStatus,
+    MessageRole,
+    Modality,
+    RejectionReason,
+    RiskLevel,
+)
 from .errors import GatewayError
 
 __all__ = [
     "CandidateRejection",
+    "Capability",
     "DataClassification",
     "ExecutionStatus",
     "GatewayError",
@@ -27,6 +36,7 @@ __all__ = [
     "GatewayResponse",
     "Message",
     "MessageRole",
+    "Modality",
     "PolicyProvenance",
     "ProviderExecution",
     "RejectionReason",

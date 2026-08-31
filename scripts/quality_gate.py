@@ -12,17 +12,30 @@ TOOL_PYTHON = os.environ.get("GATEWAY_TOOL_PYTHON", "3.13")
 
 
 def uvx(*args: str) -> list[str]:
-    """Build a uvx command pinned to the project toolchain Python."""
+    """Build an isolated uvx command pinned to the project toolchain Python."""
     return ["uvx", "--python", TOOL_PYTHON, *args]
+
+
+def uv_run(*args: str) -> list[str]:
+    """Build a project-aware uv run command for tools that import workspace code."""
+    return ["uv", "run", "--frozen", "--python", TOOL_PYTHON, "--all-packages", *args]
 
 
 COMMANDS = [
     ["uv", "lock", "--check"],
     uvx("--from", "ruff==0.12.11", "ruff", "check", "."),
     uvx("--from", "ruff==0.12.11", "ruff", "format", "--check", "."),
-    uvx("--from", "mypy==1.17.1", "mypy", "packages", "apps", "scripts", "tests"),
-    uvx(
-        "--from",
+    uv_run(
+        "--with",
+        "mypy==1.17.1",
+        "mypy",
+        "packages",
+        "apps",
+        "scripts",
+        "tests",
+    ),
+    uv_run(
+        "--with",
         "pytest==8.4.1",
         "--with",
         "pytest-cov==6.2.1",

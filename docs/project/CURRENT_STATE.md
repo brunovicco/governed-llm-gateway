@@ -7,55 +7,65 @@ Last updated: 2026-08-31
 | Phase | Status |
 |---|---|
 | Phase 0 — Architecture Gate | COMPLETE BASELINE |
-| Phase 1 — Policy Model Router generalization | NOT STARTED |
-| Phase 2 — Contracts and Model Registry | NOT STARTED |
+| Phase 1 — Policy Model Router generalization | COMPLETE (`policy-model-router` PR #20) |
+| Phase 2 — Contracts and Model Registry | IMPLEMENTED — IN REVIEW |
 | Phase 3+ | NOT STARTED |
 
 ## Phase 0 delivered
 
 - uv workspace root with four explicit members;
-- `gateway-contracts` immutable provider-neutral draft contracts;
-- `gateway-core` domain/application/adapters separation and authorization invariant guard;
-- `gateway-client` ownership boundary without HTTP implementation;
-- `gateway-api` composition-root namespace without FastAPI/runtime dependency;
-- `AGENTS.md`, `.codex/`, agent skill, and minimal `CLAUDE.md` reviewer file;
-- durable project source documents;
-- ADR-0001 through ADR-0005 accepted;
-- trusted/untrusted attribute model;
-- PDP/PEP interface draft;
-- model registry and ranking policy drafts;
-- threat model and security model drafts;
-- architecture and Phase 0 validation scripts/tests;
-- original source roadmap preserved at `SOURCE_ROADMAP.txt`.
+- provider-neutral immutable contract baseline;
+- explicit domain/application/adapters separation and authorization invariant guard;
+- durable project source documents and ADR-0001 through ADR-0005;
+- trusted/untrusted attribute model, PDP/PEP contract draft, threat model, and architecture gates.
 
-## Architecture Gate decisions closed in this baseline
+## Phase 1 dependency completed
 
-1. Caller security metadata is a claim, not automatically authoritative. Authenticated workload
-   identity and deterministic policy determine effective context.
-2. PDP authorization is immutable input to gateway selection. Gateway filtering is monotonic:
-   authorization may only become narrower.
-3. `/v1/models`, `/v1/route/explain`, `/metrics`, and administrative/readiness surfaces require
-   explicit authorization in their implementation phases and must not leak global registry/policy
-   internals to unprivileged clients.
-4. Fallback is allowed only when replay is safe and stays inside authorization. Side effects or
-   opaque provider state block cross-provider continuation unless an explicit replay strategy exists.
-5. Routing provenance minimally binds policy decision/digest, registry digest, ranking policy
-   version, benchmark snapshot (when used), selected deployment, rejections, and fallback sequence.
-6. Pricing is temporal registry/evaluation metadata. Selection must use a versioned pricing snapshot;
-   unknown/stale pricing cannot silently satisfy a hard cost ceiling.
+`policy-model-router` was generalized so workload and logical model-group identifiers are policy-defined
+rather than credit-desk-specific closed enums. Unknown workloads remain fail-closed and deterministic
+policy provenance is preserved. The gateway does not implement a legacy compatibility translation.
+
+## Phase 2 implemented
+
+- provider-neutral `Capability` and `Modality` vocabularies;
+- immutable model-registry domain objects separating provider, model, deployment, and logical group;
+- strict closed-schema validation with required-field enforcement;
+- duplicate YAML mapping/deployment-key rejection before silent overwrite can occur;
+- safe YAML parsing through a `yaml.SafeLoader` derivative;
+- semantic capability/modality validation, including text requirements and vision/image consistency;
+- versioned pricing metadata with explicit `null` for unknown pricing;
+- source-date and catalog-version consistency validation;
+- deterministic canonical representation and SHA-256 registry digest;
+- semantic digest stability across YAML ordering and equivalent decimal representation;
+- checked-in empty Phase 2 registry with no provider/model claim;
+- project-aware mypy/pytest quality-gate execution through `uv run --all-packages`;
+- regression coverage for Phase 0 architecture/security invariants.
+
+## Phase 2 validation
+
+The complete repository gate passes with:
+
+- 30 tests;
+- 88.19% total coverage (minimum 80%);
+- Ruff lint/format PASS;
+- mypy PASS;
+- Bandit PASS with no identified issues;
+- pip-audit PASS with no known vulnerabilities;
+- architecture check PASS;
+- secret scan PASS;
+- Phase 0 regression gate PASS.
 
 ## Explicitly deferred
 
 - provider SDKs and live inference;
 - FastAPI endpoint implementation;
-- model registry loader/validation/digest implementation (Phase 2);
-- Policy Model Router API integration (Phase 4 after its Phase 1 generalization);
-- retries, fallback runtime, circuit breakers, streaming, OpenTelemetry runtime, benchmarks;
+- Policy Model Router runtime/API integration (Phase 4);
+- operational ranking, retries, fallback runtime, circuit breakers, streaming;
+- OpenTelemetry runtime and benchmark-driven ranking;
 - client HTTP transport.
 
 ## Next phase
 
-Phase 1 is performed in the existing `policy-model-router` repository. Generalize workload and
-logical model-group vocabularies while preserving deterministic fail-closed decisions and policy
-provenance. The gateway must not implement a compatibility translation to the legacy credit-desk
-vocabulary.
+After Phase 2 review/merge, start Phase 3 — Provider Execution Foundation. Introduce provider execution
+ports/adapters by API family, not by model family, while keeping all authorization authority outside
+provider adapters and preserving `Gateway allowed set ⊆ Policy Router authorized set`.

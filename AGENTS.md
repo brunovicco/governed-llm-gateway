@@ -9,7 +9,8 @@
 - Root: virtual uv project (`package = false`)
 - Primary builder: Codex
 - Independent reviewer: Claude Code
-- Current phase: Phase 0 — Architecture Gate
+- Current phase: Phase 2 — Contracts and Model Registry
+- Phase 1 dependency: completed in `policy-model-router` PR #20
 
 Read, in order:
 
@@ -35,9 +36,10 @@ Any code path that can select outside the PDP-authorized logical model group is 
   database, OpenTelemetry SDK, HTTP client, dynamic imports, or business-domain dependencies.
 - `gateway-core/domain`: deterministic domain logic. No provider SDK, FastAPI, database, or
   OpenTelemetry SDK.
-- `gateway-core/adapters`: concrete provider/infrastructure integrations begin in later phases.
+- `gateway-core/adapters`: configuration parsing is permitted in Phase 2; provider execution adapters
+  begin in Phase 3.
 - `gateway-client`: consumers receive a gateway credential only; no provider credentials.
-- `gateway-api`: composition root. No provider API call exists in Phase 0.
+- `gateway-api`: composition root. No provider API call exists before Phase 3.
 - consumer repositories may depend on the gateway; the gateway must never depend on business
   projects such as OpsLens, RAGForge, Getnet, Controlled Autonomy Lab, or Multi-Agent Credit Desk.
 
@@ -46,6 +48,9 @@ Any code path that can select outside the PDP-authorized logical model group is 
 Request fields such as `risk_level`, `data_classification`, `agent_identity`, limits, and environment
 must not automatically become authoritative security facts. Authentication and policy establish the
 effective context. Policy/identity failures fail closed.
+
+Registry YAML is untrusted configuration input until it passes strict parsing, duplicate-key checks,
+closed-schema validation, semantic validation, and deterministic canonicalization.
 
 ## Privacy and evidence
 
@@ -60,8 +65,9 @@ per model family when a native or explicit OpenAI-compatible API adapter is suff
 
 ## Development rule
 
-Phase 0 permits no provider API calls. Do not add OpenAI, Anthropic, Google, Groq, NVIDIA,
-OpenRouter, or other inference SDK/runtime dependency before the relevant ADR/phase is active.
+Phase 2 permits provider-neutral contracts, registry domain logic, and safe configuration parsing.
+Do not add OpenAI, Anthropic, Google, Groq, NVIDIA, OpenRouter, or other inference SDK/runtime
+integration, and do not make provider API calls, before Phase 3 is active.
 Do not change repository policy or architecture without an ADR.
 
 Do not use `from __future__ import annotations`. Quote only individual forward references when needed.
@@ -74,11 +80,12 @@ Run:
 uv run python scripts/quality_gate.py
 ```
 
-For the Architecture Gate specifically:
+For the Architecture Gate regression specifically:
 
 ```bash
 python scripts/phase0_gate.py
 ```
 
-The phase is complete only when architecture boundaries, required documents, ADRs 0001–0005,
-contract tests, and source provenance pass.
+Phase 2 acceptance requires strict registry validation, deterministic SHA-256 provenance digest,
+provider-neutral contracts/domain boundaries, regression coverage for the authorization invariant,
+and the complete repository quality gate to pass.

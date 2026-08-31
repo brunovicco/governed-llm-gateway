@@ -1,2 +1,2 @@
-# Phase 0 has no third-party runtime dependencies.
-# Workspace members depend only on each other and Python stdlib.
+# Runtime dependency audit input for the uv workspace.
+PyYAML==6.0.3
