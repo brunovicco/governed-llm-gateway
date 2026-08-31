@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from .model_registry import ModelDeployment, ModelRegistry
+
 
 class AuthorizationBoundaryViolation(ValueError):
     """Raised when operational selection attempts to broaden PDP authorization."""
@@ -16,8 +18,14 @@ class PolicyAuthorization:
 
     def __post_init__(self) -> None:
         """Require the PDP to authorize at least one logical model group."""
+        if not self.decision_id or self.decision_id.strip() != self.decision_id:
+            raise ValueError("decision_id must be a non-empty normalized string")
         if not self.authorized_model_groups:
             raise ValueError("authorized_model_groups must not be empty")
+        if any(not group or group.strip() != group for group in self.authorized_model_groups):
+            raise ValueError(
+                "authorized_model_groups must contain normalized non-empty identifiers"
+            )
 
 
 def enforce_allowed_subset(
@@ -36,3 +44,18 @@ def enforce_selected_group(selected_group: str, authorization: PolicyAuthorizati
         raise AuthorizationBoundaryViolation(
             f"selected model group {selected_group!r} is outside PDP authorization"
         )
+
+
+def authorized_registry_candidates(
+    registry: ModelRegistry,
+    authorization: PolicyAuthorization,
+) -> tuple[ModelDeployment, ...]:
+    """Intersect registry membership with PDP authorization without applying Phase 5 ranking."""
+    candidates = tuple(
+        deployment
+        for deployment in registry.deployments
+        if deployment.model_group in authorization.authorized_model_groups
+    )
+    candidate_groups = frozenset(deployment.model_group for deployment in candidates)
+    enforce_allowed_subset(candidate_groups, authorization.authorized_model_groups)
+    return candidates

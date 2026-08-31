@@ -12,6 +12,26 @@
   and governance as an independent profile dimension including `agentic`.
 - Workspace template `pyproject.toml` and `AGENTS.md` were used as structural guidance.
 
+## Phase 4 Policy Model Router contract reference
+
+- `brunovicco/policy-model-router`, branch `main`, inspected 2026-08-31 after the workload/model-group
+  generalization dependency had been merged.
+- `src/policy_model_router/domain/routing.py` defines the router request, accepted decision,
+  rejection decision, and deterministic policy/deployment provenance carried by each outcome.
+- `src/policy_model_router/application/route_model.py` defines the fail-closed routing use case and
+  selected logical model-group semantics.
+- `src/policy_model_router/domain/constraints.py` defines the ordered policy constraints and confirms
+  that tool-calling authorization is derived from the workload rule rather than a per-request field.
+- `src/policy_model_router/entrypoints/contracts.py` and
+  `src/policy_model_router/entrypoints/http.py` define the versioned `POST /route` HTTP contract,
+  authentication/error behavior, and response projection consumed by the gateway.
+- `docs/adr/0009-policy-identity-and-decision-provenance.md` defines policy ID/version/digest,
+  service/environment provenance, and the full provenance attached to accepted/rejected decisions.
+
+These first-party sources bind Phase 4 to Policy Model Router wire schema `1.0`. The gateway does not
+import the router's domain/application Python types into gateway contracts/domain; the versioned HTTP
+boundary remains the integration contract.
+
 ## Phase 3 provider references
 
 The following official provider documentation was reviewed on 2026-08-31. These references define
@@ -50,6 +70,9 @@ See `docs/project/PROVIDER_CONTRACT.md` for the architectural rationale.
 
 ## Source authority rule
 
-Provider documentation may define transport fields, response shapes, and API behavior. It must not
-be used as authorization evidence. Model/deployment eligibility remains governed by the gateway
-registry plus the upstream Policy Model Router authorization boundary.
+Policy Model Router sources define authorization semantics and provenance. Provider documentation may
+define transport fields, response shapes, and API behavior. Neither provider documentation nor model
+registry metadata may broaden PDP authorization.
+
+Model/deployment operational eligibility remains the gateway's responsibility only after the upstream
+Policy Model Router authorization boundary has been established.

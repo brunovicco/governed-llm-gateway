@@ -30,10 +30,12 @@ general API-management product.
 - Unknown/invalid policy and identity states fail closed.
 - Availability fallback stays inside the already-authorized boundary.
 - Caller-declared classification/risk/identity context is not trusted without validation.
-- Provider secrets live only in gateway deployment configuration.
+- Provider secrets and Policy Model Router credentials live only in gateway deployment configuration.
 - Evidence and traces are metadata-only by default.
 - No business consumer repository may become a gateway dependency.
 - Registry configuration is untrusted until strict parsing and validation succeed.
+- Prompt/message content is never sent to the Policy Model Router.
+- Policy-only metadata is never copied into provider execution payloads merely for convenience.
 
 ## Development constraints
 
@@ -44,4 +46,19 @@ general API-management product.
 - Architecture/contracts land before provider work.
 - Phase 2 may add safe configuration parsing but no provider inference SDK or provider API call.
 - Provider execution begins only in Phase 3.
+- Deterministic Policy Model Router runtime integration begins only in Phase 4.
+- Operational eligibility/ranking and route explainability begin only in Phase 5.
 - Architectural changes require an ADR.
+
+## Phase 4 authority rules
+
+- Project only trusted, prompt-free policy metadata through `PolicyDecisionPort`.
+- Treat Policy Model Router success and rejection payloads as untrusted until schema/provenance and
+  request correlation checks succeed.
+- Fail closed on PDP denial, unavailable/misconfigured state, transport failure, or malformed
+  provenance.
+- Intersect registry deployments with PDP authorization before any provider execution.
+- Never broaden authorization in fallback, ranking, or compatibility code.
+- Do not translate `min_context_tokens` into an input-token estimate.
+- Do not invent Policy Model Router request fields absent from its versioned wire contract.
+- Signed governance runtime authorization remains deferred to the optional governance integration.
