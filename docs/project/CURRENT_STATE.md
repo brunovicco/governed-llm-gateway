@@ -8,8 +8,9 @@ Last updated: 2026-08-31
 |---|---|
 | Phase 0 — Architecture Gate | COMPLETE BASELINE |
 | Phase 1 — Policy Model Router generalization | COMPLETE (`policy-model-router` PR #20) |
-| Phase 2 — Contracts and Model Registry | IMPLEMENTED — IN REVIEW |
-| Phase 3+ | NOT STARTED |
+| Phase 2 — Contracts and Model Registry | COMPLETE (`governed-llm-gateway` PR #1) |
+| Phase 3 — Provider Execution Foundation | IMPLEMENTED — IN REVIEW |
+| Phase 4+ | NOT STARTED |
 
 ## Phase 0 delivered
 
@@ -25,30 +26,52 @@ Last updated: 2026-08-31
 rather than credit-desk-specific closed enums. Unknown workloads remain fail-closed and deterministic
 policy provenance is preserved. The gateway does not implement a legacy compatibility translation.
 
-## Phase 2 implemented
+## Phase 2 completed
 
 - provider-neutral `Capability` and `Modality` vocabularies;
 - immutable model-registry domain objects separating provider, model, deployment, and logical group;
-- strict closed-schema validation with required-field enforcement;
-- duplicate YAML mapping/deployment-key rejection before silent overwrite can occur;
-- safe YAML parsing through a `yaml.SafeLoader` derivative;
-- semantic capability/modality validation, including text requirements and vision/image consistency;
-- versioned pricing metadata with explicit `null` for unknown pricing;
-- source-date and catalog-version consistency validation;
-- deterministic canonical representation and SHA-256 registry digest;
-- semantic digest stability across YAML ordering and equivalent decimal representation;
-- checked-in empty Phase 2 registry with no provider/model claim;
-- project-aware mypy/pytest quality-gate execution through `uv run --all-packages`;
-- regression coverage for Phase 0 architecture/security invariants.
+- strict safe-YAML loading with duplicate-key, closed-schema, and semantic validation;
+- versioned pricing metadata with explicit unknown-pricing representation;
+- deterministic canonical representation and SHA-256 registry provenance digest;
+- checked-in empty registry so no provider/model approval is implied by configuration.
 
-## Phase 2 validation
+## Phase 3 implemented
 
-The complete repository gate passes with:
+- provider-neutral `ProviderPort`, `ProviderRequest`, `ProviderResponse`, `ProviderUsage`,
+  `ProviderError`, and stable provider error categories;
+- bounded HTTPS/JSON transport using the Python standard library and an injectable transport port;
+- native OpenAI Responses adapter;
+- explicit OpenAI-compatible chat-completions adapter with provider quirks kept configurable;
+- native Google Gemini `generateContent` adapter;
+- native Anthropic Messages adapter;
+- provider-native system/message mapping while preventing provider response classes from escaping the
+  adapter boundary;
+- token-usage extraction, request timeouts, retryability classification, and bounded `Retry-After`
+  metadata;
+- sanitized provider/transport failures that do not retain raw non-2xx bodies, credentials,
+  authorization headers, cookies, or arbitrary provider response headers;
+- contract tests using fake transports only; CI requires no provider credential and makes no live
+  provider request;
+- Phase 0 regression gate evolved from the obsolete repository-wide provider ban to the durable
+  contracts/domain boundary enforced by AST-based architecture checks.
 
-- 30 tests;
-- 88.19% total coverage (minimum 80%);
+## Gemini API decision
+
+Google recommends the Interactions API for new development as of June 2026, while `generateContent`
+remains fully supported. The Phase 3 adapter intentionally uses `generateContent` because the current
+provider-neutral request carries canonical conversation messages but does not retain Gemini-generated
+Interaction steps. Stateless Interactions requires those model-generated steps to be preserved and
+resent exactly; inventing them from canonical assistant text would be lossy and unsafe. A future
+Interaction adapter requires an explicit provider-state contract rather than a silent translation.
+
+## Phase 3 validation
+
+The read-only GitHub Actions quality workflow passes with:
+
+- 52 tests;
+- 85.59% total coverage (minimum 80%);
 - Ruff lint/format PASS;
-- mypy PASS;
+- mypy PASS across 36 source files;
 - Bandit PASS with no identified issues;
 - pip-audit PASS with no known vulnerabilities;
 - architecture check PASS;
@@ -57,15 +80,18 @@ The complete repository gate passes with:
 
 ## Explicitly deferred
 
-- provider SDKs and live inference;
-- FastAPI endpoint implementation;
 - Policy Model Router runtime/API integration (Phase 4);
-- operational ranking, retries, fallback runtime, circuit breakers, streaming;
-- OpenTelemetry runtime and benchmark-driven ranking;
-- client HTTP transport.
+- operational ranking and explainability (Phase 5);
+- retries, fallback runtime, and circuit breakers (Phase 6);
+- structured-output and tool normalization (Phase 7);
+- streaming (Phase 8);
+- OpenTelemetry runtime (Phase 9);
+- benchmark/evaluation-driven ranking;
+- FastAPI endpoint implementation and client HTTP transport beyond their roadmap phases.
 
 ## Next phase
 
-After Phase 2 review/merge, start Phase 3 — Provider Execution Foundation. Introduce provider execution
-ports/adapters by API family, not by model family, while keeping all authorization authority outside
-provider adapters and preserving `Gateway allowed set ⊆ Policy Router authorized set`.
+After Phase 3 review/merge, start Phase 4 — PDP Authorization Integration. The gateway may consume
+only deterministic Policy Model Router authorization and must continue enforcing:
+
+`Gateway allowed set ⊆ Policy Router authorized set`.

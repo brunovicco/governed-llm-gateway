@@ -9,8 +9,9 @@
 - Root: virtual uv project (`package = false`)
 - Primary builder: Codex
 - Independent reviewer: Claude Code
-- Current phase: Phase 2 — Contracts and Model Registry
+- Current phase: Phase 3 — Provider Execution Foundation
 - Phase 1 dependency: completed in `policy-model-router` PR #20
+- Phase 2: completed in `governed-llm-gateway` PR #1
 
 Read, in order:
 
@@ -29,6 +30,7 @@ Router authorization but may never broaden it.
 `Gateway allowed set ⊆ Policy Router authorized set`
 
 Any code path that can select outside the PDP-authorized logical model group is a security defect.
+Provider adapters have no authorization authority.
 
 ## Architecture boundaries
 
@@ -36,10 +38,12 @@ Any code path that can select outside the PDP-authorized logical model group is 
   database, OpenTelemetry SDK, HTTP client, dynamic imports, or business-domain dependencies.
 - `gateway-core/domain`: deterministic domain logic. No provider SDK, FastAPI, database, or
   OpenTelemetry SDK.
-- `gateway-core/adapters`: configuration parsing is permitted in Phase 2; provider execution adapters
-  begin in Phase 3.
+- `gateway-core/application`: provider-neutral execution/routing ports and orchestration boundaries;
+  no concrete provider implementation.
+- `gateway-core/adapters`: provider/configuration/infrastructure implementations. Phase 3 provider
+  execution is permitted here only.
 - `gateway-client`: consumers receive a gateway credential only; no provider credentials.
-- `gateway-api`: composition root. No provider API call exists before Phase 3.
+- `gateway-api`: composition root. Do not implement Phase 4+ authorization/routing endpoints early.
 - consumer repositories may depend on the gateway; the gateway must never depend on business
   projects such as OpsLens, RAGForge, Getnet, Controlled Autonomy Lab, or Multi-Agent Credit Desk.
 
@@ -52,6 +56,9 @@ effective context. Policy/identity failures fail closed.
 Registry YAML is untrusted configuration input until it passes strict parsing, duplicate-key checks,
 closed-schema validation, semantic validation, and deterministic canonicalization.
 
+Provider transport responses are untrusted external input. Non-2xx raw response bodies, credentials,
+authorization headers, and arbitrary provider payloads must not escape into errors/evidence.
+
 ## Privacy and evidence
 
 Evidence is metadata-only by default. Never record prompts, completions, tool arguments/results,
@@ -63,11 +70,21 @@ error bodies in logs/traces/evidence.
 Provider API defines the adapter. Concrete model defines a registry entry. Do not create one adapter
 per model family when a native or explicit OpenAI-compatible API adapter is sufficient.
 
+OpenAI-compatible means API compatibility, not behavioral identity. Provider quirks must stay
+explicit. Never fake an unsupported provider capability.
+
 ## Development rule
 
-Phase 2 permits provider-neutral contracts, registry domain logic, and safe configuration parsing.
-Do not add OpenAI, Anthropic, Google, Groq, NVIDIA, OpenRouter, or other inference SDK/runtime
-integration, and do not make provider API calls, before Phase 3 is active.
+Phase 3 permits provider execution ports and API-family adapters for text generation, usage,
+timeouts, and typed errors. Do not pull forward:
+
+- PDP authorization integration;
+- operational ranking;
+- retries/fallback/circuit breakers;
+- tool or structured-output normalization;
+- streaming;
+- OpenTelemetry runtime.
+
 Do not change repository policy or architecture without an ADR.
 
 Do not use `from __future__ import annotations`. Quote only individual forward references when needed.
@@ -86,6 +103,6 @@ For the Architecture Gate regression specifically:
 python scripts/phase0_gate.py
 ```
 
-Phase 2 acceptance requires strict registry validation, deterministic SHA-256 provenance digest,
-provider-neutral contracts/domain boundaries, regression coverage for the authorization invariant,
-and the complete repository quality gate to pass.
+Phase 3 acceptance requires text-generation contract behavior for all four adapter families, usage
+extraction, timeout/error normalization, no secret/raw-error leakage, adapter contract tests, and the
+complete repository quality gate to pass.
