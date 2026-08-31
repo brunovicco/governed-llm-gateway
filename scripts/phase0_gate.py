@@ -1,4 +1,4 @@
-"""Credential-free acceptance gate for Phase 0 — Architecture Gate."""
+"""Credential-free regression gate for the Phase 0 architecture baseline."""
 
 import os
 
@@ -32,16 +32,6 @@ REQUIRED_FILES = [
     "docs/adr/ADR-0004-native-vs-openai-compatible-adapters.md",
     "docs/adr/ADR-0005-model-registry-and-provenance.md",
 ]
-FORBIDDEN_RUNTIME_TERMS = (
-    "from openai ",
-    "import openai",
-    "from anthropic ",
-    "import anthropic",
-    "from fastapi ",
-    "import fastapi",
-    "from opentelemetry ",
-    "import opentelemetry",
-)
 
 
 def run(command: list[str], env: dict[str, str] | None = None) -> None:
@@ -53,7 +43,7 @@ def run(command: list[str], env: dict[str, str] | None = None) -> None:
 
 
 def main() -> int:
-    """Validate all Phase 0 acceptance artifacts without network/credentials."""
+    """Validate durable Phase 0 artifacts and architecture boundaries as a regression gate."""
 
     missing = [path for path in REQUIRED_FILES if not (ROOT / path).is_file()]
     if missing:
@@ -73,15 +63,11 @@ def main() -> int:
             print(f"Workspace member missing: {member}")
             return 1
 
-    code = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in [*(ROOT / "packages").rglob("*.py"), *(ROOT / "apps").rglob("*.py")]
-    ).lower()
-    blocked = [term for term in FORBIDDEN_RUNTIME_TERMS if term in code]
-    if blocked:
-        print(f"Forbidden Phase 0 runtime imports found: {blocked}")
-        return 1
-
+    # The Phase 0 repository-wide provider-runtime ban expires when Phase 3 activates provider
+    # adapters. The durable Phase 0 boundary is provider-neutral contracts/domain code, which is
+    # enforced with exact AST import checks by architecture_check.py. Keeping the former substring
+    # scan here would both block legitimate Phase 3 adapters and produce false positives on symbols
+    # such as ``OpenAIResponsesAdapter`` and ``AnthropicMessagesAdapter``.
     run([sys.executable, "scripts/architecture_check.py"])
     run([sys.executable, "scripts/secret_scan.py"])
 

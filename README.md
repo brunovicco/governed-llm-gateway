@@ -3,7 +3,7 @@
 Reusable provider-neutral LLM execution gateway whose responsibility is **governed model resolution
 and execution**.
 
-Status: **Phase 2 — Contracts and Model Registry implemented; under review**.
+Status: **Phase 3 — Provider Execution Foundation implemented; under review**.
 
 The project separates authorization from operational selection:
 
@@ -31,26 +31,39 @@ or other operational constraints. It must never make authorization broader.
 
 ## Current implementation
 
-Phase 0 established the uv workspace, architecture boundaries, security model, provider-neutral
-contract baseline, ADR-0001 through ADR-0005, and fail-closed authorization invariant.
+Phase 0 established the uv workspace, architecture/security boundaries, provider-neutral contract
+baseline, ADR-0001 through ADR-0005, and fail-closed authorization invariant.
 
-Phase 1 was completed in the existing `policy-model-router` repository, generalizing workload and
-logical model-group identifiers while preserving deterministic policy decisions and provenance.
+Phase 1 was completed in `policy-model-router`, generalizing workload and logical model-group
+identifiers while preserving deterministic policy decisions and provenance.
 
-Phase 2 adds:
+Phase 2 completed the strict model registry with safe YAML parsing, closed-schema/semantic validation,
+versioned pricing metadata, and deterministic SHA-256 registry provenance.
 
-- provider-neutral capability and modality vocabularies;
-- immutable model-registry domain objects;
-- strict safe-YAML loading with duplicate-key rejection;
-- closed-schema and semantic validation;
-- explicit versioned pricing metadata and unknown-pricing representation;
-- deterministic canonicalization and SHA-256 registry provenance digest;
-- contract tests for invalid fields, duplicate IDs, capability combinations, safe YAML, and digest
-  determinism;
-- no provider SDK and no provider API call.
+Phase 3 adds the first provider execution foundation:
 
-The checked-in `config/model_registry.yaml` remains intentionally empty in Phase 2. Concrete provider
-entries arrive only with later provider work and evidence-backed catalog changes.
+- provider-neutral `ProviderPort`, request/response/usage/error types;
+- native OpenAI Responses adapter;
+- native Anthropic Messages adapter;
+- native Google Gemini `generateContent` adapter;
+- explicitly configured OpenAI-compatible chat-completions adapter;
+- bounded stdlib HTTPS/JSON transport with injectable test transport;
+- text generation and token-usage normalization;
+- explicit request timeouts and typed retryability/error classification;
+- no raw non-2xx provider body, API key, or authorization header in normalized errors;
+- contract tests for native payload mapping, usage, malformed responses, 401/429/5xx, timeout,
+  transport failure, and secret-leakage boundaries.
+
+Provider adapters execute a concrete model only. They do not authorize workloads, select providers,
+perform retries/fallback, execute tools, or broaden policy decisions.
+
+## Gemini API note
+
+Google recommends its Interactions API for new projects as of June 2026, while `generateContent`
+remains fully supported. The initial Gemini adapter deliberately uses `generateContent` because the
+current provider-neutral request carries canonical conversation messages but not the exact
+model-generated Interaction steps required for lossless stateless Interactions history. The gateway
+will not fabricate provider reasoning/state merely to translate between APIs.
 
 ## Repository layout
 
@@ -75,6 +88,9 @@ uv run python scripts/quality_gate.py
 
 The quality gate includes Ruff, mypy, pytest/coverage, Bandit, pip-audit, architecture validation,
 secret scanning, and the Phase 0 architecture regression gate.
+
+Current Phase 3 branch validation: 51 tests, 85.58% total coverage, all quality/security gates PASS.
+No live provider credential is required by CI.
 
 ## Source of truth
 
