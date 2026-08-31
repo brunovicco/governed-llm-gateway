@@ -33,6 +33,7 @@ general API-management product.
 - Provider secrets live only in gateway deployment configuration.
 - Evidence and traces are metadata-only by default.
 - No business consumer repository may become a gateway dependency.
+- Registry configuration is untrusted until strict parsing and validation succeed.
 
 ## Development constraints
 
@@ -41,5 +42,6 @@ general API-management product.
 - Codex Python Engineering Harness, profile `workspace`, governance profile `agentic`.
 - Codex is primary builder; Claude Code is independent reviewer.
 - Architecture/contracts land before provider work.
-- No provider API call in Phase 0.
+- Phase 2 may add safe configuration parsing but no provider inference SDK or provider API call.
+- Provider execution begins only in Phase 3.
 - Architectural changes require an ADR.

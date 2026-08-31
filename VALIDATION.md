@@ -1,99 +1,78 @@
-# Phase 0 Validation Record
+# Phase 0 and Phase 2 Validation Record
 
 Date: 2026-08-31
 
-## Validation environments
+## Toolchain
 
-Artifact build environment:
+- Python project runtime: 3.13+
+- project pin: Python 3.13.12
+- quality-tool execution pinned to Python 3.13
+- uv workspace with locked dependencies
 
-* Python 3.13.5
+## Phase 0 baseline
 
-Local validation environment:
+The Architecture Gate baseline passed:
 
-* Python 3.13.12
-* Quality-tool execution pinned to Python 3.13
+- `uv lock --check`;
+- Ruff lint/format;
+- mypy;
+- pytest + coverage;
+- Bandit;
+- pip-audit;
+- architecture validation;
+- secret scanning;
+- `scripts/phase0_gate.py`.
 
-The local toolchain is pinned to Python 3.13 to prevent interpreter drift between the project virtual environment and isolated quality tools executed through `uvx`.
+The Phase 0 independent Claude Code review remains a separate review criterion recorded in
+`docs/architecture/REVIEW.md`.
 
-## Artifact build validation
+## Phase 2 implementation validation
 
-The following checks were executed successfully in the artifact build environment:
-
-* `uv lock --check` — PASS
-* Python compile check over `apps`, `packages`, `scripts`, and `tests` — PASS
-* `python scripts/architecture_check.py` — PASS
-* `python scripts/secret_scan.py` — PASS
-* `python scripts/phase0_gate.py` — PASS
-* 13 contract/workspace tests — PASS
-* pytest coverage: 93.55%, minimum threshold 80% — PASS
-
-## Full local PR quality gate
-
-`scripts/quality_gate.py` implements the roadmap-required quality checks:
-
-* `uv lock --check`
-* Ruff lint
-* Ruff formatting
-* mypy strict type checking
-* pytest + coverage
-* Bandit
-* pip-audit
-* architecture validation
-* secret scanning
-* Phase 0 acceptance gate
-
-The complete quality gate was executed locally using Python 3.13.12.
+Phase 2 — Contracts and Model Registry was validated against the complete repository quality gate.
 
 Results:
 
-* `uv lock --check` — PASS
-* Ruff lint — PASS
-* Ruff formatting — PASS
-* mypy — PASS
-* pytest — PASS
-* 13 tests passed
-* coverage — 93.55% (threshold: 80%) — PASS
-* Bandit — PASS
+- `uv lock --check` — PASS;
+- Ruff lint — PASS;
+- Ruff formatting — PASS;
+- mypy — PASS across 27 source files;
+- pytest — PASS, 30 tests;
+- total coverage — 88.19% (minimum 80%);
+- Bandit — PASS, no identified issues and no skipped files;
+- pip-audit — PASS, no known vulnerabilities;
+- architecture validation — PASS;
+- secret scanning — PASS;
+- Phase 0 regression gate — PASS.
 
-  * 0 security issues
-  * 0 files skipped
-* pip-audit — PASS
+## Phase 2 acceptance evidence
 
-  * no known vulnerabilities found
-* architecture validation — PASS
-* secret scanning — PASS
-* Phase 0 acceptance gate — PASS
+The test suite verifies that the registry:
 
-For `pip-audit`, dependency resolution through a temporary pip-managed virtual environment was disabled because the project uses a uv-native toolchain. The audit was executed with `--no-deps --disable-pip` against the Phase 0 runtime requirements file.
+- rejects unknown root, deployment, capability, and pricing fields through closed-schema validation;
+- rejects duplicate YAML mapping/deployment keys before parser overwrite;
+- rejects invalid capability/modality combinations;
+- requires text capability and text modality;
+- uses safe YAML semantics and rejects Python object tags;
+- enforces deployment source-date/catalog-version consistency;
+- permits unknown pricing only when represented explicitly as `null`;
+- produces a deterministic SHA-256 digest from canonical validated content;
+- keeps the digest stable across irrelevant YAML ordering and equivalent decimal representations;
+- changes the digest when meaningful registry content changes.
 
-## Independent review
+The domain and contracts remain provider-neutral and contain no provider inference SDK dependency.
+The only new runtime dependency is `PyYAML==6.0.3`, owned by the configuration adapter boundary.
 
-A second-pass architecture review is recorded in:
+## Quality-gate execution model
 
-`docs/architecture/REVIEW.md`
+Ruff, Bandit, and pip-audit remain isolated quality tools. mypy and pytest execute with `uv run
+--all-packages` so tools that import workspace code see the actual locked project dependencies.
+This avoids the Phase 0 assumption that isolated `uvx` environments are sufficient when the runtime
+has no third-party dependencies.
 
-The project roadmap designates Claude Code as the preferred independent reviewer for architecture, threat modeling, provider contracts, fallback semantics, security, edge cases, and API design.
+## Phase 2 status
 
-Claude Code was not available as an execution tool during the Phase 0 artifact build or local validation workflow.
+Implementation quality gates: **PASS**
 
-Therefore:
+Architecture/security regressions: **PASS**
 
-* the internal second-pass architecture review is complete;
-* the automated and local quality gates are complete;
-* the roadmap's Claude Code independent-review criterion remains pending.
-
-An external Claude Code review should be completed before marking the independent-review acceptance criterion as satisfied in a merge or release workflow.
-
-## Phase 0 validation status
-
-Technical quality gates: **PASS**
-
-Architecture boundary checks: **PASS**
-
-Security static checks: **PASS**
-
-Contract/workspace tests: **PASS**
-
-Coverage requirement: **PASS**
-
-Independent Claude Code review: **PENDING**
+Phase 2 merge review: **PENDING**

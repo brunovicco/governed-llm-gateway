@@ -4,9 +4,10 @@ The normative detailed roadmap is preserved verbatim at `SOURCE_ROADMAP.txt`.
 
 Current execution sequence:
 
-0. Architecture Gate — complete baseline in this archive.
-1. Generalize `policy-model-router` contract/vocabulary in its existing repository.
-2. Finalize gateway contracts and implement validated, deterministic model registry/digest.
+0. Architecture Gate — COMPLETE BASELINE.
+1. Generalize `policy-model-router` contract/vocabulary — COMPLETE (`policy-model-router` PR #20).
+2. Finalize gateway contracts and implement validated, deterministic model registry/digest — CURRENT,
+   IMPLEMENTED / IN REVIEW.
 3. Implement provider execution foundation and first adapters.
 4. Integrate deterministic PDP authorization.
 5. Implement deterministic operational ranking and explainability.

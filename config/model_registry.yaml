@@ -1,6 +1,5 @@
-schema_version: "1.0-draft"
-catalog_version: "phase0-empty"
+schema_version: "1.0"
+catalog_version: "phase2-empty"
 source_date: "2026-08-31"
 deployments: {}
-# Phase 0 intentionally contains no concrete provider/model deployment.
-# Phase 2 defines/implements validation and deterministic digest canonicalization.
+# Phase 2 validates the registry/digest without introducing live provider deployments.
