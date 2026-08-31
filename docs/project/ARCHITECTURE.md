@@ -3,24 +3,28 @@
 ## Context
 
 Applications declare workload intent and requirements without naming provider/model. The Policy
-Model Router determines what logical model group is allowed. The gateway then chooses a concrete,
-eligible deployment from that authorized group and eventually executes it through a provider adapter.
+Model Router determines what logical model group is allowed. The gateway then operates only inside
+that authorization boundary, eventually choosing a concrete eligible deployment and executing it
+through a provider adapter.
 
 ```text
 Consumer
   │ GatewayRequest
   ▼
 Authentication / workload identity
-  │ authoritative identity context
+  │ authoritative EffectivePolicyContext
+  ▼
+Prompt-free policy projection
+  │
   ▼
 Policy Model Router (PDP)
   │ authorized model group + policy provenance
   ▼
 Governed LLM Gateway
-  ├─ validate authorization provenance
-  ├─ load versioned registry/ranking inputs
-  ├─ eligibility filter
-  ├─ deterministic ranking
+  ├─ validate/correlate authorization provenance
+  ├─ intersect authorization with model registry
+  ├─ eligibility filter                     (Phase 5)
+  ├─ deterministic ranking                  (Phase 5)
   ├─ PEP validation
   └─ execution orchestration
        │
@@ -37,6 +41,9 @@ For each request:
 The gateway can remove candidates because of environment, data policy, capability, health, circuit
 state, cost, or latency. It cannot add a logical group/deployment not permitted by policy.
 
+Phase 4 establishes the authorized registry candidate set. Phase 5 begins the operational filters and
+ranking that may only reduce that set.
+
 ## Package topology
 
 ### gateway-contracts
@@ -47,17 +54,21 @@ provider SDK, FastAPI, database, OpenTelemetry SDK, HTTP client, or business-dom
 ### gateway-core
 
 - `domain`: deterministic invariants and gateway-owned concepts;
-- `application`: ports/use-case orchestration;
-- `adapters`: infrastructure/provider integrations in later phases.
+- `application`: provider-neutral provider/PDP ports and use-case orchestration;
+- `adapters`: strict registry loading, Policy Model Router transport, and provider integrations.
+
+The Policy Model Router's Python domain types are not imported as gateway domain/contracts. The
+integration boundary is the router's versioned HTTP contract.
 
 ### gateway-client
 
-Thin SDK boundary. Consumers eventually hold only gateway credentials.
+Thin SDK boundary. Consumers eventually hold only gateway credentials. They do not receive provider
+or Policy Model Router credentials.
 
 ### gateway-api
 
-HTTP composition root. It may depend inward on contracts/core and later infrastructure adapters. It
-must not push FastAPI/provider types into the domain or contracts.
+HTTP composition root. It may depend inward on contracts/core and infrastructure adapters. It must
+not push FastAPI/provider/PDP transport types into domain or contracts.
 
 ## Trust model
 
@@ -69,10 +80,32 @@ sent them.
 A client may request stricter treatment. A client may not lower its authoritative classification,
 risk restrictions, environment policy, or model authorization.
 
+Phase 4 represents authoritative policy context as `EffectivePolicyContext`. The Policy Model Router
+projection uses its trusted client identity, workload, risk, classification, and environment rather
+than caller security claims.
+
 ## Policy metadata projection
 
-The PDP receives workload/policy metadata only. Message content is not part of the policy routing
-request in the initial design.
+The PDP receives workload/policy metadata only. `GatewayRequest.messages` is not part of the Policy
+Model Router request.
+
+The application PDP port accepts `PolicyRequestMetadata`, not `GatewayRequest`, so this privacy
+boundary is enforced by type shape in addition to tests.
+
+Policy Model Router responses are also untrusted input. Accepted and rejected decisions are validated
+against the expected wire schema and correlated to the originating request/trusted environment before
+the gateway treats them as authoritative provenance.
+
+See `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md` for the Phase 4 field-level binding.
+
+## Execution boundary
+
+Provider adapters execute concrete models but have no authorization authority. Before a provider
+call, the selected deployment must exist in the registry and remain inside the PDP-authorized logical
+group/candidate set.
+
+PDP-only security metadata is not copied into provider request payloads. Provider credentials and PDP
+credentials remain separate infrastructure concerns.
 
 ## Administrative surfaces
 
@@ -84,7 +117,7 @@ must not be exposed by default.
 ## Evidence
 
 Routing evidence is reconstructable without prompt/response storage. Required provenance is defined
-in `OBSERVABILITY.md` and the contract draft.
+in `OBSERVABILITY.md` and the PDP/PEP contract document.
 
 ## Dependency direction
 

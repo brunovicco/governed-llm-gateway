@@ -1,4 +1,4 @@
-# Phase 0, Phase 2, and Phase 3 Validation Record
+# Phase 0 through Phase 4 Validation Record
 
 Date: 2026-08-31
 
@@ -28,50 +28,77 @@ Its acceptance evidence remains covered by the current regression suite: strict 
 duplicate-key rejection, safe YAML, capability/modality consistency, explicit unknown pricing, and
 deterministic SHA-256 registry provenance.
 
-## Phase 3 implementation validation
+## Phase 3 completed
 
-Phase 3 — Provider Execution Foundation was validated in the read-only GitHub Actions quality
-workflow on 2026-08-31.
+Phase 3 — Provider Execution Foundation was merged through `governed-llm-gateway` PR #2 on
+2026-08-31.
+
+Its provider contract evidence remains covered by the current regression suite: native OpenAI,
+Anthropic, Gemini and explicit OpenAI-compatible mapping; usage extraction; typed timeout/error
+normalization; bounded `Retry-After`; no raw error/secret leakage; and no live provider credentials or
+requests required by CI.
+
+## Phase 4 implementation validation
+
+Phase 4 — Policy Router integration was validated in the read-only GitHub Actions quality workflow on
+2026-08-31 after the implementation and rejection-provenance hardening were complete.
+
+Code-complete head: `22ac613f68e834757dd593557d8f5b93d35cb0ad`
+
+GitHub Actions push run: `33416554085`.
 
 Results:
 
 - `uv lock --check` — PASS;
 - Ruff lint — PASS;
 - Ruff formatting — PASS;
-- mypy — PASS across 36 source files;
-- pytest — PASS, 52 tests;
-- total coverage — 85.59% (minimum 80%);
+- mypy — PASS across 41 source files;
+- pytest — PASS, 73 tests;
+- total coverage — 83.38% (minimum 80%);
 - Bandit — PASS, no identified issues and no skipped files;
 - pip-audit — PASS, no known vulnerabilities;
 - architecture validation — PASS;
 - secret scanning — PASS;
 - Phase 0 regression gate — PASS.
 
-GitHub Actions push run: `33410777455`.
+The workflow executed with `contents: read`.
 
-## Phase 3 acceptance evidence
+## Phase 4 acceptance evidence
 
 Contract tests verify:
 
-- native OpenAI Responses text and usage extraction;
-- OpenAI Responses system-instruction mapping and incomplete finish reason;
-- explicit OpenAI-compatible chat-completions mapping;
-- compatible-provider `max_tokens` / `max_completion_tokens` quirk configuration;
-- native Gemini message/system mapping and token-usage extraction;
-- native Anthropic system/message mapping, version header, text, and usage extraction;
-- malformed successful provider responses fail as typed `INVALID_RESPONSE` errors;
-- 401/403 authentication failures are non-retryable;
-- 429 rate limits are retryable and expose only bounded numeric `Retry-After` metadata;
-- 5xx failures are typed as retryable unavailable errors;
-- transport timeouts and network errors are normalized;
-- raw non-2xx provider response bodies are not parsed into normalized errors;
-- arbitrary provider response headers are discarded except allowlisted `Retry-After` metadata;
-- API keys and transport-internal error details do not appear in `ProviderError` messages;
-- insecure HTTP endpoints are rejected by the stdlib transport;
-- tool-result messages remain rejected because tool normalization is deferred to Phase 7.
+- policy projection uses trusted `EffectivePolicyContext` identity/risk/classification rather than
+  caller-spoofable security claims;
+- `GatewayRequest.messages`/prompt content does not enter the Policy Model Router payload;
+- the trusted client identity selects the PDP credential and maps to router `agent_name`;
+- request latency/cost limits can narrow but not broaden gateway-owned projection defaults;
+- successful Policy Model Router responses require exact schema, request-ID correlation, trusted
+  environment, valid logical group, UTC decision time, and SHA-256 policy provenance;
+- `422 no_viable_model_group` carries validated rejection provenance and is additionally bound to
+  the original request ID, workload, and trusted environment;
+- unknown/malformed 422 responses do not become authorization;
+- 401/403 are non-retryable authorization/authentication failures;
+- 429 and eligible unavailable/transport/timeout conditions are classified retryable but Phase 4
+  does not retry them;
+- non-200/non-422 PDP raw response bodies are not parsed into normalized errors;
+- PDP API keys do not appear in normalized failure metadata;
+- registry candidates are limited to deployments in the PDP-authorized logical group;
+- a PDP rejection causes zero provider calls;
+- an out-of-authorization or absent selected deployment causes zero provider calls;
+- the final provider request contains execution data and message content but no PDP-only policy
+  metadata;
+- Policy Model Router and provider transports remain separate infrastructure boundaries.
 
-All provider contract tests use an injected fake transport. CI does not require provider credentials
-and makes no live inference calls.
+CI uses fake transports. No live Policy Model Router or provider credential is required.
+
+## Deliberate Phase 4 non-translations
+
+- `GatewayRequest.requirements.min_context_tokens` is a model-capability requirement and is not used
+  as `context_tokens_estimated`.
+- Policy Model Router API 1.0 has no per-request tool-calling field; tool calling remains a workload
+  policy rule upstream.
+- Signed runtime governance authorization is deferred to the later optional Verifiable AI Governance
+  integration; a router that requires it returns 403 and the gateway fails closed.
 
 ## Quality-gate execution model
 
@@ -84,12 +111,12 @@ The GitHub Actions workflow is read-only (`contents: read`) and invokes the cano
 uv run python scripts/quality_gate.py
 ```
 
-## Phase 3 status
+## Phase 4 status
 
 Implementation quality gates: **PASS**
 
-Provider contract acceptance targets: **PASS**
+PDP/PEP contract acceptance targets: **PASS**
 
 Architecture/security regressions: **PASS**
 
-Phase 3 independent review/merge: **PENDING**
+Phase 4 independent review/merge: **PENDING**
