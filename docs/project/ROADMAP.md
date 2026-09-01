@@ -14,10 +14,10 @@ Current execution sequence:
    (`governed-llm-gateway` PR #3).
 5. Implement deterministic operational ranking and explainability — COMPLETE
    (`governed-llm-gateway` PR #4).
-6. Add runtime health, bounded retry, safe fallback, and circuit breaker — CURRENT, IMPLEMENTED / IN
-   REVIEW.
-7. Structured output and tool normalization — NEXT AFTER PHASE 6 MERGE.
-8. Streaming.
+6. Add runtime health, bounded retry, safe fallback, and circuit breaker — COMPLETE
+   (`governed-llm-gateway` PR #5).
+7. Structured output and tool normalization — CURRENT, IMPLEMENTED / IN REVIEW.
+8. Streaming — NEXT AFTER PHASE 7 MERGE.
 9. OpenTelemetry via `a2a-otel-kit`.
 10. Evaluation framework.
 11. Evidence-driven ranking.
@@ -32,8 +32,20 @@ but may never widen the PDP authorization boundary.
 Runtime health introduced in Phase 6 is mutable operational state and remains distinct from Phase 5
 static/versioned ranking evidence. Benchmark-derived score provenance belongs to Phases 10–11.
 
-Phase 6 also establishes the replay-safety boundary that later tool/structured-output and streaming
-phases must preserve: automatic replay stops after observed provider output, an external side effect,
-or opaque provider continuation state unless a later explicit replay contract says otherwise.
+Phase 6 establishes the replay-safety boundary that Phase 7 and Phase 8 must preserve: automatic replay
+stops after observed provider output, an external side effect, or opaque provider continuation state
+unless a later explicit replay contract says otherwise.
+
+Phase 7 adds native structured-output and business-tool normalization only after authorization and
+selection. The gateway validates provider output/tool arguments but never executes the business tool.
+`invalid_structured_output` and `invalid_tool_call` remain permanent execution failures rather than
+availability signals.
+
+Phase 7 deliberately does not fabricate provider-native continuation state after tool execution. A
+future continuation contract must preserve exact provider correlation/reasoning state before the
+gateway can safely round-trip `ToolResult` back into those provider APIs.
+
+Phase 8 owns normalized streaming events, partial structured-output/tool-call deltas, cancellation,
+and replay behavior after streaming begins.
 
 Do not pull work forward when doing so weakens an authority boundary or requires an unstable contract.

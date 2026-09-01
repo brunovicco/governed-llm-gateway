@@ -30,6 +30,8 @@ COMMANDS = [
         "mypy==1.17.1",
         "--with",
         "pytest==8.4.1",
+        "--with",
+        "types-jsonschema==4.26.0.20260518",
         "mypy",
         "packages",
         "apps",

@@ -4,8 +4,9 @@
 
 Build a reusable, provider-neutral LLM execution gateway that resolves and invokes only models already
 authorized by deterministic policy, while retaining explainable routing provenance, capability
-enforcement, safe fallback, runtime health handling, cost/latency controls, evaluation-driven ranking,
-OpenTelemetry-ready evidence, and privacy-safe auditability.
+enforcement, safe fallback, runtime health handling, structured-output/tool normalization,
+cost/latency controls, evaluation-driven ranking, OpenTelemetry-ready evidence, and privacy-safe
+auditability.
 
 ## Scope
 
@@ -27,14 +28,17 @@ general API-management product.
 
 - `Gateway allowed set ⊆ Policy Router authorized set`.
 - Unknown/invalid policy and identity states fail closed.
-- Ranking, health filtering, retry, circuit logic, and fallback may never widen PDP authorization.
+- Ranking, health filtering, retry, circuit logic, fallback, structured-output translation, and tool
+  normalization may never widen PDP authorization.
 - Caller classification/risk/identity claims are not trusted without authenticated reconciliation.
 - Provider/PDP secrets live only in gateway deployment configuration.
 - Evidence and traces are metadata-only by default.
 - Consumer repositories never become gateway dependencies.
 - Registry/ranking configuration is untrusted until strict parsing/validation succeeds.
-- Prompt/message content is never sent to the Policy Model Router.
+- Caller-provided JSON Schemas/tool definitions are untrusted until bounded validation succeeds.
+- Prompt/message content, schemas, and tool definitions are never sent to the Policy Model Router.
 - PDP-only metadata is never copied into provider payloads for convenience.
+- Tool calls never grant business-action authority.
 
 ## Development constraints
 
@@ -47,6 +51,7 @@ general API-management product.
 - Operational ranking/explainability starts in Phase 5.
 - Runtime health/retry/fallback/circuit breaker starts in Phase 6.
 - Structured-output/tool normalization starts in Phase 7.
+- Streaming starts in Phase 8.
 - Architectural changes require an ADR.
 
 ## Phase 4 authority rules retained
@@ -69,7 +74,7 @@ general API-management product.
 - Expected latency is static planning evidence, not runtime health.
 - Keep PDP, registry, ranking-policy, static-score, and future benchmark provenance distinct.
 
-## Phase 6 resilience rules
+## Phase 6 resilience rules retained
 
 - Retry means another attempt against the same concrete deployment.
 - Fallback means moving only to the next already-ranked authorized deployment.
@@ -90,6 +95,28 @@ general API-management product.
 - Preserve metadata-only execution-attempt evidence.
 - Provider timeout is per attempt. Do not silently repurpose `max_latency_ms` as a total retry budget.
 
+## Phase 7 structured-output/tool rules
+
+- Structured output means provider-native schema enforcement, not prompted JSON.
+- Require the normal Phase 5 deployment capability before Phase 7 adapter translation.
+- Validate caller schemas locally with bounded Draft 2020-12 validation before provider execution.
+- Reject remote `$ref` and `$dynamicRef`; schema validation must not perform network retrieval.
+- Validate provider structured output again locally after provider-native enforcement.
+- Normalize only declared tool calls and validate their arguments against the declared input schema.
+- Require provider correlation for canonical `ToolCall`; do not synthesize missing call IDs.
+- `ToolDefinition`, `ToolCall`, and `ToolResult` are business-tool data contracts, not execution
+  authority.
+- The gateway never invokes the business tool. The application/agent/MCP runtime owns authorization,
+  execution, side effects, and `ToolResult` creation.
+- Generic OpenAI-compatible endpoints support structured output/tool calling only when explicitly
+  configured for a verified endpoint.
+- `invalid_structured_output` and `invalid_tool_call` are permanent failures: zero automatic retry and
+  zero automatic fallback.
+- Do not fabricate provider-native continuation/reasoning state after a business tool executes.
+- Streaming tool-call/structured-output deltas belong to Phase 8.
+
+See ADR-0013 and `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md`.
+
 ## Explainability rules
 
 - `POST /v1/route/explain` remains authenticated, prompt-free, and provider-free.
@@ -103,11 +130,12 @@ general API-management product.
 
 Do not pull forward:
 
-- Phase 7 tool/structured-output normalization or execution semantics;
-- Phase 8 streaming/partial-output replay and cancellation semantics;
+- Phase 8 streaming/partial-output/tool-call delta replay and cancellation semantics;
 - Phase 9 OpenTelemetry runtime;
 - Phase 10/11 benchmark-derived routing evidence;
-- Phase 13 signed Verifiable AI Governance runtime authorization.
+- Phase 13 signed Verifiable AI Governance runtime authorization;
+- provider-native tool-result continuation that requires an explicit canonical transcript/state
+  contract not yet present in Phase 7.
 
 ## Quality gates
 
@@ -118,6 +146,9 @@ uv run python scripts/quality_gate.py
 ```
 
 GitHub Actions must remain read-only during normal validation (`contents: read`).
+
+`jsonschema` is a Phase 7 runtime dependency of `gateway-core`. `types-jsonschema` is permitted only as
+an ephemeral quality-tool dependency for mypy and must not be added to runtime requirements.
 
 `scripts/phase0_gate.py` is frozen to the five contract modules from the
 `phase-0-architecture-gate` baseline tag. New phase tests belong to the repository-wide pytest gate.

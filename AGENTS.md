@@ -9,13 +9,14 @@
 - Root: virtual uv project (`package = false`)
 - Primary builder: Codex
 - Independent reviewer: Claude Code
-- Current phase: Phase 6 — Runtime Health, Retry and Safe Fallback
+- Current phase: Phase 7 — Structured Output and Tool Normalization
 - Phase 1 dependency: completed in `policy-model-router` PR #20
 - Phase 2: completed in `governed-llm-gateway` PR #1
 - Phase 3: completed in `governed-llm-gateway` PR #2
 - Phase 4: completed in `governed-llm-gateway` PR #3
 - Phase 5: completed in `governed-llm-gateway` PR #4
-- Phase 6: implemented on `feat/phase-6-resilience`, pending independent review/merge
+- Phase 6: completed in `governed-llm-gateway` PR #5
+- Phase 7: implemented on `feat/phase-7-structured-output-tools`, pending independent review/merge
 
 Read, in order:
 
@@ -23,10 +24,11 @@ Read, in order:
 2. `docs/project/CURRENT_STATE.md`
 3. `docs/project/ARCHITECTURE.md`
 4. `docs/project/ROADMAP.md`
-5. relevant ADRs under `docs/adr/`, especially ADR-0006 and ADR-0007
+5. relevant ADRs under `docs/adr/`, especially ADR-0007 and ADR-0013
 6. `docs/project/FALLBACK_AND_RETRY.md`
-7. `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`
-8. `docs/project/SOURCE_ROADMAP.txt` when a decision is unclear
+7. `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md`
+8. `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`
+9. `docs/project/SOURCE_ROADMAP.txt` when a decision is unclear
 
 ## Non-negotiable invariant
 
@@ -41,9 +43,10 @@ security defect. Provider adapters have no authorization authority.
 ## Architecture boundaries
 
 - `gateway-contracts`: provider-neutral immutable contracts only. No provider SDK, FastAPI,
-  database, OpenTelemetry SDK, HTTP client, dynamic imports, or business-domain dependencies.
-- `gateway-core/domain`: deterministic domain logic and provider-neutral runtime state semantics. No
-  provider SDK, FastAPI, database, or OpenTelemetry SDK.
+  database, OpenTelemetry SDK, HTTP client, JSON Schema engine, dynamic imports, or business-domain
+  dependencies.
+- `gateway-core/domain`: deterministic domain logic, provider-neutral runtime state, and local schema
+  validation. No provider SDK, FastAPI, database, or OpenTelemetry SDK.
 - `gateway-core/application`: provider-neutral execution/policy/ranking/resilience orchestration;
   no concrete provider or Policy Model Router HTTP implementation.
 - `gateway-core/adapters`: provider/configuration/infrastructure implementations.
@@ -61,17 +64,18 @@ effective context. Policy/identity failures fail closed.
 The Phase 4 `AuthorizedCandidateSet` is the source of policy-authorized deployments. Phase 5 filters
 and ranks only inside it. Phase 6 consumes only the resulting `selected + alternatives` sequence;
 resilience must never re-enumerate the global registry or reacquire broader authorization after a
-provider failure.
+provider failure. Phase 7 may translate only features supported by the already-selected deployment
+and cannot grant capability or authorization.
 
 Before the first provider call, every bounded fallback candidate must remain in the
 PDP-authorized logical model group.
 
-The Policy Model Router receives only prompt-free `PolicyRequestMetadata`. `GatewayRequest.messages`
-must never be sent to it. Conversely, PDP-only metadata must not be copied into provider requests.
+The Policy Model Router receives only prompt-free `PolicyRequestMetadata`. `GatewayRequest.messages`,
+structured-output schema, and tool definitions must never be sent to it. Conversely, PDP-only metadata
+must not be copied into provider requests.
 
-Registry and ranking-policy YAML are untrusted configuration until strict safe parsing,
-duplicate-key checks, closed-schema validation, semantic validation, and deterministic
-canonicalization succeed.
+Registry/ranking YAML and caller-provided JSON Schemas/tool definitions are untrusted until strict,
+bounded validation succeeds.
 
 ## Phase 5 ranking rules retained
 
@@ -84,7 +88,7 @@ canonicalization succeed.
 - ties resolve by ascending `deployment_id`;
 - static score evidence remains distinct from future benchmark evidence.
 
-## Phase 6 resilience rules
+## Phase 6 resilience rules retained
 
 - retry means the same concrete deployment;
 - fallback means another deployment already present in the Phase 5 ranked alternatives;
@@ -101,19 +105,35 @@ canonicalization succeed.
   effect, or opaque provider continuation/reasoning state;
 - fallback/retry evidence is metadata-only.
 
-Provider timeout is a per-attempt bound in Phase 6. Do not silently reinterpret policy/ranking
-`max_latency_ms` as a total cross-retry execution deadline. A total execution budget requires an
-explicit contract.
+Provider timeout is a per-attempt bound. Do not silently reinterpret policy/ranking `max_latency_ms`
+as a total cross-retry execution deadline. A total execution budget requires an explicit contract.
+
+## Phase 7 structured-output and tool rules
+
+- structured output is provider-native schema enforcement, not prompted JSON;
+- structured-output/tool requests still require normal registry capability eligibility;
+- validate Draft 2020-12 schemas locally and within bounded size/depth before provider I/O;
+- reject remote `$ref` and `$dynamicRef` resolution;
+- validate final structured output locally even after native provider enforcement;
+- normalize only declared tools and validate provider arguments against their schemas;
+- canonical `ToolCall` requires provider correlation; never fabricate missing call IDs;
+- the gateway never executes a business tool and never authorizes its side effect;
+- `ToolResult` is owned by the application/agent/MCP execution layer;
+- generic OpenAI-compatible endpoints get optional feature translation only through explicit verified
+  configuration;
+- `invalid_structured_output` and `invalid_tool_call` are permanent failures and produce zero
+  automatic retry/fallback;
+- do not fabricate provider-native continuation/reasoning state after tool execution.
 
 ## Explicitly deferred
 
 Do not pull forward:
 
-- Phase 7 structured-output/tool normalization or tool execution semantics;
-- Phase 8 streaming and partial-output replay/cancellation semantics;
+- Phase 8 streaming, partial structured-output/tool-call deltas, replay, and cancellation semantics;
 - Phase 9 OpenTelemetry runtime;
 - Phase 10/11 benchmark-derived ranking evidence;
-- Phase 13 signed Verifiable AI Governance runtime authorization.
+- Phase 13 signed Verifiable AI Governance runtime authorization;
+- provider-native `ToolResult` continuation requiring a new canonical transcript/state contract.
 
 `min_context_tokens` remains a capability requirement, not an input-token estimate. Policy Model
 Router API 1.0 models required tool calling through the workload policy rule rather than a per-request
@@ -125,9 +145,9 @@ Do not use `from __future__ import annotations`. Quote only individual forward r
 
 ## Privacy and evidence
 
-Evidence is metadata-only by default. Never record prompts, completions, tool arguments/results,
-provider API keys, PDP API keys, Authorization headers, arbitrary customer payloads, or raw malicious
-provider/PDP error bodies in logs/traces/evidence.
+Evidence is metadata-only by default. Never record prompts, completions, structured output payloads,
+tool arguments/results, provider API keys, PDP API keys, Authorization headers, arbitrary customer
+payloads, or raw malicious provider/PDP error bodies in logs/traces/evidence.
 
 ## Quality gate
 
@@ -147,6 +167,9 @@ The Phase 0 regression gate is intentionally frozen to the five contract modules
 `phase-0-architecture-gate` tag. Current/future contract tests belong to the repository-wide pytest
 quality gate.
 
-Phase 6 acceptance requires verified 429 retry, 5xx/transport fallback, preserved model-group
-authorization, zero retry/fallback on permanent errors, side-effect replay blocking, open-circuit
-eligibility removal, bounded retries/fallbacks, and the complete read-only quality gate to pass.
+`types-jsonschema` is an ephemeral mypy-only dependency. Do not add it to runtime requirements.
+
+Phase 7 acceptance requires verified provider-native structured-output mapping, local output/schema
+validation, tool-argument validation, zero business-tool execution authority, fail-closed correlation,
+no retry/fallback after semantic structured/tool failures, preserved PDP authorization, and the
+complete read-only quality gate to pass.

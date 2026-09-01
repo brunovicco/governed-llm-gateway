@@ -33,6 +33,16 @@ from .resilience import (
     HealthStatus,
     RetryPolicy,
 )
+from .structured import (
+    InvalidSchemaError,
+    StructuredContractError,
+    StructuredOutputValidationError,
+    ToolCallValidationError,
+    parse_and_validate_structured_output,
+    validate_structured_output_schema,
+    validate_tool_call,
+    validate_tool_definitions,
+)
 from .trust import AuthenticatedWorkloadIdentity, EffectivePolicyContext
 
 __all__ = [
@@ -46,6 +56,7 @@ __all__ = [
     "EffectivePolicyContext",
     "FallbackSafetyState",
     "HealthStatus",
+    "InvalidSchemaError",
     "ModelDeployment",
     "ModelRegistry",
     "ModelRegistryError",
@@ -57,10 +68,17 @@ __all__ = [
     "RankingWeights",
     "RetryPolicy",
     "StaticDeploymentScore",
+    "StructuredContractError",
+    "StructuredOutputValidationError",
+    "ToolCallValidationError",
     "WorkloadRankingPolicy",
     "authorized_registry_candidates",
     "build_model_registry",
     "build_ranking_policy",
     "enforce_allowed_subset",
     "enforce_selected_group",
+    "parse_and_validate_structured_output",
+    "validate_structured_output_schema",
+    "validate_tool_call",
+    "validate_tool_definitions",
 ]

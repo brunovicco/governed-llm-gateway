@@ -64,6 +64,61 @@ These project requirements, rather than vendor documentation, define gateway ret
 Provider documentation may identify transport/status behavior but cannot grant authorization or
 change replay safety.
 
+## Phase 7 structured-output and tool references
+
+Normative Phase 7 scope comes from `SOURCE_ROADMAP.txt` and is formalized in ADR-0013 plus
+`docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md`.
+
+Official provider/library documentation reviewed on 2026-09-01 defines wire/schema behavior only; it
+does not grant deployment capability or authorization.
+
+### OpenAI
+
+- Responses API reference: `https://platform.openai.com/docs/api-reference/responses`
+- Responses/Structured Outputs reference documents `text.format` with `type: json_schema`, schema name,
+  schema object, and strict schema adherence.
+- Function tools are defined through the Responses `tools` collection and JSON-schema parameters.
+
+### Anthropic
+
+- Messages API reference: `https://docs.anthropic.com/en/api/messages`
+- Tool-use overview: `https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/overview`
+- Tool definitions use a name, description, and `input_schema`; model-produced client-side tool calls
+  are returned as `tool_use` content blocks.
+- Current Anthropic platform documentation also exposes strict tool/schema behavior; gateway-side
+  validation remains mandatory regardless of provider enforcement.
+
+### Google Gemini
+
+- `generateContent` API reference: `https://ai.google.dev/api/generate-content`
+- Function-calling guide:
+  `https://ai.google.dev/gemini-api/docs/generate-content/function-calling`
+- Gemini function declarations describe tool names/parameters and `functionCall` returns name/args.
+- The API reference marks `FunctionCall.id` as optional in the general contract, while current Gemini 3
+  function-calling guidance requires exact ID round-tripping and states Gemini 3 returns unique IDs.
+  The gateway therefore requires an ID for canonical correlation and fails closed when absent.
+
+### JSON Schema validation
+
+- `jsonschema` PyPI: `https://pypi.org/project/jsonschema/`
+- `types-jsonschema` PyPI: `https://pypi.org/project/types-jsonschema/`
+- Phase 7 runtime pins `jsonschema==4.26.0` through the uv lock.
+- `types-jsonschema==4.26.0.20260518` targets `jsonschema~=4.26.0` and is used only as an ephemeral mypy
+  dependency, not as a runtime package.
+
+### Gateway-owned safety decisions
+
+Provider docs define how a feature is represented on the wire. ADR-0013 defines the stricter gateway
+contract:
+
+- prompted JSON is not equivalent to provider-native structured output;
+- provider-native enforcement is followed by local output validation;
+- caller schema validation is local/bounded and remote references are rejected;
+- generic OpenAI-compatible endpoints do not inherit feature support implicitly;
+- tool-call correlation IDs are not synthesized;
+- business-tool execution authority remains outside the gateway;
+- structured/tool semantic failures do not become retry/fallback availability signals.
+
 ## Phase 3 provider references
 
 Official provider documentation reviewed on 2026-08-31 defines API-family wire behavior only; it does
@@ -83,9 +138,9 @@ not grant provider/model authorization or registry approval.
 - Interactions API overview: `https://ai.google.dev/gemini-api/docs/interactions-overview`
 - `generateContent` API reference: `https://ai.google.dev/api/generate-content`
 
-Google documents Interactions as the recommended/default interface for new projects as of June 2026
-while continuing to support `generateContent`. Phase 3 uses `generateContent` because the current
-provider-neutral request owns canonical messages but not exact model-generated Interaction steps.
+The native Gemini adapter currently uses `generateContent` because the canonical gateway request does
+not preserve every provider-generated continuation/reasoning step needed for lossless stateful
+reconstruction. Phase 7 keeps that boundary explicit for tool-result continuation as well.
 
 ## Internal migration-pattern reference
 
@@ -96,8 +151,10 @@ provider-neutral request owns canonical messages but not exact model-generated I
 ## Source authority rule
 
 Policy Model Router sources define authorization/provenance. Provider documentation defines transport
-behavior. FastAPI/Pydantic documentation defines API framework/validation behavior. The normative
-roadmap plus accepted gateway ADRs define ranking/resilience semantics.
+and API-family feature representation. FastAPI/Pydantic documentation defines API framework/validation
+behavior. JSON Schema library documentation defines validator mechanics. The normative roadmap plus
+accepted gateway ADRs define authorization, ranking, resilience, structured-output/tool authority, and
+replay semantics.
 
-No external source may broaden PDP authorization. Runtime health, retry, circuit, and fallback are
-gateway-owned operational controls only after the upstream authorization boundary is established.
+No external source may broaden PDP authorization. Provider feature support is an execution capability,
+not an authorization grant.

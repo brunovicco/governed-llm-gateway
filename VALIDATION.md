@@ -1,6 +1,6 @@
-# Phase 0 through Phase 6 Validation Record
+# Phase 0 through Phase 7 Validation Record
 
-Date: 2026-08-31
+Date: 2026-09-01
 
 ## Toolchain
 
@@ -29,87 +29,106 @@ pytest gate. Durable package boundaries remain enforced by `scripts/architecture
 - Phase 5 — Deterministic Operational Ranking and Explainability: merged through PR #4; deterministic
   eligibility/ranking, ranking-policy provenance, authority-boundary hardening and authenticated
   no-inference `POST /v1/route/explain`.
+- Phase 6 — Runtime Health, Retry and Safe Fallback: merged through PR #5; ADR-0007, bounded retry,
+  bounded authorized fallback, circuit breaker/runtime health, replay-safety boundary, and
+  metadata-only attempt evidence.
 
-## Phase 6 implementation validation
+Phase 6 PR #5 merged at commit `8a5559edc1282494cb023e50f3898882fd0aa8e0`.
 
-Phase 6 — Runtime Health, Retry and Safe Fallback was validated in the normal read-only GitHub Actions
-workflow after normative acceptance and resilience-boundary tests were complete.
+## Phase 7 implementation validation
 
-Acceptance/boundary head: `96089a21ee2b47ccecdcfa6d3a52f5e2e2248ad4`
+Phase 7 — Structured Output and Tool Normalization was validated in the normal read-only GitHub
+Actions workflow after canonical contracts, provider mappings, resilience interaction, schema
+hardening, and acceptance tests were implemented.
 
-GitHub Actions run: `33455984065`.
+Hardened validation head: `79a79051fa2f631580cd39ca3ad88494d210e8b8`
+
+GitHub Actions run: `33521577607`.
 
 Results:
 
 - `uv lock --check` — PASS;
 - Ruff lint — PASS;
 - Ruff formatting — PASS;
-- mypy — PASS across 54 source files;
-- pytest — PASS, 111 tests;
-- total coverage — 84.11% (minimum 80%);
+- mypy — PASS across 58 source files;
+- pytest — PASS, 132 tests;
+- total coverage — 82.62% (minimum 80%);
 - Bandit — PASS, no identified issues and no skipped files;
 - pip-audit — PASS, no known vulnerabilities;
 - architecture validation — PASS;
 - secret scanning — PASS;
 - Phase 0 regression gate — PASS.
 
-The workflow executed with `contents: read` and no provider/PDP credentials or live network calls.
+The workflow executed with `contents: read` and no provider/PDP credentials or live provider calls.
 
-## Phase 6 acceptance evidence
+`jsonschema==4.26.0` is the Phase 7 runtime schema-validation dependency in `gateway-core`.
+`types-jsonschema==4.26.0.20260518` is injected only into the ephemeral mypy environment by
+`scripts/quality_gate.py`; it is not a runtime dependency.
+
+## Phase 7 acceptance evidence
 
 The normative roadmap acceptance criteria are covered directly:
 
-- rate-limit/429 failure retries the same concrete deployment before fallback;
-- unavailable/5xx failure can move to the next already-ranked authorized deployment;
-- fallback remains inside the original PDP-authorized logical model group;
-- permanent provider errors perform zero retry and zero fallback;
-- side-effect/output/opaque-state safety boundaries block automatic replay;
-- open circuit prevents provider execution and removes the deployment from runtime-health-aware
-  eligibility.
+- provider-native structured-output support is represented explicitly rather than inferred from
+  prompting;
+- malformed JSON and schema-invalid structured output are rejected;
+- model-produced tool-call arguments are validated against the declared tool schema;
+- the gateway exposes no business-tool execution authority.
 
-Additional contract tests verify:
+Additional contract/boundary tests verify:
 
-- timeout is treated as a bounded transient failure and updates timeout/transient health counters;
-- transport failure may fall back to the next authorized ranked deployment;
-- retry attempt count is exact and bounded;
-- fallback count is exact and cannot reach unbounded alternatives;
-- all bounded fallback candidates are validated against the authorized model group before the first
-  provider call;
-- malformed out-of-group fallback decision causes zero provider calls;
-- missing provider-adapter configuration fails closed without cross-provider fallback;
-- transient failures drive per-deployment circuit state;
-- cooldown changes an open circuit to half-open;
-- successful half-open probe closes/resets the circuit;
-- transient half-open failure reopens the circuit;
-- active runtime-health filtering treats a missing deployment snapshot as ineligible;
-- runtime health never becomes Phase 5 static score evidence;
-- identical request/deployment/retry-policy inputs reproduce the same retry-delay sequence;
-- `Retry-After` is honored only within the configured maximum delay;
-- successful resilient execution records concrete deployment progression in `fallback_sequence` while
-  same-deployment retries remain separate attempt evidence.
+- `StructuredOutputSchema`, `ToolDefinition`, `ToolCall`, and `ToolResult` identity/shape constraints;
+- structured output can be requested only together with the corresponding workload capability;
+- tool definitions can be supplied only together with the tool-calling capability;
+- duplicate tool definitions fail before provider execution;
+- JSON Schema syntax is validated as Draft 2020-12 before provider execution;
+- oversized/deep/externally referenced schemas fail closed;
+- remote `$ref` and `$dynamicRef` resolution is not allowed;
+- `pattern` and `patternProperties` are rejected instead of evaluating caller-controlled regex;
+- `format` is rejected instead of being silently accepted without explicit local enforcement;
+- ordinary object properties named `pattern` remain valid;
+- tool schemas receive the same bounded schema-subset checks as structured output;
+- provider output is parsed and revalidated locally after native schema enforcement;
+- OpenAI Responses native structured-output payload mapping;
+- OpenAI Responses function-tool mapping and normalized function-call extraction;
+- Anthropic Messages structured-output/tool mapping and normalized `tool_use` extraction;
+- Gemini `generateContent` response-schema/function-declaration mapping and normalized
+  `functionCall` extraction;
+- missing provider tool-call correlation fails closed rather than synthesizing an ID;
+- generic OpenAI-compatible structured-output/tool support is disabled by default and requires
+  explicit endpoint opt-in;
+- structured-output/tool contracts survive the Phase 6 resilience boundary unchanged;
+- `invalid_structured_output` and `invalid_tool_call` are permanent and produce zero automatic retry
+  and zero automatic fallback.
 
-## Phase 6 architecture/security boundaries
+## Phase 7 architecture/security boundaries
 
-- retry = same concrete deployment;
-- fallback = next already-ranked authorized deployment only;
-- resilience never re-enumerates the global registry or asks the PDP for broader authorization;
-- only normalized retryable `rate_limit`, `timeout`, `unavailable`, and `transport` failures are
-  replayable automatically;
-- permanent validation/authentication/authorization/configuration failures do not cause availability
-  fallback;
-- `FallbackSafetyState` blocks replay after provider output, external side effects, or opaque provider
-  continuation/reasoning state;
-- circuit state is initially per process and per concrete deployment;
-- runtime health is mutable operational evidence, separate from static ranking/benchmark evidence;
-- provider timeout remains a per-attempt bound; total cross-retry execution budget is not inferred
-  from `max_latency_ms`;
-- execution/health evidence is metadata-only and contains no prompt/completion/raw provider body or
-  credential.
+- structured output means provider-native schema enforcement, not prompted JSON;
+- provider-native enforcement never replaces gateway-side post-response validation;
+- Phase 7 implements a documented bounded Draft 2020-12 subset rather than unrestricted schema
+  semantics;
+- schema evaluation is local and performs no remote retrieval;
+- caller-controlled regex keywords are excluded until a bounded evaluation strategy exists;
+- `format` is excluded until explicit local checker semantics are adopted;
+- provider feature support is separate from registry deployment capability and from PDP authorization;
+- provider adapters translate features but have zero model-authorization authority;
+- `ToolCall` is data, not permission to execute an external action;
+- application/agent/MCP runtime owns business-tool authorization, execution, side effects, and
+  `ToolResult` creation;
+- provider correlation IDs are never fabricated;
+- provider-native continuation/reasoning state is not reconstructed from guesses;
+- semantic structured/tool validation failures are not converted into availability fallback;
+- prompts, completions, structured payloads, tool arguments/results, provider/PDP secrets, and raw
+  provider error bodies remain excluded from default evidence.
 
 ## Quality-gate execution model
 
 Ruff, Bandit, and pip-audit remain isolated quality tools. mypy and pytest execute with `uv run
 --all-packages` so tools importing workspace code see the locked project dependencies.
+
+`types-jsonschema` is installed through the mypy command's ephemeral `--with` dependency only. This
+allows strict typing of `jsonschema` without adding a stub-only package to production/runtime
+requirements.
 
 The GitHub Actions workflow is read-only (`contents: read`) and invokes:
 
@@ -118,14 +137,14 @@ uv run python scripts/quality_gate.py
 ```
 
 One non-blocking `StarletteDeprecationWarning` remains from FastAPI TestClient regarding `httpx` versus
-`httpx2`. It is unrelated to Phase 6 functionality/security and remains separate maintenance work.
+`httpx2`. It is unrelated to Phase 7 functionality/security and remains separate maintenance work.
 
-## Phase 6 status
+## Phase 7 status
 
 Implementation quality gates: **PASS**
 
-Runtime resilience acceptance targets: **PASS**
+Structured-output/tool acceptance targets: **PASS**
 
-Authorization/architecture/security regressions: **PASS**
+Authorization/resilience/architecture/security regressions: **PASS**
 
-Phase 6 independent review/merge: **PENDING**
+Phase 7 independent review/merge: **PENDING**
