@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -19,6 +20,11 @@ from governed_llm_gateway_core.domain.ranking import (
     RankingPolicy,
     RankingWeights,
     StaticDeploymentScore,
+)
+from governed_llm_gateway_core.domain.resilience import (
+    CircuitState,
+    DeploymentHealthSnapshot,
+    HealthStatus,
 )
 from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
 
@@ -87,6 +93,7 @@ class OperationalRankingService:
         authorized: AuthorizedCandidateSet,
         policy_request: PolicyRequestMetadata,
         ranking_policy: RankingPolicy,
+        runtime_health: Mapping[str, DeploymentHealthSnapshot] | None = None,
     ) -> RankingDecision:
         """Return a deterministic selection/explanation without invoking a provider."""
         self._validate_boundary(
@@ -117,6 +124,7 @@ class OperationalRankingService:
                 policy_request,
                 deployment,
                 static_score,
+                runtime_health,
             )
             if rejection is not None:
                 rejected.append(rejection)
@@ -236,8 +244,9 @@ class RouteExplainService:
         context_tokens_estimated: int,
         max_output_tokens_estimated: int,
         defaults: PolicyProjectionDefaults,
+        runtime_health: Mapping[str, DeploymentHealthSnapshot] | None = None,
     ) -> RankingDecision:
-        """Return the Phase 5 decision explanation and never call a provider."""
+        """Return the routing explanation and never call a provider."""
         policy_request = project_policy_request(
             request,
             effective_context,
@@ -260,6 +269,7 @@ class RouteExplainService:
             authorized,
             policy_request,
             ranking_policy,
+            runtime_health,
         )
 
 
@@ -269,12 +279,18 @@ def _eligibility_rejection(
     policy_request: PolicyRequestMetadata,
     deployment: ModelDeployment,
     static_score: StaticDeploymentScore | None,
+    runtime_health: Mapping[str, DeploymentHealthSnapshot] | None,
 ) -> CandidateRejection | None:
     if not deployment.enabled:
         return CandidateRejection(
             deployment=deployment.deployment_id,
             reason=RejectionReason.DEPLOYMENT_DISABLED,
         )
+
+    health_rejection = _runtime_health_rejection(deployment, runtime_health)
+    if health_rejection is not None:
+        return health_rejection
+
     if effective_context.environment not in deployment.allowed_environments:
         return CandidateRejection(
             deployment=deployment.deployment_id,
@@ -343,6 +359,34 @@ def _eligibility_rejection(
                 f"expected_ms={static_score.expected_latency_ms};"
                 f"limit_ms={policy_request.max_latency_ms}"
             ),
+        )
+    return None
+
+
+def _runtime_health_rejection(
+    deployment: ModelDeployment,
+    runtime_health: Mapping[str, DeploymentHealthSnapshot] | None,
+) -> CandidateRejection | None:
+    if runtime_health is None:
+        return None
+    health = runtime_health.get(deployment.deployment_id)
+    if health is None:
+        return CandidateRejection(
+            deployment=deployment.deployment_id,
+            reason=RejectionReason.DEPLOYMENT_UNHEALTHY,
+            detail="runtime_health_unavailable",
+        )
+    if health.deployment_id != deployment.deployment_id:
+        raise RankingInvariantViolation("runtime health snapshot deployment identity mismatch")
+    if health.circuit_state is CircuitState.OPEN:
+        return CandidateRejection(
+            deployment=deployment.deployment_id,
+            reason=RejectionReason.CIRCUIT_BREAKER_OPEN,
+        )
+    if health.status is HealthStatus.UNHEALTHY:
+        return CandidateRejection(
+            deployment=deployment.deployment_id,
+            reason=RejectionReason.DEPLOYMENT_UNHEALTHY,
         )
     return None
 

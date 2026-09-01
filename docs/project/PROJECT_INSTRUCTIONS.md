@@ -2,10 +2,10 @@
 
 ## Objective
 
-Build a reusable, provider-neutral LLM execution gateway that resolves and invokes only models that
-are already authorized by deterministic policy, while retaining explainable routing provenance,
-capability enforcement, safe fallback, runtime health handling, cost/latency controls,
-evaluation-driven ranking, OpenTelemetry-ready evidence, and privacy-safe auditability.
+Build a reusable, provider-neutral LLM execution gateway that resolves and invokes only models already
+authorized by deterministic policy, while retaining explainable routing provenance, capability
+enforcement, safe fallback, runtime health handling, cost/latency controls, evaluation-driven ranking,
+OpenTelemetry-ready evidence, and privacy-safe auditability.
 
 ## Scope
 
@@ -17,25 +17,24 @@ general API-management product.
 
 1. `policy-model-router` is the PDP. It authorizes logical model groups and emits deterministic
    provenance. It never performs inference.
-2. `governed-llm-gateway` is the PEP plus operational selector. It filters/ranks only inside the
+2. `governed-llm-gateway` is the PEP plus operational selector/executor. It may only narrow the
    authorization already granted.
 3. Provider adapters execute inference but have no authorization authority.
 4. Applications/agents execute business tools; the gateway never does.
-5. Verifiable AI Governance is an optional upstream/downstream governance integration, not a core
-   dependency.
+5. Verifiable AI Governance is optional integration, not a core dependency.
 
 ## Security invariants
 
 - `Gateway allowed set ⊆ Policy Router authorized set`.
 - Unknown/invalid policy and identity states fail closed.
-- Ranking, health filtering, retry, and fallback may never widen PDP authorization.
-- Caller-declared classification/risk/identity context is not trusted without validation.
-- Provider secrets and Policy Model Router credentials live only in gateway deployment configuration.
+- Ranking, health filtering, retry, circuit logic, and fallback may never widen PDP authorization.
+- Caller classification/risk/identity claims are not trusted without authenticated reconciliation.
+- Provider/PDP secrets live only in gateway deployment configuration.
 - Evidence and traces are metadata-only by default.
-- No business consumer repository may become a gateway dependency.
-- Registry/ranking configuration is untrusted until strict parsing and validation succeed.
+- Consumer repositories never become gateway dependencies.
+- Registry/ranking configuration is untrusted until strict parsing/validation succeeds.
 - Prompt/message content is never sent to the Policy Model Router.
-- Policy-only metadata is never copied into provider execution payloads merely for convenience.
+- PDP-only metadata is never copied into provider payloads for convenience.
 
 ## Development constraints
 
@@ -43,74 +42,82 @@ general API-management product.
 - uv workspace.
 - Codex Python Engineering Harness, profile `workspace`, governance profile `agentic`.
 - Codex is primary builder; Claude Code is independent reviewer.
-- Architecture/contracts land before provider work.
-- Provider execution begins only in Phase 3.
-- Deterministic Policy Model Router runtime integration begins only in Phase 4.
-- Operational eligibility/ranking and route explainability begin only in Phase 5.
-- Runtime resilience begins only in Phase 6.
+- Provider execution starts in Phase 3.
+- Policy Model Router runtime integration starts in Phase 4.
+- Operational ranking/explainability starts in Phase 5.
+- Runtime health/retry/fallback/circuit breaker starts in Phase 6.
+- Structured-output/tool normalization starts in Phase 7.
 - Architectural changes require an ADR.
 
-## Phase 4 authority rules
+## Phase 4 authority rules retained
 
-- Project only trusted, prompt-free policy metadata through `PolicyDecisionPort`.
-- Treat Policy Model Router success/rejection payloads as untrusted until schema/provenance and
-  request-correlation checks succeed.
-- Fail closed on PDP denial, unavailable/misconfigured state, transport failure, or malformed
-  provenance.
+- Project only trusted, prompt-free metadata through `PolicyDecisionPort`.
+- Treat PDP responses as untrusted until schema/provenance/correlation validation succeeds.
+- Fail closed on denial, unavailable/misconfigured state, transport failure, or malformed provenance.
 - Intersect registry deployments with PDP authorization before selection/execution.
-- Do not translate `min_context_tokens` into an input-token estimate.
 - Do not invent Policy Model Router request fields absent from its versioned wire contract.
-- Signed governance runtime authorization remains deferred to the optional governance integration.
 
-## Phase 5 ranking rules
+## Phase 5 ranking rules retained
 
-- Phase 5 receives the Phase 4 `AuthorizedCandidateSet`; it must not query the global registry to
-  broaden the candidate set.
-- Validate that the current registry digest matches the digest bound to authorization before ranking.
-- Require exactly one authorized logical model group for the current Policy Model Router 1.0 binding.
-- Reject any candidate whose model group falls outside PDP authorization.
+- Rank only the Phase 4 `AuthorizedCandidateSet`.
+- Validate registry-digest continuity before ranking.
+- Require exactly one logical model group for the current PMR 1.0 binding.
+- Reject candidates outside PDP authorization.
 - Perform eligibility before score.
-- Use deterministic `Decimal` scoring and an explicit ascending `deployment_id` tie-break.
-- Ranking-policy weights and score inputs are strict, versioned configuration with deterministic
-  digests.
-- Unknown pricing and absent score inputs make a deployment ineligible rather than free/neutral.
-- Expected latency is a static/versioned planning input in Phase 5, not live health evidence.
-- Preserve separate provenance for PDP policy, model registry, ranking policy, and static score
-  snapshot.
-- Do not populate `benchmark_snapshot_id` from Phase 5 static score configuration.
+- Use deterministic `Decimal` scoring and ascending `deployment_id` tie-break.
+- Unknown pricing and absent score inputs fail closed.
+- Expected latency is static planning evidence, not runtime health.
+- Keep PDP, registry, ranking-policy, static-score, and future benchmark provenance distinct.
 
-## Phase 5 explainability rules
+## Phase 6 resilience rules
 
-- `POST /v1/route/explain` is authenticated and prompt-free.
-- It resolves trusted effective context before PDP/ranking work.
-- It performs no provider inference.
-- Its request contract is closed and rejects `messages`, unsupported schema versions, and invalid
-  workload identifiers.
-- It may expose only metadata necessary to explain the caller's authorized decision; it is not a
-  global model/catalog inventory endpoint.
-- API framework types stay in `gateway-api` and must not leak into contracts/domain.
+- Retry means another attempt against the same concrete deployment.
+- Fallback means moving only to the next already-ranked authorized deployment.
+- Pre-validate the bounded fallback sequence against the authorized logical group before the first
+  provider call.
+- Do not re-enumerate the registry or ask the PDP for a wider group after failure.
+- Automatic replay is limited to normalized retryable `rate_limit`, `timeout`, `unavailable`, and
+  `transport` errors.
+- Permanent validation/authentication/authorization/configuration failures do not trigger retry or
+  cross-provider fallback.
+- Bound attempts, fallback count, backoff, jitter, and provider `Retry-After` influence.
+- Treat runtime health as mutable operational state, separate from static Phase 5 scores.
+- Open circuit removes a deployment from eligibility.
+- When runtime-health filtering is active, missing health fails closed.
+- Initial circuit state is per process and per concrete deployment.
+- Block automatic replay after observed provider output, external side effect, or opaque provider
+  continuation/reasoning state.
+- Preserve metadata-only execution-attempt evidence.
+- Provider timeout is per attempt. Do not silently repurpose `max_latency_ms` as a total retry budget.
+
+## Explainability rules
+
+- `POST /v1/route/explain` remains authenticated, prompt-free, and provider-free.
+- It resolves trusted effective context before policy/ranking work.
+- Its request contract rejects messages, unsupported schema versions, invalid workloads, and unknown
+  fields.
+- It is decision-scoped, not a global inventory endpoint.
+- Framework types stay in `gateway-api`.
 
 ## Deferred work
 
 Do not pull forward:
 
-- Phase 6 live health, bounded retry, fallback, or circuit-breaker behavior;
-- Phase 7 structured-output/tool normalization;
-- Phase 8 streaming;
+- Phase 7 tool/structured-output normalization or execution semantics;
+- Phase 8 streaming/partial-output replay and cancellation semantics;
 - Phase 9 OpenTelemetry runtime;
 - Phase 10/11 benchmark-derived routing evidence;
 - Phase 13 signed Verifiable AI Governance runtime authorization.
 
 ## Quality gates
 
-The canonical repository gate is:
+Canonical repository gate:
 
 ```bash
 uv run python scripts/quality_gate.py
 ```
 
-GitHub Actions must remain read-only during normal validation (`contents: read`). Temporary artifact
-generation permissions are development scaffolding only and must never remain in a review-ready PR.
+GitHub Actions must remain read-only during normal validation (`contents: read`).
 
-`scripts/phase0_gate.py` is a frozen regression check for the five contract modules present at the
+`scripts/phase0_gate.py` is frozen to the five contract modules from the
 `phase-0-architecture-gate` baseline tag. New phase tests belong to the repository-wide pytest gate.

@@ -12,9 +12,11 @@ Current execution sequence:
    (`governed-llm-gateway` PR #2).
 4. Integrate deterministic Policy Model Router authorization — COMPLETE
    (`governed-llm-gateway` PR #3).
-5. Implement deterministic operational ranking and explainability — CURRENT, IMPLEMENTED / IN REVIEW.
-6. Add resilience (timeouts/retry/fallback/circuit breaker) — NEXT AFTER PHASE 5 MERGE.
-7. Structured output and tool normalization.
+5. Implement deterministic operational ranking and explainability — COMPLETE
+   (`governed-llm-gateway` PR #4).
+6. Add runtime health, bounded retry, safe fallback, and circuit breaker — CURRENT, IMPLEMENTED / IN
+   REVIEW.
+7. Structured output and tool normalization — NEXT AFTER PHASE 6 MERGE.
 8. Streaming.
 9. OpenTelemetry via `a2a-otel-kit`.
 10. Evaluation framework.
@@ -23,10 +25,15 @@ Current execution sequence:
 13. Optional Verifiable AI Governance integration, including signed runtime authorization when used.
 14. Incremental real-project integrations.
 
-Phase 4 establishes the authorized candidate set and PEP enforcement. Phase 5 may only remove/rank
-candidates inside that set and must never broaden PDP authorization.
+Phase 4 establishes the authorized candidate set. Phase 5 may only remove/rank candidates inside that
+set. Phase 6 may retry the same deployment or move through the already-ranked authorized alternatives,
+but may never widen the PDP authorization boundary.
 
-Phase 5 ranking inputs are intentionally static/versioned. Live health, circuit-breaker state, retry,
-and fallback belong to Phase 6. Benchmark-derived score provenance belongs to Phases 10–11.
+Runtime health introduced in Phase 6 is mutable operational state and remains distinct from Phase 5
+static/versioned ranking evidence. Benchmark-derived score provenance belongs to Phases 10–11.
+
+Phase 6 also establishes the replay-safety boundary that later tool/structured-output and streaming
+phases must preserve: automatic replay stops after observed provider output, an external side effect,
+or opaque provider continuation state unless a later explicit replay contract says otherwise.
 
 Do not pull work forward when doing so weakens an authority boundary or requires an unstable contract.

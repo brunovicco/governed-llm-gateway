@@ -29,9 +29,23 @@ from .ranking import (
     RouteExplainService,
     ScoreBreakdown,
 )
+from .resilience import (
+    ExecutionAttempt,
+    ExecutionAttemptOutcome,
+    InMemoryHealthTracker,
+    ProviderResolutionError,
+    ProviderResolver,
+    ResilienceExecutionError,
+    ResilientExecutionResult,
+    ResilientExecutionService,
+    StaticProviderResolver,
+)
 
 __all__ = [
     "AuthorizedCandidateSet",
+    "ExecutionAttempt",
+    "ExecutionAttemptOutcome",
+    "InMemoryHealthTracker",
     "OperationalRankingService",
     "PolicyAuthorizationDecision",
     "PolicyDecisionError",
@@ -46,12 +60,18 @@ __all__ = [
     "ProviderErrorCode",
     "ProviderPort",
     "ProviderRequest",
+    "ProviderResolutionError",
+    "ProviderResolver",
     "ProviderResponse",
     "ProviderUsage",
     "RankedCandidate",
     "RankingDecision",
     "RankingInvariantViolation",
+    "ResilienceExecutionError",
+    "ResilientExecutionResult",
+    "ResilientExecutionService",
     "RouteExplainService",
     "ScoreBreakdown",
+    "StaticProviderResolver",
     "project_policy_request",
 ]

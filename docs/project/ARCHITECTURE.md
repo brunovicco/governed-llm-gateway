@@ -3,9 +3,9 @@
 ## Context
 
 Applications declare workload intent and requirements without naming provider/model. The Policy
-Model Router determines which logical model group is allowed. The gateway then operates only inside
-that authorization boundary, filters/ranks concrete deployments deterministically, and later executes
-through a provider adapter.
+Model Router determines which logical model group is allowed. The gateway operates only inside that
+authorization boundary, filters/ranks concrete deployments deterministically, then executes with
+bounded runtime resilience.
 
 ```text
 Consumer
@@ -15,7 +15,6 @@ Authentication / workload identity
   │ authoritative EffectivePolicyContext
   ▼
 Prompt-free policy projection
-  │
   ▼
 Policy Model Router (PDP)
   │ one authorized model group + policy provenance
@@ -24,11 +23,11 @@ Governed LLM Gateway
   ├─ validate/correlate authorization provenance
   ├─ intersect authorization with model registry      (Phase 4)
   ├─ validate registry/authorization binding          (Phase 5)
-  ├─ static eligibility filter                        (Phase 5)
-  ├─ deterministic ranking + explanation              (Phase 5)
-  ├─ PEP validation
-  └─ execution orchestration
-       │
+  ├─ static eligibility + deterministic ranking       (Phase 5)
+  ├─ runtime-health eligibility / circuit state       (Phase 6)
+  ├─ bounded retry / safe fallback                    (Phase 6)
+  ├─ final PEP validation
+  └─ provider execution
        ▼
 Provider adapter → provider API
 ```
@@ -39,122 +38,146 @@ For each request:
 
 `gateway_eligible_groups ⊆ pdp_authorized_groups`
 
-The gateway can remove candidates because of environment, data policy, capability, cost, latency,
-and later health/circuit state. It cannot add a logical group/deployment not permitted by policy.
+The gateway may remove candidates because of environment, data policy, capability, cost, latency,
+runtime health, or circuit state. It cannot add a logical group/deployment not permitted by policy.
 
-Phase 4 establishes the authorized registry candidate set. Phase 5 only filters and orders that set.
-It does not re-enumerate the global registry to discover alternatives after authorization.
+Phase 4 establishes the authorized registry candidate set. Phase 5 filters/orders that set. Phase 6
+may retry the same selected deployment or move only through the already-ranked alternatives; it does
+not re-enumerate the registry or ask the PDP for broader authorization after failure.
 
 ## Package topology
 
 ### gateway-contracts
 
-Stable provider-neutral immutable types. It must remain safe for consumer import and therefore has no
-provider SDK, FastAPI, database, OpenTelemetry SDK, HTTP client, or business-domain dependency.
+Stable provider-neutral immutable types. It has no provider SDK, FastAPI, database, OpenTelemetry SDK,
+HTTP client, or business-domain dependency.
 
-Phase 5 extends routing provenance/rejection vocabularies only with provider-neutral metadata needed
-to reconstruct deterministic selection.
+Routing provenance/rejection vocabularies carry provider-neutral metadata needed to reconstruct
+selection and execution progression.
 
 ### gateway-core
 
-- `domain`: deterministic invariants, model registry, and versioned ranking-policy semantics;
-- `application`: provider-neutral provider/PDP ports plus authorization/ranking orchestration;
-- `adapters`: strict registry/ranking-policy configuration loading, Policy Model Router transport,
-  and provider integrations.
+- `domain`: deterministic invariants, model registry, ranking-policy semantics, and provider-neutral
+  resilience state such as circuit/health/replay safety;
+- `application`: provider-neutral provider/PDP ports plus authorization, ranking, and resilience
+  orchestration;
+- `adapters`: strict configuration loading, Policy Model Router transport, and provider integrations.
 
 The Policy Model Router's Python domain types are not imported into gateway domain/contracts. The
-integration boundary remains the router's versioned HTTP contract.
+integration boundary remains its versioned HTTP contract.
 
 ### gateway-client
 
-Thin SDK boundary. Consumers eventually hold only gateway credentials. They do not receive provider
-or Policy Model Router credentials.
+Thin SDK boundary. Consumers eventually hold only gateway credentials, not provider or PDP secrets.
 
 ### gateway-api
 
-HTTP composition root. Phase 5 introduces the authenticated `POST /v1/route/explain` surface here.
-FastAPI/Pydantic request/response types remain outside gateway contracts/domain.
+HTTP composition root. It owns FastAPI/Pydantic types and the authenticated
+`POST /v1/route/explain` surface; framework types do not leak into contracts/domain.
 
 ## Trust model
 
-The request schema preserves `risk_level`, `data_classification`, `agent_identity`, and limits because
-they are relevant context. These values are **claims** until reconciled with authenticated identity and
-policy. Effective security attributes are derived/validated, never accepted solely because a client
-sent them.
+Caller `risk_level`, `data_classification`, `agent_identity`, limits, and environment remain claims
+until reconciled with authenticated identity/policy. `EffectivePolicyContext` represents authoritative
+policy context.
 
-A client may request stricter treatment. A client may not lower its authoritative classification,
-risk restrictions, environment policy, or model authorization.
-
-`EffectivePolicyContext` represents authoritative policy context. The PDP projection and Phase 5
-eligibility use trusted client identity/workload/risk/classification/environment rather than
-caller-spoofed security claims.
+The PDP projection and operational eligibility use trusted context. Availability/resilience logic
+receives no authority to reinterpret identity or policy failures as transient availability failures.
 
 ## Authorization-to-ranking binding
 
-The Phase 4 `AuthorizedCandidateSet` binds:
+The Phase 4 `AuthorizedCandidateSet` binds validated PDP provenance, the registry digest, and concrete
+deployments inside the authorized logical group.
 
-- validated PDP decision/provenance;
-- the exact model-registry digest used to derive candidates;
-- deployments in the authorized logical model group.
+Phase 5 validates registry continuity and current PMR 1.0 single-group semantics before ranking. A
+candidate outside the group is an invariant violation rather than an alternative.
 
-Before ranking, Phase 5 requires that the current registry digest still matches that authorization
-snapshot and that exactly one logical group is authorized by the current PMR 1.0 binding. A candidate
-outside that group is an invariant violation, not a lower-ranked alternative.
+This prevents authorization widening and registry TOCTOU substitution across Phase 4 → Phase 5.
 
-This prevents authorization widening and registry time-of-check/time-of-use substitution across the
-Phase 4 → Phase 5 boundary.
-
-## Deterministic ranking
+## Deterministic ranking and runtime health
 
 Phase 5 static eligibility evaluates enabled state, trusted environment/data allowance, capabilities,
-context capacity, static ranking input availability, versioned pricing, projected cost, and expected
-latency before calculating a score.
+context, ranking input availability, versioned pricing, projected cost, and expected latency before
+scoring. Eligible candidates use exact `Decimal` scoring and a stable ascending `deployment_id`
+tie-break.
 
-Eligible candidates are scored using exact `Decimal` arithmetic with workload-specific versioned
-weights and a stable ascending `deployment_id` tie-break. No randomness, provider call, wall-clock
-value, live health state, or LLM classification participates in Phase 5 ranking.
+Phase 6 runtime health is a separate mutable input. When health filtering is active, it can only
+remove candidates:
 
-Live health and circuit-breaker state are Phase 6 inputs and must only narrow the Phase 5/PDP-safe
-candidate set.
+- open circuit → `circuit_breaker_open`;
+- unhealthy deployment → `deployment_unhealthy`;
+- missing health snapshot → fail closed as unavailable health evidence.
+
+Runtime health is never written back into Phase 5 static ranking scores. Telemetry/benchmark-driven
+score evolution belongs to later phases.
+
+## Runtime resilience boundary
+
+Phase 6 consumes only the Phase 5 `selected + alternatives` sequence. The bounded sequence is checked
+against `RoutingProvenance.authorized_model_group` before the first provider call.
+
+Retry:
+
+- same concrete deployment;
+- normalized retryable transient failures only;
+- bounded attempts and capped exponential backoff/jitter.
+
+Fallback:
+
+- next already-ranked deployment only;
+- bounded number of alternatives;
+- no global registry enumeration or policy widening.
+
+`FallbackSafetyState` stops automatic replay after observed provider output, an external side effect,
+or opaque provider continuation/reasoning state.
+
+Circuit state is initially per process and per concrete deployment. The lifecycle is
+`CLOSED → OPEN → HALF_OPEN → CLOSED`. Shared state is deferred until operational evidence requires it.
+
+Provider timeout remains a per-attempt bound. Phase 6 does not reinterpret selection
+`max_latency_ms` as an implicit total retry deadline; a cross-retry execution budget requires its own
+explicit contract.
+
+See ADR-0007 and `docs/project/FALLBACK_AND_RETRY.md`.
 
 ## Policy metadata projection
 
-The PDP receives workload/policy metadata only. `GatewayRequest.messages` is not part of the Policy
-Model Router request. The application PDP port accepts `PolicyRequestMetadata`, not `GatewayRequest`,
-so this privacy boundary is enforced by type shape in addition to tests.
+The PDP receives workload/policy metadata only. `GatewayRequest.messages` is not part of its request.
+The application PDP port accepts `PolicyRequestMetadata`, not `GatewayRequest`.
 
-Policy Model Router responses are untrusted input. Accepted/rejected decisions are validated against
-the expected wire schema and correlated to the originating request/trusted environment before being
-treated as authoritative provenance.
+Accepted/rejected Policy Model Router responses remain untrusted until strict schema/provenance and
+request/environment correlation checks succeed.
 
-See `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md` for the Phase 4 field-level binding.
+See `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`.
 
 ## Explainability surface
 
-`POST /v1/route/explain` performs trusted-context resolution, PDP authorization, static eligibility,
-deterministic ranking, and metadata-only explanation. It performs no provider inference.
+`POST /v1/route/explain` performs trusted-context resolution, PDP authorization, eligibility,
+deterministic ranking, and metadata-only explanation. It performs no provider inference and does not
+expose a global deployment inventory.
 
-The request is deliberately prompt-free and closed to unknown fields. It validates schema version and
-workload identifier at the HTTP boundary. The response carries only the caller's decision metadata,
-not a global deployment inventory.
+Phase 6 core ranking can consume a runtime-health snapshot so route explanation can later include the
+same health-based eligibility semantics without changing authorization authority.
 
 ## Execution boundary
 
-Provider adapters execute concrete models but have no authorization authority. Before provider
-execution, a selected deployment must exist in the registry and remain inside PDP authorization.
-Phase 6 resilience must preserve the same rule for every retry/fallback candidate.
+Provider adapters execute concrete models but have zero authorization authority. PDP-only security
+metadata is not copied into provider payloads. Provider and PDP credentials remain separate
+infrastructure concerns.
 
-PDP-only security metadata is not copied into provider request payloads. Provider credentials and PDP
-credentials remain separate infrastructure concerns.
+Phase 6 execution-attempt evidence carries only normalized metadata and never raw provider error
+bodies, prompts/completions, or secrets.
 
 ## Evidence
 
-Routing evidence is reconstructable without prompt/response storage. Phase 5 adds ranking-policy
-version/digest, static score snapshot ID, deterministic routing decision ID, selected deployment, and
-candidate rejection reasons alongside existing PDP and model-registry provenance.
+Routing evidence remains reconstructable without prompt/response storage. It includes PDP provenance,
+registry digest, ranking-policy provenance, selected identities, and rejection reasons.
+
+Phase 6 adds actual deployment progression in `fallback_sequence` and separate metadata-only attempt
+evidence for same-deployment retries, normalized failures, retry delays, latency, and outcome.
 
 Static `score_snapshot_id` is not benchmark evidence; `benchmark_snapshot_id` remains unset until the
-benchmark/evidence-driven ranking phases.
+benchmark/evidence-driven phases.
 
 ## Dependency direction
 
