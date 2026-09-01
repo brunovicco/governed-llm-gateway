@@ -1,9 +1,11 @@
 [project]
 name = "governed-llm-gateway-api"
 version = "0.1.0"
-description = "Composition-root placeholder for the Governed LLM Gateway API"
+description = "FastAPI composition root for the Governed LLM Gateway"
 requires-python = ">=3.13,<3.15"
 dependencies = [
+    "fastapi==0.141.1",
+    "pydantic==2.13.5",
     "governed-llm-gateway-contracts",
     "governed-llm-gateway-core",
 ]

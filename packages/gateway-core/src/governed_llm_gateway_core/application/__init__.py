@@ -21,9 +21,18 @@ from .provider import (
     ProviderResponse,
     ProviderUsage,
 )
+from .ranking import (
+    OperationalRankingService,
+    RankedCandidate,
+    RankingDecision,
+    RankingInvariantViolation,
+    RouteExplainService,
+    ScoreBreakdown,
+)
 
 __all__ = [
     "AuthorizedCandidateSet",
+    "OperationalRankingService",
     "PolicyAuthorizationDecision",
     "PolicyDecisionError",
     "PolicyDecisionErrorCode",
@@ -39,5 +48,10 @@ __all__ = [
     "ProviderRequest",
     "ProviderResponse",
     "ProviderUsage",
+    "RankedCandidate",
+    "RankingDecision",
+    "RankingInvariantViolation",
+    "RouteExplainService",
+    "ScoreBreakdown",
     "project_policy_request",
 ]

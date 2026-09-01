@@ -42,9 +42,12 @@ class RejectionReason(StrEnum):
     """Machine-readable reasons for candidate rejection."""
 
     WRONG_MODEL_GROUP = "wrong_model_group"
+    DEPLOYMENT_DISABLED = "deployment_disabled"
     MISSING_CAPABILITY = "missing_capability"
     CONTEXT_TOO_SMALL = "context_too_small"
     PROVIDER_NOT_AUTHORIZED = "provider_not_authorized"
+    PRICING_UNAVAILABLE = "pricing_unavailable"
+    RANKING_SCORE_UNAVAILABLE = "ranking_score_unavailable"
     DEPLOYMENT_UNHEALTHY = "deployment_unhealthy"
     CIRCUIT_BREAKER_OPEN = "circuit_breaker_open"
     COST_LIMIT_EXCEEDED = "cost_limit_exceeded"

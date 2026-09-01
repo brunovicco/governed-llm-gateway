@@ -1,4 +1,7 @@
-schema_version: "1.0-draft"
-policy_version: "phase0-no-runtime-ranking"
+schema_version: "1.0"
+policy_version: "phase5-static-v1"
+score_snapshot_id: "phase5-static-v1"
+source_date: "2026-08-31"
 workloads: {}
-# Deterministic ranking is designed but not implemented until Phase 5.
+# Workload/deployment scores are explicit static inputs until benchmark-derived
+# ranking is introduced in Phase 11. Unknown workloads fail closed.

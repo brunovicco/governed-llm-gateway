@@ -15,11 +15,22 @@ from .model_registry import (
     PricingMetadata,
     build_model_registry,
 )
+from .ranking import (
+    DuplicateRankingKeyError,
+    RankingDimension,
+    RankingPolicy,
+    RankingPolicyError,
+    RankingWeights,
+    StaticDeploymentScore,
+    WorkloadRankingPolicy,
+    build_ranking_policy,
+)
 from .trust import AuthenticatedWorkloadIdentity, EffectivePolicyContext
 
 __all__ = [
     "AuthenticatedWorkloadIdentity",
     "AuthorizationBoundaryViolation",
+    "DuplicateRankingKeyError",
     "DuplicateRegistryKeyError",
     "EffectivePolicyContext",
     "ModelDeployment",
@@ -27,8 +38,15 @@ __all__ = [
     "ModelRegistryError",
     "PolicyAuthorization",
     "PricingMetadata",
+    "RankingDimension",
+    "RankingPolicy",
+    "RankingPolicyError",
+    "RankingWeights",
+    "StaticDeploymentScore",
+    "WorkloadRankingPolicy",
     "authorized_registry_candidates",
     "build_model_registry",
+    "build_ranking_policy",
     "enforce_allowed_subset",
     "enforce_selected_group",
 ]

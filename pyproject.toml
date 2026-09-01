@@ -5,6 +5,11 @@ description = "Governed, provider-neutral LLM resolution and execution gateway"
 requires-python = ">=3.13,<3.15"
 dependencies = []
 
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1,<0.29",
+]
+
 [tool.uv]
 package = false
 
