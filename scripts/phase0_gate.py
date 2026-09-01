@@ -33,6 +33,16 @@ REQUIRED_FILES = [
     "docs/adr/ADR-0005-model-registry-and-provenance.md",
 ]
 
+# Frozen from the ``phase-0-architecture-gate`` baseline tag. Future-phase contract tests are
+# intentionally exercised by the repository-wide pytest gate, not silently absorbed here.
+PHASE0_CONTRACT_TESTS = (
+    "test_authorization_invariant.py",
+    "test_contracts.py",
+    "test_phase0_boundaries.py",
+    "test_phase0_documents.py",
+    "test_workspace_smoke.py",
+)
+
 
 def run(command: list[str], env: dict[str, str] | None = None) -> None:
     """Run one gate command and fail immediately on non-zero status."""
@@ -79,19 +89,21 @@ def main() -> int:
         ROOT / "apps/gateway-api/src",
     ]
     env["PYTHONPATH"] = os.pathsep.join(str(path) for path in python_paths)
-    run(
-        [
-            sys.executable,
-            "-m",
-            "unittest",
-            "discover",
-            "-s",
-            "tests/contract",
-            "-p",
-            "test_*.py",
-        ],
-        env=env,
-    )
+
+    for test_file in PHASE0_CONTRACT_TESTS:
+        run(
+            [
+                sys.executable,
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                "tests/contract",
+                "-p",
+                test_file,
+            ],
+            env=env,
+        )
 
     print("phase0_gate: PASS")
     return 0

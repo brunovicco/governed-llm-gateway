@@ -28,6 +28,8 @@ COMMANDS = [
     uv_run(
         "--with",
         "mypy==1.17.1",
+        "--with",
+        "pytest==8.4.1",
         "mypy",
         "packages",
         "apps",

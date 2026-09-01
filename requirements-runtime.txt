@@ -1,2 +1,4 @@
 # Runtime dependency audit input for the uv workspace.
+FastAPI==0.141.1
+Pydantic==2.13.5
 PyYAML==6.0.3

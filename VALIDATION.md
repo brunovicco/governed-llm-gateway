@@ -1,4 +1,4 @@
-# Phase 0 through Phase 4 Validation Record
+# Phase 0 through Phase 5 Validation Record
 
 Date: 2026-08-31
 
@@ -15,95 +15,114 @@ The Architecture Gate baseline passed its quality, architecture, security, and c
 Phase 0 independent Claude Code review remains a separate historical review criterion recorded in
 `docs/architecture/REVIEW.md`.
 
-`scripts/phase0_gate.py` remains a regression gate. When Phase 3 activated provider adapters, its
-obsolete repository-wide provider-import substring ban was retired. Durable Phase 0 provider-neutral
-contracts/domain boundaries continue to be enforced by exact AST import checks in
-`scripts/architecture_check.py`.
+`scripts/phase0_gate.py` is now explicitly frozen to the five contract modules that existed at the
+`phase-0-architecture-gate` tag:
+
+- `test_authorization_invariant.py`;
+- `test_contracts.py`;
+- `test_phase0_boundaries.py`;
+- `test_phase0_documents.py`;
+- `test_workspace_smoke.py`.
+
+Future-phase contract tests are exercised by the repository-wide pytest gate instead of being
+silently absorbed into the Phase 0 regression gate. Durable provider-neutral contracts/domain
+boundaries continue to be enforced by `scripts/architecture_check.py`.
 
 ## Phase 2 completed
 
-Phase 2 — Contracts and Model Registry was merged through `governed-llm-gateway` PR #1.
-
-Its acceptance evidence remains covered by the current regression suite: strict registry schema,
+Phase 2 — Contracts and Model Registry was merged through `governed-llm-gateway` PR #1. Its
+acceptance evidence remains covered by the current regression suite: strict registry schema,
 duplicate-key rejection, safe YAML, capability/modality consistency, explicit unknown pricing, and
 deterministic SHA-256 registry provenance.
 
 ## Phase 3 completed
 
-Phase 3 — Provider Execution Foundation was merged through `governed-llm-gateway` PR #2 on
-2026-08-31.
+Phase 3 — Provider Execution Foundation was merged through `governed-llm-gateway` PR #2. Its
+provider contract evidence remains covered by the current regression suite: native OpenAI, Anthropic,
+Gemini and explicit OpenAI-compatible mapping; usage extraction; typed timeout/error normalization;
+bounded `Retry-After`; no raw error/secret leakage; and no live provider credentials or requests
+required by CI.
 
-Its provider contract evidence remains covered by the current regression suite: native OpenAI,
-Anthropic, Gemini and explicit OpenAI-compatible mapping; usage extraction; typed timeout/error
-normalization; bounded `Retry-After`; no raw error/secret leakage; and no live provider credentials or
-requests required by CI.
+## Phase 4 completed
 
-## Phase 4 implementation validation
+Phase 4 — Policy Router Integration was merged through `governed-llm-gateway` PR #3. The current
+regression suite continues to prove prompt-free trusted policy projection, strict accepted/rejected
+provenance binding, registry intersection with PDP authorization, zero provider calls after denial or
+authorization-boundary failure, and no PDP-only metadata leakage into provider calls.
 
-Phase 4 — Policy Router integration was validated in the read-only GitHub Actions quality workflow on
-2026-08-31 after the implementation and rejection-provenance hardening were complete.
+## Phase 5 implementation validation
 
-Code-complete head: `22ac613f68e834757dd593557d8f5b93d35cb0ad`
+Phase 5 — Deterministic Operational Ranking and Explainability was validated in the read-only GitHub
+Actions quality workflow after the ranking acceptance and authority-boundary tests were complete.
 
-GitHub Actions push run: `33416554085`.
+Code-complete acceptance-test head: `090f7f250c23c69b87e1c71c34ca27f0ec67a770`
+
+GitHub Actions push run: `33453828758`.
 
 Results:
 
 - `uv lock --check` — PASS;
 - Ruff lint — PASS;
 - Ruff formatting — PASS;
-- mypy — PASS across 41 source files;
-- pytest — PASS, 73 tests;
-- total coverage — 83.38% (minimum 80%);
+- mypy — PASS across 49 source files;
+- pytest — PASS, 94 tests;
+- total coverage — 83.43% (minimum 80%);
 - Bandit — PASS, no identified issues and no skipped files;
 - pip-audit — PASS, no known vulnerabilities;
 - architecture validation — PASS;
 - secret scanning — PASS;
 - Phase 0 regression gate — PASS.
 
-The workflow executed with `contents: read`.
+The workflow executed with `contents: read` and no provider/PDP credentials.
 
-## Phase 4 acceptance evidence
+## Phase 5 acceptance evidence
 
-Contract tests verify:
+The normative roadmap acceptance criteria are covered directly:
 
-- policy projection uses trusted `EffectivePolicyContext` identity/risk/classification rather than
-  caller-spoofable security claims;
-- `GatewayRequest.messages`/prompt content does not enter the Policy Model Router payload;
-- the trusted client identity selects the PDP credential and maps to router `agent_name`;
-- request latency/cost limits can narrow but not broaden gateway-owned projection defaults;
-- successful Policy Model Router responses require exact schema, request-ID correlation, trusted
-  environment, valid logical group, UTC decision time, and SHA-256 policy provenance;
-- `422 no_viable_model_group` carries validated rejection provenance and is additionally bound to
-  the original request ID, workload, and trusted environment;
-- unknown/malformed 422 responses do not become authorization;
-- 401/403 are non-retryable authorization/authentication failures;
-- 429 and eligible unavailable/transport/timeout conditions are classified retryable but Phase 4
-  does not retry them;
-- non-200/non-422 PDP raw response bodies are not parsed into normalized errors;
-- PDP API keys do not appear in normalized failure metadata;
-- registry candidates are limited to deployments in the PDP-authorized logical group;
-- a PDP rejection causes zero provider calls;
-- an out-of-authorization or absent selected deployment causes zero provider calls;
-- the final provider request contains execution data and message content but no PDP-only policy
-  metadata;
-- Policy Model Router and provider transports remain separate infrastructure boundaries.
+- same inputs produce the same ranking and deterministic routing decision ID;
+- eligibility is evaluated before score, so an ineligible deployment cannot win even with a higher
+  configured score;
+- equal scores resolve deterministically by ascending `deployment_id`;
+- authenticated `POST /v1/route/explain` is implemented, deterministic for the same inputs, and
+  performs no provider inference.
 
-CI uses fake transports. No live Policy Model Router or provider credential is required.
+Contract tests additionally verify:
 
-## Deliberate Phase 4 non-translations
+- ranking operates only on `AuthorizedCandidateSet` from Phase 4;
+- registry digest drift after authorization fails closed before selection;
+- a candidate outside the PDP-authorized logical model group fails closed;
+- Phase 5 requires exactly one PDP-authorized logical model group and rejects ambiguous multi-group
+  authorization;
+- disabled deployments are rejected before scoring;
+- missing tool/capability requirements, insufficient context, and disallowed environment reject the
+  deployment;
+- unknown pricing is not treated as free;
+- missing ranking evidence is not treated as a neutral/default score;
+- projected cost and versioned expected-latency ceilings can make a deployment ineligible;
+- ranking policy YAML rejects duplicate keys, unknown fields, invalid weight sums, and unknown
+  workloads;
+- semantically equivalent decimal representations produce the same ranking-policy digest;
+- selection provenance carries PDP provenance, model-registry digest, ranking-policy version/digest,
+  static score snapshot ID, selected concrete identities, and machine-readable rejection reasons;
+- `benchmark_snapshot_id` remains unset for Phase 5 static score evidence;
+- explain requests reject prompt/message fields, unsupported schema versions, and invalid non-dotted
+  workload identifiers;
+- rejected gateway credentials are normalized without credential echo.
 
-- `GatewayRequest.requirements.min_context_tokens` is a model-capability requirement and is not used
-  as `context_tokens_estimated`.
-- Policy Model Router API 1.0 has no per-request tool-calling field; tool calling remains a workload
-  policy rule upstream.
-- Signed runtime governance authorization is deferred to the later optional Verifiable AI Governance
-  integration; a router that requires it returns 403 and the gateway fails closed.
+## Phase 5 scope boundaries
+
+- Static score input is versioned configuration, not benchmark-derived empirical evidence.
+- Expected latency is a planning input, not live runtime health.
+- Runtime health, circuit breaker state, retry, and fallback remain Phase 6 concerns.
+- Phase 5 does not add provider calls to the explain path.
+- FastAPI/Pydantic remain in `gateway-api`; contracts/domain stay framework-neutral.
 
 ## Quality-gate execution model
 
 Ruff, Bandit, and pip-audit remain isolated quality tools. mypy and pytest execute with `uv run
---all-packages` so tools importing workspace code see the actual locked project dependencies.
+--all-packages` so tools importing workspace code see the actual locked project dependencies. mypy's
+ephemeral environment includes pytest because current contract modules legitimately use pytest
+markers/types.
 
 The GitHub Actions workflow is read-only (`contents: read`) and invokes the canonical command:
 
@@ -111,12 +130,16 @@ The GitHub Actions workflow is read-only (`contents: read`) and invokes the cano
 uv run python scripts/quality_gate.py
 ```
 
-## Phase 4 status
+One non-blocking `StarletteDeprecationWarning` is currently emitted by FastAPI's TestClient regarding
+`httpx`. It does not affect Phase 5 acceptance and should be handled as a separate dependency
+maintenance item unless a later phase naturally resolves it.
+
+## Phase 5 status
 
 Implementation quality gates: **PASS**
 
-PDP/PEP contract acceptance targets: **PASS**
+Deterministic ranking acceptance targets: **PASS**
 
-Architecture/security regressions: **PASS**
+Authorization/architecture/security regressions: **PASS**
 
-Phase 4 independent review/merge: **PENDING**
+Phase 5 independent review/merge: **PENDING**

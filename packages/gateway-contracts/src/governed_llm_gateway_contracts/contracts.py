@@ -141,6 +141,8 @@ class RoutingProvenance:
     authorized_model_group: str
     model_registry_digest: str
     ranking_policy_version: str
+    ranking_policy_digest: str | None = None
+    score_snapshot_id: str | None = None
     benchmark_snapshot_id: str | None = None
     provider: str | None = None
     model: str | None = None

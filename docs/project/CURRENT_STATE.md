@@ -10,118 +10,124 @@ Last updated: 2026-08-31
 | Phase 1 — Policy Model Router generalization | COMPLETE (`policy-model-router` PR #20) |
 | Phase 2 — Contracts and Model Registry | COMPLETE (`governed-llm-gateway` PR #1) |
 | Phase 3 — Provider Execution Foundation | COMPLETE (`governed-llm-gateway` PR #2) |
-| Phase 4 — Policy Router integration | IMPLEMENTED — IN REVIEW |
-| Phase 5+ | NOT STARTED |
+| Phase 4 — Policy Router integration | COMPLETE (`governed-llm-gateway` PR #3) |
+| Phase 5 — Deterministic Operational Ranking and Explainability | IMPLEMENTED — IN REVIEW |
+| Phase 6+ | NOT STARTED |
 
-## Phase 0 delivered
+## Durable architecture baseline
 
-- uv workspace root with four explicit members;
-- provider-neutral immutable contract baseline;
-- explicit domain/application/adapters separation and authorization invariant guard;
-- durable project source documents and ADR-0001 through ADR-0005;
-- trusted/untrusted attribute model, PDP/PEP contract draft, threat model, and architecture gates.
+- uv workspace with explicit `gateway-contracts`, `gateway-core`, `gateway-client`, and `gateway-api`
+  boundaries;
+- provider-neutral contracts/domain and provider-specific infrastructure isolated in adapters;
+- Policy Model Router remains the PDP; the gateway remains the PEP plus operational selector;
+- core invariant: `Gateway allowed set ⊆ Policy Router authorized set`;
+- metadata-only evidence by default and fail-closed handling of untrusted configuration/external
+  responses.
 
-## Phase 1 dependency completed
+## Phase 1 through Phase 4 completed
 
-`policy-model-router` was generalized so workload and logical model-group identifiers are policy-defined
-rather than credit-desk-specific closed enums. Unknown workloads remain fail-closed and deterministic
-policy provenance is preserved. The gateway does not implement a legacy compatibility translation.
+Phase 1 generalized Policy Model Router workload/model-group identifiers. Phase 2 established the
+strict model registry and deterministic registry digest. Phase 3 added provider execution ports and
+OpenAI Responses, OpenAI-compatible, Gemini `generateContent`, and Anthropic Messages adapters.
+Phase 4, merged through PR #3, bound the gateway to Policy Model Router `POST /route` schema `1.0`,
+projected trusted prompt-free policy metadata, validated authorization provenance, intersected the
+registry with the authorized logical model group, and proved that PDP denial or out-of-authorization
+selection results in zero provider calls.
 
-## Phase 2 completed
+## Phase 5 implemented
 
-- provider-neutral `Capability` and `Modality` vocabularies;
-- immutable model-registry domain objects separating provider, model, deployment, and logical group;
-- strict safe-YAML loading with duplicate-key, closed-schema, and semantic validation;
-- versioned pricing metadata with explicit unknown-pricing representation;
-- deterministic canonical representation and SHA-256 registry provenance digest;
-- checked-in empty registry so no provider/model approval is implied by configuration.
-
-## Phase 3 completed
-
-Phase 3 was merged through `governed-llm-gateway` PR #2.
-
-- provider-neutral `ProviderPort`, request/response/usage types, and stable provider error categories;
-- bounded HTTPS/JSON transport using the Python standard library and an injectable transport port;
-- native OpenAI Responses, Google Gemini `generateContent`, and Anthropic Messages adapters;
-- explicit OpenAI-compatible chat-completions adapter with provider quirks configurable;
-- provider-native system/message mapping without provider response classes escaping adapters;
-- token-usage extraction, request timeouts, retryability classification, and bounded `Retry-After`;
-- sanitized provider/transport failures without raw non-2xx bodies, credentials, cookies, or
-  arbitrary response headers;
-- fake-transport contract tests and credential-free CI.
-
-## Phase 4 implemented
-
-Phase 4 binds the gateway to the deterministic Policy Model Router `POST /route` wire schema `1.0`
-without making the router a gateway domain dependency.
+Phase 5 implements deterministic operational ranking only inside the Phase 4 authorized candidate
+set.
 
 Delivered:
 
-- `PolicyDecisionPort` accepts only prompt-free `PolicyRequestMetadata`, making message leakage to the
-  PDP structurally unavailable through the application boundary;
-- trusted `EffectivePolicyContext` supplies client identity, workload, risk, classification, and
-  environment; caller-supplied identity/risk/classification cannot downgrade those facts;
-- the trusted `client_id` selects the configured PDP API key and maps to `agent_name`;
-- gateway `request_id` is used as Phase 4 correlation identity for router `workflow_id` and `task_id`;
-- caller latency/cost ceilings can only narrow gateway-owned projection defaults;
-- accepted Policy Model Router decisions are validated against exact schema fields, request
-  correlation, trusted environment, policy digest, and provenance;
-- `422 no_viable_model_group` is normalized as an explicit denial only when its rejection provenance
-  matches the request ID, workload, and trusted environment;
-- authentication/authorization/rate-limit/server/transport/timeout/malformed-response paths fail
-  closed before provider execution;
-- `authorized_registry_candidates` intersects registry deployments with the PDP-authorized logical
-  model group and performs no Phase 5 operational filtering/ranking;
-- `execute_selected` proves the PEP boundary by checking registry membership and authorized logical
-  group before invoking a provider;
-- tests prove PDP rejection and authorization-boundary violations result in zero provider calls;
-- the provider request contains model/messages/output/timeout execution data only, not PDP-only
-  policy metadata.
+- ADR-0006 defines deterministic candidate ranking and Phase 5 evidence semantics;
+- strict versioned `ranking_policy.yaml` with safe YAML loading, duplicate-key rejection,
+  closed-schema validation, semantic validation, canonicalization, and SHA-256 digest;
+- workload-specific `Decimal` weights for quality, reliability, latency, cost, and availability that
+  must sum exactly to `1`;
+- static versioned deployment score records plus expected-latency planning metadata;
+- static eligibility filtering before scoring for deployment enabled state, trusted environment/data
+  allowance, required capabilities, context capacity, ranking evidence, pricing evidence, projected
+  cost ceiling, and expected-latency ceiling;
+- unknown pricing and missing ranking inputs fail closed instead of becoming free/default scores;
+- deterministic score ordering with ascending `deployment_id` tie-break;
+- selection provenance including PDP provenance, model-registry digest, ranking-policy
+  version/digest, score snapshot ID, selected provider/model/deployment, and machine-readable
+  rejection reasons;
+- deterministic routing decision IDs derived only from canonical metadata/ranking evidence, never
+  prompt content;
+- `benchmark_snapshot_id` remains unset because Phase 5 static score inputs are not empirical
+  benchmark evidence;
+- `RouteExplainService` composes PDP authorization, eligibility, ranking, and explanation without
+  provider inference;
+- authenticated `POST /v1/route/explain` in `gateway-api`, with a prompt-free closed request schema,
+  trusted context resolver, deterministic response, and no provider call;
+- FastAPI/Pydantic remain confined to the API composition boundary;
+- Phase 5 rejects registry drift after authorization, candidates outside the PDP group, and ambiguous
+  multi-group authorization before ranking;
+- the Phase 0 regression gate is frozen to the five contract modules from the original
+  `phase-0-architecture-gate` tag, while all current/future contract tests run through pytest.
 
-## Phase 4 contract decisions
+## Phase 5 acceptance evidence
 
-The gateway does not silently reinterpret semantically different fields:
+The four normative Phase 5 acceptance criteria are covered:
 
-- `requirements.min_context_tokens` is a model-capability requirement, not a prompt token estimate;
-  it is therefore not mapped to Policy Model Router `context_tokens_estimated`;
-- Policy Model Router API 1.0 models tool-calling requirements on the policy workload rule and has no
-  per-request `tool_calling_required` field; the gateway does not invent one;
-- signed runtime authorization required by some Policy Model Router deployments belongs to the later
-  Verifiable AI Governance integration. Until that integration exists, a router 403 fails closed.
+- same inputs produce the same ranking and deterministic routing decision ID;
+- ineligible deployments cannot win because filtering precedes scoring;
+- equal scores resolve deterministically by `deployment_id`;
+- `POST /v1/route/explain` is implemented and performs no model inference.
 
-Phase 4 does not implement operational model choice. Ranking/filtering inside the authorized group is
-Phase 5.
+Additional authority-boundary tests prove that ranking fails closed when:
 
-## Phase 4 validation
+- the registry digest no longer matches the registry authorized in Phase 4;
+- a candidate outside the PDP-authorized logical group reaches the Phase 5 boundary;
+- a decision contains more than one authorized logical group;
+- the explain API receives an unsupported schema version, non-dotted workload identifier, or prompt
+  field.
 
-The read-only GitHub Actions quality workflow passes on the code-complete Phase 4 implementation:
+## Phase 5 validation
 
-- 73 tests;
-- 83.38% total coverage (minimum 80%);
+Read-only GitHub Actions push run `33453828758` passed on head
+`090f7f250c23c69b87e1c71c34ca27f0ec67a770` after the acceptance/boundary tests were complete:
+
+- 94 tests PASS;
+- 83.43% total coverage (minimum 80%);
 - Ruff lint/format PASS;
-- mypy PASS across 41 source files;
+- mypy PASS across 49 source files;
 - Bandit PASS with no identified issues;
 - pip-audit PASS with no known vulnerabilities;
 - architecture check PASS;
 - secret scan PASS;
-- Phase 0 regression gate PASS.
+- Phase 0 regression gate PASS;
+- GitHub Actions permissions: `contents: read`.
 
-GitHub Actions push run: `33416554085`.
+There is one non-blocking Starlette TestClient deprecation warning about `httpx`; it is not a Phase 5
+functional/security failure and should be handled separately unless a later dependency-maintenance
+change requires it.
+
+## Phase 5 scope decisions
+
+- Phase 5 uses static/versioned ranking inputs. It does not claim benchmark-derived quality evidence.
+- Expected latency is configuration evidence, not live provider health.
+- Provider/deployment health and circuit-breaker state belong to Phase 6.
+- Retry/fallback semantics belong to Phase 6 and must remain inside PDP authorization.
+- The explain endpoint is an authenticated metadata-only surface; it does not accept messages and does
+  not expose a global model inventory.
 
 ## Explicitly deferred
 
-- deterministic operational eligibility/ranking and route explainability (Phase 5);
-- retries, fallback runtime, and circuit breakers (Phase 6);
-- structured-output and tool normalization (Phase 7);
+- runtime health, bounded retry, fallback, and circuit breakers (Phase 6);
+- structured-output/tool normalization (Phase 7);
 - streaming (Phase 8);
 - OpenTelemetry runtime via `a2a-otel-kit` (Phase 9);
-- benchmark/evaluation-driven ranking;
-- FastAPI endpoint implementation and client HTTP transport beyond their roadmap phases;
+- benchmark/evaluation framework (Phase 10);
+- benchmark-derived ranking evidence (Phase 11);
+- thin client HTTP transport completion (Phase 12);
 - signed Verifiable AI Governance runtime authorization (Phase 13).
 
-## Next phase
+## Next step
 
-After Phase 4 independent review/merge, start Phase 5 — deterministic operational ranking and
-explainability. Every Phase 5 filter/ranking step must preserve:
-
-`Gateway allowed set ⊆ Policy Router authorized set`.
+Complete independent review and merge of Phase 5. After merge, start Phase 6 — Resilience. Phase 6
+must preserve the same authority invariant: retries/fallback/circuit/health logic may only remove or
+reorder deployments that remain inside the PDP-authorized logical model group.
