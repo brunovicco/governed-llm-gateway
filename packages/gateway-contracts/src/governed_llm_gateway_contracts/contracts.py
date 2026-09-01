@@ -6,7 +6,14 @@ from decimal import Decimal
 from re import fullmatch
 from uuid import UUID
 
-from .enums import DataClassification, ExecutionStatus, MessageRole, RejectionReason, RiskLevel
+from .enums import (
+    DataClassification,
+    ExecutionStatus,
+    MessageRole,
+    RejectionReason,
+    RiskLevel,
+    StreamEventType,
+)
 from .errors import GatewayError
 
 _TOOL_NAME_PATTERN = r"[A-Za-z_][A-Za-z0-9_-]{0,127}"
@@ -28,6 +35,7 @@ class WorkloadRequirements:
     tool_calling: bool = False
     structured_output: bool = False
     vision: bool = False
+    streaming: bool = False
     min_context_tokens: int = 0
 
     def __post_init__(self) -> None:
@@ -161,6 +169,13 @@ class Usage:
     output_tokens: int = 0
     total_cost_usd: Decimal | None = None
 
+    def __post_init__(self) -> None:
+        """Reject impossible usage values rather than silently normalizing them."""
+        if self.input_tokens < 0 or self.output_tokens < 0:
+            raise ValueError("usage token counts must be non-negative")
+        if self.total_cost_usd is not None and self.total_cost_usd < 0:
+            raise ValueError("usage total_cost_usd must be non-negative")
+
 
 @dataclass(frozen=True, slots=True)
 class PolicyProvenance:
@@ -198,6 +213,74 @@ class RoutingProvenance:
     deployment: str | None = None
     rejected_candidates: tuple[CandidateRejection, ...] = ()
     fallback_sequence: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class GatewayStreamEvent:
+    """One normalized SSE event emitted by the gateway streaming boundary."""
+
+    event_type: StreamEventType
+    request_id: UUID
+    sequence_number: int
+    routing: RoutingProvenance | None = None
+    delta: str | None = None
+    tool_call_id: str | None = None
+    tool_name: str | None = None
+    tool_call: ToolCall | None = None
+    usage: Usage | None = None
+    finish_reason: str | None = None
+    error: GatewayError | None = None
+    partial: bool = False
+
+    def __post_init__(self) -> None:
+        """Enforce event-specific payload invariants and deterministic sequence numbering."""
+        if self.sequence_number <= 0:
+            raise ValueError("stream sequence_number must be positive")
+        if self.event_type is StreamEventType.RESPONSE_STARTED:
+            self._require(routing=True)
+        elif self.event_type is StreamEventType.CONTENT_DELTA:
+            if self.delta is None or not self.delta:
+                raise ValueError("content.delta requires a non-empty delta")
+            self._require()
+        elif self.event_type is StreamEventType.TOOL_CALL_STARTED:
+            if self.tool_call_id is None or not self.tool_call_id.strip():
+                raise ValueError("tool_call.started requires tool_call_id")
+            if self.tool_name is None or fullmatch(_TOOL_NAME_PATTERN, self.tool_name) is None:
+                raise ValueError("tool_call.started requires a valid tool_name")
+            self._require()
+        elif self.event_type is StreamEventType.TOOL_CALL_ARGUMENTS_DELTA:
+            if self.tool_call_id is None or not self.tool_call_id.strip():
+                raise ValueError("tool_call.arguments.delta requires tool_call_id")
+            if self.delta is None or not self.delta:
+                raise ValueError("tool_call.arguments.delta requires a non-empty delta")
+            self._require()
+        elif self.event_type is StreamEventType.TOOL_CALL_COMPLETED:
+            if self.tool_call is None:
+                raise ValueError("tool_call.completed requires tool_call")
+            self._require()
+        elif self.event_type is StreamEventType.USAGE_COMPLETED:
+            if self.usage is None:
+                raise ValueError("usage.completed requires usage")
+            self._require()
+        elif self.event_type is StreamEventType.RESPONSE_COMPLETED:
+            self._require(routing=True)
+        elif self.event_type is StreamEventType.RESPONSE_FAILED:
+            if self.error is None:
+                raise ValueError("response.failed requires error")
+            self._require(routing=True)
+
+    def _require(self, *, routing: bool = False) -> None:
+        if routing and self.routing is None:
+            raise ValueError(f"{self.event_type.value} requires routing provenance")
+        if (
+            self.finish_reason is not None
+            and self.event_type is not StreamEventType.RESPONSE_COMPLETED
+        ):
+            raise ValueError("finish_reason is only valid on response.completed")
+        if self.partial and self.event_type is not StreamEventType.RESPONSE_FAILED:
+            raise ValueError("partial is only valid on response.failed")
+        if self.error is not None and self.event_type is not StreamEventType.RESPONSE_FAILED:
+            raise ValueError("error is only valid on response.failed")
 
 
 @dataclass(frozen=True, slots=True)

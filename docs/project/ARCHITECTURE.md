@@ -2,10 +2,10 @@
 
 ## Context
 
-Applications declare workload intent and requirements without naming provider/model. The Policy
-Model Router determines which logical model group is allowed. The gateway operates only inside that
-authorization boundary, filters/ranks concrete deployments deterministically, executes with bounded
-runtime resilience, and normalizes supported structured-output/tool-call features.
+Applications declare workload intent and requirements without naming provider/model. The Policy Model
+Router determines which logical model group is authorized. The gateway operates only inside that
+boundary, filters/ranks concrete deployments deterministically, applies bounded runtime resilience,
+normalizes structured-output/tool features, and now exposes a provider-neutral streaming lifecycle.
 
 ```text
 Consumer
@@ -18,21 +18,20 @@ Authentication / workload identity
 Prompt-free policy projection
   ▼
 Policy Model Router (PDP)
-  │ one authorized model group + policy provenance
+  │ authorized logical model group + policy provenance
   ▼
 Governed LLM Gateway
-  ├─ validate/correlate authorization provenance
-  ├─ intersect authorization with model registry      (Phase 4)
-  ├─ validate registry/authorization binding          (Phase 5)
-  ├─ static eligibility + deterministic ranking       (Phase 5)
-  ├─ runtime-health eligibility / circuit state       (Phase 6)
-  ├─ bounded retry / safe fallback                    (Phase 6)
-  ├─ structured-output/tool contract validation       (Phase 7)
-  ├─ final PEP validation
-  └─ provider execution / response normalization
+  ├─ authorization/registry intersection            Phase 4
+  ├─ deterministic eligibility + ranking            Phase 5
+  ├─ runtime health / circuit breaker               Phase 6
+  ├─ bounded retry / safe fallback                  Phase 6
+  ├─ structured output / tool normalization         Phase 7
+  ├─ streaming capability + replay boundary         Phase 8
+  ├─ final PEP checks
+  └─ provider execution / normalized output
        ▼
 Provider adapter → provider API
-       │ text / structured output / ToolCall
+       │ text / structured output / ToolCall / stream
        ▼
 Consumer / agent runtime
        └─ authorizes and executes business tools
@@ -40,201 +39,197 @@ Consumer / agent runtime
 
 ## Fundamental invariant
 
-For each request:
+For every request:
 
-`gateway_eligible_groups ⊆ pdp_authorized_groups`
+```text
+Gateway allowed set ⊆ Policy Router authorized set
+```
 
-The gateway may remove candidates because of environment, data policy, capability, cost, latency,
-runtime health, or circuit state. It cannot add a logical group/deployment not permitted by policy.
-
-Phase 4 establishes the authorized registry candidate set. Phase 5 filters/orders that set. Phase 6
-may retry the same selected deployment or move only through the already-ranked alternatives; it does
-not re-enumerate the registry or ask the PDP for broader authorization after failure. Phase 7 can
-translate only features supported by the already-selected deployment/API family and has no authority
-to widen authorization.
+Phase 4 establishes the authorized concrete candidate set. Phase 5 may only remove/order that set.
+Phase 6 may retry the same deployment or move through the already-ranked authorized alternatives.
+Phase 7 may translate only capabilities of the selected deployment/API family. Phase 8 may stream only
+from that same bounded execution sequence. None of these layers may enumerate or authorize a new
+logical group after PDP authorization.
 
 ## Package topology
 
 ### gateway-contracts
 
-Stable provider-neutral immutable types. It has no provider SDK, FastAPI, database, OpenTelemetry SDK,
-HTTP client, JSON Schema engine, or business-domain dependency.
+Stable provider-neutral immutable types. No provider SDK, FastAPI, HTTP transport, OpenTelemetry SDK,
+JSON Schema implementation, or business-domain execution dependency.
 
-Routing provenance/rejection vocabularies carry provider-neutral metadata needed to reconstruct
-selection and execution progression. Phase 7 adds `StructuredOutputSchema`, hardened `ToolDefinition`,
-`ToolCall`, and `ToolResult` contracts while keeping business-tool execution outside this package and
-the gateway runtime.
+The package now includes:
+
+- request/response contracts and routing provenance;
+- structured-output/tool contracts from Phase 7;
+- `GatewayStreamEvent` and canonical stream-event vocabulary from Phase 8.
 
 ### gateway-core
 
-- `domain`: deterministic invariants, model registry, ranking-policy semantics, provider-neutral
-  resilience state, and structured-output/tool schema validation;
-- `application`: provider-neutral provider/PDP ports plus authorization, ranking, resilience, and
-  execution-contract orchestration;
-- `adapters`: strict configuration loading, Policy Model Router transport, and provider integrations.
+- `domain`: deterministic invariants, model registry, ranking, resilience state, structured-schema
+  validation;
+- `application`: PDP/provider ports and authorization, ranking, resilience, streaming orchestration;
+- `adapters`: strict configuration loading, Policy Model Router transport, provider integrations,
+  synchronous JSON transport, and asynchronous SSE transport.
 
-The Phase 7 JSON Schema engine is isolated in `gateway-core`; it does not leak into the public
-contracts package. The Policy Model Router's Python domain types are not imported into gateway
-domain/contracts. Its integration boundary remains the versioned HTTP contract.
+Provider-specific wire semantics remain confined to adapters. The Policy Model Router Python domain is
+not imported into gateway contracts/domain; its versioned HTTP API remains the integration boundary.
 
 ### gateway-client
 
-Thin SDK boundary. Consumers eventually hold only gateway credentials, not provider or PDP secrets.
+Thin consumer boundary. Consumers should eventually hold gateway credentials only, never provider or
+PDP credentials.
 
 ### gateway-api
 
-HTTP composition root. It owns FastAPI/Pydantic types and the authenticated
-`POST /v1/route/explain` surface; framework types do not leak into contracts/domain.
+FastAPI/Pydantic composition root. Framework types do not leak into core contracts/domain.
+
+Current HTTP surfaces:
+
+- `POST /v1/route/explain` — authenticated metadata-only authorization/ranking explanation, no provider
+  inference;
+- `POST /v1/generate` — authenticated governed streaming execution via SSE.
 
 ## Trust model
 
-Caller `risk_level`, `data_classification`, `agent_identity`, limits, and environment remain claims
-until reconciled with authenticated identity/policy. `EffectivePolicyContext` represents authoritative
-policy context.
+Caller identity/risk/classification/environment claims are not authoritative until reconciled through
+`EffectivePolicyContext`. Structured-output schemas, tool definitions, messages, token estimates,
+limits, and streaming requests are also untrusted caller input.
 
-Structured-output schemas and tool definitions are also caller-controlled input. They do not grant
-model authorization and remain untrusted until provider-neutral validation succeeds.
+The PDP receives only prompt-free policy metadata. Messages, structured schemas, and tool definitions
+are not copied into the Policy Router wire request.
 
-The PDP projection and operational eligibility use trusted context. Availability/resilience logic
-receives no authority to reinterpret identity or policy failures as transient availability failures.
+Provider responses and SSE events remain untrusted until adapter parsing/lifecycle validation succeeds.
+Provider feature flags describe wire capability only; they do not grant model authorization.
 
 ## Authorization-to-ranking binding
 
-The Phase 4 `AuthorizedCandidateSet` binds validated PDP provenance, the registry digest, and concrete
-deployments inside the authorized logical group.
+`AuthorizedCandidateSet` binds validated PDP provenance, registry digest, and deployments inside the
+authorized logical group. Phase 5 validates registry continuity and the current PMR 1.0 single-group
+binding before ranking.
 
-Phase 5 validates registry continuity and current PMR 1.0 single-group semantics before ranking. A
-candidate outside the group is an invariant violation rather than an alternative.
+Out-of-group candidate injection is an invariant violation. Phase 6 additionally validates the bounded
+`selected + alternatives` execution sequence before the first provider call.
 
-This prevents authorization widening and registry TOCTOU substitution across Phase 4 → Phase 5.
+Phase 8 reuses that exact sequence; streaming never re-enumerates the registry.
 
 ## Deterministic ranking and runtime health
 
-Phase 5 static eligibility evaluates enabled state, trusted environment/data allowance, capabilities,
-context, ranking input availability, versioned pricing, projected cost, and expected latency before
-scoring. Eligible candidates use exact `Decimal` scoring and a stable ascending `deployment_id`
-tie-break.
+Phase 5 eligibility evaluates enabled state, trusted environment/data allowance, required capabilities,
+context, ranking evidence, pricing, projected cost, and expected latency before scoring. Eligible
+candidates use exact `Decimal` scoring and an ascending `deployment_id` tie-break.
 
-A structured-output or tool-call request still depends on the normal Phase 5 capability filter. Phase
-7 adapter feature support is an additional execution boundary, not an alternate authorization path.
+`Capability.STREAMING` is an ordinary Phase 5 capability requirement when streaming is requested. It
+must be present in registry data and therefore can only narrow the authorized set.
 
-Phase 6 runtime health is a separate mutable input. When health filtering is active, it can only
-remove candidates:
+Phase 6 runtime health is mutable operational state. When active it may only remove candidates:
 
 - open circuit → `circuit_breaker_open`;
 - unhealthy deployment → `deployment_unhealthy`;
-- missing health snapshot → fail closed as unavailable health evidence.
+- missing health snapshot → fail closed.
 
-Runtime health is never written back into Phase 5 static ranking scores. Telemetry/benchmark-driven
-score evolution belongs to later phases.
+Runtime health is never authorization and is not written into static ranking evidence.
 
 ## Runtime resilience boundary
 
-Phase 6 consumes only the Phase 5 `selected + alternatives` sequence. The bounded sequence is checked
-against `RoutingProvenance.authorized_model_group` before the first provider call.
+Retry remains same-deployment only, bounded, and restricted to normalized transient availability
+failures. Fallback remains bounded to the next already-ranked authorized deployment. Permanent policy,
+authentication, configuration, structured-output, and tool-call semantic failures do not become
+availability fallback signals.
 
-Retry:
-
-- same concrete deployment;
-- normalized retryable transient failures only;
-- bounded attempts and capped exponential backoff/jitter.
-
-Fallback:
-
-- next already-ranked deployment only;
-- bounded number of alternatives;
-- no global registry enumeration or policy widening.
-
-`FallbackSafetyState` stops automatic replay after observed provider output, an external side effect,
-or opaque provider continuation/reasoning state.
-
-Phase 7 adds two permanent normalized semantic failures:
-
-- `invalid_structured_output`;
-- `invalid_tool_call`.
-
-Neither failure triggers same-deployment retry nor cross-provider fallback. They are semantic output
-failures rather than availability failures.
-
-Circuit state is initially per process and per concrete deployment. The lifecycle is
-`CLOSED → OPEN → HALF_OPEN → CLOSED`. Shared state is deferred until operational evidence requires it.
-
-Provider timeout remains a per-attempt bound. Phase 6 does not reinterpret selection
-`max_latency_ms` as an implicit total retry deadline; a cross-retry execution budget requires its own
-explicit contract.
-
-See ADR-0007 and `docs/project/FALLBACK_AND_RETRY.md`.
+ADR-0007 establishes replay safety after observed output, external side effects, or opaque provider
+continuation state.
 
 ## Structured-output and tool boundary
 
-Phase 7 treats structured output as provider-native schema enforcement, not a prompting convention.
-Prompted JSON does not satisfy the same capability contract.
+Phase 7 treats structured output as provider-native schema enforcement plus mandatory local
+post-provider validation. The gateway uses a bounded Draft 2020-12 subset and rejects remote schema
+retrieval, unbounded regex keywords, and unenforced `format` semantics.
 
-`StructuredOutputSchema` is validated before provider execution. The core validates Draft 2020-12,
-bounds serialized schema size and depth, and rejects remote `$ref`/`$dynamicRef` resolution. Provider
-responses are parsed and validated again locally even after native schema enforcement.
+Provider-produced business-tool calls are normalized and schema-validated. The gateway does not
+execute those tools. `ToolResult` belongs to the application/agent/MCP runtime. Missing provider
+correlation/continuation state is never invented.
 
-`ToolDefinition` describes a business tool. Provider-produced calls are normalized to `ToolCall` and
-validated against the declared schema. The canonical tool call requires a provider correlation ID; the
-gateway does not synthesize one when absent.
+## Streaming boundary
 
-`ToolResult` is owned by the application/agent/MCP runtime after that runtime authorizes and executes
-the business action. Phase 7 does not reconstruct provider-native continuation state when the exact
-provider-generated transcript/reasoning state is not represented canonically.
+Phase 8 introduces `ProviderStreamingPort`, normalized provider stream events, `StreamingExecutionService`,
+and the public SSE lifecycle.
 
-Native provider adapters translate the documented API-family features. The generic OpenAI-compatible
-adapter keeps structured output and tool calling disabled unless explicitly configured for a verified
-endpoint.
+Canonical public events:
 
-See ADR-0013 and `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md`.
+```text
+response.started
+content.delta
+tool_call.started
+tool_call.arguments.delta
+tool_call.completed
+usage.completed
+response.completed
+response.failed
+```
 
-## Policy metadata projection
+### Pre-stream governance
 
-The PDP receives workload/policy metadata only. `GatewayRequest.messages`, structured-output schema,
-and tool definitions are not part of its wire request. The application PDP port accepts
-`PolicyRequestMetadata`, not `GatewayRequest`.
+`POST /v1/generate` completes gateway authentication, trusted-context resolution, PDP authorization,
+runtime-health snapshot, deterministic ranking, and the presence of an eligible authorized streaming
+deployment **before** returning `200 text/event-stream`.
 
-Accepted/rejected Policy Model Router responses remain untrusted until strict schema/provenance and
-request/environment correlation checks succeed.
+Policy denial, invalid caller/schema/tool contracts, ranking configuration/invariant errors, and no
+eligible candidate therefore retain normal HTTP error semantics and do not start provider execution.
 
-See `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`.
+### Semantic replay cutoff
 
-## Explainability surface
+A provider-native start event is internal and does not itself cross the replay boundary. The first
+content delta or tool-call event does.
 
-`POST /v1/route/explain` performs trusted-context resolution, PDP authorization, eligibility,
-deterministic ranking, and metadata-only explanation. It performs no provider inference and does not
-expose a global deployment inventory.
+Before semantic output, Phase 6 bounded retry/fallback may still apply. After semantic output, provider
+failure terminates as `response.failed(partial=true, retryable=false)` with no same-provider retry and
+no cross-provider fallback. This prevents hybrid responses composed from multiple executions.
 
-Phase 6 core ranking can consume a runtime-health snapshot so route explanation can later include the
-same health-based eligibility semantics without changing authorization authority.
+### Usage and completion
 
-## Execution boundary
+A normalized successful stream requires one `usage.completed` before `response.completed`. Duplicate
+usage, completion before semantic output/final usage, unknown lifecycle events, or EOF without
+completion fail closed.
 
-Provider adapters execute concrete models but have zero authorization authority. PDP-only security
-metadata is not copied into provider payloads. Provider and PDP credentials remain separate
-infrastructure concerns.
+Provider success is recorded in runtime health before exposing public `response.completed`.
 
-Phase 7 adapters may translate prompt messages, the structured-output schema, and tool definitions
-needed for provider inference. They must not execute returned tool calls or turn tool definitions into
-new authorization facts.
+### Cancellation and transport
 
-Phase 6/7 execution evidence carries only normalized metadata and never raw provider error bodies,
-prompts/completions, tool arguments/results, or secrets.
+Streaming uses a dedicated `HttpxSseTransport`, not the blocking JSON transport. It requires HTTPS,
+rejects URL userinfo/fragments, bounds event size to 1 MiB, normalizes open/read timeout and network
+failures, allowlists safe response headers, and supports explicit/idempotent `aclose()`.
 
-## Evidence
+The API body uses `aclosing()` around the execution generator. Client disconnect/cancellation therefore
+closes the execution generator, provider generator, upstream SSE response, and HTTP client. Client
+cancellation is not recorded as a provider failure.
 
-Routing evidence remains reconstructable without prompt/response storage. It includes PDP provenance,
-registry digest, ranking-policy provenance, selected identities, and rejection reasons.
+See ADR-0011 and `docs/project/STREAMING.md`.
 
-Phase 6 adds actual deployment progression in `fallback_sequence` and separate metadata-only attempt
-evidence for same-deployment retries, normalized failures, retry delays, latency, and outcome.
+## Provider adapter boundary
 
-Phase 7 does not add tool arguments, tool results, structured payloads, prompts, or completions to
-default evidence. Only bounded outcome/error-category facts may be recorded later through the
-metadata-only observability layer.
+Provider adapters execute selected concrete models and normalize provider wire behavior. They have zero
+authorization authority.
 
-Static `score_snapshot_id` is not benchmark evidence; `benchmark_snapshot_id` remains unset until the
-benchmark/evidence-driven phases.
+Native streaming support exists for OpenAI Responses, Anthropic Messages, and Gemini
+`streamGenerateContent`. Generic OpenAI-compatible streaming and final-usage support require explicit
+verified opt-in.
+
+Provider/PDP credentials remain infrastructure concerns and are not copied into routing provenance,
+SSE output, normalized errors, or default evidence.
+
+## Evidence and privacy
+
+Routing evidence remains metadata-only by default and includes PDP provenance, registry/ranking
+identity, selected deployment, rejection reasons, and bounded fallback progression.
+
+Streaming may expose response content to the requesting client by definition, but it does not add that
+content to routing provenance or default evidence. Prompts, completions, structured payloads, tool
+arguments/results, credentials, arbitrary provider headers, and raw provider error bodies remain
+excluded from default evidence.
+
+OpenTelemetry instrumentation remains Phase 9. Phase 8 does not create telemetry authority or
+benchmark-derived ranking evidence.
 
 ## Dependency direction
 

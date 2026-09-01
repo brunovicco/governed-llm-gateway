@@ -1,8 +1,9 @@
 """Provider-neutral execution boundary for model inference."""
 
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from governed_llm_gateway_contracts import (
     Message,
@@ -43,6 +44,8 @@ class ProviderFeatureSupport:
 
     native_structured_output: bool = False
     native_tool_calling: bool = False
+    native_streaming: bool = False
+    streaming_usage: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +114,84 @@ class ProviderResponse:
             )
 
 
+@dataclass(frozen=True, slots=True)
+class ProviderResponseStarted:
+    """Provider stream opened successfully; no semantic model output is implied."""
+
+    response_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderContentDelta:
+    """Incremental text emitted by the selected provider."""
+
+    delta: str
+
+    def __post_init__(self) -> None:
+        """Reject empty deltas rather than create ambiguous stream events."""
+        if not self.delta:
+            raise ValueError("provider content delta must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderToolCallStarted:
+    """Provider began one client-side business-tool call."""
+
+    call_id: str
+    name: str
+
+    def __post_init__(self) -> None:
+        """Require normalized tool-call identity before emitting semantic output."""
+        if not self.call_id.strip() or not self.name.strip():
+            raise ValueError("provider tool-call start requires normalized identity")
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderToolCallArgumentsDelta:
+    """Incremental JSON text for one provider tool-call argument object."""
+
+    call_id: str
+    delta: str
+
+    def __post_init__(self) -> None:
+        """Require call correlation and a non-empty argument delta."""
+        if not self.call_id.strip() or not self.delta:
+            raise ValueError("provider tool-call argument delta is invalid")
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderToolCallCompleted:
+    """Fully parsed and locally validated provider tool call."""
+
+    call: ToolCall
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderUsageCompleted:
+    """Final token usage for the successful stream."""
+
+    usage: ProviderUsage
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderResponseCompleted:
+    """Provider stream reached a normal terminal state."""
+
+    response_id: str | None = None
+    finish_reason: str | None = None
+
+
+ProviderStreamEvent = (
+    ProviderResponseStarted
+    | ProviderContentDelta
+    | ProviderToolCallStarted
+    | ProviderToolCallArgumentsDelta
+    | ProviderToolCallCompleted
+    | ProviderUsageCompleted
+    | ProviderResponseCompleted
+)
+
+
 class ProviderError(RuntimeError):
     """Safe typed provider failure without raw response bodies or secrets."""
 
@@ -138,4 +219,15 @@ class ProviderPort(Protocol):
 
     async def generate(self, request: ProviderRequest) -> ProviderResponse:
         """Generate one response from an already-selected concrete model."""
+        ...
+
+
+@runtime_checkable
+class ProviderStreamingPort(Protocol):
+    """Optional streaming port implemented only by explicitly supported API families."""
+
+    feature_support: ProviderFeatureSupport
+
+    def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
+        """Yield normalized provider events and close upstream resources on cancellation."""
         ...

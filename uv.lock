@@ -131,6 +131,7 @@ version = "0.1.0"
 source = { editable = "packages/gateway-core" }
 dependencies = [
     { name = "governed-llm-gateway-contracts" },
+    { name = "httpx" },
     { name = "jsonschema" },
     { name = "pyyaml" },
 ]
@@ -138,6 +139,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "governed-llm-gateway-contracts", editable = "packages/gateway-contracts" },
+    { name = "httpx", specifier = ">=0.28.1,<0.29" },
     { name = "jsonschema", specifier = ">=4.26.0,<5" },
     { name = "pyyaml", specifier = ">=6.0.3,<7" },
 ]

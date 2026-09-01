@@ -9,14 +9,14 @@
 - Root: virtual uv project (`package = false`)
 - Primary builder: Codex
 - Independent reviewer: Claude Code
-- Current phase: Phase 7 — Structured Output and Tool Normalization
-- Phase 1 dependency: completed in `policy-model-router` PR #20
-- Phase 2: completed in `governed-llm-gateway` PR #1
-- Phase 3: completed in `governed-llm-gateway` PR #2
-- Phase 4: completed in `governed-llm-gateway` PR #3
-- Phase 5: completed in `governed-llm-gateway` PR #4
-- Phase 6: completed in `governed-llm-gateway` PR #5
-- Phase 7: implemented on `feat/phase-7-structured-output-tools`, pending independent review/merge
+- Current phase: Phase 8 — Streaming, implemented / in review
+- Phase 1: complete in `policy-model-router` PR #20
+- Phase 2: complete in `governed-llm-gateway` PR #1
+- Phase 3: complete in PR #2
+- Phase 4: complete in PR #3
+- Phase 5: complete in PR #4
+- Phase 6: complete in PR #5
+- Phase 7: complete in PR #6
 
 Read, in order:
 
@@ -24,130 +24,123 @@ Read, in order:
 2. `docs/project/CURRENT_STATE.md`
 3. `docs/project/ARCHITECTURE.md`
 4. `docs/project/ROADMAP.md`
-5. relevant ADRs under `docs/adr/`, especially ADR-0007 and ADR-0013
+5. ADR-0007, ADR-0011, and ADR-0013
 6. `docs/project/FALLBACK_AND_RETRY.md`
 7. `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md`
-8. `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`
-9. `docs/project/SOURCE_ROADMAP.txt` when a decision is unclear
+8. `docs/project/STREAMING.md`
+9. `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`
+10. `docs/project/SOURCE_ROADMAP.txt` when a decision is unclear
 
 ## Non-negotiable invariant
 
 The gateway is a Policy Enforcement Point and operational selector. It may restrict Policy Model
 Router authorization but may never broaden it.
 
-`Gateway allowed set ⊆ Policy Router authorized set`
+```text
+Gateway allowed set ⊆ Policy Router authorized set
+```
 
-Any code path that can select or fall back outside the PDP-authorized logical model group is a
+Any path that selects/retries/falls back/streams outside the PDP-authorized logical model group is a
 security defect. Provider adapters have no authorization authority.
 
 ## Architecture boundaries
 
-- `gateway-contracts`: provider-neutral immutable contracts only. No provider SDK, FastAPI,
-  database, OpenTelemetry SDK, HTTP client, JSON Schema engine, dynamic imports, or business-domain
-  dependencies.
-- `gateway-core/domain`: deterministic domain logic, provider-neutral runtime state, and local schema
-  validation. No provider SDK, FastAPI, database, or OpenTelemetry SDK.
-- `gateway-core/application`: provider-neutral execution/policy/ranking/resilience orchestration;
-  no concrete provider or Policy Model Router HTTP implementation.
-- `gateway-core/adapters`: provider/configuration/infrastructure implementations.
-- `gateway-client`: consumers receive a gateway credential only; no provider or PDP credentials.
-- `gateway-api`: composition root. FastAPI/Pydantic types must not leak inward.
-- consumer repositories may depend on the gateway; the gateway must never depend on business
-  projects such as OpsLens, RAGForge, Getnet, Controlled Autonomy Lab, or Multi-Agent Credit Desk.
+- `gateway-contracts`: provider-neutral immutable contracts only; no provider SDK, FastAPI, HTTP
+  transport, OpenTelemetry SDK, JSON Schema engine, or business-domain dependencies.
+- `gateway-core/domain`: deterministic domain logic, provider-neutral runtime state, local schema
+  validation; no FastAPI/provider SDK/OpenTelemetry SDK.
+- `gateway-core/application`: provider-neutral authorization/ranking/resilience/streaming orchestration;
+  no concrete provider/PDP HTTP implementation.
+- `gateway-core/adapters`: provider/configuration/infrastructure and JSON/SSE transports.
+- `gateway-client`: consumers receive gateway credentials only.
+- `gateway-api`: FastAPI/Pydantic composition root; framework types must not leak inward.
+- consumer repositories may depend on the gateway; the gateway never depends on business projects.
 
 ## Trust and authorization boundary
 
-Request fields such as `risk_level`, `data_classification`, `agent_identity`, limits, and environment
-must not automatically become authoritative security facts. Authentication and policy establish the
-effective context. Policy/identity failures fail closed.
+Caller risk/classification/identity/environment claims are not authoritative until authenticated
+reconciliation creates `EffectivePolicyContext`.
 
-The Phase 4 `AuthorizedCandidateSet` is the source of policy-authorized deployments. Phase 5 filters
-and ranks only inside it. Phase 6 consumes only the resulting `selected + alternatives` sequence;
-resilience must never re-enumerate the global registry or reacquire broader authorization after a
-provider failure. Phase 7 may translate only features supported by the already-selected deployment
-and cannot grant capability or authorization.
+Phase 4 creates `AuthorizedCandidateSet`. Phase 5 filters/ranks only inside it. Phase 6 consumes only
+`selected + alternatives`. Phase 7 translates only selected deployment/API-family features. Phase 8
+streams only from the same bounded execution sequence. No later layer may re-enumerate the global
+registry or reacquire broader authorization after provider failure.
 
-Before the first provider call, every bounded fallback candidate must remain in the
-PDP-authorized logical model group.
-
-The Policy Model Router receives only prompt-free `PolicyRequestMetadata`. `GatewayRequest.messages`,
-structured-output schema, and tool definitions must never be sent to it. Conversely, PDP-only metadata
-must not be copied into provider requests.
-
-Registry/ranking YAML and caller-provided JSON Schemas/tool definitions are untrusted until strict,
-bounded validation succeeds.
+Messages, structured-output schemas, and tool definitions never enter the Policy Model Router request.
+PDP-only metadata must not be copied into provider payloads.
 
 ## Phase 5 ranking rules retained
 
 - filter before score;
-- only candidates already authorized by Phase 4 may be evaluated;
-- deterministic `Decimal` arithmetic;
-- unknown pricing is not free;
-- missing ranking input is not a neutral/default score;
-- expected latency is versioned planning evidence, not live health;
-- ties resolve by ascending `deployment_id`;
-- static score evidence remains distinct from future benchmark evidence.
+- evaluate only Phase 4 authorized candidates;
+- deterministic `Decimal` arithmetic and ascending `deployment_id` tie-break;
+- unknown pricing/missing score fail closed;
+- expected latency is static planning evidence, not live health;
+- static score evidence is distinct from benchmark evidence.
 
 ## Phase 6 resilience rules retained
 
-- retry means the same concrete deployment;
-- fallback means another deployment already present in the Phase 5 ranked alternatives;
-- only normalized retryable `rate_limit`, `timeout`, `unavailable`, and `transport` errors can trigger
-  automatic replay;
-- permanent validation/authentication/authorization/configuration errors do not retry or fall back;
-- retry attempts and fallback count are explicitly bounded;
-- exponential backoff and jitter are capped; provider `Retry-After` cannot force unbounded sleep;
-- runtime health is mutable operational state and must not be written into Phase 5 static scores;
-- an open circuit makes a deployment operationally ineligible;
-- when runtime-health filtering is active, a missing health snapshot fails closed;
-- circuit state is initially per process and per concrete deployment;
-- `FallbackSafetyState` blocks automatic replay after observed provider output, an external side
-  effect, or opaque provider continuation/reasoning state;
-- fallback/retry evidence is metadata-only.
+- retry = same concrete deployment;
+- fallback = another already-ranked authorized deployment;
+- only retryable rate-limit/timeout/unavailable/transport failures replay;
+- permanent policy/auth/config/semantic failures do not retry/fallback;
+- attempts/fallback/backoff/jitter/Retry-After influence are bounded;
+- runtime health can only narrow candidates and is not static ranking evidence;
+- missing active health evidence fails closed;
+- replay stops after observed output, external side effect, or opaque provider state;
+- provider timeout is per attempt, not an implicit total `max_latency_ms` budget.
 
-Provider timeout is a per-attempt bound. Do not silently reinterpret policy/ranking `max_latency_ms`
-as a total cross-retry execution deadline. A total execution budget requires an explicit contract.
+## Phase 7 structured-output/tool rules retained
 
-## Phase 7 structured-output and tool rules
+- structured output means provider-native schema enforcement plus local validation, not prompted JSON;
+- schema/tool requests still require normal registry capability eligibility;
+- validate bounded Draft 2020-12 locally; no remote `$ref`/`$dynamicRef`;
+- validate provider structured output again after native enforcement;
+- normalize declared tools only and validate arguments locally;
+- canonical `ToolCall` requires real provider correlation; do not fabricate IDs/state;
+- gateway never executes business tools;
+- OpenAI-compatible optional features require explicit verified configuration;
+- invalid structured output/tool calls are permanent and do not retry/fallback.
 
-- structured output is provider-native schema enforcement, not prompted JSON;
-- structured-output/tool requests still require normal registry capability eligibility;
-- validate Draft 2020-12 schemas locally and within bounded size/depth before provider I/O;
-- reject remote `$ref` and `$dynamicRef` resolution;
-- validate final structured output locally even after native provider enforcement;
-- normalize only declared tools and validate provider arguments against their schemas;
-- canonical `ToolCall` requires provider correlation; never fabricate missing call IDs;
-- the gateway never executes a business tool and never authorizes its side effect;
-- `ToolResult` is owned by the application/agent/MCP execution layer;
-- generic OpenAI-compatible endpoints get optional feature translation only through explicit verified
-  configuration;
-- `invalid_structured_output` and `invalid_tool_call` are permanent failures and produce zero
-  automatic retry/fallback;
-- do not fabricate provider-native continuation/reasoning state after tool execution.
+## Phase 8 streaming rules
+
+- streaming requests require registry `Capability.STREAMING`;
+- adapter/API family must separately prove `native_streaming` and `streaming_usage`;
+- OpenAI-compatible streaming/final usage remain explicit opt-ins;
+- `/v1/generate` finishes authentication, PDP authorization, health snapshot, deterministic ranking,
+  and eligible candidate selection before returning SSE;
+- provider-native start is not semantic output;
+- first content/tool-call event crosses the replay boundary;
+- before semantic output, normal bounded Phase 6 retry/fallback may apply;
+- after semantic output, never retry/fallback; emit terminal partial failure;
+- successful normalized stream emits final usage exactly once before completion;
+- invalid lifecycle/EOF fails closed;
+- record provider success before exposing `response.completed`;
+- cancellation/disconnect closes execution + upstream provider stream and is not provider failure;
+- SSE transport is HTTPS-only, bounded to 1 MiB/event, header-sanitized, and explicitly closeable;
+- incremental structured output/tool calls retain Phase 7 local validation;
+- streaming adds no tool-execution, authorization, telemetry, or benchmark authority.
 
 ## Explicitly deferred
 
 Do not pull forward:
 
-- Phase 8 streaming, partial structured-output/tool-call deltas, replay, and cancellation semantics;
 - Phase 9 OpenTelemetry runtime;
 - Phase 10/11 benchmark-derived ranking evidence;
+- Phase 12 client transport completion;
 - Phase 13 signed Verifiable AI Governance runtime authorization;
-- provider-native `ToolResult` continuation requiring a new canonical transcript/state contract.
-
-`min_context_tokens` remains a capability requirement, not an input-token estimate. Policy Model
-Router API 1.0 models required tool calling through the workload policy rule rather than a per-request
-field; do not invent a wire field.
+- provider-native tool-result continuation requiring a canonical transcript/state contract;
+- shared/distributed circuit state;
+- implicit total streaming deadline derived from policy latency.
 
 Do not change repository policy or architecture without an ADR.
-
-Do not use `from __future__ import annotations`. Quote only individual forward references when needed.
+Do not use `from __future__ import annotations`.
 
 ## Privacy and evidence
 
-Evidence is metadata-only by default. Never record prompts, completions, structured output payloads,
-tool arguments/results, provider API keys, PDP API keys, Authorization headers, arbitrary customer
-payloads, or raw malicious provider/PDP error bodies in logs/traces/evidence.
+Evidence is metadata-only by default. Never record prompts, completions, structured payloads, tool
+arguments/results, provider/PDP credentials, Authorization headers, arbitrary provider headers, or raw
+provider/PDP error bodies in logs/traces/evidence.
 
 ## Quality gate
 
@@ -157,19 +150,14 @@ Run:
 uv run python scripts/quality_gate.py
 ```
 
-For the Architecture Gate regression specifically:
+The normal GitHub Actions workflow must remain `contents: read`.
 
-```bash
-python scripts/phase0_gate.py
-```
+Coverage is enforced at >=80% twice: pytest-cov and an independent
+`coverage report --fail-under=80`. Do not lower the threshold or exclude Phase 8 code to pass CI.
 
-The Phase 0 regression gate is intentionally frozen to the five contract modules present at the
-`phase-0-architecture-gate` tag. Current/future contract tests belong to the repository-wide pytest
-quality gate.
+`scripts/phase0_gate.py` remains frozen to the five Phase 0 baseline contract modules. New phase tests
+belong to the repository-wide pytest gate.
 
-`types-jsonschema` is an ephemeral mypy-only dependency. Do not add it to runtime requirements.
-
-Phase 7 acceptance requires verified provider-native structured-output mapping, local output/schema
-validation, tool-argument validation, zero business-tool execution authority, fail-closed correlation,
-no retry/fallback after semantic structured/tool failures, preserved PDP authorization, and the
-complete read-only quality gate to pass.
+Phase 8 acceptance requires normalized provider streaming, final usage, pre-output-only replay,
+partial-output terminal failure, cancellation/upstream closure, preserved PDP authorization, no tool
+execution authority, and the complete read-only quality gate to pass.

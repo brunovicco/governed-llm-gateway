@@ -38,6 +38,19 @@ class ExecutionStatus(StrEnum):
     REJECTED = "rejected"
 
 
+class StreamEventType(StrEnum):
+    """Stable provider-neutral SSE lifecycle emitted by the gateway."""
+
+    RESPONSE_STARTED = "response.started"
+    CONTENT_DELTA = "content.delta"
+    TOOL_CALL_STARTED = "tool_call.started"
+    TOOL_CALL_ARGUMENTS_DELTA = "tool_call.arguments.delta"
+    TOOL_CALL_COMPLETED = "tool_call.completed"
+    USAGE_COMPLETED = "usage.completed"
+    RESPONSE_COMPLETED = "response.completed"
+    RESPONSE_FAILED = "response.failed"
+
+
 class RejectionReason(StrEnum):
     """Machine-readable reasons for candidate rejection."""
 
