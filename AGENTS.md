@@ -9,12 +9,13 @@
 - Root: virtual uv project (`package = false`)
 - Primary builder: Codex
 - Independent reviewer: Claude Code
-- Current phase: Phase 5 — Deterministic Operational Ranking and Explainability
+- Current phase: Phase 6 — Runtime Health, Retry and Safe Fallback
 - Phase 1 dependency: completed in `policy-model-router` PR #20
 - Phase 2: completed in `governed-llm-gateway` PR #1
 - Phase 3: completed in `governed-llm-gateway` PR #2
 - Phase 4: completed in `governed-llm-gateway` PR #3
-- Phase 5: implemented on `feat/phase-5-deterministic-ranking`, pending independent review/merge
+- Phase 5: completed in `governed-llm-gateway` PR #4
+- Phase 6: implemented on `feat/phase-6-resilience`, pending independent review/merge
 
 Read, in order:
 
@@ -22,9 +23,10 @@ Read, in order:
 2. `docs/project/CURRENT_STATE.md`
 3. `docs/project/ARCHITECTURE.md`
 4. `docs/project/ROADMAP.md`
-5. relevant ADRs under `docs/adr/`, especially ADR-0006 for Phase 5
-6. `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md` for the bound Phase 4 PDP/PEP contract
-7. the source roadmap at `docs/project/SOURCE_ROADMAP.txt` when a decision is unclear
+5. relevant ADRs under `docs/adr/`, especially ADR-0006 and ADR-0007
+6. `docs/project/FALLBACK_AND_RETRY.md`
+7. `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`
+8. `docs/project/SOURCE_ROADMAP.txt` when a decision is unclear
 
 ## Non-negotiable invariant
 
@@ -33,22 +35,20 @@ Router authorization but may never broaden it.
 
 `Gateway allowed set ⊆ Policy Router authorized set`
 
-Any code path that can select outside the PDP-authorized logical model group is a security defect.
-Provider adapters have no authorization authority.
+Any code path that can select or fall back outside the PDP-authorized logical model group is a
+security defect. Provider adapters have no authorization authority.
 
 ## Architecture boundaries
 
 - `gateway-contracts`: provider-neutral immutable contracts only. No provider SDK, FastAPI,
   database, OpenTelemetry SDK, HTTP client, dynamic imports, or business-domain dependencies.
-- `gateway-core/domain`: deterministic domain logic. No provider SDK, FastAPI, database, or
-  OpenTelemetry SDK.
-- `gateway-core/application`: provider-neutral execution/policy/ranking orchestration boundaries;
+- `gateway-core/domain`: deterministic domain logic and provider-neutral runtime state semantics. No
+  provider SDK, FastAPI, database, or OpenTelemetry SDK.
+- `gateway-core/application`: provider-neutral execution/policy/ranking/resilience orchestration;
   no concrete provider or Policy Model Router HTTP implementation.
-- `gateway-core/adapters`: provider/configuration/infrastructure implementations. Ranking-policy YAML
-  parsing belongs here; ranking semantics remain in domain/application code.
+- `gateway-core/adapters`: provider/configuration/infrastructure implementations.
 - `gateway-client`: consumers receive a gateway credential only; no provider or PDP credentials.
-- `gateway-api`: composition root. Phase 5 permits the authenticated, prompt-free
-  `POST /v1/route/explain` surface here. FastAPI/Pydantic types must not leak inward.
+- `gateway-api`: composition root. FastAPI/Pydantic types must not leak inward.
 - consumer repositories may depend on the gateway; the gateway must never depend on business
   projects such as OpsLens, RAGForge, Getnet, Controlled Autonomy Lab, or Multi-Agent Credit Desk.
 
@@ -58,10 +58,13 @@ Request fields such as `risk_level`, `data_classification`, `agent_identity`, li
 must not automatically become authoritative security facts. Authentication and policy establish the
 effective context. Policy/identity failures fail closed.
 
-The Phase 4 `AuthorizedCandidateSet` is the only candidate source for Phase 5. Ranking must never
-re-enumerate the global registry to discover alternatives outside that set. Registry digest mismatch,
-multiple authorized logical groups, or a candidate outside PDP authorization are ranking invariant
-violations and fail closed.
+The Phase 4 `AuthorizedCandidateSet` is the source of policy-authorized deployments. Phase 5 filters
+and ranks only inside it. Phase 6 consumes only the resulting `selected + alternatives` sequence;
+resilience must never re-enumerate the global registry or reacquire broader authorization after a
+provider failure.
+
+Before the first provider call, every bounded fallback candidate must remain in the
+PDP-authorized logical model group.
 
 The Policy Model Router receives only prompt-free `PolicyRequestMetadata`. `GatewayRequest.messages`
 must never be sent to it. Conversely, PDP-only metadata must not be copied into provider requests.
@@ -70,35 +73,44 @@ Registry and ranking-policy YAML are untrusted configuration until strict safe p
 duplicate-key checks, closed-schema validation, semantic validation, and deterministic
 canonicalization succeed.
 
-## Phase 5 ranking rules
-
-Phase 5 permits only deterministic static/versioned operational ranking:
+## Phase 5 ranking rules retained
 
 - filter before score;
 - only candidates already authorized by Phase 4 may be evaluated;
 - deterministic `Decimal` arithmetic;
-- workload-specific weights sum exactly to `1`;
 - unknown pricing is not free;
 - missing ranking input is not a neutral/default score;
-- cost uses versioned registry pricing and the projected token estimates;
-- expected latency is a versioned planning input, not live health;
+- expected latency is versioned planning evidence, not live health;
 - ties resolve by ascending `deployment_id`;
-- selection provenance records PDP provenance, registry digest, ranking-policy version/digest,
-  score snapshot ID, selected deployment, and rejection reasons;
-- `benchmark_snapshot_id` remains unset because Phase 5 static score input is not empirical benchmark
-  evidence.
+- static score evidence remains distinct from future benchmark evidence.
 
-The `POST /v1/route/explain` endpoint performs authentication-context resolution, PDP authorization,
-eligibility, ranking, and explanation only. It performs no provider inference and rejects message or
-prompt fields at its request boundary.
+## Phase 6 resilience rules
+
+- retry means the same concrete deployment;
+- fallback means another deployment already present in the Phase 5 ranked alternatives;
+- only normalized retryable `rate_limit`, `timeout`, `unavailable`, and `transport` errors can trigger
+  automatic replay;
+- permanent validation/authentication/authorization/configuration errors do not retry or fall back;
+- retry attempts and fallback count are explicitly bounded;
+- exponential backoff and jitter are capped; provider `Retry-After` cannot force unbounded sleep;
+- runtime health is mutable operational state and must not be written into Phase 5 static scores;
+- an open circuit makes a deployment operationally ineligible;
+- when runtime-health filtering is active, a missing health snapshot fails closed;
+- circuit state is initially per process and per concrete deployment;
+- `FallbackSafetyState` blocks automatic replay after observed provider output, an external side
+  effect, or opaque provider continuation/reasoning state;
+- fallback/retry evidence is metadata-only.
+
+Provider timeout is a per-attempt bound in Phase 6. Do not silently reinterpret policy/ranking
+`max_latency_ms` as a total cross-retry execution deadline. A total execution budget requires an
+explicit contract.
 
 ## Explicitly deferred
 
 Do not pull forward:
 
-- Phase 6 runtime health, retries, fallback, or circuit breakers;
-- Phase 7 tool or structured-output normalization/execution behavior;
-- Phase 8 streaming;
+- Phase 7 structured-output/tool normalization or tool execution semantics;
+- Phase 8 streaming and partial-output replay/cancellation semantics;
 - Phase 9 OpenTelemetry runtime;
 - Phase 10/11 benchmark-derived ranking evidence;
 - Phase 13 signed Verifiable AI Governance runtime authorization.
@@ -132,9 +144,9 @@ python scripts/phase0_gate.py
 ```
 
 The Phase 0 regression gate is intentionally frozen to the five contract modules present at the
-`phase-0-architecture-gate` tag. Future-phase contract tests belong to the repository-wide pytest
+`phase-0-architecture-gate` tag. Current/future contract tests belong to the repository-wide pytest
 quality gate.
 
-Phase 5 acceptance requires identical inputs to produce identical ranking, ineligible deployments to
-be unable to win, deterministic tie resolution, the no-inference route-explain endpoint, preserved
-PDP authorization boundaries, and the complete read-only repository quality gate to pass.
+Phase 6 acceptance requires verified 429 retry, 5xx/transport fallback, preserved model-group
+authorization, zero retry/fallback on permanent errors, side-effect replay blocking, open-circuit
+eligibility removal, bounded retries/fallbacks, and the complete read-only quality gate to pass.

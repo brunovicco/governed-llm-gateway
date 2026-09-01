@@ -25,14 +25,27 @@ from .ranking import (
     WorkloadRankingPolicy,
     build_ranking_policy,
 )
+from .resilience import (
+    CircuitBreakerPolicy,
+    CircuitState,
+    DeploymentHealthSnapshot,
+    FallbackSafetyState,
+    HealthStatus,
+    RetryPolicy,
+)
 from .trust import AuthenticatedWorkloadIdentity, EffectivePolicyContext
 
 __all__ = [
     "AuthenticatedWorkloadIdentity",
     "AuthorizationBoundaryViolation",
+    "CircuitBreakerPolicy",
+    "CircuitState",
+    "DeploymentHealthSnapshot",
     "DuplicateRankingKeyError",
     "DuplicateRegistryKeyError",
     "EffectivePolicyContext",
+    "FallbackSafetyState",
+    "HealthStatus",
     "ModelDeployment",
     "ModelRegistry",
     "ModelRegistryError",
@@ -42,6 +55,7 @@ __all__ = [
     "RankingPolicy",
     "RankingPolicyError",
     "RankingWeights",
+    "RetryPolicy",
     "StaticDeploymentScore",
     "WorkloadRankingPolicy",
     "authorized_registry_candidates",
