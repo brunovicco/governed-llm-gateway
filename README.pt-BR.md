@@ -4,13 +4,15 @@
 
 Gateway reutilizável e neutro em relação a provedores de LLM, cuja responsabilidade é a **resolução e execução governada de modelos**.
 
-Status: **Phase 6 — Saúde de Runtime, Retry e Fallback Seguro implementados; em revisão**.
+Status: **Phase 7 — Structured Output e Normalização de Tools implementados; em revisão**.
 
-O projeto separa autorização, seleção operacional e resiliência de execução:
+O projeto separa autorização, seleção operacional, resiliência de execução e normalização de recursos
+dos provedores:
 
 ```text
 Aplicação / Agente
        │ workload + requisitos + metadados de política
+       │ mensagens + schema/tools opcionais
        ▼
 Policy Model Router (PDP)
        │ grupo lógico de modelos autorizado + proveniência
@@ -19,9 +21,14 @@ Governed LLM Gateway (PEP + seleção operacional)
        │ candidatos autorizados
        ├─ elegibilidade + ranking determinístico
        ├─ saúde de runtime / circuit breaker
-       └─ retry limitado / fallback seguro
+       ├─ retry limitado / fallback seguro
+       └─ structured output / normalização de tool calls
        ▼
 Provedor de LLM
+       │ texto / structured output / ToolCall
+       ▼
+Aplicação / Agente / runtime MCP
+       └─ autoriza e executa business tools
 ```
 
 Invariante central:
@@ -32,7 +39,7 @@ Gateway allowed set ⊆ Policy Router authorized set
 
 O gateway pode tornar a autorização mais restritiva por capacidade, política de ambiente/dados, custo,
 latência, saúde, estado do circuito ou outras restrições operacionais. Ele nunca pode ampliar a
-autorização, inclusive durante fallback.
+autorização, inclusive durante fallback ou tradução de recursos do provedor.
 
 ## Implementação atual
 
@@ -76,7 +83,8 @@ A Phase 5, incorporada pelo PR #4, adicionou seleção operacional determinísti
 Os scores estáticos da Phase 5 são explicitamente **não** considerados evidência de benchmark.
 `benchmark_snapshot_id` permanece vazio até as fases posteriores de avaliação/ranking por evidências.
 
-A Phase 6 adiciona resiliência de runtime estritamente dentro da sequência já autorizada e ranqueada:
+A Phase 6, incorporada pelo PR #5, adicionou resiliência de runtime estritamente dentro da sequência já
+autorizada e ranqueada:
 
 - ADR-0007 para semântica de retry/fallback e segurança de replay;
 - retry limitado contra o mesmo deployment concreto;
@@ -88,31 +96,67 @@ A Phase 6 adiciona resiliência de runtime estritamente dentro da sequência já
 - saúde de runtime e circuit breaker por processo e por deployment;
 - ciclo do circuito `CLOSED → OPEN → HALF_OPEN → CLOSED`;
 - circuito aberto e estado unhealthy removem o deployment da elegibilidade operacional;
-- quando o filtro de saúde está ativo, snapshot ausente torna o deployment inelegível em vez de
-  tratá-lo como saudável;
 - `FallbackSafetyState` bloqueia replay automático após output do modelo, side effect externo ou
   estado opaco de continuação/raciocínio do provedor;
 - execução resiliente bem-sucedida registra a progressão real de deployments em `fallback_sequence`
   e os retries do mesmo deployment como evidência metadata-only de tentativas.
 
 A camada de resiliência nunca reenumera o registry nem solicita ao PDP uma autorização mais ampla após
-falha de provedor. Todos os candidatos bounded de fallback são verificados contra o grupo lógico
+falha de provedor. Todos os candidatos de fallback limitados são verificados contra o grupo lógico
 autorizado antes da primeira chamada ao provedor.
 
-## Limites de escopo da resiliência
+A Phase 7 adiciona structured output e normalização de business tools executadas pelo cliente:
 
-Saúde de runtime é estado operacional mutável. Ela não altera os scores estáticos da Phase 5 nem é
-apresentada como evidência de benchmark.
+- ADR-0013 define a fronteira de autoridade de structured output/tools;
+- `StructuredOutputSchema` é um contrato provider-neutral de JSON Schema nomeado;
+- `ToolDefinition`, `ToolCall` e `ToolResult` são contratos canônicos endurecidos;
+- schemas fornecidos pelo caller são validados localmente como um subconjunto limitado do Draft
+  2020-12;
+- schemas têm limite de 64 KiB e profundidade limitada, com `$ref`/`$dynamicRef` remotos rejeitados;
+- `pattern`, `patternProperties` e `format` são rejeitados na Phase 7 até existir uma semântica de
+  enforcement local explicitamente limitada;
+- structured output do provedor é parseado e validado novamente localmente mesmo após enforcement
+  nativo;
+- tool calls só são aceitas para tools declaradas e os argumentos são validados contra seus schemas;
+- IDs de correlação do provedor são obrigatórios para o `ToolCall` canônico e nunca são inventados;
+- OpenAI Responses, Anthropic Messages e Gemini `generateContent` traduzem seus formatos nativos de
+  schema/tool;
+- endpoints OpenAI-compatible genéricos só recebem suporte a structured output/tool calling mediante
+  configuração explícita e verificada;
+- `invalid_structured_output` e `invalid_tool_call` são falhas permanentes, portanto geram zero retry
+  automático e zero fallback automático;
+- o gateway nunca executa business tools.
 
-O timeout do provedor permanece um limite **por tentativa** na Phase 6. O gateway não reutiliza
-silenciosamente `max_latency_ms` de política/ranking como deadline total entre retries. Um orçamento
-total de execução exige contrato explícito.
+`ToolResult` pertence à aplicação/agente/runtime MCP após esse runtime autorizar e executar a ação de
+negócio. A Phase 7 não fabrica estado de continuação/raciocínio específico de provedor quando o
+request canônico não consegue preservá-lo sem perda.
 
-O circuit breaker inicial é por processo. Estado compartilhado em Redis e probes ativos mais ricos
-ficam adiados até haver evidência operacional de necessidade.
+Veja `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` para o contrato detalhado da Phase 7.
 
-A Phase 6 cobre resiliência de geração de texto. Semântica de replay para tools/structured output começa
-na Phase 7; streaming, output parcial e cancelamento começam na Phase 8.
+## Structured output e tools
+
+Structured output é uma **capacidade nativa do modelo/API**, e não uma convenção de prompt. Pedir por
+prompt que um modelo devolva JSON não é tratado como equivalente a enforcement nativo por schema.
+
+A fronteira de schema é defensiva:
+
+- sintaxe Draft 2020-12 com subconjunto documentado para a Phase 7;
+- limite de 64 KiB para o schema serializado;
+- profundidade limitada;
+- nenhuma resolução externa de referências do schema;
+- nenhum keyword de regex controlado pelo caller na Phase 7;
+- nenhum `format` aceito sem validação local explícita;
+- validação local depois da resposta do provedor.
+
+A autoridade sobre business tools permanece fora do gateway:
+
+```text
+Gateway → normaliza ToolCall
+Aplicação / Agente / runtime MCP → autoriza + executa tool → é dono do ToolResult
+```
+
+O gateway nunca transforma uma tool call produzida pelo modelo em permissão para executar uma ação
+externa.
 
 ## Explicação determinística de rota
 
@@ -137,10 +181,10 @@ integração com Verifiable AI Governance; o gateway falha fechado sem chamar pr
 
 ## Nota sobre Gemini
 
-O Google recomenda a Interactions API para novos projetos desde junho de 2026, enquanto
-`generateContent` continua suportada. O adapter inicial usa deliberadamente `generateContent` porque
-o request provider-neutral atual possui mensagens canônicas, mas não os passos exatos de Interaction
-gerados pelo modelo necessários para reconstrução stateless sem perda.
+O adapter nativo atual do Gemini permanece em `generateContent`. A Phase 7 normaliza
+`functionDeclarations`/`functionCall` e JSON Schema nativo sem tentar reconstruir estado de continuação
+específico do provedor. Se uma function call não trouxer ID de correlação, o gateway falha fechado em
+vez de inventar um identificador.
 
 ## Estrutura do repositório
 
@@ -166,12 +210,18 @@ uv run python scripts/quality_gate.py
 O quality gate inclui Ruff, mypy, pytest/coverage, Bandit, pip-audit, validação de arquitetura,
 secret scanning e o regression gate congelado da Phase 0.
 
-Validação atual da Phase 6: **111 testes, 84,11% de cobertura total, mypy em 54 arquivos fonte e todos
-os gates de qualidade/segurança PASS**. O CI não exige credenciais e usa `contents: read`.
+Validação hardened atual da Phase 7: **132 testes, 82,62% de cobertura total, mypy em 58 arquivos
+fonte e todos os gates de qualidade/segurança PASS**. O CI não exige credenciais e usa
+`contents: read`.
+
+`jsonschema==4.26.0` é a dependência runtime de validação no `gateway-core`.
+`types-jsonschema==4.26.0.20260518` é usado apenas no ambiente efêmero do mypy.
 
 ## Fonte de verdade
 
 Comece por `docs/project/CURRENT_STATE.md` para continuidade,
+`docs/adr/ADR-0013-structured-output-and-tool-normalization.md` e
+`docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` para a Phase 7,
 `docs/adr/ADR-0007-fallback-safety-semantics.md` e `docs/project/FALLBACK_AND_RETRY.md` para a Phase 6,
 `docs/adr/ADR-0006-deterministic-candidate-ranking.md` para a Phase 5,
 `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md` para a autorização da Phase 4 e

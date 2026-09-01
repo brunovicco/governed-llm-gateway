@@ -1,14 +1,25 @@
-"""Provider-neutral execution boundary for Phase 3."""
+"""Provider-neutral execution boundary for model inference."""
 
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol
 
-from governed_llm_gateway_contracts import Message, MessageRole
+from governed_llm_gateway_contracts import (
+    Message,
+    MessageRole,
+    StructuredOutputSchema,
+    ToolCall,
+    ToolDefinition,
+)
+
+from governed_llm_gateway_core.domain.structured import (
+    validate_structured_output_schema,
+    validate_tool_definitions,
+)
 
 
 class ProviderErrorCode(StrEnum):
-    """Stable provider failure categories used by orchestration and later retry policy."""
+    """Stable provider failure categories used by orchestration and retry policy."""
 
     AUTHENTICATION = "authentication"
     RATE_LIMIT = "rate_limit"
@@ -17,7 +28,21 @@ class ProviderErrorCode(StrEnum):
     UNAVAILABLE = "unavailable"
     TRANSPORT = "transport"
     INVALID_RESPONSE = "invalid_response"
+    INVALID_STRUCTURED_OUTPUT = "invalid_structured_output"
+    INVALID_TOOL_CALL = "invalid_tool_call"
     UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderFeatureSupport:
+    """API-family features the adapter can translate natively.
+
+    Deployment/model capability remains registry data. These flags describe only the adapter wire
+    contract and never grant routing authorization.
+    """
+
+    native_structured_output: bool = False
+    native_tool_calling: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,34 +66,49 @@ class ProviderRequest:
     messages: tuple[Message, ...]
     max_output_tokens: int = 1024
     timeout_seconds: float = 30.0
+    structured_output: StructuredOutputSchema | None = None
+    tools: tuple[ToolDefinition, ...] = ()
 
     def __post_init__(self) -> None:
-        """Validate the bounded Phase 3 text-only execution request."""
+        """Validate bounded provider-neutral execution input."""
         if not self.model or self.model.strip() != self.model:
             raise ValueError("provider model must be a non-empty normalized string")
         if not self.messages:
             raise ValueError("provider request must contain at least one message")
         if any(message.role is MessageRole.TOOL for message in self.messages):
-            raise ValueError("tool-result messages are not supported in Phase 3")
+            raise ValueError(
+                "tool-result message continuation is not representable "
+                "without prior tool-call state"
+            )
         if self.max_output_tokens <= 0:
             raise ValueError("max_output_tokens must be positive")
         if self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
+        if self.structured_output is not None:
+            validate_structured_output_schema(self.structured_output)
+        if self.tools:
+            validate_tool_definitions(self.tools)
 
 
 @dataclass(frozen=True, slots=True)
 class ProviderResponse:
-    """Provider-neutral successful text-generation response."""
+    """Provider-neutral successful inference response."""
 
-    text: str
+    text: str | None = None
     usage: ProviderUsage = field(default_factory=ProviderUsage)
     response_id: str | None = None
     finish_reason: str | None = None
+    structured_output: object | None = None
+    tool_calls: tuple[ToolCall, ...] = ()
 
     def __post_init__(self) -> None:
-        """Require actual text for the Phase 3 text-generation contract."""
-        if not self.text.strip():
-            raise ValueError("provider response text must not be empty")
+        """Require at least one usable normalized output channel."""
+        if self.text is not None and not self.text.strip():
+            raise ValueError("provider response text must not be blank")
+        if self.text is None and self.structured_output is None and not self.tool_calls:
+            raise ValueError(
+                "provider response must contain text, structured output, or tool calls"
+            )
 
 
 class ProviderError(RuntimeError):
@@ -97,5 +137,5 @@ class ProviderPort(Protocol):
     """Execution port implemented by one provider API-family adapter."""
 
     async def generate(self, request: ProviderRequest) -> ProviderResponse:
-        """Generate one text response from an already-selected concrete model."""
+        """Generate one response from an already-selected concrete model."""
         ...

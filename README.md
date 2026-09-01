@@ -5,13 +5,15 @@
 Reusable provider-neutral LLM execution gateway whose responsibility is **governed model resolution
 and execution**.
 
-Status: **Phase 6 — Runtime Health, Retry and Safe Fallback implemented; under review**.
+Status: **Phase 7 — Structured Output and Tool Normalization implemented; under review**.
 
-The project separates authorization from operational selection and execution resilience:
+The project separates authorization, operational selection, execution resilience, and provider feature
+normalization:
 
 ```text
 Application / Agent
        │ workload + requirements + policy metadata
+       │ messages + optional schema/tool definitions
        ▼
 Policy Model Router (PDP)
        │ authorized logical model group + provenance
@@ -20,9 +22,14 @@ Governed LLM Gateway (PEP + operational selection)
        │ authorized candidates
        ├─ eligibility + deterministic ranking
        ├─ runtime health / circuit breaker
-       └─ bounded retry / safe fallback
+       ├─ bounded retry / safe fallback
+       └─ structured output / tool-call normalization
        ▼
 LLM Provider
+       │ text / structured output / ToolCall
+       ▼
+Application / Agent / MCP runtime
+       └─ authorizes and executes business tools
 ```
 
 Core invariant:
@@ -33,7 +40,7 @@ Gateway allowed set ⊆ Policy Router authorized set
 
 The gateway may make authorization narrower due to capability, environment/data policy, cost,
 latency, health, circuit state, or other operational constraints. It must never make authorization
-broader, including during fallback.
+broader, including during fallback or provider feature translation.
 
 ## Current implementation
 
@@ -77,7 +84,8 @@ Phase 5, merged through PR #4, added deterministic operational selection:
 Phase 5 static score inputs are explicitly **not** benchmark evidence. `benchmark_snapshot_id` remains
 unset until later evaluation/evidence-driven ranking phases.
 
-Phase 6 adds runtime resilience strictly inside the Phase 5 ranked authorized sequence:
+Phase 6, merged through PR #5, adds runtime resilience strictly inside the Phase 5 ranked authorized
+sequence:
 
 - ADR-0007 for retry/fallback and replay-safety semantics;
 - bounded retry against the same concrete deployment;
@@ -89,30 +97,64 @@ Phase 6 adds runtime resilience strictly inside the Phase 5 ranked authorized se
 - per-process, per-deployment runtime health and circuit breaker state;
 - circuit lifecycle `CLOSED → OPEN → HALF_OPEN → CLOSED`;
 - open circuit and unhealthy state remove a deployment from operational eligibility;
-- active runtime-health filtering treats a missing snapshot as ineligible rather than healthy;
 - `FallbackSafetyState` blocks automatic replay after provider output, external side effects, or
   opaque provider continuation/reasoning state;
 - successful resilient execution records actual deployment progression in `fallback_sequence` and
   same-deployment attempts in metadata-only execution evidence.
 
-The resilience layer never re-enumerates the registry or asks the PDP for a wider authorization after
-a provider failure. All bounded fallback candidates are checked against the authorized logical model
+The resilience layer never re-enumerates the registry or asks the PDP for wider authorization after a
+provider failure. All bounded fallback candidates are checked against the authorized logical model
 group before the first provider call.
 
-## Resilience scope notes
+Phase 7 adds structured-output and client-side business-tool normalization:
 
-Runtime health is mutable operational state. It does not modify Phase 5 static ranking scores or claim
-to be benchmark evidence.
+- ADR-0013 defines the structured-output/tool authority boundary;
+- `StructuredOutputSchema` is a named provider-neutral JSON Schema contract;
+- `ToolDefinition`, `ToolCall`, and `ToolResult` are hardened canonical contracts;
+- caller-provided schemas are validated locally as a bounded Draft 2020-12 subset;
+- schemas are limited to 64 KiB and bounded depth, with remote `$ref`/`$dynamicRef` rejected;
+- `pattern`, `patternProperties`, and `format` are rejected in Phase 7 until bounded enforcement
+  semantics are explicitly supported;
+- provider structured output is parsed and validated again locally after native enforcement;
+- tool calls are accepted only for declared tools and arguments are validated against their schemas;
+- provider correlation IDs are required for canonical `ToolCall` and are never synthesized;
+- OpenAI Responses, Anthropic Messages, and Gemini `generateContent` translate their native schema/tool
+  wire formats;
+- generic OpenAI-compatible endpoints receive structured-output/tool support only through explicit
+  verified configuration;
+- `invalid_structured_output` and `invalid_tool_call` are permanent failures, so they trigger zero
+  automatic retry and zero automatic fallback;
+- the gateway never executes business tools.
 
-Provider timeout remains a **per-attempt** bound in Phase 6. The gateway deliberately does not
-reinterpret the policy/ranking `max_latency_ms` selection constraint as a total cross-retry deadline.
-A future total execution budget requires an explicit contract.
+`ToolResult` is owned by the application/agent/MCP runtime after that runtime authorizes and executes
+the business action. Phase 7 does not fabricate provider-native continuation/reasoning state when the
+canonical request cannot preserve it losslessly.
 
-The initial circuit breaker is per process. Shared Redis-backed state and richer active health probes
-are deferred until operational evidence justifies them.
+See `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` for the detailed Phase 7 contract.
 
-Phase 6 is text-generation resilience only. Tool/structured-output replay semantics begin in Phase 7;
-streaming/partial-output replay and cancellation semantics begin in Phase 8.
+## Structured output and tools
+
+Structured output is a **native model/API capability**, not a prompt convention. Prompting a model to
+return JSON is not treated as equivalent to native schema enforcement.
+
+The schema boundary is intentionally defensive:
+
+- Draft 2020-12 syntax with a documented Phase 7 subset;
+- 64 KiB serialized schema limit;
+- bounded schema depth;
+- no external schema-reference retrieval;
+- no caller-controlled regex keywords in Phase 7;
+- no silently unenforced `format` keyword;
+- post-provider local output validation.
+
+Business-tool authority remains outside the gateway:
+
+```text
+Gateway → normalizes ToolCall
+Application / Agent / MCP runtime → authorizes + executes tool → owns ToolResult
+```
+
+The gateway never turns a model-produced tool call into permission to perform an external action.
 
 ## Deterministic route explanation
 
@@ -137,10 +179,10 @@ fails closed without calling a provider.
 
 ## Gemini API note
 
-Google recommends its Interactions API for new projects as of June 2026, while `generateContent`
-remains supported. The initial Gemini adapter deliberately uses `generateContent` because the current
-provider-neutral request owns canonical conversation messages but not the exact model-generated
-Interaction steps required for lossless stateless Interactions history.
+The current native Gemini adapter remains on `generateContent`. Phase 7 normalizes
+`functionDeclarations`/`functionCall` and native JSON-schema configuration without attempting to
+reconstruct provider-specific continuation state. A missing provider function-call correlation ID
+fails closed rather than being synthesized.
 
 ## Repository layout
 
@@ -166,12 +208,17 @@ uv run python scripts/quality_gate.py
 The quality gate includes Ruff, mypy, pytest/coverage, Bandit, pip-audit, architecture validation,
 secret scanning, and the frozen Phase 0 architecture regression gate.
 
-Current Phase 6 implementation validation: **111 tests, 84.11% total coverage, mypy across 54 source
-files, and all quality/security gates PASS**. CI is credential-free and uses `contents: read`.
+Current Phase 7 hardened validation: **132 tests, 82.62% total coverage, mypy across 58 source files,
+and all quality/security gates PASS**. CI is credential-free and uses `contents: read`.
+
+`jsonschema==4.26.0` is the runtime validation dependency in `gateway-core`.
+`types-jsonschema==4.26.0.20260518` is used only in the ephemeral mypy environment.
 
 ## Source of truth
 
 Start with `docs/project/CURRENT_STATE.md` for continuation,
+`docs/adr/ADR-0013-structured-output-and-tool-normalization.md` and
+`docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` for Phase 7,
 `docs/adr/ADR-0007-fallback-safety-semantics.md` and `docs/project/FALLBACK_AND_RETRY.md` for Phase 6,
 `docs/adr/ADR-0006-deterministic-candidate-ranking.md` for Phase 5 ranking semantics,
 `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md` for the Phase 4 authorization binding, and

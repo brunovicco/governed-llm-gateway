@@ -1,12 +1,16 @@
-"""Immutable draft contracts for the Governed LLM Gateway Architecture Gate."""
+"""Immutable provider-neutral contracts for the Governed LLM Gateway."""
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
+from re import fullmatch
 from uuid import UUID
 
 from .enums import DataClassification, ExecutionStatus, MessageRole, RejectionReason, RiskLevel
 from .errors import GatewayError
+
+_TOOL_NAME_PATTERN = r"[A-Za-z_][A-Za-z0-9_-]{0,127}"
+_SCHEMA_NAME_PATTERN = r"[A-Za-z_][A-Za-z0-9_-]{0,63}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,8 +52,71 @@ class RequestLimits:
 
 
 @dataclass(frozen=True, slots=True)
+class StructuredOutputSchema:
+    """Canonical JSON Schema requested for a provider-native structured response."""
+
+    name: str
+    schema: Mapping[str, object]
+
+    def __post_init__(self) -> None:
+        """Validate only provider-neutral shape; JSON Schema semantics are checked in core."""
+        if fullmatch(_SCHEMA_NAME_PATTERN, self.name) is None:
+            raise ValueError("structured output schema name is invalid")
+        if not self.schema:
+            raise ValueError("structured output schema must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ToolDefinition:
+    """Canonical business-tool description; the gateway never executes it."""
+
+    name: str
+    description: str
+    input_schema: Mapping[str, object]
+
+    def __post_init__(self) -> None:
+        """Validate provider-neutral tool identity and root input shape."""
+        if fullmatch(_TOOL_NAME_PATTERN, self.name) is None:
+            raise ValueError("tool name is invalid")
+        if not self.description.strip() or self.description.strip() != self.description:
+            raise ValueError("tool description must be a normalized non-empty string")
+        if self.input_schema.get("type") != "object":
+            raise ValueError("tool input_schema root type must be object")
+
+
+@dataclass(frozen=True, slots=True)
+class ToolCall:
+    """Canonical model-produced tool call."""
+
+    call_id: str
+    name: str
+    arguments: Mapping[str, object]
+
+    def __post_init__(self) -> None:
+        """Validate canonical tool-call identity before schema validation."""
+        if not self.call_id.strip() or self.call_id.strip() != self.call_id:
+            raise ValueError("tool call_id must be a normalized non-empty string")
+        if fullmatch(_TOOL_NAME_PATTERN, self.name) is None:
+            raise ValueError("tool call name is invalid")
+
+
+@dataclass(frozen=True, slots=True)
+class ToolResult:
+    """Canonical tool result supplied by the agent/application runtime."""
+
+    call_id: str
+    content: str
+    is_error: bool = False
+
+    def __post_init__(self) -> None:
+        """Validate correlation identity; business result content remains opaque to the gateway."""
+        if not self.call_id.strip() or self.call_id.strip() != self.call_id:
+            raise ValueError("tool result call_id must be a normalized non-empty string")
+
+
+@dataclass(frozen=True, slots=True)
 class GatewayRequest:
-    """Initial provider-neutral request contract.
+    """Provider-neutral request contract.
 
     risk_level and data_classification are caller-declared context, not trusted authorization
     facts. The enforcement layer must derive or validate effective values from authenticated
@@ -65,9 +132,11 @@ class GatewayRequest:
     limits: RequestLimits = field(default_factory=RequestLimits)
     messages: tuple[Message, ...] = ()
     agent_identity: str | None = None
+    tools: tuple[ToolDefinition, ...] = ()
+    structured_output: StructuredOutputSchema | None = None
 
     def __post_init__(self) -> None:
-        """Validate schema version and normalized workload identity."""
+        """Validate schema version, workload identity, and optional execution contracts."""
         if self.schema_version != "1.0":
             raise ValueError("unsupported schema_version")
         if not self.workload or self.workload.strip() != self.workload:
@@ -75,33 +144,13 @@ class GatewayRequest:
         segments = self.workload.split(".")
         if len(segments) < 2 or any(not segment.replace("-", "").isalnum() for segment in segments):
             raise ValueError("workload must be a dotted policy-defined identifier")
-
-
-@dataclass(frozen=True, slots=True)
-class ToolDefinition:
-    """Canonical business-tool description; the gateway never executes it."""
-
-    name: str
-    description: str
-    input_schema: Mapping[str, object]
-
-
-@dataclass(frozen=True, slots=True)
-class ToolCall:
-    """Canonical model-produced tool call."""
-
-    call_id: str
-    name: str
-    arguments: Mapping[str, object]
-
-
-@dataclass(frozen=True, slots=True)
-class ToolResult:
-    """Canonical tool result supplied by the agent/application runtime."""
-
-    call_id: str
-    content: str
-    is_error: bool = False
+        tool_names = tuple(tool.name for tool in self.tools)
+        if len(set(tool_names)) != len(tool_names):
+            raise ValueError("tool definitions must have unique names")
+        if self.tools and not self.requirements.tool_calling:
+            raise ValueError("tool definitions require tool_calling capability")
+        if self.structured_output is not None and not self.requirements.structured_output:
+            raise ValueError("structured output schema requires structured_output capability")
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,7 +214,7 @@ class ProviderExecution:
 
 @dataclass(frozen=True, slots=True)
 class GatewayResponse:
-    """Provider-neutral response draft."""
+    """Provider-neutral response contract."""
 
     request_id: UUID
     status: ExecutionStatus
@@ -173,3 +222,5 @@ class GatewayResponse:
     routing: RoutingProvenance
     execution: ProviderExecution | None = None
     error: GatewayError | None = None
+    structured_output: object | None = None
+    tool_calls: tuple[ToolCall, ...] = ()

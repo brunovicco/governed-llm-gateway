@@ -16,6 +16,7 @@ from .policy import (
 from .provider import (
     ProviderError,
     ProviderErrorCode,
+    ProviderFeatureSupport,
     ProviderPort,
     ProviderRequest,
     ProviderResponse,
@@ -58,6 +59,7 @@ __all__ = [
     "PolicyRequestMetadata",
     "ProviderError",
     "ProviderErrorCode",
+    "ProviderFeatureSupport",
     "ProviderPort",
     "ProviderRequest",
     "ProviderResolutionError",

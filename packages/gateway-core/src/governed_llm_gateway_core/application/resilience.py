@@ -298,6 +298,8 @@ class ResilientExecutionService:
                     messages=request.messages,
                     max_output_tokens=max_output_tokens,
                     timeout_seconds=provider_timeout_seconds,
+                    structured_output=request.structured_output,
+                    tools=request.tools,
                 )
                 started = self._clock()
                 try:
