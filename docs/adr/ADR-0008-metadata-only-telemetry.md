@@ -51,11 +51,17 @@ metadata. Eligible attributes include:
 - ranking policy version/digest and static score snapshot ID;
 - selected provider/model/deployment;
 - attempt/fallback counts;
-- normalized input/output token counts;
+- normalized input/output usage counts;
 - latency and streaming TTFT;
 - streaming/partial flags;
 - bounded retry delay;
 - stable normalized error categories and HTTP status where already available.
+
+Provider usage values remain normalized input/output token counts. They are exported under
+`llm.usage.input_count` and `llm.usage.output_count` rather than keys containing the word `token`,
+because the shared `a2a-otel-kit` deny-by-default sanitizer intentionally rejects credential-like key
+names even when a caller adds them to an allowlist. The gateway does not bypass or weaken that
+sanitizer.
 
 Default telemetry must not contain:
 
@@ -115,7 +121,7 @@ interpreted as model inference latency.
 Streaming provider spans may record:
 
 - TTFT measured at the first semantic content/tool event;
-- final input/output token usage;
+- final normalized input/output usage counts;
 - total provider-attempt latency;
 - whether a terminal failure followed partial semantic output.
 
