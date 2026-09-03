@@ -50,7 +50,9 @@ class PromotedRankingEvidence:
     evidence_id: str
     records: tuple[RankingEvidenceRecord, ...]
 
-    def for_runtime(self, runtime_workload: str, deployment_id: str) -> RankingEvidenceRecord | None:
+    def for_runtime(
+        self, runtime_workload: str, deployment_id: str
+    ) -> RankingEvidenceRecord | None:
         """Return promoted evidence for an already-known runtime candidate, when present."""
         for record in self.records:
             if (
@@ -105,7 +107,10 @@ def build_promoted_ranking_evidence(payload: Mapping[object, object]) -> Promote
         records.append(record)
 
     records_tuple = tuple(
-        sorted(records, key=lambda item: (item.runtime_workload, item.deployment_id, item.target_id))
+        sorted(
+            records,
+            key=lambda item: (item.runtime_workload, item.deployment_id, item.target_id),
+        )
     )
     canonical_without_id = {
         "schema_version": schema_version,
