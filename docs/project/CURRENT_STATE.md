@@ -16,8 +16,9 @@ Last updated: 2026-09-03
 | Phase 7 — Structured Output and Tool Normalization | COMPLETE (`governed-llm-gateway` PR #6) |
 | Phase 8 — Streaming | COMPLETE (`governed-llm-gateway` PR #7) |
 | Phase 9 — OpenTelemetry | COMPLETE (`governed-llm-gateway` PR #8) |
-| Phase 10 — Evaluation Framework | IMPLEMENTED — VALIDATION / REVIEW PREPARATION |
-| Phase 11+ | NOT STARTED |
+| Phase 10 — Evaluation Framework | COMPLETE (`governed-llm-gateway` PR #9) |
+| Phase 11 — Evidence-Driven Ranking | CURRENT — ADR / PROMOTION BOUNDARY ESTABLISHED |
+| Phase 12+ | NOT STARTED |
 
 ## Durable architecture baseline
 
@@ -31,7 +32,7 @@ Last updated: 2026-09-03
 - provider-native feature support never grants model authorization by itself;
 - business-tool execution remains outside the gateway.
 
-## Completed through Phase 9
+## Completed through Phase 10
 
 Phase 1 generalized Policy Model Router workload/model-group identifiers. Phase 2 established the
 strict model registry and deterministic registry digest. Phase 3 added provider execution ports and
@@ -48,93 +49,91 @@ Phase 9 merged through PR #8 at merge commit
 trace handoff, and privacy tests. Provider-attempt spans close before retry backoff. Telemetry remains
 evidence only and has no authorization/ranking/health authority.
 
-## Phase 10 — Evaluation Framework
+Phase 10 merged through PR #9 at squash commit
+`db30ffc481d1a3c02fb01f46524b5190290fb7ac` after independent architecture/security review returned
+`APPROVE`.
 
-Branch `feat/phase-10-evaluation-framework` implements the offline-first evaluation framework under a
-repository-level `benchmarks/` source root. It deliberately does not become a runtime dependency of
-the gateway packages.
+Phase 10 delivered:
 
-Delivered implementation:
-
-- strict provider-neutral benchmark contracts for cases, targets, observations, scorecards, and
-  immutable snapshots;
-- five roadmap workload identifiers: `structured_extraction`, `rag_ptbr`, `code_generation`,
-  `tool_use`, and `agent_orchestration`;
-- `benchmarks/datasets/gateway-eval-v1.json`: schema `1.0`, explicitly `public`, ten
-  public/synthetic cases (two per initial workload);
-- strict dataset loader rejecting unknown fields, malformed values, unsupported workload values, and
-  non-public Phase 10 classification;
-- deterministic local scorers: `exact_json`, `contains_all`, `mapping_fields`, and
-  `ordered_sequence`;
-- scorer preflight before any executor call so unknown scorer identifiers fail closed without partial
-  provider execution;
-- provider-neutral `BenchmarkExecutor` port and `BenchmarkRunner`;
+- repository-level offline `benchmarks/` source root, intentionally outside runtime package authority;
+- five initial workloads: `structured_extraction`, `rag_ptbr`, `code_generation`, `tool_use`, and
+  `agent_orchestration`;
+- ten explicitly public/synthetic benchmark cases;
+- deterministic local scorers with whole-dataset fail-closed preflight;
+- provider-neutral benchmark executor/runner;
 - explicit `succeeded`, `quality_failure`, and `provider_failure` observation states;
-- provider failures carry no quality score, preventing rate limits/timeouts/outages from becoming
-  false zero-quality model results;
-- scorecards that independently aggregate availability, quality, latency p50/p95, TTFT p50/p95,
-  usage, cost, rate-limit count, fallback frequency, and stable provider-error counts;
-- strict provider/model target matrix in `benchmarks/runners/targets-v1.json`, with exact model ID,
-  API surface, configuration, and source date for NVIDIA, Groq, OpenRouter, Google Gemini, OpenAI, and
-  Anthropic benchmark/control targets;
-- canonical dataset digest and content-derived `sha256:` snapshot identity covering benchmark version,
-  runner version, run date, exact targets/configuration, observations, and scorecards;
-- immutable/idempotent snapshot persistence under
-  `benchmarks/results/<benchmark-version>/<snapshot-sha256>.json`;
-- raw provider responses are outside the score-snapshot contract;
-- `benchmarks/` is included in Ruff, mypy, Bandit, architecture validation, and aggregate coverage.
+- scorecards that keep quality and availability evidence separate;
+- exact provider/model/API/configuration/source-date target provenance;
+- canonical dataset digest and immutable content-derived benchmark snapshot identity;
+- idempotent snapshot persistence without raw provider-response persistence;
+- `benchmarks/` included in lint, typing, security, architecture, and coverage gates.
 
-## Phase 10 validation baseline
+Final Phase 10 validation evidence recorded before merge:
 
-Validated code head before documentation synchronization:
+- GitHub Actions run `33807237149` — PASS;
+- pytest — 207 passed;
+- aggregate branch coverage — 80.56%;
+- Ruff, mypy, Bandit, pip-audit, architecture check, secret scan, and Phase 0 gate — PASS;
+- default CI credential-free with no live provider/PDP calls.
 
-`9a7b49407b0a040c976eac88fb29201ecf102a28`
-
-GitHub Actions run:
-
-`33806876880`
-
-Results:
-
-- `uv lock --check` — PASS;
-- Ruff lint — PASS;
-- Ruff format — PASS, 84 files;
-- mypy — PASS across **84 source files**;
-- pytest — **207 passed**;
-- aggregate branch coverage — **80.56%**, above the 80% threshold using the actual value;
-- Phase 10 deterministic scorer module — 100% coverage;
-- Bandit — no identified issues;
-- pip-audit — no known vulnerabilities;
-- architecture check — PASS;
-- secret scan — PASS;
-- Phase 0 regression gate — PASS;
-- default workflow token permissions remain read-only (`contents: read`, `metadata: read`);
-- no live provider/PDP calls and no provider credentials required.
-
-A Phase 10 validation finding exposed that coverage tooling with default precision could display an
-actual 79.63% result as rounded 80% and allow the workflow to continue. The threshold was not lowered
-and benchmark code was not excluded. Additional meaningful scorer tests raised actual coverage to
-80.56%, and `[tool.coverage.report] precision = 2` is now configured so future sub-80 results cannot be
-hidden by zero-decimal display rounding.
+Coverage reporting uses precision 2 so a real sub-80% result cannot be hidden by zero-decimal display
+rounding.
 
 The known FastAPI/Starlette TestClient `httpx` -> `httpx2` deprecation warning remains non-blocking and
 is separate maintenance work.
 
-## Phase boundary
+## Phase 11 — Evidence-Driven Ranking
 
-Phase 10 produces benchmark evidence only. Runtime routing does not import or consume `benchmarks/`,
-and `benchmark_snapshot_id` remains unset in routing provenance.
+Active branch:
 
-ADR-0009 — Benchmark-derived routing scores — remains deferred to Phase 11. When Phase 11 begins,
-approved benchmark evidence may affect ordering only inside the already-authorized candidate set. It
-must never broaden authorization.
+`feat/phase-11-evidence-driven-ranking`
 
-Free/developer provider endpoints remain benchmark/development-only for public/synthetic datasets by
-default. Confidential/private benchmark fixtures must not be sent to those endpoints.
+The branch starts from the Phase 10 merge commit
+`db30ffc481d1a3c02fb01f46524b5190290fb7ac`.
+
+ADR-0009 — Benchmark-Derived Routing Scores — is now accepted.
+
+The Phase 11 authority boundary is:
+
+`immutable benchmark snapshot -> explicit approval/promotion -> versioned ranking evidence -> runtime ranking`
+
+Permanent Phase 11 rules:
+
+- benchmark evidence may affect ordering only inside the PDP-authorized and otherwise-eligible candidate
+  set;
+- an unapproved benchmark snapshot has zero runtime routing authority;
+- runtime must not discover or automatically load the newest benchmark result;
+- the Phase 10 benchmark runner remains off the runtime request path;
+- promoted routing evidence records the exact immutable `benchmark_snapshot_id`;
+- provider failures remain availability evidence and must not become quality score zeroes;
+- missing sufficient benchmark quality evidence fails closed instead of inventing neutral/default scores;
+- manual override is explicit, versioned, attributable configuration and cannot broaden eligibility;
+- rollback selects a previously approved immutable ranking artifact/snapshot combination;
+- benchmark runs, telemetry, or runtime outcomes never rewrite active ranking policy automatically.
+
+## Current Phase 11 implementation checkpoint
+
+Completed:
+
+1. Phase 10 merged and Phase 11 unblocked.
+2. `feat/phase-11-evidence-driven-ranking` created and aligned to the Phase 10 merge commit.
+3. ADR-0009 accepted.
+4. ADR backlog updated to mark ADR-0009 resolved.
+5. Roadmap updated to mark Phase 10 complete and Phase 11 current.
+
+Next implementation slice:
+
+- define the strict promoted-benchmark evidence contract;
+- compile approved Phase 10 snapshot scorecards into explicit Phase 11 ranking inputs without importing
+  `benchmarks/` into the runtime request path;
+- carry `benchmark_snapshot_id` and provenance mode into routing decision/explain evidence;
+- add fail-closed tests for unapproved/malformed/missing-quality evidence;
+- add manual override and rollback behavior only after the promotion contract is stable.
 
 ## Explicitly deferred
 
-- benchmark-derived ranking evidence/runtime snapshot consumption (Phase 11);
+- automatic/adaptive policy optimization or self-modifying routing;
+- combining benchmark ranking with uncontrolled online-learning logic;
 - thin client HTTP transport completion (Phase 12);
 - signed Verifiable AI Governance runtime authorization (Phase 13);
 - provider-native tool-result continuation requiring a canonical transcript/state contract;
@@ -145,8 +144,5 @@ default. Confidential/private benchmark fixtures must not be sent to those endpo
 
 ## Next step
 
-Complete final Phase 10 documentation/quality validation, open the Phase 10 pull request, then run the
-required independent architecture/security review against the complete `main...feat/phase-10-evaluation-framework`
-diff. Resolve every justified BLOCKER/HIGH/MEDIUM finding before merge.
-
-Phase 11 must not start until Phase 10 is independently reviewed and merged.
+Implement the Phase 11 promoted-benchmark evidence contract and its deterministic compiler/tests before
+changing active runtime ranking behavior.
