@@ -54,6 +54,7 @@ mypy_path = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-q --strict-markers --strict-config"
 markers = [
     "integration: tests that cross package/process boundaries",
