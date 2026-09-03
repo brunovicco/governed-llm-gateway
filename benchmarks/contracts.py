@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
@@ -58,7 +59,7 @@ class BenchmarkCase:
     scorer: str
     prompt: str
     expected: JsonValue
-    metadata: dict[str, JsonValue] = field(default_factory=dict)
+    metadata: Mapping[str, JsonValue] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.case_id or self.case_id.strip() != self.case_id:
@@ -68,6 +69,26 @@ class BenchmarkCase:
         if not self.prompt:
             raise ValueError("prompt must not be empty")
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
+
+
+@dataclass(frozen=True, slots=True)
+class BenchmarkDataset:
+    """Versioned public/synthetic dataset with explicit data classification."""
+
+    schema_version: str
+    benchmark_version: str
+    data_classification: str
+    cases: tuple[BenchmarkCase, ...]
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "1.0":
+            raise ValueError("unsupported benchmark dataset schema_version")
+        if not self.benchmark_version or self.benchmark_version.strip() != self.benchmark_version:
+            raise ValueError("benchmark_version must be non-empty and normalized")
+        if self.data_classification != "public":
+            raise ValueError("Phase 10 credential-free datasets must be explicitly public")
+        if not self.cases:
+            raise ValueError("benchmark dataset must contain at least one case")
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,10 +172,14 @@ class Scorecard:
     total_cost_usd: Decimal
     rate_limit_errors: int
     fallback_frequency: Decimal
-    provider_error_counts: dict[str, int]
+    provider_error_counts: Mapping[str, int]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "provider_error_counts", MappingProxyType(dict(self.provider_error_counts)))
+        object.__setattr__(
+            self,
+            "provider_error_counts",
+            MappingProxyType(dict(self.provider_error_counts)),
+        )
 
 
 @dataclass(frozen=True, slots=True)
