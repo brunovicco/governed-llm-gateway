@@ -427,8 +427,8 @@ class ResilientExecutionService:
                                 span,
                                 {
                                     "llm.latency_ms": latency_ms,
-                                    "llm.input_tokens": response.usage.input_tokens,
-                                    "llm.output_tokens": response.usage.output_tokens,
+                                    "llm.usage.input_count": response.usage.input_tokens,
+                                    "llm.usage.output_count": response.usage.output_tokens,
                                 },
                             )
                             mark_span_success(span)

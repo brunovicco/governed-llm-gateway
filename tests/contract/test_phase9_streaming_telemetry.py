@@ -228,8 +228,8 @@ def test_generate_telemetry_continues_trace_and_exports_metadata_only() -> None:
     assert request_attributes["llm.workload"] == "agent.orchestration"
     assert request_attributes["routing.policy_id"] == "gateway-policy"
     assert request_attributes["outcome"] == "success"
-    assert stream_attributes["llm.input_tokens"] == 11
-    assert stream_attributes["llm.output_tokens"] == 3
+    assert stream_attributes["llm.usage.input_count"] == 11
+    assert stream_attributes["llm.usage.output_count"] == 3
     assert stream_attributes["llm.provider"] == "provider-a"
     assert stream_attributes["outcome"] == "success"
     assert stream_span.status.status_code is StatusCode.OK

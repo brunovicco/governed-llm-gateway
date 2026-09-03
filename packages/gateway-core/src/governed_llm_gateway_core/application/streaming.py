@@ -274,8 +274,8 @@ class StreamingExecutionService:
                                         set_gateway_span_attributes(
                                             span,
                                             {
-                                                "llm.input_tokens": event.usage.input_tokens,
-                                                "llm.output_tokens": event.usage.output_tokens,
+                                                "llm.usage.input_count": event.usage.input_tokens,
+                                                "llm.usage.output_count": event.usage.output_tokens,
                                             },
                                         )
                                     sequence += 1
