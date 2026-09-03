@@ -17,7 +17,7 @@ Last updated: 2026-09-03
 | Phase 8 — Streaming | COMPLETE (`governed-llm-gateway` PR #7) |
 | Phase 9 — OpenTelemetry | COMPLETE (`governed-llm-gateway` PR #8) |
 | Phase 10 — Evaluation Framework | COMPLETE (`governed-llm-gateway` PR #9) |
-| Phase 11 — Evidence-Driven Ranking | CURRENT — ADR / PROMOTION BOUNDARY ESTABLISHED |
+| Phase 11 — Evidence-Driven Ranking | CURRENT — PROMOTION / HYBRID COMPILATION IN PROGRESS |
 | Phase 12+ | NOT STARTED |
 
 ## Durable architecture baseline
@@ -91,7 +91,7 @@ Active branch:
 The branch starts from the Phase 10 merge commit
 `db30ffc481d1a3c02fb01f46524b5190290fb7ac`.
 
-ADR-0009 — Benchmark-Derived Routing Scores — is now accepted.
+ADR-0009 — Benchmark-Derived Routing Scores — is accepted.
 
 The Phase 11 authority boundary is:
 
@@ -113,26 +113,58 @@ Permanent Phase 11 rules:
 
 ## Current Phase 11 implementation checkpoint
 
-Completed:
+Completed in the current branch:
 
 1. Phase 10 merged and Phase 11 unblocked.
-2. `feat/phase-11-evidence-driven-ranking` created and aligned to the Phase 10 merge commit.
-3. ADR-0009 accepted.
-4. ADR backlog updated to mark ADR-0009 resolved.
-5. Roadmap updated to mark Phase 10 complete and Phase 11 current.
+2. ADR-0009 accepted and ADR backlog/roadmap synchronized.
+3. `benchmarks/promotion.py` adds deterministic, explicit target/workload -> runtime
+   deployment/workload promotion. Promotion identity covers approval metadata, exact Phase 10 snapshot,
+   dataset digest, and promoted records.
+4. Provider-only failures cannot become quality score zero: promotion requires completed quality
+   evidence and fails closed when it is absent.
+5. `benchmarks/promotion_store.py` persists promoted evidence immutably/idempotently and rejects
+   same-ID/different-content collisions.
+6. `ranking_evidence.py` adds a runtime-side strict contract that does not import `benchmarks/` and
+   verifies the content-derived promotion `evidence_id` before accepting evidence.
+7. `ranking_evidence_json.py` adds strict JSON loading, including duplicate-key rejection.
+8. `evidence_ranking.py` adds a schema `1.1` evidence-driven ranking subtype and a deterministic
+   `benchmark_hybrid` compiler.
+9. Hybrid compilation replaces only empirical `quality` and `availability` dimensions. Phase 5
+   `reliability`, normalized latency score, normalized cost score, weights, and `expected_latency_ms`
+   remain explicit static inputs until a separate normalization rule is reviewed and approved.
+10. Hybrid compilation is all-or-nothing for deployments already present in the base ranking policy;
+    missing promoted evidence fails closed.
+11. Benchmark snapshot ID and promotion evidence ID participate in the compiled ranking-policy digest.
+12. The temporary scoped Ruff fixer self-removed after normalizing Phase 11 imports/formatting.
 
-Next implementation slice:
+Earlier Phase 11 semantic baseline before the runtime-evidence/compiler additions:
 
-- define the strict promoted-benchmark evidence contract;
-- compile approved Phase 10 snapshot scorecards into explicit Phase 11 ranking inputs without importing
-  `benchmarks/` into the runtime request path;
-- carry `benchmark_snapshot_id` and provenance mode into routing decision/explain evidence;
-- add fail-closed tests for unapproved/malformed/missing-quality evidence;
-- add manual override and rollback behavior only after the promotion contract is stable.
+- GitHub Actions run `33810104964` — PASS;
+- pytest — 215 passed;
+- aggregate coverage — 80.72%;
+- mypy — PASS across 86 source files;
+- Ruff, Bandit, pip-audit, architecture check, secret scan, and Phase 0 gate — PASS.
+
+A full quality run for the current semantic checkpoint is required before runtime routing is connected
+to the compiled policy.
+
+## Next implementation slice
+
+- validate the current promoted-evidence / JSON-loader / hybrid-compiler checkpoint through the full
+  quality gate;
+- connect compiled benchmark provenance to `RoutingProvenance.benchmark_snapshot_id` without changing
+  the authorization or eligibility sequence;
+- include benchmark provenance in deterministic routing decision identity/explain output;
+- add regression tests proving benchmark evidence cannot resurrect an unauthorized or ineligible
+  deployment;
+- add explicit rollback/manual-override behavior only after benchmark-driven runtime provenance is
+  stable.
 
 ## Explicitly deferred
 
 - automatic/adaptive policy optimization or self-modifying routing;
+- deriving normalized latency/cost ranking scores from benchmark p95/cost without an explicit reviewed
+  normalization policy;
 - combining benchmark ranking with uncontrolled online-learning logic;
 - thin client HTTP transport completion (Phase 12);
 - signed Verifiable AI Governance runtime authorization (Phase 13);
@@ -144,5 +176,6 @@ Next implementation slice:
 
 ## Next step
 
-Implement the Phase 11 promoted-benchmark evidence contract and its deterministic compiler/tests before
-changing active runtime ranking behavior.
+Complete the current Phase 11 quality checkpoint. Only after it is green, wire approved benchmark
+provenance into runtime ranking/explainability while preserving the existing PDP authorization and
+eligibility ordering.
