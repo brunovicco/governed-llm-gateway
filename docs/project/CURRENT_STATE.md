@@ -15,8 +15,9 @@ Last updated: 2026-09-03
 | Phase 6 — Runtime Health, Retry and Safe Fallback | COMPLETE (`governed-llm-gateway` PR #5) |
 | Phase 7 — Structured Output and Tool Normalization | COMPLETE (`governed-llm-gateway` PR #6) |
 | Phase 8 — Streaming | COMPLETE (`governed-llm-gateway` PR #7) |
-| Phase 9 — OpenTelemetry | IMPLEMENTED — PR #8 READY FOR INDEPENDENT REVIEW |
-| Phase 10+ | NOT STARTED |
+| Phase 9 — OpenTelemetry | COMPLETE (`governed-llm-gateway` PR #8) |
+| Phase 10 — Evaluation Framework | IMPLEMENTED — VALIDATION / REVIEW PREPARATION |
+| Phase 11+ | NOT STARTED |
 
 ## Durable architecture baseline
 
@@ -30,115 +31,110 @@ Last updated: 2026-09-03
 - provider-native feature support never grants model authorization by itself;
 - business-tool execution remains outside the gateway.
 
-## Completed through Phase 8
+## Completed through Phase 9
 
 Phase 1 generalized Policy Model Router workload/model-group identifiers. Phase 2 established the
 strict model registry and deterministic registry digest. Phase 3 added provider execution ports and
 OpenAI Responses, OpenAI-compatible, Gemini `generateContent`, and Anthropic Messages adapters.
-Phase 4 bound the gateway to Policy Model Router `POST /route` schema `1.0`, validated prompt-free
-policy provenance, and built the authorized registry candidate set. Phase 5 added deterministic
-eligibility/ranking, ADR-0006, ranking-policy provenance, and authenticated `POST /v1/route/explain`
-without provider inference.
+Phase 4 bound the gateway to Policy Model Router authorization and built the authorized registry
+candidate set. Phase 5 added deterministic eligibility/ranking and explainability while preserving the
+authorized set. Phase 6 added bounded retry/fallback and per-deployment health. Phase 7 added
+structured-output and tool normalization without business-tool execution. Phase 8 added normalized
+streaming and replay-safe fallback semantics.
 
-Phase 6 added ADR-0007, per-deployment runtime health, circuit-breaker state, bounded retry against the
-same deployment, bounded fallback through already-ranked authorized alternatives, deterministic
-backoff/jitter, replay-safety boundaries, and metadata-only attempt evidence.
+Phase 9 merged through PR #8 at merge commit
+`be15c21ecfc76ef9bb727e5c4144c4929f028489`. It added metadata-only OpenTelemetry through
+`a2a-otel-kit==0.6.0`, W3C propagation, gateway/policy/provider spans, retry/fallback events, streaming
+trace handoff, and privacy tests. Provider-attempt spans close before retry backoff. Telemetry remains
+evidence only and has no authorization/ranking/health authority.
 
-Phase 7 added ADR-0013, bounded Draft 2020-12 structured-output validation, normalized tool
-definitions/calls/results, native OpenAI/Anthropic/Gemini translations, explicit OpenAI-compatible
-opt-in, local post-provider validation, and permanent fail-closed semantic errors. The gateway still
-never executes business tools or fabricates provider-native continuation state.
+## Phase 10 — Evaluation Framework
 
-Phase 8 merged through PR #7 at merge commit
-`ed429a6554fb987cd4ab991d330b2005d8cfd0d7`. It added ADR-0011, provider-neutral streaming,
-provider-native streaming adapters, authenticated `POST /v1/generate`, bounded replay-safe
-retry/fallback before visible semantic output, cancellation-safe upstream closure, final normalized
-usage, and the incremental 1 MiB SSE event bound hardened against unterminated provider lines.
-
-Phase 5 static score inputs remain configuration evidence, not benchmark evidence.
-`benchmark_snapshot_id` stays unset until later evaluation/evidence-driven ranking phases.
-
-## Phase 9 — OpenTelemetry
-
-PR #8 (`feat/phase-9-opentelemetry`) implements the roadmap OpenTelemetry boundary using
-`a2a-otel-kit==0.6.0` as the runtime integration dependency while keeping telemetry out of
-`gateway-contracts` and `gateway-core/domain`.
+Branch `feat/phase-10-evaluation-framework` implements the offline-first evaluation framework under a
+repository-level `benchmarks/` source root. It deliberately does not become a runtime dependency of
+the gateway packages.
 
 Delivered implementation:
 
-- ADR-0008 defines metadata-only telemetry and the deny-by-default payload boundary;
-- optional `Observability` injection keeps existing execution behavior valid when telemetry is not
-  configured;
-- `llm.gateway.request`, `llm.gateway.stream`, `policy.route`, and per-attempt
-  `provider.inference` spans are instrumented without automatic exception recording;
-- retry and fallback decisions are represented as metadata-only `llm.gateway.retry` and
-  `llm.gateway.fallback` span events;
-- provider inference attributes include bounded operational metadata such as provider/model/deployment,
-  latency, TTFT where applicable, and normalized usage counts;
-- provider usage is exported as `llm.usage.input_count` / `llm.usage.output_count` because the shared
-  deny-by-default sanitizer intentionally rejects credential-like key names containing `token` even
-  when allowlisted; the sanitizer was not weakened or bypassed;
-- W3C `traceparent` / `tracestate` propagation is injected by the shared JSON and SSE transports and
-  incoming trace context can be continued at the gateway API boundary;
-- remote prompts, completions, tool arguments/results, credentials, arbitrary headers, raw provider
-  bodies, and raw exception messages are excluded from default exported telemetry;
-- architecture checks forbid both direct OpenTelemetry and `a2a_otel_kit` imports in contracts and
-  domain layers;
-- provider retry backoff occurs after the concrete `provider.inference` span closes, so span wall-clock
-  duration represents the inference attempt rather than inference plus operational wait time;
-- contract tests use an in-memory OpenTelemetry exporter to verify trace continuity, request/stream
-  parent relationships, retry/fallback correlation, transport propagation, success/failure evidence,
-  provider-span closure before retry backoff, and metadata-only privacy behavior;
-- `uv.lock` and the runtime audit input include the Phase 9 dependency chain.
+- strict provider-neutral benchmark contracts for cases, targets, observations, scorecards, and
+  immutable snapshots;
+- five roadmap workload identifiers: `structured_extraction`, `rag_ptbr`, `code_generation`,
+  `tool_use`, and `agent_orchestration`;
+- `benchmarks/datasets/gateway-eval-v1.json`: schema `1.0`, explicitly `public`, ten
+  public/synthetic cases (two per initial workload);
+- strict dataset loader rejecting unknown fields, malformed values, unsupported workload values, and
+  non-public Phase 10 classification;
+- deterministic local scorers: `exact_json`, `contains_all`, `mapping_fields`, and
+  `ordered_sequence`;
+- scorer preflight before any executor call so unknown scorer identifiers fail closed without partial
+  provider execution;
+- provider-neutral `BenchmarkExecutor` port and `BenchmarkRunner`;
+- explicit `succeeded`, `quality_failure`, and `provider_failure` observation states;
+- provider failures carry no quality score, preventing rate limits/timeouts/outages from becoming
+  false zero-quality model results;
+- scorecards that independently aggregate availability, quality, latency p50/p95, TTFT p50/p95,
+  usage, cost, rate-limit count, fallback frequency, and stable provider-error counts;
+- strict provider/model target matrix in `benchmarks/runners/targets-v1.json`, with exact model ID,
+  API surface, configuration, and source date for NVIDIA, Groq, OpenRouter, Google Gemini, OpenAI, and
+  Anthropic benchmark/control targets;
+- canonical dataset digest and content-derived `sha256:` snapshot identity covering benchmark version,
+  runner version, run date, exact targets/configuration, observations, and scorecards;
+- immutable/idempotent snapshot persistence under
+  `benchmarks/results/<benchmark-version>/<snapshot-sha256>.json`;
+- raw provider responses are outside the score-snapshot contract;
+- `benchmarks/` is included in Ruff, mypy, Bandit, architecture validation, and aggregate coverage.
 
-The Phase 8 internal `_sse_body()` helper remains backward compatible: Phase 9 telemetry arguments are
-optional and default to `None`.
+## Phase 10 validation baseline
 
-## Final Phase 9 validation
+Validated code head before documentation synchronization:
 
-Final Phase 9 source head after lifecycle hardening and its regression assertion:
+`9a7b49407b0a040c976eac88fb29201ecf102a28`
 
-`5177f6b71c6ba2b3c5e17762d9cec0b39a3013b3`
+GitHub Actions run:
 
-Normal read-only revalidation ran at documentation checkpoint
-`810b9016c3db070093ea8fd8df3610859fef8822` in GitHub Actions run:
-
-`33803564689`
+`33806876880`
 
 Results:
 
 - `uv lock --check` — PASS;
-- Ruff lint/format — PASS;
-- mypy — PASS across 75 source files;
-- pytest — **192 passed**;
-- aggregate coverage — **80.07%**, above the 80% minimum without relying on display rounding;
-- Bandit — 7,901 lines scanned, no identified issues;
+- Ruff lint — PASS;
+- Ruff format — PASS, 84 files;
+- mypy — PASS across **84 source files**;
+- pytest — **207 passed**;
+- aggregate branch coverage — **80.56%**, above the 80% threshold using the actual value;
+- Phase 10 deterministic scorer module — 100% coverage;
+- Bandit — no identified issues;
 - pip-audit — no known vulnerabilities;
 - architecture check — PASS;
 - secret scan — PASS;
 - Phase 0 regression gate — PASS;
-- normal workflow permissions — `contents: read`, `metadata: read`.
+- default workflow token permissions remain read-only (`contents: read`, `metadata: read`);
+- no live provider/PDP calls and no provider credentials required.
 
-Resolved during Phase 9 validation:
+A Phase 10 validation finding exposed that coverage tooling with default precision could display an
+actual 79.63% result as rounded 80% and allow the workflow to continue. The threshold was not lowered
+and benchmark code was not excluded. Additional meaningful scorer tests raised actual coverage to
+80.56%, and `[tool.coverage.report] precision = 2` is now configured so future sub-80 results cannot be
+hidden by zero-decimal display rounding.
 
-- regenerated and verified the Phase 9 dependency lock;
-- restored optional `_sse_body()` telemetry defaults after mypy exposed a Phase 8 compatibility
-  regression;
-- replaced credential-ambiguous token-named telemetry keys with privacy-safe usage-count keys while
-  preserving normalized token-count values;
-- added telemetry error-path tests after an intermediate 79.82% result exposed reliance on rounded
-  coverage display;
-- moved retry sleepers outside `provider.inference` span contexts in both non-streaming and streaming
-  execution and added a regression assertion that the span is finished before backoff begins;
-- removed all temporary maintenance workflows after use.
-
-The known FastAPI/Starlette TestClient `httpx` → `httpx2` deprecation warning remains non-blocking and
+The known FastAPI/Starlette TestClient `httpx` -> `httpx2` deprecation warning remains non-blocking and
 is separate maintenance work.
+
+## Phase boundary
+
+Phase 10 produces benchmark evidence only. Runtime routing does not import or consume `benchmarks/`,
+and `benchmark_snapshot_id` remains unset in routing provenance.
+
+ADR-0009 — Benchmark-derived routing scores — remains deferred to Phase 11. When Phase 11 begins,
+approved benchmark evidence may affect ordering only inside the already-authorized candidate set. It
+must never broaden authorization.
+
+Free/developer provider endpoints remain benchmark/development-only for public/synthetic datasets by
+default. Confidential/private benchmark fixtures must not be sent to those endpoints.
 
 ## Explicitly deferred
 
-- benchmark/evaluation framework (Phase 10);
-- benchmark-derived ranking evidence (Phase 11);
+- benchmark-derived ranking evidence/runtime snapshot consumption (Phase 11);
 - thin client HTTP transport completion (Phase 12);
 - signed Verifiable AI Governance runtime authorization (Phase 13);
 - provider-native tool-result continuation requiring a canonical transcript/state contract;
@@ -149,10 +145,8 @@ is separate maintenance work.
 
 ## Next step
 
-Run the required independent architecture/security review against the complete PR #8 diff. Resolve any
-justified BLOCKER/HIGH/MEDIUM finding, rerun the normal read-only quality gate, and merge only after an
-explicit approval verdict.
+Complete final Phase 10 documentation/quality validation, open the Phase 10 pull request, then run the
+required independent architecture/security review against the complete `main...feat/phase-10-evaluation-framework`
+diff. Resolve every justified BLOCKER/HIGH/MEDIUM finding before merge.
 
-No independent review submission, review thread, or PR comment is currently present on PR #8.
-
-Phase 10 must not start until Phase 9 is independently reviewed and merged.
+Phase 11 must not start until Phase 10 is independently reviewed and merged.

@@ -35,6 +35,7 @@ COMMANDS = [
         "mypy",
         "packages",
         "apps",
+        "benchmarks",
         "scripts",
         "tests",
     ),
@@ -48,6 +49,7 @@ COMMANDS = [
         "--cov=governed_llm_gateway_core",
         "--cov=governed_llm_gateway_client",
         "--cov=governed_llm_gateway_api",
+        "--cov=benchmarks",
         "--cov-report=term-missing",
         "--cov-fail-under=80",
     ),
@@ -67,6 +69,7 @@ COMMANDS = [
         "-r",
         "packages",
         "apps",
+        "benchmarks",
         "scripts",
     ),
     uvx(

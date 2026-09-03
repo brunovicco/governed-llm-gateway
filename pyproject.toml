@@ -45,6 +45,7 @@ warn_unused_configs = true
 warn_unused_ignores = true
 show_error_codes = true
 mypy_path = [
+    ".",
     "packages/gateway-contracts/src",
     "packages/gateway-core/src",
     "packages/gateway-client/src",
@@ -53,6 +54,7 @@ mypy_path = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-q --strict-markers --strict-config"
 markers = [
     "integration: tests that cross package/process boundaries",
@@ -63,6 +65,7 @@ markers = [
 [tool.coverage.run]
 branch = true
 source = [
+    "benchmarks",
     "governed_llm_gateway_contracts",
     "governed_llm_gateway_core",
     "governed_llm_gateway_client",
@@ -71,6 +74,7 @@ source = [
 
 [tool.coverage.report]
 fail_under = 80
+precision = 2
 show_missing = true
 
 [tool.bandit]
@@ -78,11 +82,11 @@ exclude_dirs = ["tests"]
 skips = []
 
 [tool.engineering-harness.quality]
-source-roots = ["packages/*/src", "apps/*/src"]
+source-roots = ["packages/*/src", "apps/*/src", "benchmarks"]
 test-roots = ["tests"]
 
 [tool.engineering-harness.architecture]
-source-roots = ["packages/*/src", "apps/*/src"]
+source-roots = ["packages/*/src", "apps/*/src", "benchmarks"]
 clean-architecture = false
 
 [[tool.engineering-harness.architecture.boundaries]]
