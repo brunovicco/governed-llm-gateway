@@ -1,14 +1,15 @@
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
 from benchmarks.contracts import BenchmarkSnapshot, BenchmarkWorkload, Scorecard
-from benchmarks.promotion import PromotionMapping, promote_snapshot
+from benchmarks.promotion import PromotedBenchmarkEvidence, PromotionMapping, promote_snapshot
 from benchmarks.promotion_store import persist_promoted_evidence
 
 
-def _evidence():
+def _evidence() -> PromotedBenchmarkEvidence:
     scorecard = Scorecard(
         target_id="target-a",
         workload=BenchmarkWorkload.RAG_PTBR,
@@ -58,7 +59,7 @@ def _evidence():
     )
 
 
-def test_persist_promoted_evidence_is_content_addressed_and_idempotent(tmp_path) -> None:
+def test_persist_promoted_evidence_is_content_addressed_and_idempotent(tmp_path: Path) -> None:
     evidence = _evidence()
     first = persist_promoted_evidence(tmp_path, evidence)
     second = persist_promoted_evidence(tmp_path, evidence)
@@ -69,7 +70,7 @@ def test_persist_promoted_evidence_is_content_addressed_and_idempotent(tmp_path)
     assert evidence.benchmark_snapshot_id in first.read_text(encoding="utf-8")
 
 
-def test_persist_promoted_evidence_rejects_content_collision(tmp_path) -> None:
+def test_persist_promoted_evidence_rejects_content_collision(tmp_path: Path) -> None:
     evidence = _evidence()
     path = persist_promoted_evidence(tmp_path, evidence)
     path.write_text("{}\n", encoding="utf-8")
