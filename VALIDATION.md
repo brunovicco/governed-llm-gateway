@@ -1,6 +1,6 @@
 # Phase 0 through Phase 8 Validation Record
 
-Date: 2026-09-01
+Date: 2026-09-03
 
 ## Toolchain
 
@@ -27,17 +27,13 @@ Package boundaries remain enforced separately by `scripts/architecture_check.py`
 
 ## Phase 8 implementation validation
 
-Phase 8 — Streaming has been validated in the normal read-only GitHub Actions workflow after provider
-stream adapters, bounded SSE transport, replay-safety orchestration, `/v1/generate`, cancellation
-propagation, API boundary tests, and coverage-gate hardening were implemented.
+Phase 8 — Streaming is implemented in PR #7. The current code-validation head is:
 
-Current pre-squash validation head:
-
-`60077115d14adefda4eb8f8d373592997d85ab7c`
+`a8b9fdcd6d69b94a2ab6ed942e67409df50d0092`
 
 GitHub Actions run:
 
-`33570284533`
+`33790152650`
 
 Results:
 
@@ -45,10 +41,10 @@ Results:
 - Ruff lint — PASS;
 - Ruff formatting — PASS;
 - mypy — PASS across 71 source files;
-- pytest — PASS, 181 tests;
-- total coverage — 80.40% (minimum 80%);
+- pytest — PASS, 183 tests;
+- total coverage — 80.61% (minimum 80%);
 - independent `coverage report --fail-under=80` — PASS;
-- Bandit — PASS, no identified issues and no skipped files;
+- Bandit — PASS, no identified issues;
 - pip-audit — PASS, no known vulnerabilities;
 - architecture validation — PASS;
 - secret scanning — PASS;
@@ -59,12 +55,7 @@ The run is credential-free and performs no live provider/PDP calls.
 
 ## Coverage enforcement hardening
 
-During Phase 8, a CI inconsistency was discovered: pytest-cov printed a threshold failure in an
-intermediate run while the surrounding command still returned success in that environment. The Phase
-8 branch therefore hardened `scripts/quality_gate.py` rather than lowering coverage or marking code as
-uncovered.
-
-The final gate uses two independent checks:
+Phase 8 retains two independent coverage checks:
 
 ```text
 pytest ... --cov-fail-under=80
@@ -76,6 +67,34 @@ status if aggregate coverage is below 80%.
 
 No coverage threshold was lowered and no Phase 8 code was excluded from measurement to make the gate
 pass.
+
+## SSE memory-bound review hardening
+
+A builder-side architecture/security review found that the first Phase 8 implementation checked the
+1 MiB SSE event limit after `httpx.aiter_lines()` had already produced a complete line. An unterminated
+provider line could therefore grow inside HTTPX before the gateway enforced its own event bound.
+
+Commit `a8b9fdcd6d69b94a2ab6ed942e67409df50d0092` replaced that framing path with incremental bounded
+parsing:
+
+- response bytes are consumed through `aiter_bytes(chunk_size=64 * 1024)`;
+- LF, CRLF, and CR SSE boundaries are parsed by the gateway transport;
+- complete lines count toward the same 1 MiB event budget;
+- an incomplete/unterminated line is checked incrementally before another provider chunk is accepted;
+- invalid UTF-8 fails closed as `invalid_response` transport evidence;
+- upstream response/client closure semantics remain idempotent and cancellation-safe.
+
+Regression coverage now proves:
+
+- an oversized unterminated event is rejected before the source stream is exhausted;
+- normal LF framing remains stable;
+- CRLF and CR framing are accepted;
+- oversized completed events still fail closed;
+- open/read timeout and network failures remain normalized;
+- safe response-header filtering and resource closure remain unchanged.
+
+The hardening is transport-local. It does not change PDP authorization, operational ranking, runtime
+health, retry/fallback candidate authority, tool execution authority, or Phase 9 telemetry scope.
 
 ## Phase 8 acceptance evidence
 
@@ -103,9 +122,9 @@ Additional contract/boundary tests verify:
 - structured-output streaming is revalidated under the Phase 7 schema contract;
 - tool calls are locally validated before `tool_call.completed`;
 - business tools are never executed by the gateway;
-- SSE transport requires HTTPS, rejects URL userinfo/fragments, limits one event to 1 MiB, normalizes
-  open/read timeout and network errors, sanitizes response headers, dispatches terminal EOF data, and
-  closes idempotently;
+- SSE transport requires HTTPS, rejects URL userinfo/fragments, enforces a 1 MiB event bound
+  incrementally, normalizes open/read timeout and network errors, sanitizes response headers,
+  dispatches terminal EOF data, and closes idempotently;
 - consumer close propagates to the provider generator without recording provider failure;
 - `/v1/generate` authenticates/authorizes/ranks before the streaming response begins;
 - authentication, PDP denial, invalid request/schema/tool data, ranking configuration/invariant error,
@@ -141,9 +160,6 @@ The normal GitHub Actions workflow stays read-only and invokes:
 uv run python scripts/quality_gate.py
 ```
 
-A one-shot formatting workflow was temporarily used during Phase 8 and deleted itself in the formatting
-commit. It must not appear in the final Phase 8 diff after squash.
-
 The known `StarletteDeprecationWarning` from FastAPI TestClient regarding `httpx` versus `httpx2`
 remains non-blocking and separate maintenance work.
 
@@ -153,8 +169,8 @@ Implementation quality gates: **PASS**
 
 Streaming acceptance targets: **PASS**
 
-Authorization/resilience/architecture/security regressions: **PASS**
+Authorization/resilience/architecture/security regression gate: **PASS**
 
-Documentation reconciliation: **IN PROGRESS before final squash**
+Builder-side SSE bound review finding: **RESOLVED**
 
-Independent review/merge: **PENDING**
+Independent Claude Code review/merge: **PENDING**
