@@ -78,14 +78,14 @@ health, retry/fallback candidate authority, tool execution authority, or telemet
 
 Phase 9 — OpenTelemetry is implemented on `feat/phase-9-opentelemetry`.
 
-The most recent complete quality gate before the provider-span lifecycle hardening ran against code
-head:
+Final Phase 9 source head after builder-side lifecycle hardening and its regression assertion:
 
-`f7f955703a25d28c68851ce5229165a136ee7d7a`
+`5177f6b71c6ba2b3c5e17762d9cec0b39a3013b3`
 
-GitHub Actions run:
+The normal read-only quality gate revalidated that source at documentation checkpoint
+`810b9016c3db070093ea8fd8df3610859fef8822` in GitHub Actions run:
 
-`33802472000`
+`33803564689`
 
 Results:
 
@@ -94,26 +94,19 @@ Results:
 - Ruff formatting — PASS, 75 files formatted;
 - mypy — PASS across 75 source files;
 - pytest — PASS, **192 tests**;
-- total coverage — **80.12%**, above the 80% minimum without relying on rounding;
+- total coverage — **80.07%**, above the 80% minimum without relying on display rounding;
 - independent `coverage report --fail-under=80` — PASS;
-- Bandit — PASS, 7,893 lines scanned, no identified issues;
+- Bandit — PASS, 7,901 lines scanned, no identified issues;
 - pip-audit — PASS, no known vulnerabilities;
 - architecture validation — PASS;
 - secret scanning — PASS;
 - Phase 0 regression gate — PASS;
 - normal GitHub Actions token permissions remain read-only: `contents: read` and `metadata: read`.
 
-The current hardened code head before this documentation checkpoint is:
-
-`5177f6b71c6ba2b3c5e17762d9cec0b39a3013b3`
-
-A fresh normal read-only quality gate is required against this hardened head before the Phase 9
-validation record is final.
-
 The only test warning remains the known FastAPI/Starlette TestClient deprecation notice recommending
 `httpx2`; it is non-blocking and separate maintenance work.
 
-The validation runs are credential-free and perform no live provider/PDP calls.
+The validation run was credential-free and performed no live provider/PDP calls.
 
 ## Phase 9 acceptance evidence
 
@@ -137,7 +130,8 @@ Phase 9 now provides the roadmap observability boundary through `a2a-otel-kit==0
 Contract tests with an in-memory OpenTelemetry exporter verify trace continuity, request/stream parent
 relationships, provider retry/fallback correlation, policy/provider transport propagation, successful
 and failed streaming lifecycle, pre-stream HTTP failure evidence, unexpected stream failure evidence,
-and absence of payload/error sentinels from exported telemetry.
+provider-span closure before retry backoff, and absence of payload/error sentinels from exported
+telemetry.
 
 ## Phase 9 validation findings resolved
 
@@ -169,9 +163,9 @@ constraint so future changes do not bypass the deny-by-default sanitizer.
 
 One intermediate run reported 79.82% actual coverage while the standalone coverage command accepted
 the displayed rounded 80%. The threshold was not lowered and no source was excluded. Phase 9 added
-meaningful tests for telemetry-enabled pre-stream HTTP failures and unexpected SSE failures, raising
-actual aggregate coverage to **80.12%**. The final run therefore satisfies the threshold without
-relying on display rounding.
+meaningful tests for telemetry-enabled pre-stream HTTP failures and unexpected SSE failures. After the
+final provider-span lifecycle hardening, actual aggregate coverage is **80.07%**. The final gate
+therefore satisfies the threshold without relying on display rounding.
 
 ### Provider span lifetime excludes retry backoff
 
@@ -198,6 +192,7 @@ This regression protects the intended one-span-per-concrete-inference-attempt to
 - provider error strings and traceback payload context are not auto-recorded;
 - business-tool execution remains outside the gateway;
 - streaming replay/fallback semantics from Phase 8 are unchanged;
+- retry backoff is operational wait time outside the concrete `provider.inference` span;
 - OpenTelemetry integration remains in application/adapter/composition boundaries rather than domain
   or provider-neutral contracts.
 
@@ -216,13 +211,17 @@ uv run python scripts/quality_gate.py
 
 ## Phase 9 status
 
-Implementation quality gates before final lifecycle hardening: **PASS**
+Implementation quality gates: **PASS**
 
-Provider-span lifecycle finding: **RESOLVED — FINAL REVALIDATION PENDING**
+Provider-span lifecycle finding: **RESOLVED AND REVALIDATED**
 
 OpenTelemetry acceptance targets: **PASS**
 
 Metadata-only privacy/W3C propagation tests: **PASS**
+
+Authorization/resilience/streaming/architecture/security regression gate: **PASS**
+
+Builder-side integration findings: **RESOLVED**
 
 Independent architecture/security review and merge: **PENDING**
 
