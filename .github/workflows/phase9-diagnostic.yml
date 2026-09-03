@@ -1,0 +1,32 @@
+name: phase9-diagnostic
+
+on:
+  push:
+    branches:
+      - feat/phase-9-opentelemetry
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Refresh lock in runner
+        run: uv lock
+      - name: Sync refreshed lock
+        run: uv sync --frozen
+      - name: Quality gate against refreshed lock
+        run: uv run python scripts/quality_gate.py
+      - name: Show lock diff
+        if: always()
+        run: |
+          echo '--- PHASE9 LOCK DIFF START ---'
+          git diff -- uv.lock
+          echo '--- PHASE9 LOCK DIFF END ---'
