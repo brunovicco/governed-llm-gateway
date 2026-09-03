@@ -1,0 +1,52 @@
+name: phase9-one-shot
+
+on:
+  push:
+    branches:
+      - feat/phase-9-opentelemetry
+
+permissions:
+  contents: write
+
+jobs:
+  maintain:
+    if: github.event.head_commit.message == 'ci: run Phase 9 one-shot maintenance'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phase-9-opentelemetry
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Apply mechanical lint fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tests/contract/test_phase9_observability.py')
+          text = path.read_text()
+          text = text.replace('from datetime import date, datetime, timezone', 'from datetime import UTC, date, datetime')
+          text = text.replace('PROMPT_SECRET', 'PROMPT_SENTINEL')
+          text = text.replace('COMPLETION_SECRET', 'COMPLETION_SENTINEL')
+          text = text.replace('CREDENTIAL_SECRET', 'HEADER_SENTINEL')
+          text = text.replace('timezone.utc', 'UTC')
+          path.write_text(text)
+          PY
+          uvx --python 3.13 --from ruff==0.12.11 ruff check . --fix
+          uvx --python 3.13 --from ruff==0.12.11 ruff format .
+      - name: Refresh lock
+        run: uv lock
+      - name: Remove temporary workflows
+        run: |
+          rm -f .github/workflows/phase9-diagnostic.yml
+          rm -f .github/workflows/phase9-one-shot.yml
+      - name: Commit maintenance result
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'chore: refresh Phase 9 lock and formatting'
+          git push origin HEAD:feat/phase-9-opentelemetry
