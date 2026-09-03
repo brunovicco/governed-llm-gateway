@@ -38,6 +38,11 @@ from governed_llm_gateway_core.domain.ranking import (
     StaticDeploymentScore,
     WorkloadRankingPolicy,
 )
+from governed_llm_gateway_core.domain.ranking_override import (
+    ManualOverrideBundle,
+    ManualScoreOverride,
+    apply_manual_override,
+)
 from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
 
 TODAY = date(2026, 9, 3)
@@ -132,6 +137,35 @@ def _evidence_policy(
     )
 
 
+def _override_policy(
+    *scores: StaticDeploymentScore,
+    reason: str = "incident mitigation",
+) -> EvidenceDrivenRankingPolicy:
+    baseline = _evidence_policy(*scores)
+    target = scores[0].deployment_id
+    bundle = ManualOverrideBundle(
+        schema_version="1.0",
+        override_version="override-v1",
+        approval_date=TODAY,
+        approved_by="platform-oncall",
+        reason=reason,
+        overrides=(
+            ManualScoreOverride(
+                workload="agent.orchestration",
+                deployment_id=target,
+                quality=scores[0].quality,
+            ),
+        ),
+    )
+    return apply_manual_override(
+        baseline,
+        bundle,
+        policy_version="ranking-override-v1",
+        score_snapshot_id="override-v1",
+        source_date=TODAY,
+    )
+
+
 def _request() -> GatewayRequest:
     return GatewayRequest(
         schema_version="1.0",
@@ -215,11 +249,13 @@ def _rank(
     )
 
 
-def test_static_policy_keeps_benchmark_provenance_unset() -> None:
+def test_static_policy_keeps_phase11_provenance_unset() -> None:
     deployment = _deployment("candidate-a")
     decision = _rank(_registry(deployment), _static_policy(_score("candidate-a", "0.8")))
 
     assert decision.routing.benchmark_snapshot_id is None
+    assert decision.routing.score_provenance_mode is None
+    assert decision.routing.manual_override_id is None
 
 
 def test_evidence_policy_exposes_exact_approved_benchmark_snapshot() -> None:
@@ -227,6 +263,8 @@ def test_evidence_policy_exposes_exact_approved_benchmark_snapshot() -> None:
     decision = _rank(_registry(deployment), _evidence_policy(_score("candidate-a", "0.8")))
 
     assert decision.routing.benchmark_snapshot_id == "sha256:" + "b" * 64
+    assert decision.routing.score_provenance_mode == "benchmark_hybrid"
+    assert decision.routing.manual_override_id is None
 
 
 def test_benchmark_snapshot_identity_changes_routing_decision_id() -> None:
@@ -238,6 +276,32 @@ def test_benchmark_snapshot_identity_changes_routing_decision_id() -> None:
     second = _rank(registry, _evidence_policy(score, benchmark_digest="d"))
 
     assert first.selected == second.selected
+    assert first.routing.routing_decision_id != second.routing.routing_decision_id
+
+
+def test_manual_override_exposes_attributable_runtime_provenance() -> None:
+    deployment = _deployment("candidate-a")
+    policy = _override_policy(_score("candidate-a", "0.8"))
+
+    decision = _rank(_registry(deployment), policy)
+
+    assert decision.routing.benchmark_snapshot_id == policy.benchmark_snapshot_id
+    assert decision.routing.score_provenance_mode == "manual_override"
+    assert decision.routing.manual_override_id == policy.manual_override_id
+
+
+def test_manual_override_identity_changes_routing_decision_id() -> None:
+    deployment = _deployment("candidate-a")
+    registry = _registry(deployment)
+    score = _score("candidate-a", "0.8")
+
+    first = _rank(registry, _override_policy(score, reason="incident one"))
+    second = _rank(registry, _override_policy(score, reason="incident two"))
+
+    assert first.selected == second.selected
+    assert first.selected is not None
+    assert first.selected.score == second.selected.score
+    assert first.routing.manual_override_id != second.routing.manual_override_id
     assert first.routing.routing_decision_id != second.routing.routing_decision_id
 
 
@@ -254,11 +318,40 @@ def test_benchmark_policy_cannot_resurrect_candidate_outside_authorized_set() ->
     assert all(item.deployment.deployment_id != "excluded" for item in decision.alternatives)
 
 
+def test_manual_override_cannot_resurrect_candidate_outside_authorized_set() -> None:
+    allowed = _deployment("allowed")
+    excluded = _deployment("excluded")
+    registry = _registry(allowed, excluded)
+    policy = _override_policy(_score("excluded", "1"), _score("allowed", "0.2"))
+
+    decision = _rank(registry, policy, candidates=(allowed,))
+
+    assert decision.selected is not None
+    assert decision.selected.deployment.deployment_id == "allowed"
+    assert all(item.deployment.deployment_id != "excluded" for item in decision.alternatives)
+
+
 def test_benchmark_policy_cannot_override_disabled_eligibility() -> None:
     disabled = _deployment("disabled-best", enabled=False)
     allowed = _deployment("allowed")
     registry = _registry(disabled, allowed)
     policy = _evidence_policy(_score("disabled-best", "1"), _score("allowed", "0.2"))
+
+    decision = _rank(registry, policy)
+
+    assert decision.selected is not None
+    assert decision.selected.deployment.deployment_id == "allowed"
+    disabled_rejection = next(
+        item for item in decision.rejected_candidates if item.deployment == "disabled-best"
+    )
+    assert disabled_rejection.reason is RejectionReason.DEPLOYMENT_DISABLED
+
+
+def test_manual_override_cannot_override_disabled_eligibility() -> None:
+    disabled = _deployment("disabled-best", enabled=False)
+    allowed = _deployment("allowed")
+    registry = _registry(disabled, allowed)
+    policy = _override_policy(_score("disabled-best", "1"), _score("allowed", "0.2"))
 
     decision = _rank(registry, policy)
 
