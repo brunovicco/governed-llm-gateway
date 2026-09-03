@@ -2,6 +2,7 @@
 
 from .contracts import (
     BenchmarkCase,
+    BenchmarkDataset,
     BenchmarkObservation,
     BenchmarkSnapshot,
     BenchmarkTarget,
@@ -10,12 +11,20 @@ from .contracts import (
     ProviderCall,
     Scorecard,
 )
-from .runner import BenchmarkExecutor, BenchmarkProviderFailure, BenchmarkRunner
+from .dataset import load_dataset
+from .runner import BenchmarkExecutor, BenchmarkProviderFailure, BenchmarkRunner, build_scorecards
 from .scoring import DeterministicScorer, build_default_scorers
-from .snapshot import build_snapshot, canonical_snapshot_json, dataset_digest
+from .snapshot import (
+    build_snapshot,
+    canonical_snapshot_json,
+    dataset_digest,
+    persist_snapshot,
+)
+from .targets import load_targets
 
 __all__ = [
     "BenchmarkCase",
+    "BenchmarkDataset",
     "BenchmarkExecutor",
     "BenchmarkObservation",
     "BenchmarkProviderFailure",
@@ -28,7 +37,11 @@ __all__ = [
     "ProviderCall",
     "Scorecard",
     "build_default_scorers",
+    "build_scorecards",
     "build_snapshot",
     "canonical_snapshot_json",
     "dataset_digest",
+    "load_dataset",
+    "load_targets",
+    "persist_snapshot",
 ]
