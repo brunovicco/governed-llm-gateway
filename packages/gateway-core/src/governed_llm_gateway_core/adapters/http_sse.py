@@ -6,6 +6,7 @@ from typing import Protocol
 from urllib.parse import urlsplit
 
 import httpx
+from a2a_otel_kit import inject_trace_context
 
 from .http_json import TransportFailure, TransportFailureKind
 
@@ -72,11 +73,13 @@ class HttpxSseTransport:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
 
+        request_headers = dict(headers)
+        inject_trace_context(request_headers)
         client = httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds))
         request = client.build_request(
             "POST",
             url,
-            headers=dict(headers),
+            headers=request_headers,
             json=dict(payload),
         )
         try:
