@@ -50,7 +50,7 @@ class EvidenceDrivenRankingPolicy(RankingPolicy):
 
     def canonical_payload(self) -> dict[str, object]:
         """Extend the Phase 5 canonical payload with evidence provenance."""
-        payload = super().canonical_payload()
+        payload = RankingPolicy.canonical_payload(self)
         payload["score_provenance_mode"] = self.score_provenance_mode.value
         payload["benchmark_snapshot_id"] = self.benchmark_snapshot_id
         payload["promotion_evidence_id"] = self.promotion_evidence_id
