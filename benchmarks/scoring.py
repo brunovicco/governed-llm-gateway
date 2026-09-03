@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import Protocol
 
@@ -22,17 +22,18 @@ def _exact_json(case: BenchmarkCase, output: JsonValue) -> Decimal:
 
 
 def _contains_all(case: BenchmarkCase, output: JsonValue) -> Decimal:
-    expected_strings = isinstance(case.expected, list) and all(
-        isinstance(item, str) for item in case.expected
-    )
-    if not expected_strings:
+    if not isinstance(case.expected, list):
         raise ValueError("contains_all scorer expects a list of required strings")
+    required: list[str] = []
+    for item in case.expected:
+        if not isinstance(item, str):
+            raise ValueError("contains_all scorer expects a list of required strings")
+        required.append(item.casefold())
     if not isinstance(output, str):
         return Decimal("0")
-    normalized = output.casefold()
-    required = [item.casefold() for item in case.expected if isinstance(item, str)]
     if not required:
         return Decimal("1")
+    normalized = output.casefold()
     matches = sum(1 for item in required if item in normalized)
     return Decimal(matches) / Decimal(len(required))
 
@@ -65,7 +66,7 @@ def _ordered_sequence(case: BenchmarkCase, output: JsonValue) -> Decimal:
 
 def build_default_scorers() -> Mapping[str, DeterministicScorer]:
     """Return the bounded credential-free scorer registry used by Phase 10 datasets."""
-    scorers: dict[str, Callable[[BenchmarkCase, JsonValue], Decimal]] = {
+    scorers: dict[str, DeterministicScorer] = {
         "exact_json": _exact_json,
         "contains_all": _contains_all,
         "mapping_fields": _mapping_fields,
