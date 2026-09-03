@@ -15,7 +15,7 @@ Last updated: 2026-09-03
 | Phase 6 — Runtime Health, Retry and Safe Fallback | COMPLETE (`governed-llm-gateway` PR #5) |
 | Phase 7 — Structured Output and Tool Normalization | COMPLETE (`governed-llm-gateway` PR #6) |
 | Phase 8 — Streaming | COMPLETE (`governed-llm-gateway` PR #7) |
-| Phase 9 — OpenTelemetry | IMPLEMENTED — READY FOR INDEPENDENT REVIEW |
+| Phase 9 — OpenTelemetry | IMPLEMENTED — PR #8 READY FOR INDEPENDENT REVIEW |
 | Phase 10+ | NOT STARTED |
 
 ## Durable architecture baseline
@@ -60,7 +60,7 @@ Phase 5 static score inputs remain configuration evidence, not benchmark evidenc
 
 ## Phase 9 — OpenTelemetry
 
-Branch `feat/phase-9-opentelemetry` implements the roadmap OpenTelemetry boundary using
+PR #8 (`feat/phase-9-opentelemetry`) implements the roadmap OpenTelemetry boundary using
 `a2a-otel-kit==0.6.0` as the runtime integration dependency while keeping telemetry out of
 `gateway-contracts` and `gateway-core/domain`.
 
@@ -84,23 +84,26 @@ Delivered implementation:
   bodies, and raw exception messages are excluded from default exported telemetry;
 - architecture checks forbid both direct OpenTelemetry and `a2a_otel_kit` imports in contracts and
   domain layers;
+- provider retry backoff occurs after the concrete `provider.inference` span closes, so span wall-clock
+  duration represents the inference attempt rather than inference plus operational wait time;
 - contract tests use an in-memory OpenTelemetry exporter to verify trace continuity, request/stream
   parent relationships, retry/fallback correlation, transport propagation, success/failure evidence,
-  and metadata-only privacy behavior;
+  provider-span closure before retry backoff, and metadata-only privacy behavior;
 - `uv.lock` and the runtime audit input include the Phase 9 dependency chain.
 
 The Phase 8 internal `_sse_body()` helper remains backward compatible: Phase 9 telemetry arguments are
 optional and default to `None`.
 
-## Final Phase 9 code validation
+## Final Phase 9 validation
 
-Code-validation head:
+Final Phase 9 source head after lifecycle hardening and its regression assertion:
 
-`f7f955703a25d28c68851ce5229165a136ee7d7a`
+`5177f6b71c6ba2b3c5e17762d9cec0b39a3013b3`
 
-GitHub Actions run:
+Normal read-only revalidation ran at documentation checkpoint
+`810b9016c3db070093ea8fd8df3610859fef8822` in GitHub Actions run:
 
-`33802472000`
+`33803564689`
 
 Results:
 
@@ -108,12 +111,13 @@ Results:
 - Ruff lint/format — PASS;
 - mypy — PASS across 75 source files;
 - pytest — **192 passed**;
-- aggregate coverage — **80.12%**, above the 80% minimum without relying on rounding;
-- Bandit — no identified issues;
+- aggregate coverage — **80.07%**, above the 80% minimum without relying on display rounding;
+- Bandit — 7,901 lines scanned, no identified issues;
 - pip-audit — no known vulnerabilities;
 - architecture check — PASS;
 - secret scan — PASS;
-- Phase 0 regression gate — PASS.
+- Phase 0 regression gate — PASS;
+- normal workflow permissions — `contents: read`, `metadata: read`.
 
 Resolved during Phase 9 validation:
 
@@ -123,7 +127,9 @@ Resolved during Phase 9 validation:
 - replaced credential-ambiguous token-named telemetry keys with privacy-safe usage-count keys while
   preserving normalized token-count values;
 - added telemetry error-path tests after an intermediate 79.82% result exposed reliance on rounded
-  coverage display; final actual coverage is 80.12%;
+  coverage display;
+- moved retry sleepers outside `provider.inference` span contexts in both non-streaming and streaming
+  execution and added a regression assertion that the span is finished before backoff begins;
 - removed all temporary maintenance workflows after use.
 
 The known FastAPI/Starlette TestClient `httpx` → `httpx2` deprecation warning remains non-blocking and
@@ -143,8 +149,10 @@ is separate maintenance work.
 
 ## Next step
 
-Open the Phase 9 pull request and run the required independent architecture/security review against the
-complete `main...feat/phase-9-opentelemetry` diff. Resolve any justified BLOCKER/HIGH/MEDIUM finding,
-rerun the normal read-only quality gate, and merge only after an explicit approval verdict.
+Run the required independent architecture/security review against the complete PR #8 diff. Resolve any
+justified BLOCKER/HIGH/MEDIUM finding, rerun the normal read-only quality gate, and merge only after an
+explicit approval verdict.
+
+No independent review submission, review thread, or PR comment is currently present on PR #8.
 
 Phase 10 must not start until Phase 9 is independently reviewed and merged.
