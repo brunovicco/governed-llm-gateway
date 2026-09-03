@@ -55,7 +55,9 @@ def add_gateway_span_event(
         attributes,
         extra_allowed_keys=_GATEWAY_ALLOWED_ATTRIBUTE_KEYS,
     )
-    span.add_event(name, attributes={key: value for key, value in clean.items() if value is not None})
+    span.add_event(
+        name, attributes={key: value for key, value in clean.items() if value is not None}
+    )
 
 
 def mark_span_success(span: Span) -> None:

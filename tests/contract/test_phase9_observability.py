@@ -1,7 +1,7 @@
 import asyncio
 import http.client
 from collections.abc import AsyncIterator, Mapping
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -59,9 +59,9 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 REQUEST_ID = UUID("99999999-9999-4999-8999-999999999999")
 TODAY = date(2026, 9, 3)
-PROMPT_SECRET = "prompt-value-must-never-enter-telemetry"
-COMPLETION_SECRET = "completion-value-must-never-enter-telemetry"
-CREDENTIAL_SECRET = "credential-value-must-never-enter-telemetry"
+PROMPT_SENTINEL = "prompt-value-must-never-enter-telemetry"
+COMPLETION_SENTINEL = "completion-value-must-never-enter-telemetry"
+HEADER_SENTINEL = "credential-value-must-never-enter-telemetry"
 
 
 def _observability() -> tuple[Observability, InMemorySpanExporter]:
@@ -122,7 +122,7 @@ def _request() -> GatewayRequest:
         workload="agent.orchestration",
         risk_level=RiskLevel.MEDIUM,
         data_classification=DataClassification.PUBLIC,
-        messages=(Message(role=MessageRole.USER, content=PROMPT_SECRET),),
+        messages=(Message(role=MessageRole.USER, content=PROMPT_SENTINEL),),
     )
 
 
@@ -149,7 +149,7 @@ class AllowPolicy:
                 policy_version="1.0.0",
                 policy_digest="sha256:" + "a" * 64,
             ),
-            decided_at=datetime(2026, 9, 3, tzinfo=timezone.utc),
+            decided_at=datetime(2026, 9, 3, tzinfo=UTC),
             reason="allowed",
             service_version="1.0.0",
             environment=request.environment,
@@ -245,11 +245,11 @@ def test_gateway_attribute_boundary_is_deny_by_default() -> None:
             {
                 "llm.workload": "agent.orchestration",
                 "routing.decision_id": "sha256:" + "b" * 64,
-                "prompt": PROMPT_SECRET,
-                "completion": COMPLETION_SECRET,
+                "prompt": PROMPT_SENTINEL,
+                "completion": COMPLETION_SENTINEL,
                 "tool.arguments": "must-not-survive",
-                "authorization": f"Bearer {CREDENTIAL_SECRET}",
-                "api_key": CREDENTIAL_SECRET,
+                "authorization": f"Bearer {HEADER_SENTINEL}",
+                "api_key": HEADER_SENTINEL,
             },
         )
 
@@ -258,9 +258,9 @@ def test_gateway_attribute_boundary_is_deny_by_default() -> None:
     assert attributes["llm.workload"] == "agent.orchestration"
     assert "routing.decision_id" in attributes
     serialized = _telemetry_repr(exporter)
-    assert PROMPT_SECRET not in serialized
-    assert COMPLETION_SECRET not in serialized
-    assert CREDENTIAL_SECRET not in serialized
+    assert PROMPT_SENTINEL not in serialized
+    assert COMPLETION_SENTINEL not in serialized
+    assert HEADER_SENTINEL not in serialized
     assert "tool.arguments" not in serialized
 
 
@@ -289,7 +289,7 @@ def test_policy_route_span_is_metadata_only() -> None:
     attributes = dict(policy_spans[0].attributes or {})
     assert attributes["routing.policy_id"] == "gateway-policy"
     assert attributes["routing.model_group"] == "agentic-strong"
-    assert PROMPT_SECRET not in _telemetry_repr(exporter)
+    assert PROMPT_SENTINEL not in _telemetry_repr(exporter)
 
 
 def test_provider_attempts_keep_one_trace_and_emit_retry_and_fallback_events() -> None:
@@ -299,7 +299,7 @@ def test_provider_attempts_keep_one_trace_and_emit_retry_and_fallback_events() -
     primary_provider = SequenceProvider(_rate_limit("provider-a"), _rate_limit("provider-a"))
     fallback_provider = SequenceProvider(
         ProviderResponse(
-            text=COMPLETION_SECRET,
+            text=COMPLETION_SENTINEL,
             usage=ProviderUsage(input_tokens=11, output_tokens=3),
             finish_reason="stop",
         )
@@ -336,7 +336,7 @@ def test_provider_attempts_keep_one_trace_and_emit_retry_and_fallback_events() -
     event_names = {event.name for span in provider_spans for event in span.events}
     assert "llm.gateway.retry" in event_names
     assert "llm.gateway.fallback" in event_names
-    assert COMPLETION_SECRET not in _telemetry_repr(exporter)
+    assert COMPLETION_SENTINEL not in _telemetry_repr(exporter)
     assert "remote text that must not be exported" not in _telemetry_repr(exporter)
 
 
@@ -378,7 +378,7 @@ def test_sse_transport_injects_current_w3c_trace_context(
     async def scenario() -> None:
         stream = await HttpxSseTransport().open_sse(
             url="https://provider.example/stream",
-            headers={"authorization": f"Bearer {CREDENTIAL_SECRET}"},
+            headers={"authorization": f"Bearer {HEADER_SENTINEL}"},
             payload={"stream": True},
             timeout_seconds=1.0,
         )
@@ -393,7 +393,7 @@ def test_sse_transport_injects_current_w3c_trace_context(
 
     assert captured_traceparent is not None
     assert captured_traceparent.split("-")[1] == expected_trace_id
-    assert CREDENTIAL_SECRET not in captured_traceparent
+    assert HEADER_SENTINEL not in captured_traceparent
 
 
 def test_json_transport_injects_context_across_to_thread(
@@ -444,7 +444,7 @@ def test_json_transport_injects_context_across_to_thread(
         response = asyncio.run(
             StdlibJsonTransport().post_json(
                 url="https://provider.example/generate",
-                headers={"authorization": f"Bearer {CREDENTIAL_SECRET}"},
+                headers={"authorization": f"Bearer {HEADER_SENTINEL}"},
                 payload={"input": "not-telemetry"},
                 timeout_seconds=1.0,
             )
@@ -452,4 +452,4 @@ def test_json_transport_injects_context_across_to_thread(
 
     assert response.status_code == 200
     assert captured_headers["traceparent"].split("-")[1] == expected_trace_id
-    assert captured_headers["authorization"] == f"Bearer {CREDENTIAL_SECRET}"
+    assert captured_headers["authorization"] == f"Bearer {HEADER_SENTINEL}"

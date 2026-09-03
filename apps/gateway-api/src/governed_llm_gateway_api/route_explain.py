@@ -328,9 +328,7 @@ async def _execute_route_explain(
 
 def _trace_carrier(request: Request) -> dict[str, str]:
     return {
-        name: value
-        for name in _TRACE_HEADERS
-        if (value := request.headers.get(name)) is not None
+        name: value for name in _TRACE_HEADERS if (value := request.headers.get(name)) is not None
     }
 
 

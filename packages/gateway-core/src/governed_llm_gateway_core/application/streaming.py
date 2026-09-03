@@ -294,7 +294,7 @@ class StreamingExecutionService:
                                     if not semantic_output or not usage_seen or not public_started:
                                         raise _invalid_stream_event(
                                             deployment.provider,
-                                            "provider completed before semantic output and final usage",
+                                            "provider completed before semantic output/final usage",
                                         )
                                     latency_ms = _latency_ms(started_at, self._clock())
                                     self._health.record_success(

@@ -400,71 +400,71 @@ async def _sse_body(
         return
 
     trace_context = continue_trace(trace_carrier) if trace_carrier else nullcontext()
-    with trace_context:
-        with observability.start_span(
+    with (
+        trace_context,
+        observability.start_span(
             "llm.gateway.stream",
             attributes={
                 "request_id": str(prepared.request.request_id),
                 "operation": "stream",
             },
             record_exception=False,
-        ) as span:
-            set_gateway_span_attributes(
-                span,
-                {
-                    "llm.workload": prepared.request.workload,
-                    "llm.streaming": True,
-                    **_routing_attributes(prepared.decision),
-                },
-            )
-            terminal = False
-            stream = coordinator.stream(prepared)
-            try:
-                async with aclosing(stream) as events:
-                    async for event in events:
-                        if event.usage is not None:
+        ) as span,
+    ):
+        set_gateway_span_attributes(
+            span,
+            {
+                "llm.workload": prepared.request.workload,
+                "llm.streaming": True,
+                **_routing_attributes(prepared.decision),
+            },
+        )
+        terminal = False
+        stream = coordinator.stream(prepared)
+        try:
+            async with aclosing(stream) as events:
+                async for event in events:
+                    if event.usage is not None:
+                        set_gateway_span_attributes(
+                            span,
+                            {
+                                "llm.input_tokens": event.usage.input_tokens,
+                                "llm.output_tokens": event.usage.output_tokens,
+                            },
+                        )
+                    if event.event_type is StreamEventType.RESPONSE_FAILED:
+                        terminal = True
+                        set_gateway_span_attributes(
+                            span,
+                            {"llm.partial": event.partial},
+                        )
+                        mark_span_failure(
+                            span,
+                            event.error.code if event.error is not None else "stream_failed",
+                        )
+                    elif event.event_type is StreamEventType.RESPONSE_COMPLETED:
+                        terminal = True
+                        if event.routing is not None:
                             set_gateway_span_attributes(
                                 span,
-                                {
-                                    "llm.input_tokens": event.usage.input_tokens,
-                                    "llm.output_tokens": event.usage.output_tokens,
-                                },
+                                _routing_attributes_from_provenance(event.routing),
                             )
-                        if event.event_type is StreamEventType.RESPONSE_FAILED:
-                            terminal = True
-                            set_gateway_span_attributes(
-                                span,
-                                {"llm.partial": event.partial},
-                            )
-                            mark_span_failure(
-                                span,
-                                event.error.code if event.error is not None else "stream_failed",
-                            )
-                        elif event.event_type is StreamEventType.RESPONSE_COMPLETED:
-                            terminal = True
-                            if event.routing is not None:
-                                set_gateway_span_attributes(
-                                    span,
-                                    _routing_attributes_from_provenance(event.routing),
-                                )
-                            mark_span_success(span)
-                        yield _encode_sse(event)
-            except asyncio.CancelledError:
-                mark_span_cancelled(span)
-                raise
-            except Exception:
-                mark_span_failure(span, "stream_unexpected_error")
-                raise
-            finally:
-                if not terminal:
-                    set_gateway_span_attributes(span, {"llm.partial": False})
+                        mark_span_success(span)
+                    yield _encode_sse(event)
+        except asyncio.CancelledError:
+            mark_span_cancelled(span)
+            raise
+        except Exception:
+            mark_span_failure(span, "stream_unexpected_error")
+            raise
+        finally:
+            if not terminal:
+                set_gateway_span_attributes(span, {"llm.partial": False})
 
 
 def _trace_carrier(request: Request) -> dict[str, str]:
     return {
-        name: value
-        for name in _TRACE_HEADERS
-        if (value := request.headers.get(name)) is not None
+        name: value for name in _TRACE_HEADERS if (value := request.headers.get(name)) is not None
     }
 
 
