@@ -294,6 +294,20 @@ def test_policy_route_span_is_metadata_only() -> None:
 
 def test_provider_attempts_keep_one_trace_and_emit_retry_and_fallback_events() -> None:
     observability, exporter = _observability()
+    finished_before_sleep: list[int] = []
+
+    async def assert_attempt_span_closed(delay: float) -> None:
+        assert delay >= 0
+        finished_before_sleep.append(
+            len(
+                [
+                    span
+                    for span in exporter.get_finished_spans()
+                    if span.name == "provider.inference"
+                ]
+            )
+        )
+
     primary = _deployment("deployment-a", "provider-a")
     fallback = _deployment("deployment-b", "provider-b")
     primary_provider = SequenceProvider(_rate_limit("provider-a"), _rate_limit("provider-a"))
@@ -313,7 +327,7 @@ def test_provider_attempts_keep_one_trace_and_emit_retry_and_fallback_events() -
             }
         ),
         retry_policy=RetryPolicy(max_attempts_per_deployment=2, max_fallbacks=1),
-        sleeper=_no_sleep,
+        sleeper=assert_attempt_span_closed,
         observability=observability,
     )
 
@@ -328,6 +342,7 @@ def test_provider_attempts_keep_one_trace_and_emit_retry_and_fallback_events() -
         )
 
     assert result.deployment.deployment_id == "deployment-b"
+    assert finished_before_sleep == [1]
     provider_spans = [
         span for span in exporter.get_finished_spans() if span.name == "provider.inference"
     ]
