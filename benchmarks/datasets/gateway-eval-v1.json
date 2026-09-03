@@ -1,0 +1,87 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "gateway-eval-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "structured_extraction.invoice_001",
+      "workload": "structured_extraction",
+      "scorer": "exact_json",
+      "prompt": "Extraia em JSON os campos invoice_id e total do texto: Fatura INV-001, total 125.50.",
+      "expected": {"invoice_id": "INV-001", "total": 125.5},
+      "metadata": {"language": "pt-BR", "synthetic": true}
+    },
+    {
+      "case_id": "structured_extraction.contact_001",
+      "workload": "structured_extraction",
+      "scorer": "exact_json",
+      "prompt": "Extract name and city as JSON: Alex Rivera lives in Lisbon.",
+      "expected": {"city": "Lisbon", "name": "Alex Rivera"},
+      "metadata": {"language": "en", "synthetic": true}
+    },
+    {
+      "case_id": "rag_ptbr.gateway_001",
+      "workload": "rag_ptbr",
+      "scorer": "contains_all",
+      "prompt": "Contexto: O gateway só pode selecionar deployments dentro do model group autorizado pelo PDP. Pergunta: qual é o limite de autorização?",
+      "expected": ["model group", "autorizado", "PDP"],
+      "metadata": {"language": "pt-BR", "synthetic": true}
+    },
+    {
+      "case_id": "rag_ptbr.streaming_001",
+      "workload": "rag_ptbr",
+      "scorer": "contains_all",
+      "prompt": "Contexto: após conteúdo semântico visível, o gateway não faz fallback automático entre providers. Responda em português.",
+      "expected": ["conteúdo", "fallback", "provider"],
+      "metadata": {"language": "pt-BR", "synthetic": true}
+    },
+    {
+      "case_id": "code_generation.python_001",
+      "workload": "code_generation",
+      "scorer": "contains_all",
+      "prompt": "Write a Python function add(a, b) that returns their sum. Return code only.",
+      "expected": ["def add", "return", "a", "b"],
+      "metadata": {"language": "python", "synthetic": true}
+    },
+    {
+      "case_id": "code_generation.python_002",
+      "workload": "code_generation",
+      "scorer": "contains_all",
+      "prompt": "Write a Python function is_even(n) that returns a boolean. Return code only.",
+      "expected": ["def is_even", "return", "%", "2"],
+      "metadata": {"language": "python", "synthetic": true}
+    },
+    {
+      "case_id": "tool_use.weather_001",
+      "workload": "tool_use",
+      "scorer": "mapping_fields",
+      "prompt": "Choose the tool for checking weather in Recife. Available tool: get_weather(city).",
+      "expected": {"arguments": {"city": "Recife"}, "tool": "get_weather"},
+      "metadata": {"synthetic": true}
+    },
+    {
+      "case_id": "tool_use.lookup_001",
+      "workload": "tool_use",
+      "scorer": "mapping_fields",
+      "prompt": "Choose the tool for looking up order ORD-42. Available tool: get_order(order_id).",
+      "expected": {"arguments": {"order_id": "ORD-42"}, "tool": "get_order"},
+      "metadata": {"synthetic": true}
+    },
+    {
+      "case_id": "agent_orchestration.support_001",
+      "workload": "agent_orchestration",
+      "scorer": "ordered_sequence",
+      "prompt": "Return the ordered agent plan for a support request that first needs identity verification, then account lookup, then response drafting.",
+      "expected": ["verify_identity", "lookup_account", "draft_response"],
+      "metadata": {"synthetic": true}
+    },
+    {
+      "case_id": "agent_orchestration.incident_001",
+      "workload": "agent_orchestration",
+      "scorer": "ordered_sequence",
+      "prompt": "Return the ordered agent plan for an incident: classify severity, collect evidence, then propose remediation.",
+      "expected": ["classify_severity", "collect_evidence", "propose_remediation"],
+      "metadata": {"synthetic": true}
+    }
+  ]
+}
