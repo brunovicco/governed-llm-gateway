@@ -20,8 +20,9 @@ Current execution sequence:
 8. Streaming — COMPLETE (`governed-llm-gateway` PR #7).
 9. OpenTelemetry via `a2a-otel-kit` — COMPLETE (`governed-llm-gateway` PR #8, merge commit
    `be15c21ecfc76ef9bb727e5c4144c4929f028489`).
-10. Evaluation framework — CURRENT, IMPLEMENTED / VALIDATION AND REVIEW PREPARATION.
-11. Evidence-driven ranking — NOT STARTED; blocked until Phase 10 review and merge.
+10. Evaluation framework — COMPLETE (`governed-llm-gateway` PR #9, squash merge
+    `db30ffc481d1a3c02fb01f46524b5190290fb7ac`).
+11. Evidence-driven ranking — CURRENT; ADR-0009 accepted, implementation in progress.
 12. Thin client SDK transport.
 13. Optional Verifiable AI Governance integration, including signed runtime authorization when used.
 14. Incremental real-project integrations.
@@ -56,16 +57,22 @@ context; preserves the deny-by-default payload/credential boundary; and keeps te
 provider-neutral contracts/domain logic. Telemetry remains evidence only and cannot become an
 authorization, ranking, retry/fallback, or health authority.
 
-Phase 10 adds an offline-first evaluation source root under `benchmarks/`: strict public/synthetic
+Phase 10 added an offline-first evaluation source root under `benchmarks/`: strict public/synthetic
 versioned datasets, deterministic local scorers, a provider-neutral benchmark executor/runner,
 fully identified provider/model/API/configuration targets, explicit quality-vs-availability evidence,
 scorecards, canonical dataset digests, and immutable content-derived result snapshots. Benchmark code
 is included in repository lint, typing, security, architecture, and coverage gates.
 
-Phase 10 does **not** make runtime ranking consume benchmark evidence. `benchmark_snapshot_id` remains
-unset in routing provenance. ADR-0009 stays deferred to Phase 11, when approved benchmark snapshots may
-influence ordering only inside the PDP-authorized candidate set.
+Phase 10 remained evidence-only through merge. Runtime ranking did not consume benchmark results until
+Phase 11 was explicitly authorized by ADR-0009.
+
+Phase 11 uses an explicit promotion boundary:
+
+`immutable benchmark snapshot -> explicit approval/promotion -> versioned ranking evidence -> runtime ranking`
+
+Runtime must not discover or auto-promote the newest benchmark snapshot. Benchmark-derived evidence may
+only change ordering inside the already-authorized and otherwise-eligible candidate set. Promotion and
+manual override are versioned operator actions; rollback selects an earlier approved immutable artifact.
+No benchmark run, telemetry signal, or runtime outcome may automatically rewrite active ranking policy.
 
 Do not pull work forward when doing so weakens an authority boundary or requires an unstable contract.
-Phase 11 must not start until Phase 10 completes independent architecture/security review and is
-merged.
