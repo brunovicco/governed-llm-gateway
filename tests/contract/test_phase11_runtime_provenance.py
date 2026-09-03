@@ -18,7 +18,10 @@ from governed_llm_gateway_core.application.policy import (
     PolicyAuthorizationDecision,
     PolicyRequestMetadata,
 )
-from governed_llm_gateway_core.application.ranking import OperationalRankingService
+from governed_llm_gateway_core.application.ranking import (
+    OperationalRankingService,
+    RankingDecision,
+)
 from governed_llm_gateway_core.domain.authorization import PolicyAuthorization
 from governed_llm_gateway_core.domain.evidence_ranking import (
     EvidenceDrivenRankingPolicy,
@@ -201,7 +204,7 @@ def _rank(
     policy: RankingPolicy,
     *,
     candidates: tuple[ModelDeployment, ...] | None = None,
-):
+) -> RankingDecision:
     return OperationalRankingService().rank(
         _request(),
         _context(),
