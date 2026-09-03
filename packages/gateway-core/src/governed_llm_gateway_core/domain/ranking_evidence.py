@@ -63,7 +63,7 @@ class PromotedRankingEvidence:
         return None
 
 
-def build_promoted_ranking_evidence(payload: Mapping[object, object]) -> PromotedRankingEvidence:
+def build_promoted_ranking_evidence(payload: Mapping[str, object]) -> PromotedRankingEvidence:
     """Validate a Phase 11 promotion artifact and verify its content-derived identity."""
     allowed = {
         "schema_version",
@@ -139,7 +139,7 @@ def build_promoted_ranking_evidence(payload: Mapping[object, object]) -> Promote
     )
 
 
-def _build_record(payload: Mapping[object, object], index: int) -> RankingEvidenceRecord:
+def _build_record(payload: Mapping[str, object], index: int) -> RankingEvidenceRecord:
     allowed = {
         "target_id",
         "deployment_id",
@@ -219,13 +219,9 @@ def _record_payload(record: RankingEvidenceRecord) -> dict[str, object]:
 
 
 def _require_exact_fields(
-    payload: Mapping[object, object], allowed: set[str], location: str
+    payload: Mapping[str, object], allowed: set[str], location: str
 ) -> None:
-    keys: set[str] = set()
-    for key in payload:
-        if not isinstance(key, str):
-            raise RankingEvidenceError(f"{location} field names must be strings")
-        keys.add(key)
+    keys = set(payload)
     unknown = sorted(keys - allowed)
     if unknown:
         raise RankingEvidenceError(f"unknown {location} fields: {', '.join(unknown)}")
