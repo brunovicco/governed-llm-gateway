@@ -7,7 +7,6 @@ from decimal import Decimal
 from enum import StrEnum
 from types import MappingProxyType
 
-
 type JsonScalar = str | int | float | bool | None
 type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
 
@@ -148,9 +147,8 @@ class BenchmarkObservation:
         elif self.provider_error_code is not None or self.provider_error_status is not None:
             raise ValueError("quality observations must not carry provider failure metadata")
 
-        valid_quality = (
-            self.quality_score is None
-            or Decimal("0") <= self.quality_score <= Decimal("1")
+        valid_quality = self.quality_score is None or Decimal("0") <= self.quality_score <= Decimal(
+            "1"
         )
         if not valid_quality:
             raise ValueError("quality_score must be between 0 and 1")
