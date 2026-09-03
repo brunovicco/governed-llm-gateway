@@ -65,7 +65,9 @@ def _policy() -> EvidenceDrivenRankingPolicy:
     )
 
 
-def _bundle(*overrides: ManualScoreOverride, reason: str = "incident mitigation") -> ManualOverrideBundle:
+def _bundle(
+    *overrides: ManualScoreOverride, reason: str = "incident mitigation"
+) -> ManualOverrideBundle:
     return ManualOverrideBundle(
         schema_version="1.0",
         override_version="override-v1",
@@ -98,9 +100,10 @@ def test_manual_override_bundle_identity_covers_operator_reason() -> None:
         quality=Decimal("0.5"),
     )
 
-    assert _bundle(override, reason="incident one").override_id != _bundle(
-        override, reason="incident two"
-    ).override_id
+    assert (
+        _bundle(override, reason="incident one").override_id
+        != _bundle(override, reason="incident two").override_id
+    )
 
 
 def test_manual_override_replaces_only_promoted_empirical_dimensions() -> None:
@@ -157,9 +160,7 @@ def test_manual_override_policy_digest_covers_override_identity() -> None:
         source_date=TODAY,
     )
 
-    assert first.for_workload("agent.orchestration") == second.for_workload(
-        "agent.orchestration"
-    )
+    assert first.for_workload("agent.orchestration") == second.for_workload("agent.orchestration")
     assert first.digest != second.digest
 
 

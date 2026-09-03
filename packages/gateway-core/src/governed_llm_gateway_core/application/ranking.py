@@ -15,7 +15,11 @@ from governed_llm_gateway_contracts import (
     RoutingProvenance,
 )
 
-from governed_llm_gateway_core.domain.evidence_ranking import benchmark_snapshot_id
+from governed_llm_gateway_core.domain.evidence_ranking import (
+    benchmark_snapshot_id,
+    manual_override_id,
+    score_provenance_mode,
+)
 from governed_llm_gateway_core.domain.model_registry import ModelDeployment, ModelRegistry
 from governed_llm_gateway_core.domain.ranking import (
     RankingPolicy,
@@ -176,6 +180,8 @@ class OperationalRankingService:
             ranking_policy_digest=ranking_policy.digest,
             score_snapshot_id=ranking_policy.score_snapshot_id,
             benchmark_snapshot_id=benchmark_snapshot_id(ranking_policy),
+            score_provenance_mode=score_provenance_mode(ranking_policy),
+            manual_override_id=manual_override_id(ranking_policy),
             provider=selected.deployment.provider if selected is not None else None,
             model=selected.deployment.model_id if selected is not None else None,
             deployment=selected.deployment.deployment_id if selected is not None else None,
@@ -458,6 +464,8 @@ def _decision_id(
         "ranking_policy_digest": ranking_policy.digest,
         "score_snapshot_id": ranking_policy.score_snapshot_id,
         "benchmark_snapshot_id": benchmark_snapshot_id(ranking_policy),
+        "score_provenance_mode": score_provenance_mode(ranking_policy),
+        "manual_override_id": manual_override_id(ranking_policy),
         "max_latency_ms": policy_request.max_latency_ms,
         "max_cost_usd": _canonical_decimal(policy_request.max_cost_usd),
         "context_tokens_estimated": policy_request.context_tokens_estimated,

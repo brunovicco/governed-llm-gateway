@@ -16,7 +16,6 @@ from decimal import Decimal
 
 from governed_llm_gateway_core.domain.evidence_ranking import (
     EvidenceDrivenRankingPolicy,
-    EvidenceRankingError,
     ScoreProvenanceMode,
     benchmark_snapshot_id,
     manual_override_id,
@@ -161,9 +160,7 @@ def apply_manual_override(
     _require_normalized(policy_version, "policy_version")
     _require_normalized(score_snapshot_id, "score_snapshot_id")
 
-    override_by_target = {
-        (item.workload, item.deployment_id): item for item in bundle.overrides
-    }
+    override_by_target = {(item.workload, item.deployment_id): item for item in bundle.overrides}
     known_targets = {
         (workload.workload, score.deployment_id)
         for workload in policy.workloads
