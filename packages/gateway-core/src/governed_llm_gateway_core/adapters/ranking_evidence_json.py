@@ -28,7 +28,7 @@ def load_promoted_ranking_evidence_text(text: str) -> PromotedRankingEvidence:
         raise RankingEvidenceError("promoted ranking evidence is not valid JSON") from exc
     if not isinstance(payload, Mapping):
         raise RankingEvidenceError("promoted ranking evidence root must be a mapping")
-    return build_promoted_ranking_evidence(cast(Mapping[object, object], payload))
+    return build_promoted_ranking_evidence(cast(Mapping[str, object], payload))
 
 
 def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
