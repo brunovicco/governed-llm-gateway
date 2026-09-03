@@ -81,9 +81,7 @@ class BenchmarkRunner:
 
         return tuple(observations), build_scorecards(observations)
 
-    async def _run_one(
-        self, case: BenchmarkCase, target: BenchmarkTarget
-    ) -> BenchmarkObservation:
+    async def _run_one(self, case: BenchmarkCase, target: BenchmarkTarget) -> BenchmarkObservation:
         try:
             call = await self._executor.execute(case, target)
         except BenchmarkProviderFailure as exc:
@@ -124,9 +122,7 @@ class BenchmarkRunner:
         )
 
 
-def _ensure_unique_ids(
-    cases: Sequence[BenchmarkCase], targets: Sequence[BenchmarkTarget]
-) -> None:
+def _ensure_unique_ids(cases: Sequence[BenchmarkCase], targets: Sequence[BenchmarkTarget]) -> None:
     case_ids = [case.case_id for case in cases]
     target_ids = [target.target_id for target in targets]
     if len(case_ids) != len(set(case_ids)):
@@ -157,9 +153,7 @@ def _build_scorecard(
         item for item in observations if item.status is ObservationStatus.PROVIDER_FAILURE
     ]
     completed = [
-        item
-        for item in observations
-        if item.status is not ObservationStatus.PROVIDER_FAILURE
+        item for item in observations if item.status is not ObservationStatus.PROVIDER_FAILURE
     ]
     quality_successes = [item for item in completed if item.status is ObservationStatus.SUCCEEDED]
     quality_failures = [
