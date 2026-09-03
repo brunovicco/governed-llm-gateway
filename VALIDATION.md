@@ -76,8 +76,10 @@ health, retry/fallback candidate authority, tool execution authority, or telemet
 
 ## Phase 9 implementation validation
 
-Phase 9 — OpenTelemetry is implemented on `feat/phase-9-opentelemetry`. The final code-validation head
-before this documentation checkpoint is:
+Phase 9 — OpenTelemetry is implemented on `feat/phase-9-opentelemetry`.
+
+The most recent complete quality gate before the provider-span lifecycle hardening ran against code
+head:
 
 `f7f955703a25d28c68851ce5229165a136ee7d7a`
 
@@ -101,10 +103,17 @@ Results:
 - Phase 0 regression gate — PASS;
 - normal GitHub Actions token permissions remain read-only: `contents: read` and `metadata: read`.
 
+The current hardened code head before this documentation checkpoint is:
+
+`5177f6b71c6ba2b3c5e17762d9cec0b39a3013b3`
+
+A fresh normal read-only quality gate is required against this hardened head before the Phase 9
+validation record is final.
+
 The only test warning remains the known FastAPI/Starlette TestClient deprecation notice recommending
 `httpx2`; it is non-blocking and separate maintenance work.
 
-The run is credential-free and performs no live provider/PDP calls.
+The validation runs are credential-free and perform no live provider/PDP calls.
 
 ## Phase 9 acceptance evidence
 
@@ -164,6 +173,21 @@ meaningful tests for telemetry-enabled pre-stream HTTP failures and unexpected S
 actual aggregate coverage to **80.12%**. The final run therefore satisfies the threshold without
 relying on display rounding.
 
+### Provider span lifetime excludes retry backoff
+
+A final builder-side lifecycle review found that both non-streaming and streaming retry paths awaited
+the retry sleeper while still inside the `provider.inference` span context. The explicit
+`llm.latency_ms` attribute already represented only provider-attempt latency, but the actual span wall
+clock duration incorrectly included operational retry backoff.
+
+The execution loops now store the computed retry delay, close the concrete provider-attempt span, and
+only then await the sleeper. Retry/fallback eligibility, health accounting, authorized candidate
+boundaries, event metadata, replay safety, and provider request semantics are unchanged.
+
+The existing retry/fallback telemetry test now uses a sleeper that inspects the in-memory exporter and
+asserts that the first `provider.inference` span is already finished before the one retry backoff begins.
+This regression protects the intended one-span-per-concrete-inference-attempt topology.
+
 ## Architecture/security boundaries
 
 - Policy Model Router remains the PDP and the gateway remains the PEP plus operational selector;
@@ -192,15 +216,13 @@ uv run python scripts/quality_gate.py
 
 ## Phase 9 status
 
-Implementation quality gates: **PASS**
+Implementation quality gates before final lifecycle hardening: **PASS**
+
+Provider-span lifecycle finding: **RESOLVED — FINAL REVALIDATION PENDING**
 
 OpenTelemetry acceptance targets: **PASS**
 
 Metadata-only privacy/W3C propagation tests: **PASS**
-
-Authorization/resilience/streaming/architecture/security regression gate: **PASS**
-
-Builder-side integration findings: **RESOLVED**
 
 Independent architecture/security review and merge: **PENDING**
 
