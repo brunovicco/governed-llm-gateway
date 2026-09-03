@@ -389,8 +389,8 @@ async def _sse_body(
     coordinator: GenerateCoordinator,
     prepared: PreparedStreamingExecution,
     *,
-    observability: Observability | None,
-    trace_carrier: dict[str, str],
+    observability: Observability | None = None,
+    trace_carrier: dict[str, str] | None = None,
 ) -> AsyncGenerator[str]:
     if observability is None:
         stream = coordinator.stream(prepared)
