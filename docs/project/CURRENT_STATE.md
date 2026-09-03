@@ -14,8 +14,9 @@ Last updated: 2026-09-03
 | Phase 5 — Deterministic Operational Ranking and Explainability | COMPLETE (`governed-llm-gateway` PR #4) |
 | Phase 6 — Runtime Health, Retry and Safe Fallback | COMPLETE (`governed-llm-gateway` PR #5) |
 | Phase 7 — Structured Output and Tool Normalization | COMPLETE (`governed-llm-gateway` PR #6) |
-| Phase 8 — Streaming | IMPLEMENTED — PR #7 IN REVIEW |
-| Phase 9+ | NOT STARTED |
+| Phase 8 — Streaming | COMPLETE (`governed-llm-gateway` PR #7) |
+| Phase 9 — OpenTelemetry | IMPLEMENTED — VALIDATION IN PROGRESS |
+| Phase 10+ | NOT STARTED |
 
 ## Durable architecture baseline
 
@@ -29,7 +30,7 @@ Last updated: 2026-09-03
 - provider-native feature support never grants model authorization by itself;
 - business-tool execution remains outside the gateway.
 
-## Completed through Phase 7
+## Completed through Phase 8
 
 Phase 1 generalized Policy Model Router workload/model-group identifiers. Phase 2 established the
 strict model registry and deterministic registry digest. Phase 3 added provider execution ports and
@@ -43,94 +44,67 @@ Phase 6 added ADR-0007, per-deployment runtime health, circuit-breaker state, bo
 same deployment, bounded fallback through already-ranked authorized alternatives, deterministic
 backoff/jitter, replay-safety boundaries, and metadata-only attempt evidence.
 
-Phase 7, merged through PR #6 at merge commit
-`6c53d5586b6c6f9fbafcfda642f2b9e7af0cbca0`, added ADR-0013, bounded Draft 2020-12 structured-output
-validation, normalized tool definitions/calls/results, native OpenAI/Anthropic/Gemini translations,
-explicit OpenAI-compatible opt-in, local post-provider validation, and permanent fail-closed semantic
-errors. The gateway still never executes business tools or fabricates provider-native continuation
-state.
+Phase 7 added ADR-0013, bounded Draft 2020-12 structured-output validation, normalized tool
+definitions/calls/results, native OpenAI/Anthropic/Gemini translations, explicit OpenAI-compatible
+opt-in, local post-provider validation, and permanent fail-closed semantic errors. The gateway still
+never executes business tools or fabricates provider-native continuation state.
+
+Phase 8 merged through PR #7 at merge commit
+`ed429a6554fb987cd4ab991d330b2005d8cfd0d7`. It added ADR-0011, provider-neutral streaming,
+provider-native streaming adapters, authenticated `POST /v1/generate`, bounded replay-safe
+retry/fallback before visible semantic output, cancellation-safe upstream closure, final normalized
+usage, and the incremental 1 MiB SSE event bound hardened against unterminated provider lines.
 
 Phase 5 static score inputs remain configuration evidence, not benchmark evidence.
 `benchmark_snapshot_id` stays unset until later evaluation/evidence-driven ranking phases.
 
-## Phase 8 — PR #7
+## Phase 9 — OpenTelemetry
 
-PR #7 (`feat/phase-8-streaming`) implements provider-neutral streaming while preserving the Phase 4
-authorization boundary and Phase 6 replay-safety rules.
+Branch `feat/phase-9-opentelemetry` implements the roadmap OpenTelemetry boundary using
+`a2a-otel-kit==0.6.0` as the runtime integration dependency while keeping telemetry out of
+`gateway-contracts` and `gateway-core/domain`.
 
-Delivered:
+Delivered implementation:
 
-- ADR-0011 defines streaming normalization, replay, cancellation, usage, and transport semantics;
-- `Capability.STREAMING` participates in deterministic eligibility;
-- canonical public stream events: `response.started`, `content.delta`, `tool_call.started`,
-  `tool_call.arguments.delta`, `tool_call.completed`, `usage.completed`, `response.completed`, and
-  `response.failed`;
-- `ProviderStreamingPort` and provider-neutral internal streaming events;
-- native streaming adapters for OpenAI Responses, Anthropic Messages, and Gemini
-  `streamGenerateContent`;
-- OpenAI-compatible streaming and final usage remain separate explicit opt-ins;
-- bounded retry/fallback is allowed only before semantic output becomes visible;
-- after content or tool-call output becomes visible, failure terminates with
-  `response.failed(partial=true, retryable=false)` and cannot replay across providers;
-- final normalized usage must be emitted exactly once before successful completion;
-- cancellation/client disconnect closes the gateway generator and upstream provider stream;
-- client cancellation is not recorded as a provider failure;
-- authenticated `POST /v1/generate` completes trusted context, PDP authorization, runtime-health
-  snapshot, and deterministic ranking before returning `text/event-stream`;
-- invalid request/schema/tool contracts, policy denial, ranking failures/invariant violations, and no
-  eligible authorized streaming deployment remain pre-stream HTTP failures;
-- provider credentials, raw provider error bodies, prompt/completion payloads, tool arguments/results,
-  and arbitrary response headers remain excluded from public/default evidence.
+- ADR-0008 defines metadata-only telemetry and the deny-by-default payload boundary;
+- optional `Observability` injection keeps existing execution behavior valid when telemetry is not
+  configured;
+- gateway request/stream, policy-route, and provider-inference spans are instrumented without
+  automatic exception recording;
+- retry and fallback decisions are represented as metadata-only span events;
+- provider inference attributes include bounded operational metadata such as provider/model/deployment,
+  latency, TTFT where applicable, and normalized token usage;
+- W3C `traceparent` / `tracestate` propagation is injected by the shared JSON and SSE transports and
+  incoming trace context can be continued at the gateway API boundary;
+- remote prompts, completions, tool arguments/results, credentials, arbitrary headers, raw provider
+  bodies, and raw exception messages are excluded from default exported telemetry;
+- architecture checks now forbid both direct OpenTelemetry and `a2a_otel_kit` imports in contracts and
+  domain layers;
+- contract tests use an in-memory OpenTelemetry exporter to verify trace continuity, retry/fallback
+  correlation, transport propagation, and metadata-only privacy behavior;
+- `uv.lock` and the runtime audit input include the Phase 9 dependency chain.
 
-See `docs/project/STREAMING.md` and ADR-0011.
+The Phase 8 internal `_sse_body()` helper remains backward compatible: Phase 9 telemetry arguments are
+optional and default to `None`.
 
-## Phase 8 review hardening
+## Validation checkpoint
 
-A builder-side architecture/security review of PR #7 found that the original 1 MiB SSE event bound was
-applied after `httpx.aiter_lines()` produced a complete line. An unterminated provider line could
-therefore accumulate inside HTTPX before the gateway checked the event-size limit, weakening the
-memory-exhaustion control described by the threat model.
+Current implementation head before this documentation checkpoint:
+`d9aa0d632f7f81cbb8bcaa70a11e278d21cd1188`.
 
-The issue was fixed in commit `a8b9fdcd6d69b94a2ab6ed942e67409df50d0092`:
+Resolved during validation:
 
-- the transport no longer relies on `aiter_lines()` for framing;
-- decoded response bytes are consumed in bounded 64 KiB chunks;
-- SSE LF, CRLF, and CR line boundaries are parsed locally;
-- the 1 MiB event bound is enforced incrementally, including an unterminated line;
-- invalid UTF-8 fails closed as an invalid provider response;
-- a regression test proves an oversized unterminated event is rejected before the source stream is
-  exhausted;
-- CRLF/CR framing has dedicated regression coverage.
+- Phase 9 dependency lock was regenerated successfully;
+- Ruff formatting/lint findings from the initial implementation were resolved;
+- a mypy regression found that two new internal streaming telemetry parameters had become mandatory;
+  the parameters were restored to optional defaults without changing tracing semantics;
+- temporary maintenance workflows were removed after use.
 
-This hardening changes only the transport implementation. It does not widen authorization, alter the
-ranked candidate sequence, change replay semantics, or add Phase 9 telemetry behavior.
-
-## Current validation
-
-GitHub Actions run `33790152650` passed for code head
-`a8b9fdcd6d69b94a2ab6ed942e67409df50d0092`.
-
-Validated baseline:
-
-- `uv lock --check` PASS;
-- Ruff lint/format PASS;
-- mypy PASS across 71 source files;
-- 183 tests PASS;
-- aggregate coverage 80.61% (minimum 80%);
-- independent Coverage.py threshold PASS;
-- Bandit PASS with no identified issues;
-- pip-audit PASS with no known vulnerabilities;
-- architecture validation PASS;
-- secret scan PASS;
-- frozen Phase 0 regression gate PASS;
-- workflow permissions remain `contents: read` and `metadata: read`.
-
-The known FastAPI/Starlette TestClient `httpx` → `httpx2` deprecation warning remains non-blocking and
-unrelated to Phase 8 behavior.
+A full normal read-only quality run against the fixed implementation is still required before Phase 9
+can be marked complete or opened for final review.
 
 ## Explicitly deferred
 
-- OpenTelemetry runtime via `a2a-otel-kit` (Phase 9);
 - benchmark/evaluation framework (Phase 10);
 - benchmark-derived ranking evidence (Phase 11);
 - thin client HTTP transport completion (Phase 12);
@@ -138,14 +112,13 @@ unrelated to Phase 8 behavior.
 - provider-native tool-result continuation requiring a canonical transcript/state contract;
 - widening the supported JSON Schema subset until safety/compatibility semantics are explicit;
 - shared/distributed circuit-breaker state beyond the Phase 6 per-process implementation;
-- treating policy `max_latency_ms` as an implicit total cross-retry streaming deadline.
+- treating policy `max_latency_ms` as an implicit total cross-retry streaming deadline;
+- payload capture or prompt/completion logging as part of default telemetry.
 
 ## Next step
 
-Run the required independent Claude Code architecture/security review against the current PR #7 head,
-with special focus on authorization monotonicity, replay boundaries, provider stream lifecycle,
-structured-output/tool streaming validation, cancellation/resource ownership, SSE bounds/error
-sanitization, and OpenAI-compatible opt-in behavior. Resolve any justified BLOCKER/HIGH/MEDIUM findings
-and rerun the full quality gate before merge.
+Run the normal read-only quality gate against the Phase 9 fixed implementation. Resolve only justified
+failures, then update `VALIDATION.md` and this checkpoint with final metrics, open the Phase 9 pull
+request, and request the required independent architecture/security review before merge.
 
-Phase 9 must not start until Phase 8 is independently reviewed and merged.
+Phase 10 must not start until Phase 9 is independently reviewed and merged.
