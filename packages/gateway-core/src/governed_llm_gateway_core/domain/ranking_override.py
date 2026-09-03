@@ -168,9 +168,10 @@ def apply_manual_override(
     }
     unknown = sorted(set(override_by_target) - known_targets)
     if unknown:
-        workload, deployment_id = unknown[0]
+        unknown_workload, unknown_deployment_id = unknown[0]
         raise RankingOverrideError(
-            f"manual override target does not exist: {workload!r}/{deployment_id!r}"
+            "manual override target does not exist: "
+            f"{unknown_workload!r}/{unknown_deployment_id!r}"
         )
 
     workloads: list[WorkloadRankingPolicy] = []
