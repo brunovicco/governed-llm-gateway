@@ -22,163 +22,71 @@ jobs:
           from pathlib import Path
 
           resilience = Path('packages/gateway-core/src/governed_llm_gateway_core/application/resilience.py')
-          text = resilience.read_text()
-          old = '''                started = self._clock()
-                with span_context as span:
-'''
-          new = '''                started = self._clock()
-                retry_delay_after_span: float | None = None
-                with span_context as span:
-'''
-          if text.count(old) != 1:
-              raise SystemExit(f'unexpected resilience span-start matches: {text.count(old)}')
-          text = text.replace(old, new, 1)
-          old = '''                        if can_retry and retry_delay is not None:
-                            await self._sleeper(retry_delay)
-                            continue
-                        break
-                    else:
-'''
-          new = '''                        if can_retry and retry_delay is not None:
-                            retry_delay_after_span = retry_delay
-                        else:
-                            break
-                    else:
-'''
-          if text.count(old) != 1:
-              raise SystemExit(f'unexpected resilience retry matches: {text.count(old)}')
-          text = text.replace(old, new, 1)
-          marker = '''                        return ResilientExecutionResult(
-                            deployment=candidate.deployment,
-                            response=response,
-                            routing=routing,
-                            attempts=tuple(attempts),
-                        )
-
-        raise ResilienceExecutionError(
-'''
-          replacement = '''                        return ResilientExecutionResult(
-                            deployment=candidate.deployment,
-                            response=response,
-                            routing=routing,
-                            attempts=tuple(attempts),
-                        )
-
-                if retry_delay_after_span is not None:
-                    await self._sleeper(retry_delay_after_span)
-                    continue
-
-        raise ResilienceExecutionError(
-'''
-          if text.count(marker) != 1:
-              raise SystemExit(f'unexpected resilience post-span matches: {text.count(marker)}')
-          resilience.write_text(text.replace(marker, replacement, 1))
+          lines = resilience.read_text().splitlines()
+          started = '                started = self._clock()'
+          with_span = '                with span_context as span:'
+          i = lines.index(started)
+          if lines[i + 1] != with_span:
+              raise SystemExit('unexpected resilience span layout')
+          lines.insert(i + 1, '                retry_delay_after_span: float | None = None')
+          sleeper = '                            await self._sleeper(retry_delay)'
+          i = lines.index(sleeper)
+          expected = [
+              '                        if can_retry and retry_delay is not None:',
+              sleeper,
+              '                            continue',
+              '                        break',
+          ]
+          if lines[i - 1:i + 3] != expected:
+              raise SystemExit('unexpected resilience retry layout')
+          lines[i - 1:i + 3] = [
+              '                        if can_retry and retry_delay is not None:',
+              '                            retry_delay_after_span = retry_delay',
+              '                        else:',
+              '                            break',
+          ]
+          final_raise = '        raise ResilienceExecutionError('
+          i = lines.index(final_raise)
+          lines[i:i] = [
+              '                if retry_delay_after_span is not None:',
+              '                    await self._sleeper(retry_delay_after_span)',
+              '                    continue',
+              '',
+          ]
+          resilience.write_text('\n'.join(lines) + '\n')
 
           streaming = Path('packages/gateway-core/src/governed_llm_gateway_core/application/streaming.py')
-          text = streaming.read_text()
-          old = '''                with span_context as span:
-'''
-          new = '''                retry_delay_after_span: float | None = None
-                with span_context as span:
-'''
-          if text.count(old) != 1:
-              raise SystemExit(f'unexpected streaming span-start matches: {text.count(old)}')
-          text = text.replace(old, new, 1)
-          old = '''                        if can_retry:
-                            delay = _retry_delay_seconds(
-                                self._retry_policy,
-                                request_id=str(request.request_id),
-                                deployment_id=deployment_id,
-                                attempt_number=attempt_number,
-                                retry_after_seconds=exc.retry_after_seconds,
-                            )
-                            if span is not None:
-                                add_gateway_span_event(
-                                    span,
-                                    "llm.gateway.retry",
-                                    {
-                                        "retry_count": attempt_number,
-                                        "llm.retry_delay_ms": int(delay * 1000),
-                                        "llm.deployment": deployment_id,
-                                    },
-                                )
-                            await self._sleeper(delay)
-                            continue
-                        if transient:
-                            if span is not None and candidate_index + 1 < len(bounded):
-                                add_gateway_span_event(
-                                    span,
-                                    "llm.gateway.fallback",
-                                    {
-                                        "llm.fallback_count": len(fallback_sequence),
-                                        "llm.deployment": deployment_id,
-                                    },
-                                )
-                            break
-                        yield _failed_event(
-                            request=request,
-                            sequence_number=1,
-                            routing=routing,
-                            code=exc.code.value,
-                            message="provider stream failed before output",
-                            retryable=False,
-                            partial=False,
-                        )
-                        return
-
-        retryable = last_error.retryable if last_error is not None else False
-'''
-          new = '''                        if can_retry:
-                            delay = _retry_delay_seconds(
-                                self._retry_policy,
-                                request_id=str(request.request_id),
-                                deployment_id=deployment_id,
-                                attempt_number=attempt_number,
-                                retry_after_seconds=exc.retry_after_seconds,
-                            )
-                            if span is not None:
-                                add_gateway_span_event(
-                                    span,
-                                    "llm.gateway.retry",
-                                    {
-                                        "retry_count": attempt_number,
-                                        "llm.retry_delay_ms": int(delay * 1000),
-                                        "llm.deployment": deployment_id,
-                                    },
-                                )
-                            retry_delay_after_span = delay
-                        elif transient:
-                            if span is not None and candidate_index + 1 < len(bounded):
-                                add_gateway_span_event(
-                                    span,
-                                    "llm.gateway.fallback",
-                                    {
-                                        "llm.fallback_count": len(fallback_sequence),
-                                        "llm.deployment": deployment_id,
-                                    },
-                                )
-                            break
-                        else:
-                            yield _failed_event(
-                                request=request,
-                                sequence_number=1,
-                                routing=routing,
-                                code=exc.code.value,
-                                message="provider stream failed before output",
-                                retryable=False,
-                                partial=False,
-                            )
-                            return
-
-                if retry_delay_after_span is not None:
-                    await self._sleeper(retry_delay_after_span)
-                    continue
-
-        retryable = last_error.retryable if last_error is not None else False
-'''
-          if text.count(old) != 1:
-              raise SystemExit(f'unexpected streaming retry matches: {text.count(old)}')
-          streaming.write_text(text.replace(old, new, 1))
+          lines = streaming.read_text().splitlines()
+          with_span = '                with span_context as span:'
+          i = lines.index(with_span)
+          lines.insert(i, '                retry_delay_after_span: float | None = None')
+          sleeper = '                            await self._sleeper(delay)'
+          i = lines.index(sleeper)
+          if lines[i + 1] != '                            continue':
+              raise SystemExit('unexpected streaming retry layout')
+          lines[i:i + 2] = ['                            retry_delay_after_span = delay']
+          transient = '                        if transient:'
+          i = lines.index(transient, i)
+          lines[i] = '                        elif transient:'
+          failure_yield = '                        yield _failed_event('
+          yield_i = lines.index(failure_yield, i)
+          return_i = lines.index('                        return', yield_i)
+          lines.insert(yield_i, '                        else:')
+          yield_i += 1
+          return_i += 1
+          for j in range(yield_i, return_i + 1):
+              lines[j] = '    ' + lines[j]
+          final_retryable = (
+              '        retryable = last_error.retryable if last_error is not None else False'
+          )
+          i = lines.index(final_retryable)
+          lines[i:i] = [
+              '                if retry_delay_after_span is not None:',
+              '                    await self._sleeper(retry_delay_after_span)',
+              '                    continue',
+              '',
+          ]
+          streaming.write_text('\n'.join(lines) + '\n')
           PY
           uvx --python 3.13 --from ruff==0.12.11 ruff format packages/gateway-core/src/governed_llm_gateway_core/application/resilience.py packages/gateway-core/src/governed_llm_gateway_core/application/streaming.py
           uvx --python 3.13 --from ruff==0.12.11 ruff check packages/gateway-core/src/governed_llm_gateway_core/application/resilience.py packages/gateway-core/src/governed_llm_gateway_core/application/streaming.py
