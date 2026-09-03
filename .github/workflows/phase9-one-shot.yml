@@ -36,9 +36,22 @@ jobs:
           text = text.replace('CREDENTIAL_SECRET', 'HEADER_SENTINEL')
           text = text.replace('timezone.utc', 'UTC')
           path.write_text(text)
+
+          path = Path(
+              'packages/gateway-core/src/'
+              'governed_llm_gateway_core/application/streaming.py'
+          )
+          text = path.read_text()
+          text = text.replace(
+              'provider completed before semantic output and final usage',
+              'provider completed before semantic output/final usage',
+          )
+          path.write_text(text)
           PY
-          uvx --python 3.13 --from ruff==0.12.11 ruff check . --fix
           uvx --python 3.13 --from ruff==0.12.11 ruff format .
+          uvx --python 3.13 --from ruff==0.12.11 ruff check . --fix --unsafe-fixes
+          uvx --python 3.13 --from ruff==0.12.11 ruff format .
+          uvx --python 3.13 --from ruff==0.12.11 ruff check .
       - name: Refresh lock
         run: uv lock
       - name: Remove temporary workflows
