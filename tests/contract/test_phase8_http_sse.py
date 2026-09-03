@@ -14,9 +14,11 @@ class ChunkStream(httpx.AsyncByteStream):
     def __init__(self, *chunks: bytes) -> None:
         self._chunks = chunks
         self.closed = False
+        self.yield_count = 0
 
     async def __aiter__(self) -> AsyncIterator[bytes]:
         for chunk in self._chunks:
+            self.yield_count += 1
             yield chunk
 
     async def aclose(self) -> None:
@@ -111,6 +113,38 @@ def test_httpx_sse_transport_frames_events_and_sanitizes_headers(
     assert body.closed is True
     assert len(clients) == 1
     assert clients[0].is_closed is True
+
+
+def test_httpx_sse_transport_accepts_crlf_and_cr_event_boundaries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body = ChunkStream(
+        b"event: first\r\ndata: one\r\n\r\n",
+        b"event: second\rdata: two\r\r",
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, stream=body)
+
+    _install_mock_client(monkeypatch, handler)
+
+    async def scenario() -> list[SseEvent]:
+        stream = await HttpxSseTransport().open_sse(
+            url="https://provider.example/stream",
+            headers={},
+            payload={},
+            timeout_seconds=1.0,
+        )
+        try:
+            return await _collect(stream)
+        finally:
+            await stream.aclose()
+
+    assert asyncio.run(scenario()) == [
+        SseEvent(event="first", data="one"),
+        SseEvent(event="second", data="two"),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -250,3 +284,35 @@ def test_httpx_sse_stream_rejects_oversized_event(
 
     asyncio.run(scenario())
     assert body.closed is True
+
+
+def test_httpx_sse_stream_bounds_unterminated_line_before_source_is_exhausted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fragment = b"x" * (64 * 1024)
+    chunks = (b"data: " + fragment,) + (fragment,) * 20
+    body = ChunkStream(*chunks)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, stream=body)
+
+    _install_mock_client(monkeypatch, handler)
+
+    async def scenario() -> None:
+        stream = await HttpxSseTransport().open_sse(
+            url="https://provider.example/stream",
+            headers={},
+            payload={},
+            timeout_seconds=1.0,
+        )
+        try:
+            with pytest.raises(TransportFailure) as captured:
+                await anext(stream.__aiter__())
+            assert captured.value.kind is TransportFailureKind.INVALID_RESPONSE
+        finally:
+            await stream.aclose()
+
+    asyncio.run(scenario())
+    assert body.closed is True
+    assert body.yield_count < len(chunks)

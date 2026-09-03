@@ -10,6 +10,7 @@ import httpx
 from .http_json import TransportFailure, TransportFailureKind
 
 _MAX_EVENT_BYTES = 1024 * 1024
+_READ_CHUNK_BYTES = 64 * 1024
 _SAFE_RESPONSE_HEADERS = frozenset({"content-type", "retry-after"})
 
 
@@ -117,10 +118,12 @@ class _HttpxSseStream:
         self.headers: Mapping[str, str] = dict(headers)
         self._response = response
         self._client = client
-        self._lines = response.aiter_lines().__aiter__()
+        self._chunks = response.aiter_bytes(chunk_size=_READ_CHUNK_BYTES).__aiter__()
+        self._buffer = bytearray()
         self._event_name: str | None = None
         self._data_lines: list[str] = []
         self._event_bytes = 0
+        self._eof = False
         self._closed = False
 
     def __aiter__(self) -> AsyncIterator[SseEvent]:
@@ -128,12 +131,26 @@ class _HttpxSseStream:
 
     async def __anext__(self) -> SseEvent:
         while True:
-            try:
-                line = await self._lines.__anext__()
-            except StopAsyncIteration:
+            event = self._drain_complete_lines(final=self._eof)
+            if event is not None:
+                return event
+
+            if self._eof:
+                if self._buffer:
+                    final_line = bytes(self._buffer)
+                    self._buffer.clear()
+                    event = self._consume_line(final_line, separator_bytes=0)
+                    if event is not None:
+                        return event
                 if self._data_lines:
                     return self._dispatch()
-                raise
+                raise StopAsyncIteration
+
+            try:
+                chunk = await self._chunks.__anext__()
+            except StopAsyncIteration:
+                self._eof = True
+                continue
             except httpx.TimeoutException as exc:
                 raise TransportFailure(
                     TransportFailureKind.TIMEOUT,
@@ -145,30 +162,89 @@ class _HttpxSseStream:
                     "provider stream transport failed while reading",
                 ) from exc
 
-            self._event_bytes += len(line.encode("utf-8")) + 1
-            if self._event_bytes > _MAX_EVENT_BYTES:
-                raise TransportFailure(
-                    TransportFailureKind.INVALID_RESPONSE,
-                    "provider SSE event exceeded the bounded event size",
-                )
-
-            if line == "":
-                if self._data_lines:
-                    return self._dispatch()
-                self._event_name = None
-                self._event_bytes = 0
+            if not chunk:
                 continue
-            if line.startswith(":"):
-                continue
+            self._buffer.extend(chunk)
 
-            field, separator, raw_value = line.partition(":")
-            if not separator:
-                raw_value = ""
-            value = raw_value[1:] if raw_value.startswith(" ") else raw_value
-            if field == "event":
-                self._event_name = value or None
-            elif field == "data":
-                self._data_lines.append(value)
+            event = self._drain_complete_lines(final=False)
+            if event is not None:
+                return event
+            self._ensure_partial_event_bound()
+
+    def _drain_complete_lines(self, *, final: bool) -> SseEvent | None:
+        while True:
+            popped = self._pop_line(final=final)
+            if popped is None:
+                return None
+            line, separator_bytes = popped
+            event = self._consume_line(line, separator_bytes=separator_bytes)
+            if event is not None:
+                return event
+
+    def _pop_line(self, *, final: bool) -> tuple[bytes, int] | None:
+        lf_index = self._buffer.find(b"\n")
+        cr_index = self._buffer.find(b"\r")
+        indexes = [index for index in (lf_index, cr_index) if index >= 0]
+        if not indexes:
+            return None
+
+        index = min(indexes)
+        separator_bytes = 1
+        if self._buffer[index] == 13:
+            if index + 1 == len(self._buffer) and not final:
+                return None
+            if index + 1 < len(self._buffer) and self._buffer[index + 1] == 10:
+                separator_bytes = 2
+
+        line = bytes(self._buffer[:index])
+        del self._buffer[: index + separator_bytes]
+        return line, separator_bytes
+
+    def _consume_line(self, line: bytes, *, separator_bytes: int) -> SseEvent | None:
+        self._event_bytes += len(line) + separator_bytes
+        self._ensure_event_bound()
+
+        if not line:
+            if self._data_lines:
+                return self._dispatch()
+            self._event_name = None
+            self._event_bytes = 0
+            return None
+
+        try:
+            decoded = line.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise TransportFailure(
+                TransportFailureKind.INVALID_RESPONSE,
+                "provider SSE event contained invalid UTF-8",
+            ) from exc
+
+        if decoded.startswith(":"):
+            return None
+
+        field, separator, raw_value = decoded.partition(":")
+        if not separator:
+            raw_value = ""
+        value = raw_value[1:] if raw_value.startswith(" ") else raw_value
+        if field == "event":
+            self._event_name = value or None
+        elif field == "data":
+            self._data_lines.append(value)
+        return None
+
+    def _ensure_partial_event_bound(self) -> None:
+        if self._event_bytes + len(self._buffer) > _MAX_EVENT_BYTES:
+            raise TransportFailure(
+                TransportFailureKind.INVALID_RESPONSE,
+                "provider SSE event exceeded the bounded event size",
+            )
+
+    def _ensure_event_bound(self) -> None:
+        if self._event_bytes > _MAX_EVENT_BYTES:
+            raise TransportFailure(
+                TransportFailureKind.INVALID_RESPONSE,
+                "provider SSE event exceeded the bounded event size",
+            )
 
     def _dispatch(self) -> SseEvent:
         event = SseEvent(event=self._event_name, data="\n".join(self._data_lines))
