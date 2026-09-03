@@ -5,8 +5,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from decimal import Decimal
-from math import ceil
+from decimal import ROUND_CEILING, Decimal
 from typing import Protocol
 
 from .contracts import (
@@ -30,6 +29,7 @@ class BenchmarkProviderFailure(Exception):
     latency_ms: int | None = None
 
     def __post_init__(self) -> None:
+        """Validate stable provider-failure evidence."""
         if not self.code or self.code.strip() != self.code:
             raise ValueError("provider failure code must be non-empty and normalized")
         if self.latency_ms is not None and self.latency_ms < 0:
@@ -54,6 +54,7 @@ class BenchmarkRunner:
         *,
         quality_success_threshold: Decimal = Decimal("1"),
     ) -> None:
+        """Configure the executor, scorer registry, and deterministic quality threshold."""
         if not Decimal("0") <= quality_success_threshold <= Decimal("1"):
             raise ValueError("quality_success_threshold must be between 0 and 1")
         self._executor = executor
@@ -66,7 +67,6 @@ class BenchmarkRunner:
         targets: Sequence[BenchmarkTarget],
     ) -> tuple[tuple[BenchmarkObservation, ...], tuple[Scorecard, ...]]:
         """Evaluate all case/target pairs in stable input order."""
-
         if not cases:
             raise ValueError("benchmark dataset must contain at least one case")
         if not targets:
@@ -137,7 +137,6 @@ def _ensure_unique_ids(
 
 def build_scorecards(observations: Sequence[BenchmarkObservation]) -> tuple[Scorecard, ...]:
     """Aggregate observations without conflating quality failure with provider outage."""
-
     grouped: dict[tuple[str, BenchmarkWorkload], list[BenchmarkObservation]] = defaultdict(list)
     for observation in observations:
         grouped[(observation.target_id, observation.workload)].append(observation)
@@ -157,16 +156,28 @@ def _build_scorecard(
     provider_failures = [
         item for item in observations if item.status is ObservationStatus.PROVIDER_FAILURE
     ]
-    completed = [item for item in observations if item.status is not ObservationStatus.PROVIDER_FAILURE]
+    completed = [
+        item
+        for item in observations
+        if item.status is not ObservationStatus.PROVIDER_FAILURE
+    ]
     quality_successes = [item for item in completed if item.status is ObservationStatus.SUCCEEDED]
-    quality_failures = [item for item in completed if item.status is ObservationStatus.QUALITY_FAILURE]
+    quality_failures = [
+        item for item in completed if item.status is ObservationStatus.QUALITY_FAILURE
+    ]
     quality_scores = [item.quality_score for item in completed if item.quality_score is not None]
     latencies = [item.latency_ms for item in completed if item.latency_ms is not None]
     ttfts = [item.ttft_ms for item in completed if item.ttft_ms is not None]
     provider_error_counts = Counter(
-        item.provider_error_code for item in provider_failures if item.provider_error_code is not None
+        item.provider_error_code
+        for item in provider_failures
+        if item.provider_error_code is not None
     )
 
+    total_cost = sum(
+        (item.cost_usd or Decimal("0") for item in completed),
+        start=Decimal("0"),
+    )
     return Scorecard(
         target_id=target_id,
         workload=workload,
@@ -188,13 +199,13 @@ def _build_scorecard(
         ttft_p95_ms=_percentile(ttfts, Decimal("0.95")),
         total_input_units=sum(item.input_units or 0 for item in completed),
         total_output_units=sum(item.output_units or 0 for item in completed),
-        total_cost_usd=sum((item.cost_usd or Decimal("0") for item in completed), start=Decimal("0")),
+        total_cost_usd=total_cost,
         rate_limit_errors=provider_error_counts.get("rate_limit", 0),
-        fallback_frequency=_ratio(
-            sum(1 for item in completed if item.fallback_count > 0), len(completed)
-        )
-        if completed
-        else Decimal("0"),
+        fallback_frequency=(
+            _ratio(sum(1 for item in completed if item.fallback_count > 0), len(completed))
+            if completed
+            else Decimal("0")
+        ),
         provider_error_counts=dict(sorted(provider_error_counts.items())),
     )
 
@@ -209,5 +220,6 @@ def _percentile(values: Sequence[int], percentile: Decimal) -> int | None:
     if not values:
         return None
     ordered = sorted(values)
-    rank = max(1, ceil(float(percentile * Decimal(len(ordered)))))
+    raw_rank = percentile * Decimal(len(ordered))
+    rank = max(1, int(raw_rank.to_integral_value(rounding=ROUND_CEILING)))
     return ordered[rank - 1]
