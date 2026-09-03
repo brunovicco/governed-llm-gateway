@@ -2,12 +2,12 @@
 
 [English](README.md) | **Português (Brasil)**
 
-Gateway reutilizável e neutro em relação a provedores de LLM, cuja responsabilidade é a **resolução e execução governada de modelos**.
+Gateway reutilizável e neutro em relação a provedores de LLM para **resolução e execução governada de modelos**.
 
-Status: **Phase 7 — Structured Output e Normalização de Tools implementados; em revisão**.
+Status: **Phase 8 — Streaming implementado; em revisão**.
 
-O projeto separa autorização, seleção operacional, resiliência de execução e normalização de recursos
-dos provedores:
+O projeto separa autorização, seleção operacional determinística, resiliência de runtime,
+normalização de recursos do provedor e transporte streaming:
 
 ```text
 Aplicação / Agente
@@ -22,10 +22,11 @@ Governed LLM Gateway (PEP + seleção operacional)
        ├─ elegibilidade + ranking determinístico
        ├─ saúde de runtime / circuit breaker
        ├─ retry limitado / fallback seguro
-       └─ structured output / normalização de tool calls
+       ├─ structured output / normalização de tool calls
+       └─ streaming normalizado / cancelamento
        ▼
 Provedor de LLM
-       │ texto / structured output / ToolCall
+       │ texto / structured output / ToolCall / eventos streaming
        ▼
 Aplicação / Agente / runtime MCP
        └─ autoriza e executa business tools
@@ -37,116 +38,76 @@ Invariante central:
 Gateway allowed set ⊆ Policy Router authorized set
 ```
 
-O gateway pode tornar a autorização mais restritiva por capacidade, política de ambiente/dados, custo,
-latência, saúde, estado do circuito ou outras restrições operacionais. Ele nunca pode ampliar a
-autorização, inclusive durante fallback ou tradução de recursos do provedor.
+O gateway pode restringir a autorização por capacidade, política de ambiente/dados, custo, latência,
+saúde, estado do circuito ou outras restrições operacionais. Ele nunca pode ampliar a autorização do
+PDP, inclusive durante retry, fallback, tradução de provedor ou streaming.
 
 ## Implementação atual
 
-A Phase 0 estabeleceu o workspace com uv, os limites de arquitetura e segurança, o contrato
-provider-neutral inicial, os ADRs 0001 a 0005 e o invariante de autorização fail-closed.
+As Phases 0–4 estabeleceram o workspace e os gates de arquitetura, model registry estrito, fundação de
+execução de provedores e a fronteira determinística de autorização com o Policy Model Router. A Phase
+5 adicionou elegibilidade/ranking determinístico e o `POST /v1/route/explain` autenticado. A Phase 6
+adicionou saúde por deployment, circuit breaker, retry limitado, fallback seguro e regras de segurança
+de replay. A Phase 7 adicionou validação limitada de structured output e normalização provider-neutral
+de tool calls, mantendo a execução de business tools fora do gateway.
 
-A Phase 1 foi concluída no `policy-model-router`, generalizando identificadores de workload e grupos
-lógicos de modelos, preservando decisões de política determinísticas e proveniência.
+A Phase 8 adiciona streaming normalizado:
 
-A Phase 2 concluiu o model registry estrito, com parsing seguro de YAML, validação de schema e
-semântica, metadados de preço versionados e proveniência determinística do registry via SHA-256.
+- ADR-0011 define lifecycle, replay, cancelamento, usage e semântica de transporte;
+- `Capability.STREAMING` participa da elegibilidade determinística;
+- adapters também precisam comprovar separadamente `native_streaming` e suporte a `streaming_usage`;
+- existem adapters streaming nativos para OpenAI Responses, Anthropic Messages e Gemini
+  `streamGenerateContent`;
+- streaming OpenAI-compatible genérico continua sendo opt-in explícito, nunca inferido;
+- um transporte SSE-over-HTTPS assíncrono dedicado oferece parsing limitado e fechamento explícito do
+  upstream;
+- `POST /v1/generate` autentica, consulta o PDP, captura health de runtime e ranqueia antes de iniciar
+  a resposta SSE;
+- retry/fallback só pode ocorrer antes de output semântico ficar visível;
+- após conteúdo/tool call ficar visível, falha do provedor termina como
+  `response.failed(partial=true, retryable=false)` sem replay entre provedores;
+- streams bem-sucedidos finalizam usage exatamente uma vez antes de completar;
+- disconnect/cancelamento do cliente fecha o generator de execução e o stream upstream do provedor;
+- structured output e tool calls em streaming preservam a validação local da Phase 7;
+- o gateway nunca executa business tools nem fabrica estado de continuação/correlação ausente.
 
-A Phase 3, incorporada pelo PR #2, adicionou a fundação de execução de provedores:
+## Eventos streaming canônicos
 
-- ports provider-neutral para requests, responses e erros;
-- adapters nativos para OpenAI Responses, Anthropic Messages e Google Gemini `generateContent`;
-- adapter explicitamente configurado para chat completions compatíveis com OpenAI;
-- transporte HTTPS/JSON limitado, normalização de uso, timeout por tentativa e erros tipados;
-- nenhuma exposição de corpo bruto de erro não-2xx, credenciais ou headers arbitrários do provedor.
+`POST /v1/generate` emite somente:
 
-A Phase 4, incorporada pelo PR #3, adicionou a fronteira determinística com o Policy Model Router:
+```text
+response.started
+content.delta
+tool_call.started
+tool_call.arguments.delta
+tool_call.completed
+usage.completed
+response.completed
+response.failed
+```
 
-- contrato `PolicyRequestMetadata` sem prompt;
-- projeção de política baseada em `EffectivePolicyContext` confiável, e não em claims do caller;
-- adapter para o schema wire `1.0` do `POST /route`;
-- validação estrita de decisões e proveniência;
-- interseção do registry com o grupo lógico autorizado pelo PDP;
-- prova de que rejeição do PDP ou seleção fora da autorização produz zero chamadas ao provedor.
+Os números de sequência são positivos e monotônicos. `response.started` só se torna público quando o
+primeiro output semântico está prestes a ser exposto; um evento de start interno do provedor sozinho
+não cruza a fronteira de retry/fallback.
 
-A Phase 5, incorporada pelo PR #4, adicionou seleção operacional determinística:
+Exemplo de frame SSE:
 
-- ADR-0006 para semântica de ranking determinístico;
-- política de ranking estrita/versionada com digest SHA-256;
-- elegibilidade antes do scoring para estado habilitado, ambiente/classificação confiáveis,
-  capacidades, contexto, evidência estática de ranking, preço, limite de custo e latência esperada;
-- scoring determinístico com `Decimal` e desempate por `deployment_id` crescente;
-- proveniência de PDP, registry e ranking, além de motivos de rejeição legíveis por máquina;
-- `POST /v1/route/explain` autenticado, que executa autorização + elegibilidade + ranking sem invocar
-  um provedor.
+```text
+event: content.delta
+id: 2
+data: {"delta":"hello","event_type":"content.delta","request_id":"...","sequence_number":2}
 
-Os scores estáticos da Phase 5 são explicitamente **não** considerados evidência de benchmark.
-`benchmark_snapshot_id` permanece vazio até as fases posteriores de avaliação/ranking por evidências.
+```
 
-A Phase 6, incorporada pelo PR #5, adicionou resiliência de runtime estritamente dentro da sequência já
-autorizada e ranqueada:
-
-- ADR-0007 para semântica de retry/fallback e segurança de replay;
-- retry limitado contra o mesmo deployment concreto;
-- fallback limitado apenas para o próximo deployment já ranqueado e autorizado;
-- classes transitórias normalizadas: rate limit, timeout, unavailable/5xx e falha de transporte;
-- erros permanentes de validação/autenticação/autorização/configuração falham de forma fechada sem
-  fallback automático para outro provedor;
-- backoff exponencial limitado, jitter reconstruível e `Retry-After` do provedor também limitado;
-- saúde de runtime e circuit breaker por processo e por deployment;
-- ciclo do circuito `CLOSED → OPEN → HALF_OPEN → CLOSED`;
-- circuito aberto e estado unhealthy removem o deployment da elegibilidade operacional;
-- `FallbackSafetyState` bloqueia replay automático após output do modelo, side effect externo ou
-  estado opaco de continuação/raciocínio do provedor;
-- execução resiliente bem-sucedida registra a progressão real de deployments em `fallback_sequence`
-  e os retries do mesmo deployment como evidência metadata-only de tentativas.
-
-A camada de resiliência nunca reenumera o registry nem solicita ao PDP uma autorização mais ampla após
-falha de provedor. Todos os candidatos de fallback limitados são verificados contra o grupo lógico
-autorizado antes da primeira chamada ao provedor.
-
-A Phase 7 adiciona structured output e normalização de business tools executadas pelo cliente:
-
-- ADR-0013 define a fronteira de autoridade de structured output/tools;
-- `StructuredOutputSchema` é um contrato provider-neutral de JSON Schema nomeado;
-- `ToolDefinition`, `ToolCall` e `ToolResult` são contratos canônicos endurecidos;
-- schemas fornecidos pelo caller são validados localmente como um subconjunto limitado do Draft
-  2020-12;
-- schemas têm limite de 64 KiB e profundidade limitada, com `$ref`/`$dynamicRef` remotos rejeitados;
-- `pattern`, `patternProperties` e `format` são rejeitados na Phase 7 até existir uma semântica de
-  enforcement local explicitamente limitada;
-- structured output do provedor é parseado e validado novamente localmente mesmo após enforcement
-  nativo;
-- tool calls só são aceitas para tools declaradas e os argumentos são validados contra seus schemas;
-- IDs de correlação do provedor são obrigatórios para o `ToolCall` canônico e nunca são inventados;
-- OpenAI Responses, Anthropic Messages e Gemini `generateContent` traduzem seus formatos nativos de
-  schema/tool;
-- endpoints OpenAI-compatible genéricos só recebem suporte a structured output/tool calling mediante
-  configuração explícita e verificada;
-- `invalid_structured_output` e `invalid_tool_call` são falhas permanentes, portanto geram zero retry
-  automático e zero fallback automático;
-- o gateway nunca executa business tools.
-
-`ToolResult` pertence à aplicação/agente/runtime MCP após esse runtime autorizar e executar a ação de
-negócio. A Phase 7 não fabrica estado de continuação/raciocínio específico de provedor quando o
-request canônico não consegue preservá-lo sem perda.
-
-Veja `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` para o contrato detalhado da Phase 7.
+Veja `docs/project/STREAMING.md` e `docs/adr/ADR-0011-streaming-normalization.md`.
 
 ## Structured output e tools
 
-Structured output é uma **capacidade nativa do modelo/API**, e não uma convenção de prompt. Pedir por
-prompt que um modelo devolva JSON não é tratado como equivalente a enforcement nativo por schema.
-
-A fronteira de schema é defensiva:
-
-- sintaxe Draft 2020-12 com subconjunto documentado para a Phase 7;
-- limite de 64 KiB para o schema serializado;
-- profundidade limitada;
-- nenhuma resolução externa de referências do schema;
-- nenhum keyword de regex controlado pelo caller na Phase 7;
-- nenhum `format` aceito sem validação local explícita;
-- validação local depois da resposta do provedor.
+Structured output é tratado como uma **capacidade nativa do modelo/API**, e não como convenção de
+prompt. A fronteira da Phase 7 usa um subconjunto limitado do Draft 2020-12, limite serializado de
+64 KiB, profundidade limitada, sem `$ref`/`$dynamicRef` remoto, sem keywords regex controlados pelo
+caller e sem `format` aceito silenciosamente. O output é validado localmente depois do enforcement
+nativo do provedor.
 
 A autoridade sobre business tools permanece fora do gateway:
 
@@ -155,36 +116,56 @@ Gateway → normaliza ToolCall
 Aplicação / Agente / runtime MCP → autoriza + executa tool → é dono do ToolResult
 ```
 
-O gateway nunca transforma uma tool call produzida pelo modelo em permissão para executar uma ação
-externa.
+O gateway nunca transforma output do modelo em permissão para executar uma ação externa.
+
+## Retry e fallback seguros
+
+A resiliência da Phase 6 permanece limitada à sequência já autorizada e ranqueada na Phase 5:
+
+- retry usa o mesmo deployment concreto;
+- fallback só pode avançar para alternativa já ranqueada e autorizada;
+- falhas transitórias incluem rate limit, timeout, unavailable/5xx e transporte;
+- falhas permanentes de validação/autenticação/autorização/configuração não fazem fallback automático;
+- circuitos abertos e deployments unhealthy só restringem elegibilidade;
+- output do provedor, side effects externos ou estado opaco de continuação encerram replay automático.
+
+A Phase 8 torna essa fronteira ainda mais rígida: após output semântico streaming ficar visível,
+retry/fallback é desabilitado de forma terminal para aquele request.
 
 ## Explicação determinística de rota
 
-`POST /v1/route/explain` é uma superfície metadata-only e sem inferência. Ela resolve contexto
-confiável, obtém a decisão do PDP, avalia somente candidatos já autorizados e retorna deployment,
-alternativas, rejeições e proveniência.
+`POST /v1/route/explain` é metadata-only e não executa inferência. Resolve contexto confiável, obtém a
+decisão do PDP, avalia apenas candidatos do registry já autorizados e retorna deployment selecionado,
+alternativas, motivos de rejeição e proveniência.
 
-O endpoint não aceita `messages`. Claims de `risk_level`, `data_classification` ou `agent_identity` do
-caller não se tornam fatos autoritativos de política.
+O endpoint intencionalmente não aceita `messages`.
+
+## Segurança do transporte streaming
+
+`HttpxSseTransport` é separado do transporte JSON não-streaming e exige:
+
+- endpoint HTTPS absoluto;
+- ausência de userinfo e fragments na URL;
+- timeout positivo e limitado;
+- máximo de 1 MiB por evento SSE;
+- normalização de timeout/falha de rede na abertura e leitura;
+- allowlist de headers de resposta limitada a `content-type` e `retry-after`;
+- fechamento upstream explícito e idempotente.
+
+Credenciais do provedor, headers arbitrários e corpos brutos de erro não são expostos no stream
+normalizado.
 
 ## Notas sobre o Policy Router
 
 `GatewayRequest.requirements.min_context_tokens` é requisito de capacidade do modelo, não uma
-estimativa de tokens de entrada, e não é traduzido silenciosamente para
+estimativa de tokens de entrada, portanto não é traduzido silenciosamente para
 `context_tokens_estimated`.
 
-A API 1.0 do Policy Model Router expressa requisito de tool calling pela regra de workload, não por um
-campo `tool_calling_required` por request. O gateway não inventa esse campo.
+A API 1.0 do Policy Model Router não possui campo `tool_calling_required` por request. O gateway não
+inventa esse campo.
 
-Deployments do Policy Model Router que exigem autorização runtime assinada falham com 403 até a futura
-integração com Verifiable AI Governance; o gateway falha fechado sem chamar provedor.
-
-## Nota sobre Gemini
-
-O adapter nativo atual do Gemini permanece em `generateContent`. A Phase 7 normaliza
-`functionDeclarations`/`functionCall` e JSON Schema nativo sem tentar reconstruir estado de continuação
-específico do provedor. Se uma function call não trouxer ID de correlação, o gateway falha fechado em
-vez de inventar um identificador.
+Deployments que exigem autorização runtime assinada falham fechado até a futura integração com
+Verifiable AI Governance.
 
 ## Estrutura do repositório
 
@@ -207,22 +188,23 @@ uv sync --frozen
 uv run python scripts/quality_gate.py
 ```
 
-O quality gate inclui Ruff, mypy, pytest/coverage, Bandit, pip-audit, validação de arquitetura,
-secret scanning e o regression gate congelado da Phase 0.
+Baseline atual da Phase 8: **181 testes PASS, 80,40% de cobertura total, mypy em 71 arquivos fonte,
+Ruff/Bandit/pip-audit/arquitetura/secret scan/Phase 0 todos PASS**. O CI não exige credenciais e o
+workflow normal usa `contents: read`.
 
-Validação hardened atual da Phase 7: **132 testes, 82,62% de cobertura total, mypy em 58 arquivos
-fonte e todos os gates de qualidade/segurança PASS**. O CI não exige credenciais e usa
-`contents: read`.
+Coverage é aplicado em duas camadas: pytest-cov usa `--cov-fail-under=80` e, em seguida, um comando
+independente `coverage report --fail-under=80` valida novamente o arquivo de cobertura.
 
-`jsonschema==4.26.0` é a dependência runtime de validação no `gateway-core`.
-`types-jsonschema==4.26.0.20260518` é usado apenas no ambiente efêmero do mypy.
+O warning conhecido do Starlette TestClient sobre `httpx`/`httpx2` continua não bloqueante.
 
 ## Fonte de verdade
 
-Comece por `docs/project/CURRENT_STATE.md` para continuidade,
-`docs/adr/ADR-0013-structured-output-and-tool-normalization.md` e
-`docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` para a Phase 7,
-`docs/adr/ADR-0007-fallback-safety-semantics.md` e `docs/project/FALLBACK_AND_RETRY.md` para a Phase 6,
-`docs/adr/ADR-0006-deterministic-candidate-ranking.md` para a Phase 5,
-`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md` para a autorização da Phase 4 e
-`docs/project/SOURCE_ROADMAP.txt` para a especificação original.
+Comece por:
+
+- `docs/project/CURRENT_STATE.md` — checkpoint atual;
+- `docs/project/STREAMING.md` e `docs/adr/ADR-0011-streaming-normalization.md` — Phase 8;
+- `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` e ADR-0013 — Phase 7;
+- `docs/project/FALLBACK_AND_RETRY.md` e ADR-0007 — Phase 6;
+- ADR-0006 — ranking determinístico da Phase 5;
+- `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md` — autorização da Phase 4;
+- `docs/project/SOURCE_ROADMAP.txt` — especificação original do projeto.

@@ -402,6 +402,8 @@ def _missing_capabilities(
         required.append(Capability.TOOL_CALLING)
     if request.requirements.structured_output:
         required.append(Capability.STRUCTURED_OUTPUT)
+    if request.requirements.streaming:
+        required.append(Capability.STREAMING)
     return tuple(capability for capability in required if capability not in deployment.capabilities)
 
 

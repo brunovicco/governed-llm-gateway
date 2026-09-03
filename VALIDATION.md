@@ -1,6 +1,6 @@
-# Phase 0 through Phase 7 Validation Record
+# Phase 0 through Phase 8 Validation Record
 
-Date: 2026-09-01
+Date: 2026-09-03
 
 ## Toolchain
 
@@ -9,142 +9,168 @@ Date: 2026-09-01
 - quality-tool execution pinned to Python 3.13
 - uv workspace with locked dependencies
 
-## Phase 0 baseline
+## Historical architecture baseline
 
-The Architecture Gate baseline passed its quality, architecture, security, and contract checks.
-`scripts/phase0_gate.py` remains explicitly frozen to the five contract modules from the
-`phase-0-architecture-gate` tag. Current/future phase contract tests are exercised by the complete
-pytest gate. Durable package boundaries remain enforced by `scripts/architecture_check.py`.
+`scripts/phase0_gate.py` remains frozen to the five contract modules that existed at the
+`phase-0-architecture-gate` tag. Current/future phase tests are exercised by the complete pytest gate.
+Package boundaries remain enforced separately by `scripts/architecture_check.py`.
 
 ## Completed phases
 
-- Phase 2 — Contracts and Model Registry: merged through PR #1; strict registry schema, safe YAML,
-  duplicate-key rejection, pricing metadata, capability/modality validation, deterministic digest.
-- Phase 3 — Provider Execution Foundation: merged through PR #2; provider-neutral execution contract,
-  native/compatible adapters, usage extraction, typed timeout/error normalization and secret-safe
-  transport.
-- Phase 4 — Policy Router Integration: merged through PR #3; trusted prompt-free PDP projection,
-  strict accepted/rejected provenance binding, registry/PDP intersection and zero provider calls after
-  policy denial/boundary failure.
-- Phase 5 — Deterministic Operational Ranking and Explainability: merged through PR #4; deterministic
-  eligibility/ranking, ranking-policy provenance, authority-boundary hardening and authenticated
-  no-inference `POST /v1/route/explain`.
-- Phase 6 — Runtime Health, Retry and Safe Fallback: merged through PR #5; ADR-0007, bounded retry,
-  bounded authorized fallback, circuit breaker/runtime health, replay-safety boundary, and
-  metadata-only attempt evidence.
+- Phase 2 — Contracts and Model Registry: PR #1.
+- Phase 3 — Provider Execution Foundation: PR #2.
+- Phase 4 — Policy Router Integration: PR #3.
+- Phase 5 — Deterministic Operational Ranking and Explainability: PR #4.
+- Phase 6 — Runtime Health, Retry and Safe Fallback: PR #5.
+- Phase 7 — Structured Output and Tool Normalization: PR #6, merge commit
+  `6c53d5586b6c6f9fbafcfda642f2b9e7af0cbca0`.
 
-Phase 6 PR #5 merged at commit `8a5559edc1282494cb023e50f3898882fd0aa8e0`.
+## Phase 8 implementation validation
 
-## Phase 7 implementation validation
+Phase 8 — Streaming is implemented in PR #7. The current code-validation head is:
 
-Phase 7 — Structured Output and Tool Normalization was validated in the normal read-only GitHub
-Actions workflow after canonical contracts, provider mappings, resilience interaction, schema
-hardening, and acceptance tests were implemented.
+`a8b9fdcd6d69b94a2ab6ed942e67409df50d0092`
 
-Hardened validation head: `79a79051fa2f631580cd39ca3ad88494d210e8b8`
+GitHub Actions run:
 
-GitHub Actions run: `33521577607`.
+`33790152650`
 
 Results:
 
 - `uv lock --check` — PASS;
 - Ruff lint — PASS;
 - Ruff formatting — PASS;
-- mypy — PASS across 58 source files;
-- pytest — PASS, 132 tests;
-- total coverage — 82.62% (minimum 80%);
-- Bandit — PASS, no identified issues and no skipped files;
+- mypy — PASS across 71 source files;
+- pytest — PASS, 183 tests;
+- total coverage — 80.61% (minimum 80%);
+- independent `coverage report --fail-under=80` — PASS;
+- Bandit — PASS, no identified issues;
 - pip-audit — PASS, no known vulnerabilities;
 - architecture validation — PASS;
 - secret scanning — PASS;
-- Phase 0 regression gate — PASS.
+- Phase 0 regression gate — PASS;
+- normal GitHub Actions token permissions — `contents: read` and `metadata: read`.
 
-The workflow executed with `contents: read` and no provider/PDP credentials or live provider calls.
+The run is credential-free and performs no live provider/PDP calls.
 
-`jsonschema==4.26.0` is the Phase 7 runtime schema-validation dependency in `gateway-core`.
-`types-jsonschema==4.26.0.20260518` is injected only into the ephemeral mypy environment by
-`scripts/quality_gate.py`; it is not a runtime dependency.
+## Coverage enforcement hardening
 
-## Phase 7 acceptance evidence
+Phase 8 retains two independent coverage checks:
+
+```text
+pytest ... --cov-fail-under=80
+coverage report --fail-under=80
+```
+
+The second command reads the coverage data produced by pytest and independently returns a failing exit
+status if aggregate coverage is below 80%.
+
+No coverage threshold was lowered and no Phase 8 code was excluded from measurement to make the gate
+pass.
+
+## SSE memory-bound review hardening
+
+A builder-side architecture/security review found that the first Phase 8 implementation checked the
+1 MiB SSE event limit after `httpx.aiter_lines()` had already produced a complete line. An unterminated
+provider line could therefore grow inside HTTPX before the gateway enforced its own event bound.
+
+Commit `a8b9fdcd6d69b94a2ab6ed942e67409df50d0092` replaced that framing path with incremental bounded
+parsing:
+
+- response bytes are consumed through `aiter_bytes(chunk_size=64 * 1024)`;
+- LF, CRLF, and CR SSE boundaries are parsed by the gateway transport;
+- complete lines count toward the same 1 MiB event budget;
+- an incomplete/unterminated line is checked incrementally before another provider chunk is accepted;
+- invalid UTF-8 fails closed as `invalid_response` transport evidence;
+- upstream response/client closure semantics remain idempotent and cancellation-safe.
+
+Regression coverage now proves:
+
+- an oversized unterminated event is rejected before the source stream is exhausted;
+- normal LF framing remains stable;
+- CRLF and CR framing are accepted;
+- oversized completed events still fail closed;
+- open/read timeout and network failures remain normalized;
+- safe response-header filtering and resource closure remain unchanged.
+
+The hardening is transport-local. It does not change PDP authorization, operational ranking, runtime
+health, retry/fallback candidate authority, tool execution authority, or Phase 9 telemetry scope.
+
+## Phase 8 acceptance evidence
 
 The normative roadmap acceptance criteria are covered directly:
 
-- provider-native structured-output support is represented explicitly rather than inferred from
-  prompting;
-- malformed JSON and schema-invalid structured output are rejected;
-- model-produced tool-call arguments are validated against the declared tool schema;
-- the gateway exposes no business-tool execution authority.
+- streaming lifecycle is provider-neutral and deterministic;
+- final usage is normalized before successful completion;
+- retry/fallback semantics are explicit during streaming;
+- client cancellation closes the upstream provider stream;
+- partial-output failures cannot silently replay through another provider.
 
 Additional contract/boundary tests verify:
 
-- `StructuredOutputSchema`, `ToolDefinition`, `ToolCall`, and `ToolResult` identity/shape constraints;
-- structured output can be requested only together with the corresponding workload capability;
-- tool definitions can be supplied only together with the tool-calling capability;
-- duplicate tool definitions fail before provider execution;
-- JSON Schema syntax is validated as Draft 2020-12 before provider execution;
-- oversized/deep/externally referenced schemas fail closed;
-- remote `$ref` and `$dynamicRef` resolution is not allowed;
-- `pattern` and `patternProperties` are rejected instead of evaluating caller-controlled regex;
-- `format` is rejected instead of being silently accepted without explicit local enforcement;
-- ordinary object properties named `pattern` remain valid;
-- tool schemas receive the same bounded schema-subset checks as structured output;
-- provider output is parsed and revalidated locally after native schema enforcement;
-- OpenAI Responses native structured-output payload mapping;
-- OpenAI Responses function-tool mapping and normalized function-call extraction;
-- Anthropic Messages structured-output/tool mapping and normalized `tool_use` extraction;
-- Gemini `generateContent` response-schema/function-declaration mapping and normalized
-  `functionCall` extraction;
-- missing provider tool-call correlation fails closed rather than synthesizing an ID;
-- generic OpenAI-compatible structured-output/tool support is disabled by default and requires
-  explicit endpoint opt-in;
-- structured-output/tool contracts survive the Phase 6 resilience boundary unchanged;
-- `invalid_structured_output` and `invalid_tool_call` are permanent and produce zero automatic retry
-  and zero automatic fallback.
+- all eight canonical public event types and monotonic sequence numbers;
+- `Capability.STREAMING` is required by streaming eligibility;
+- provider/API-family native streaming and final-usage support are independently checked;
+- OpenAI Responses streaming translation;
+- Anthropic Messages streaming translation, including incremental tool arguments;
+- Gemini `streamGenerateContent` translation and correlation-ID fail-closed behavior;
+- OpenAI-compatible streaming/final usage require explicit opt-in;
+- same-deployment retry and authorized fallback are possible only before semantic output;
+- zero retry/fallback after visible content/tool-call output;
+- invalid lifecycle transitions, duplicate/early usage, early completion, and EOF without completion
+  fail closed;
+- structured-output streaming is revalidated under the Phase 7 schema contract;
+- tool calls are locally validated before `tool_call.completed`;
+- business tools are never executed by the gateway;
+- SSE transport requires HTTPS, rejects URL userinfo/fragments, enforces a 1 MiB event bound
+  incrementally, normalizes open/read timeout and network errors, sanitizes response headers,
+  dispatches terminal EOF data, and closes idempotently;
+- consumer close propagates to the provider generator without recording provider failure;
+- `/v1/generate` authenticates/authorizes/ranks before the streaming response begins;
+- authentication, PDP denial, invalid request/schema/tool data, ranking configuration/invariant error,
+  and no eligible streaming deployment retain ordinary pre-SSE HTTP failure semantics;
+- deterministic SSE serialization includes decision-scoped routing/fallback provenance without
+  provider credentials/raw bodies.
 
-## Phase 7 architecture/security boundaries
+## Architecture/security boundaries
 
-- structured output means provider-native schema enforcement, not prompted JSON;
-- provider-native enforcement never replaces gateway-side post-response validation;
-- Phase 7 implements a documented bounded Draft 2020-12 subset rather than unrestricted schema
-  semantics;
-- schema evaluation is local and performs no remote retrieval;
-- caller-controlled regex keywords are excluded until a bounded evaluation strategy exists;
-- `format` is excluded until explicit local checker semantics are adopted;
-- provider feature support is separate from registry deployment capability and from PDP authorization;
-- provider adapters translate features but have zero model-authorization authority;
-- `ToolCall` is data, not permission to execute an external action;
-- application/agent/MCP runtime owns business-tool authorization, execution, side effects, and
-  `ToolResult` creation;
-- provider correlation IDs are never fabricated;
-- provider-native continuation/reasoning state is not reconstructed from guesses;
-- semantic structured/tool validation failures are not converted into availability fallback;
-- prompts, completions, structured payloads, tool arguments/results, provider/PDP secrets, and raw
-  provider error bodies remain excluded from default evidence.
+- streaming does not create a new authorization authority;
+- execution remains limited to the original Phase 5 ranked authorized sequence;
+- provider adapters translate stream wire protocols but cannot choose a new model group;
+- OpenAI-compatible capability is explicit, not inferred;
+- visible semantic output is a terminal automatic-replay boundary;
+- client cancellation is not converted into deployment-health failure;
+- provider success is recorded before public completion;
+- upstream network resources are explicitly owned/closed;
+- structured-output/tool validation remains provider-neutral and local;
+- prompts, completions, structured payloads, tool arguments/results, provider/PDP secrets, arbitrary
+  provider headers, and raw provider error bodies remain excluded from default evidence;
+- OpenTelemetry remains Phase 9 and was not pulled into Phase 8.
 
 ## Quality-gate execution model
 
-Ruff, Bandit, and pip-audit remain isolated quality tools. mypy and pytest execute with `uv run
---all-packages` so tools importing workspace code see the locked project dependencies.
+Ruff, Bandit, pip-audit, and coverage CLI remain isolated quality tools. mypy and pytest execute with
+`uv run --all-packages` so tools importing workspace code see locked project dependencies.
 
-`types-jsonschema` is installed through the mypy command's ephemeral `--with` dependency only. This
-allows strict typing of `jsonschema` without adding a stub-only package to production/runtime
-requirements.
+`types-jsonschema==4.26.0.20260518` remains an ephemeral mypy-only dependency.
 
-The GitHub Actions workflow is read-only (`contents: read`) and invokes:
+The normal GitHub Actions workflow stays read-only and invokes:
 
 ```bash
 uv run python scripts/quality_gate.py
 ```
 
-One non-blocking `StarletteDeprecationWarning` remains from FastAPI TestClient regarding `httpx` versus
-`httpx2`. It is unrelated to Phase 7 functionality/security and remains separate maintenance work.
+The known `StarletteDeprecationWarning` from FastAPI TestClient regarding `httpx` versus `httpx2`
+remains non-blocking and separate maintenance work.
 
-## Phase 7 status
+## Phase 8 status
 
 Implementation quality gates: **PASS**
 
-Structured-output/tool acceptance targets: **PASS**
+Streaming acceptance targets: **PASS**
 
-Authorization/resilience/architecture/security regressions: **PASS**
+Authorization/resilience/architecture/security regression gate: **PASS**
 
-Phase 7 independent review/merge: **PENDING**
+Builder-side SSE bound review finding: **RESOLVED**
+
+Independent Claude Code review/merge: **PENDING**

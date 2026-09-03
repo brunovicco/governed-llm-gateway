@@ -16,9 +16,9 @@ Current execution sequence:
    (`governed-llm-gateway` PR #4).
 6. Add runtime health, bounded retry, safe fallback, and circuit breaker — COMPLETE
    (`governed-llm-gateway` PR #5).
-7. Structured output and tool normalization — CURRENT, IMPLEMENTED / IN REVIEW.
-8. Streaming — NEXT AFTER PHASE 7 MERGE.
-9. OpenTelemetry via `a2a-otel-kit`.
+7. Structured output and tool normalization — COMPLETE (`governed-llm-gateway` PR #6).
+8. Streaming — CURRENT, IMPLEMENTED / IN REVIEW.
+9. OpenTelemetry via `a2a-otel-kit` — NEXT AFTER PHASE 8 MERGE.
 10. Evaluation framework.
 11. Evidence-driven ranking.
 12. Thin client SDK transport.
@@ -32,7 +32,7 @@ but may never widen the PDP authorization boundary.
 Runtime health introduced in Phase 6 is mutable operational state and remains distinct from Phase 5
 static/versioned ranking evidence. Benchmark-derived score provenance belongs to Phases 10–11.
 
-Phase 6 establishes the replay-safety boundary that Phase 7 and Phase 8 must preserve: automatic replay
+Phase 6 establishes the replay-safety boundary that Phase 7 and Phase 8 preserve: automatic replay
 stops after observed provider output, an external side effect, or opaque provider continuation state
 unless a later explicit replay contract says otherwise.
 
@@ -45,7 +45,9 @@ Phase 7 deliberately does not fabricate provider-native continuation state after
 future continuation contract must preserve exact provider correlation/reasoning state before the
 gateway can safely round-trip `ToolResult` back into those provider APIs.
 
-Phase 8 owns normalized streaming events, partial structured-output/tool-call deltas, cancellation,
-and replay behavior after streaming begins.
+Phase 8 adds normalized SSE events, explicit streaming capability, cancellation-safe upstream closure,
+final usage semantics, partial-output handling, and retry/fallback only before semantic output becomes
+visible. It does not add a new authorization source and does not pull OpenTelemetry forward from Phase
+9.
 
 Do not pull work forward when doing so weakens an authority boundary or requires an unstable contract.

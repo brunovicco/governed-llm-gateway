@@ -49,6 +49,14 @@ COMMANDS = [
         "--cov=governed_llm_gateway_client",
         "--cov=governed_llm_gateway_api",
         "--cov-report=term-missing",
+        "--cov-fail-under=80",
+    ),
+    uv_run(
+        "--with",
+        "coverage==7.10.6",
+        "coverage",
+        "report",
+        "--fail-under=80",
     ),
     uvx(
         "--from",

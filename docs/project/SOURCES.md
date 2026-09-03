@@ -11,150 +11,142 @@
 - Harness README documents the `workspace` profile and `agentic` governance profile.
 - Workspace template structure remains guidance only, not a runtime dependency.
 
-## Phase 4 Policy Model Router contract reference
+## Policy Model Router contract reference
 
-- `brunovicco/policy-model-router`, branch `main`, inspected 2026-08-31 after workload/model-group
-  generalization was merged.
-- `src/policy_model_router/domain/routing.py` defines router request/decision provenance.
+- `brunovicco/policy-model-router`, branch `main`, inspected after workload/model-group generalization.
+- `src/policy_model_router/domain/routing.py` defines request/decision provenance.
 - `src/policy_model_router/application/route_model.py` defines fail-closed routing semantics.
 - `src/policy_model_router/domain/constraints.py` defines ordered policy constraints.
-- `src/policy_model_router/entrypoints/contracts.py` and
-  `src/policy_model_router/entrypoints/http.py` define the versioned `POST /route` schema `1.0` used by
-  the gateway.
-- `docs/adr/0009-policy-identity-and-decision-provenance.md` defines policy identity/provenance.
+- `src/policy_model_router/entrypoints/contracts.py` and `entrypoints/http.py` define `POST /route`
+  schema `1.0` used by the gateway.
 
-The gateway does not import Policy Model Router domain/application Python types into contracts/domain;
-the versioned HTTP boundary remains the integration contract.
+The gateway integrates with the Policy Model Router through the versioned HTTP contract rather than
+importing its Python domain/application types.
 
-## Phase 5 routing and explainability references
+## Phase 5 API framework references
 
-Normative Phase 5 requirements come from `SOURCE_ROADMAP.txt` and are captured architecturally in
-ADR-0006.
-
-Official framework documentation reviewed on 2026-08-31:
+Official framework documentation reviewed for the authenticated explain/API composition boundary:
 
 - FastAPI dependency injection: `https://fastapi.tiangolo.com/tutorial/dependencies/`
 - FastAPI version guidance: `https://fastapi.tiangolo.com/deployment/versions/`
 - Pydantic model configuration: `https://docs.pydantic.dev/latest/api/config/`
 - Pydantic fields/constraints: `https://docs.pydantic.dev/latest/api/fields/`
 
-FastAPI `0.141.1` and Pydantic `2.13.5` remain confined to the HTTP composition boundary and define no
-authorization/ranking semantics.
+FastAPI/Pydantic define HTTP validation/composition only and have no authorization/ranking authority.
 
 ## Phase 6 resilience source
 
-Phase 6 behavior is derived from the normative `SOURCE_ROADMAP.txt` resilience sections and formalized
-in ADR-0007 plus `docs/project/FALLBACK_AND_RETRY.md`.
+Phase 6 behavior is derived from the normative roadmap and formalized in ADR-0007 plus
+`docs/project/FALLBACK_AND_RETRY.md`.
 
-No new external runtime library or provider-specific resilience SDK was introduced for Phase 6. The
-implementation uses Python standard-library async/time/hash primitives and the provider-neutral typed
-error contract established in Phase 3.
-
-Normative Phase 6 distinctions retained from the roadmap:
-
-- retry targets the same deployment;
-- fallback targets a different already-eligible deployment;
-- transient availability failures are bounded/retryable;
-- permanent policy/validation failures are not retried;
-- external side effects and opaque provider state establish replay boundaries;
-- circuit state is deployment-specific and may be initially per process;
-- availability never broadens authorization.
-
-These project requirements, rather than vendor documentation, define gateway retry/fallback policy.
-Provider documentation may identify transport/status behavior but cannot grant authorization or
-change replay safety.
+Gateway-owned policy distinguishes same-deployment retry from already-ranked authorized fallback,
+keeps permanent policy/semantic failures non-retryable, and stops replay after output/side effects or
+opaque provider state. Provider documentation cannot widen these semantics.
 
 ## Phase 7 structured-output and tool references
 
-Normative Phase 7 scope comes from `SOURCE_ROADMAP.txt` and is formalized in ADR-0013 plus
+Normative Phase 7 scope comes from the roadmap and is formalized in ADR-0013 plus
 `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md`.
 
-Official provider/library documentation reviewed on 2026-09-01 defines wire/schema behavior only; it
-does not grant deployment capability or authorization.
+Official provider/library references define wire/schema behavior only:
 
 ### OpenAI
 
 - Responses API reference: `https://platform.openai.com/docs/api-reference/responses`
-- Responses/Structured Outputs reference documents `text.format` with `type: json_schema`, schema name,
-  schema object, and strict schema adherence.
-- Function tools are defined through the Responses `tools` collection and JSON-schema parameters.
 
 ### Anthropic
 
 - Messages API reference: `https://docs.anthropic.com/en/api/messages`
 - Tool-use overview: `https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/overview`
-- Tool definitions use a name, description, and `input_schema`; model-produced client-side tool calls
-  are returned as `tool_use` content blocks.
-- Current Anthropic platform documentation also exposes strict tool/schema behavior; gateway-side
-  validation remains mandatory regardless of provider enforcement.
 
 ### Google Gemini
 
 - `generateContent` API reference: `https://ai.google.dev/api/generate-content`
-- Function-calling guide:
-  `https://ai.google.dev/gemini-api/docs/generate-content/function-calling`
-- Gemini function declarations describe tool names/parameters and `functionCall` returns name/args.
-- The API reference marks `FunctionCall.id` as optional in the general contract, while current Gemini 3
-  function-calling guidance requires exact ID round-tripping and states Gemini 3 returns unique IDs.
-  The gateway therefore requires an ID for canonical correlation and fails closed when absent.
+- Function-calling guide: `https://ai.google.dev/gemini-api/docs/generate-content/function-calling`
 
 ### JSON Schema validation
 
 - `jsonschema` PyPI: `https://pypi.org/project/jsonschema/`
 - `types-jsonschema` PyPI: `https://pypi.org/project/types-jsonschema/`
-- Phase 7 runtime pins `jsonschema==4.26.0` through the uv lock.
-- `types-jsonschema==4.26.0.20260518` targets `jsonschema~=4.26.0` and is used only as an ephemeral mypy
-  dependency, not as a runtime package.
+- runtime: `jsonschema==4.26.0`;
+- mypy-only ephemeral stub: `types-jsonschema==4.26.0.20260518`.
 
-### Gateway-owned safety decisions
+ADR-0013 intentionally imposes stricter gateway-side validation and authority boundaries than provider
+wire-format support alone.
 
-Provider docs define how a feature is represented on the wire. ADR-0013 defines the stricter gateway
-contract:
+## Phase 8 streaming references
 
-- prompted JSON is not equivalent to provider-native structured output;
-- provider-native enforcement is followed by local output validation;
-- caller schema validation is local/bounded and remote references are rejected;
-- generic OpenAI-compatible endpoints do not inherit feature support implicitly;
-- tool-call correlation IDs are not synthesized;
-- business-tool execution authority remains outside the gateway;
-- structured/tool semantic failures do not become retry/fallback availability signals.
+Normative Phase 8 behavior comes from `SOURCE_ROADMAP.txt` and is formalized in ADR-0011 plus
+`docs/project/STREAMING.md`.
 
-## Phase 3 provider references
+Provider documentation defines event/wire formats only. The gateway ADR defines replay cutoff,
+authorization preservation, usage finalization, cancellation, and evidence semantics.
 
-Official provider documentation reviewed on 2026-08-31 defines API-family wire behavior only; it does
-not grant provider/model authorization or registry approval.
-
-### OpenAI
+### OpenAI Responses streaming
 
 - Responses API reference: `https://platform.openai.com/docs/api-reference/responses`
 
-### Anthropic
+The native adapter maps documented Responses streaming events into the gateway provider-neutral event
+contract. Provider event availability does not grant model authorization.
+
+### Anthropic Messages streaming
 
 - Messages API reference: `https://docs.anthropic.com/en/api/messages`
+- Streaming Messages documentation is part of the Anthropic Messages API documentation set.
 
-### Google Gemini
+The gateway accumulates incremental tool JSON and validates the complete call locally before emitting
+canonical completion.
 
+### Google Gemini streaming
+
+- `streamGenerateContent` is documented through the Gemini `generateContent` API family:
+  `https://ai.google.dev/api/generate-content`
+- Function-calling reference:
+  `https://ai.google.dev/gemini-api/docs/generate-content/function-calling`
+
+The gateway requires canonical correlation identity for streamed function calls and does not synthesize
+missing provider IDs.
+
+### HTTPX
+
+- HTTPX async/streaming documentation: `https://www.python-httpx.org/async/`
+- HTTPX exceptions: `https://www.python-httpx.org/exceptions/`
+
+Phase 8 uses `httpx==0.28.1` for the dedicated asynchronous SSE transport. It remains an adapter-layer
+transport dependency, not an authorization or routing dependency.
+
+### Coverage enforcement
+
+- Coverage.py command documentation: `https://coverage.readthedocs.io/`
+- Phase 8 quality enforcement runs pytest-cov and then a separate Coverage.py
+  `coverage report --fail-under=80` command.
+
+This second check is a repository quality control only; it has no runtime effect.
+
+## Phase 3 provider references
+
+Official provider documentation originally reviewed for provider execution foundation:
+
+- OpenAI Responses API: `https://platform.openai.com/docs/api-reference/responses`
+- Anthropic Messages API: `https://docs.anthropic.com/en/api/messages`
 - Gemini API overview: `https://ai.google.dev/gemini-api/docs`
-- Interactions API overview: `https://ai.google.dev/gemini-api/docs/interactions-overview`
-- `generateContent` API reference: `https://ai.google.dev/api/generate-content`
+- Gemini `generateContent`: `https://ai.google.dev/api/generate-content`
 
-The native Gemini adapter currently uses `generateContent` because the canonical gateway request does
-not preserve every provider-generated continuation/reasoning step needed for lossless stateful
-reconstruction. Phase 7 keeps that boundary explicit for tool-result continuation as well.
+The native Gemini adapter remains on the `generateContent` API family because the canonical gateway
+request does not fabricate provider-specific continuation/reasoning state.
 
 ## Internal migration-pattern reference
 
 - `brunovicco/controlled-autonomy-lab`, branch `main`, inspected 2026-08-31.
-- Provider-port/error-boundary patterns were reviewed as migration guidance only.
-- It is not a runtime/development dependency of the gateway.
+- Provider-port/error-boundary patterns were migration guidance only and are not runtime dependencies.
 
 ## Source authority rule
 
 Policy Model Router sources define authorization/provenance. Provider documentation defines transport
-and API-family feature representation. FastAPI/Pydantic documentation defines API framework/validation
-behavior. JSON Schema library documentation defines validator mechanics. The normative roadmap plus
-accepted gateway ADRs define authorization, ranking, resilience, structured-output/tool authority, and
-replay semantics.
+and API-family representation. FastAPI/Pydantic define HTTP framework behavior. JSON Schema/HTTPX
+libraries define implementation mechanics. The normative roadmap plus accepted gateway ADRs define
+authorization, ranking, resilience, structured-output/tool authority, streaming replay/cancellation,
+and evidence semantics.
 
 No external source may broaden PDP authorization. Provider feature support is an execution capability,
 not an authorization grant.

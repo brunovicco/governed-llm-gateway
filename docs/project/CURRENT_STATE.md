@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-09-01
+Last updated: 2026-09-03
 
 ## Phase status
 
@@ -13,8 +13,9 @@ Last updated: 2026-09-01
 | Phase 4 — Policy Router integration | COMPLETE (`governed-llm-gateway` PR #3) |
 | Phase 5 — Deterministic Operational Ranking and Explainability | COMPLETE (`governed-llm-gateway` PR #4) |
 | Phase 6 — Runtime Health, Retry and Safe Fallback | COMPLETE (`governed-llm-gateway` PR #5) |
-| Phase 7 — Structured Output and Tool Normalization | IMPLEMENTED — IN REVIEW |
-| Phase 8+ | NOT STARTED |
+| Phase 7 — Structured Output and Tool Normalization | COMPLETE (`governed-llm-gateway` PR #6) |
+| Phase 8 — Streaming | IMPLEMENTED — PR #7 IN REVIEW |
+| Phase 9+ | NOT STARTED |
 
 ## Durable architecture baseline
 
@@ -28,127 +29,123 @@ Last updated: 2026-09-01
 - provider-native feature support never grants model authorization by itself;
 - business-tool execution remains outside the gateway.
 
-## Completed through Phase 6
+## Completed through Phase 7
 
 Phase 1 generalized Policy Model Router workload/model-group identifiers. Phase 2 established the
 strict model registry and deterministic registry digest. Phase 3 added provider execution ports and
 OpenAI Responses, OpenAI-compatible, Gemini `generateContent`, and Anthropic Messages adapters.
 Phase 4 bound the gateway to Policy Model Router `POST /route` schema `1.0`, validated prompt-free
-policy provenance, and built the authorized registry candidate set. Phase 5, merged through PR #4,
-added deterministic eligibility/ranking, ADR-0006, ranking-policy provenance, and authenticated
-`POST /v1/route/explain` without provider inference.
+policy provenance, and built the authorized registry candidate set. Phase 5 added deterministic
+eligibility/ranking, ADR-0006, ranking-policy provenance, and authenticated `POST /v1/route/explain`
+without provider inference.
 
-Phase 6, merged through PR #5 at merge commit
-`8a5559edc1282494cb023e50f3898882fd0aa8e0`, added ADR-0007, per-deployment runtime health,
-circuit-breaker state, bounded retry against the same deployment, bounded fallback through already
-ranked authorized alternatives, deterministic backoff/jitter, replay-safety boundaries, and
-metadata-only execution-attempt evidence.
+Phase 6 added ADR-0007, per-deployment runtime health, circuit-breaker state, bounded retry against the
+same deployment, bounded fallback through already-ranked authorized alternatives, deterministic
+backoff/jitter, replay-safety boundaries, and metadata-only attempt evidence.
+
+Phase 7, merged through PR #6 at merge commit
+`6c53d5586b6c6f9fbafcfda642f2b9e7af0cbca0`, added ADR-0013, bounded Draft 2020-12 structured-output
+validation, normalized tool definitions/calls/results, native OpenAI/Anthropic/Gemini translations,
+explicit OpenAI-compatible opt-in, local post-provider validation, and permanent fail-closed semantic
+errors. The gateway still never executes business tools or fabricates provider-native continuation
+state.
 
 Phase 5 static score inputs remain configuration evidence, not benchmark evidence.
 `benchmark_snapshot_id` stays unset until later evaluation/evidence-driven ranking phases.
 
-## Phase 7 implemented
+## Phase 8 — PR #7
 
-Phase 7 adds provider-neutral structured-output and client-side business-tool normalization without
-moving business-tool execution authority into the gateway.
+PR #7 (`feat/phase-8-streaming`) implements provider-neutral streaming while preserving the Phase 4
+authorization boundary and Phase 6 replay-safety rules.
 
 Delivered:
 
-- ADR-0013 defines structured-output/tool normalization and authority boundaries;
-- `StructuredOutputSchema` is the canonical named JSON Schema request contract;
-- `ToolDefinition`, `ToolCall`, and `ToolResult` are hardened provider-neutral contracts;
-- `GatewayRequest` carries optional tool definitions and structured-output schema only when the
-  corresponding workload capability is required;
-- `GatewayResponse` and `ProviderResponse` can carry normalized structured output and tool calls;
-- Phase 7 validates a bounded Draft 2020-12 subset with `jsonschema` inside `gateway-core`;
-- schema evaluation is local: 64 KiB serialized limit, bounded schema depth, remote `$ref` and
-  `$dynamicRef` rejected;
-- `pattern`, `patternProperties`, and `format` are rejected in Phase 7 rather than evaluated or
-  silently accepted without a bounded enforcement contract;
-- provider output is parsed and validated locally even after provider-native schema enforcement;
-- tool calls require a declared tool and schema-valid object arguments;
-- provider correlation IDs are required for canonical `ToolCall`; missing IDs fail closed instead of
-  being synthesized;
-- `ProviderFeatureSupport` separates adapter/API-family translation from registry capability and PDP
-  authorization;
-- OpenAI Responses, Anthropic Messages, and Gemini `generateContent` translate native structured-output
-  and tool-call features;
-- generic OpenAI-compatible endpoints assume neither feature and require explicit opt-in;
-- `invalid_structured_output` and `invalid_tool_call` are permanent failures and therefore produce zero
-  automatic retry and zero automatic fallback;
-- Phase 6 resilience forwards schema/tools unchanged to provider attempts;
-- the gateway never executes business tools.
+- ADR-0011 defines streaming normalization, replay, cancellation, usage, and transport semantics;
+- `Capability.STREAMING` participates in deterministic eligibility;
+- canonical public stream events: `response.started`, `content.delta`, `tool_call.started`,
+  `tool_call.arguments.delta`, `tool_call.completed`, `usage.completed`, `response.completed`, and
+  `response.failed`;
+- `ProviderStreamingPort` and provider-neutral internal streaming events;
+- native streaming adapters for OpenAI Responses, Anthropic Messages, and Gemini
+  `streamGenerateContent`;
+- OpenAI-compatible streaming and final usage remain separate explicit opt-ins;
+- bounded retry/fallback is allowed only before semantic output becomes visible;
+- after content or tool-call output becomes visible, failure terminates with
+  `response.failed(partial=true, retryable=false)` and cannot replay across providers;
+- final normalized usage must be emitted exactly once before successful completion;
+- cancellation/client disconnect closes the gateway generator and upstream provider stream;
+- client cancellation is not recorded as a provider failure;
+- authenticated `POST /v1/generate` completes trusted context, PDP authorization, runtime-health
+  snapshot, and deterministic ranking before returning `text/event-stream`;
+- invalid request/schema/tool contracts, policy denial, ranking failures/invariant violations, and no
+  eligible authorized streaming deployment remain pre-stream HTTP failures;
+- provider credentials, raw provider error bodies, prompt/completion payloads, tool arguments/results,
+  and arbitrary response headers remain excluded from public/default evidence.
 
-## Phase 7 deliberate boundaries
+See `docs/project/STREAMING.md` and ADR-0011.
 
-- structured output means provider-native schema enforcement; prompted JSON is not treated as the same
-  capability;
-- local validation remains mandatory after provider-native enforcement;
-- the supported schema subset intentionally excludes regex keywords until bounded regex evaluation is
-  explicitly designed and excludes `format` until local enforcement semantics are explicit;
-- automatic repair of invalid structured output is not implemented;
-- `ToolResult` represents a result owned by the application/agent/MCP runtime;
-- provider-native continuation after a tool executes is not fabricated when exact provider-generated
-  continuation/reasoning state is absent from the canonical request;
-- Gemini calls that omit a correlation ID fail closed even though older API/model variants may treat
-  the field as optional;
-- streaming structured output/tool deltas remain Phase 8.
+## Phase 8 review hardening
 
-See `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` and ADR-0013.
+A builder-side architecture/security review of PR #7 found that the original 1 MiB SSE event bound was
+applied after `httpx.aiter_lines()` produced a complete line. An unterminated provider line could
+therefore accumulate inside HTTPX before the gateway checked the event-size limit, weakening the
+memory-exhaustion control described by the threat model.
 
-## Phase 7 acceptance evidence
+The issue was fixed in commit `a8b9fdcd6d69b94a2ab6ed942e67409df50d0092`:
 
-Contract and integration tests prove:
+- the transport no longer relies on `aiter_lines()` for framing;
+- decoded response bytes are consumed in bounded 64 KiB chunks;
+- SSE LF, CRLF, and CR line boundaries are parsed locally;
+- the 1 MiB event bound is enforced incrementally, including an unterminated line;
+- invalid UTF-8 fails closed as an invalid provider response;
+- a regression test proves an oversized unterminated event is rejected before the source stream is
+  exhausted;
+- CRLF/CR framing has dedicated regression coverage.
 
-- native structured-output translation for the supported API families;
-- invalid JSON and schema mismatch are rejected;
-- unsafe external schema references fail before provider execution;
-- unsafe/unbounded regex keywords and unenforced `format` semantics fail closed;
-- a normal property named `pattern` is not confused with the JSON Schema keyword;
-- tool schemas use the same bounded schema policy as structured output;
-- tool calls are normalized only for declared tools and arguments are schema-validated;
-- missing required provider correlation fails closed;
-- OpenAI-compatible optional features stay disabled without explicit endpoint opt-in;
-- schema/tool contracts survive the resilience boundary unchanged;
-- structured-output/tool semantic failures do not retry or fall back;
-- no gateway contract exposes a business-tool execution hook.
+This hardening changes only the transport implementation. It does not widen authorization, alter the
+ranked candidate sequence, change replay semantics, or add Phase 9 telemetry behavior.
 
 ## Current validation
 
-Read-only GitHub Actions run `33521577607` passed on hardened Phase 7 head
-`79a79051fa2f631580cd39ca3ad88494d210e8b8`:
+GitHub Actions run `33790152650` passed for code head
+`a8b9fdcd6d69b94a2ab6ed942e67409df50d0092`.
 
-- 132 tests PASS;
-- 82.62% total coverage (minimum 80%);
+Validated baseline:
+
+- `uv lock --check` PASS;
 - Ruff lint/format PASS;
-- mypy PASS across 58 source files;
+- mypy PASS across 71 source files;
+- 183 tests PASS;
+- aggregate coverage 80.61% (minimum 80%);
+- independent Coverage.py threshold PASS;
 - Bandit PASS with no identified issues;
 - pip-audit PASS with no known vulnerabilities;
-- architecture check PASS;
+- architecture validation PASS;
 - secret scan PASS;
-- Phase 0 regression gate PASS;
-- GitHub Actions permissions: `contents: read`.
+- frozen Phase 0 regression gate PASS;
+- workflow permissions remain `contents: read` and `metadata: read`.
 
-`types-jsonschema==4.26.0.20260518` is used only in the ephemeral mypy environment. It is not a runtime
-dependency. `jsonschema==4.26.0` is the Phase 7 runtime validation dependency in `gateway-core`.
-
-The known Starlette TestClient `httpx`/`httpx2` deprecation warning remains non-blocking and unrelated
-to Phase 7 behavior.
+The known FastAPI/Starlette TestClient `httpx` → `httpx2` deprecation warning remains non-blocking and
+unrelated to Phase 8 behavior.
 
 ## Explicitly deferred
 
-- streaming, partial-output/tool-call deltas, cancellation, and streaming replay semantics (Phase 8);
 - OpenTelemetry runtime via `a2a-otel-kit` (Phase 9);
 - benchmark/evaluation framework (Phase 10);
 - benchmark-derived ranking evidence (Phase 11);
 - thin client HTTP transport completion (Phase 12);
 - signed Verifiable AI Governance runtime authorization (Phase 13);
-- provider-native tool-result continuation requiring a new canonical transcript/state contract;
-- widening the supported JSON Schema subset until safety/compatibility semantics are explicit.
+- provider-native tool-result continuation requiring a canonical transcript/state contract;
+- widening the supported JSON Schema subset until safety/compatibility semantics are explicit;
+- shared/distributed circuit-breaker state beyond the Phase 6 per-process implementation;
+- treating policy `max_latency_ms` as an implicit total cross-retry streaming deadline.
 
 ## Next step
 
-Complete the Phase 7 builder-side diff review, clean the branch history into one Phase 7 commit on top
-of the Phase 6 merge, verify the complete read-only quality gate on that clean SHA, and open the Phase
-7 pull request for independent architecture/security review. Phase 8 must not start before Phase 7 is
-reviewed and merged.
+Run the required independent Claude Code architecture/security review against the current PR #7 head,
+with special focus on authorization monotonicity, replay boundaries, provider stream lifecycle,
+structured-output/tool streaming validation, cancellation/resource ownership, SSE bounds/error
+sanitization, and OpenAI-compatible opt-in behavior. Resolve any justified BLOCKER/HIGH/MEDIUM findings
+and rerun the full quality gate before merge.
+
+Phase 9 must not start until Phase 8 is independently reviewed and merged.

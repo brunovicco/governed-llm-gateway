@@ -4,6 +4,7 @@ from .contracts import (
     CandidateRejection,
     GatewayRequest,
     GatewayResponse,
+    GatewayStreamEvent,
     Message,
     PolicyProvenance,
     ProviderExecution,
@@ -24,6 +25,7 @@ from .enums import (
     Modality,
     RejectionReason,
     RiskLevel,
+    StreamEventType,
 )
 from .errors import GatewayError
 
@@ -35,6 +37,7 @@ __all__ = [
     "GatewayError",
     "GatewayRequest",
     "GatewayResponse",
+    "GatewayStreamEvent",
     "Message",
     "MessageRole",
     "Modality",
@@ -44,6 +47,7 @@ __all__ = [
     "RequestLimits",
     "RiskLevel",
     "RoutingProvenance",
+    "StreamEventType",
     "StructuredOutputSchema",
     "ToolCall",
     "ToolDefinition",
