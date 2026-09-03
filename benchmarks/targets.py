@@ -21,7 +21,6 @@ _ALLOWED_TARGET = {
 
 def load_targets(path: Path) -> tuple[str, tuple[BenchmarkTarget, ...]]:
     """Load the Phase 10 target matrix and reject ambiguous/unknown configuration fields."""
-
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("benchmark target matrix root must be an object")
