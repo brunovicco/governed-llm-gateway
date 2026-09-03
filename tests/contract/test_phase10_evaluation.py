@@ -23,6 +23,7 @@ from benchmarks import (
     load_targets,
     persist_snapshot,
 )
+from benchmarks.contracts import JsonValue
 
 ROOT = Path(__file__).resolve().parents[2]
 DATASET_PATH = ROOT / "benchmarks/datasets/gateway-eval-v1.json"
@@ -55,13 +56,13 @@ def _target(configuration: str = "access=test;temperature=0") -> BenchmarkTarget
     )
 
 
-def _case(case_id: str, expected: object, *, scorer: str = "exact_json") -> BenchmarkCase:
+def _case(case_id: str, expected: JsonValue, *, scorer: str = "exact_json") -> BenchmarkCase:
     return BenchmarkCase(
         case_id=case_id,
         workload=BenchmarkWorkload.STRUCTURED_EXTRACTION,
         scorer=scorer,
         prompt=f"public synthetic prompt for {case_id}",
-        expected=expected,  # type: ignore[arg-type]
+        expected=expected,
         metadata={"synthetic": True},
     )
 
