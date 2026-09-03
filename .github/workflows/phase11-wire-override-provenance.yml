@@ -1,0 +1,91 @@
+name: phase11-wire-override-provenance
+
+on:
+  push:
+    paths:
+      - .github/workflows/phase11-wire-override-provenance.yml
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phase-11-evidence-driven-ranking
+          fetch-depth: 0
+      - name: Wire override provenance
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          contracts = Path("packages/gateway-contracts/src/governed_llm_gateway_contracts/contracts.py")
+          text = contracts.read_text()
+          old = "    benchmark_snapshot_id: str | None = None\n    provider: str | None = None\n"
+          new = (
+              "    benchmark_snapshot_id: str | None = None\n"
+              "    score_provenance_mode: str | None = None\n"
+              "    manual_override_id: str | None = None\n"
+              "    provider: str | None = None\n"
+          )
+          if text.count(old) != 1:
+              raise SystemExit("unexpected RoutingProvenance benchmark field shape")
+          contracts.write_text(text.replace(old, new))
+
+          ranking = Path("packages/gateway-core/src/governed_llm_gateway_core/application/ranking.py")
+          text = ranking.read_text()
+          old = "from governed_llm_gateway_core.domain.evidence_ranking import benchmark_snapshot_id\n"
+          new = (
+              "from governed_llm_gateway_core.domain.evidence_ranking import (\n"
+              "    benchmark_snapshot_id,\n"
+              "    manual_override_id,\n"
+              "    score_provenance_mode,\n"
+              ")\n"
+          )
+          if text.count(old) != 1:
+              raise SystemExit("unexpected evidence_ranking import shape")
+          text = text.replace(old, new)
+
+          old = (
+              "            benchmark_snapshot_id=benchmark_snapshot_id(ranking_policy),\n"
+              "            provider=selected.deployment.provider if selected is not None else None,\n"
+          )
+          new = (
+              "            benchmark_snapshot_id=benchmark_snapshot_id(ranking_policy),\n"
+              "            score_provenance_mode=score_provenance_mode(ranking_policy),\n"
+              "            manual_override_id=manual_override_id(ranking_policy),\n"
+              "            provider=selected.deployment.provider if selected is not None else None,\n"
+          )
+          if text.count(old) != 1:
+              raise SystemExit("unexpected RoutingProvenance construction shape")
+          text = text.replace(old, new)
+
+          old = (
+              '        "benchmark_snapshot_id": benchmark_snapshot_id(ranking_policy),\n'
+              '        "max_latency_ms": policy_request.max_latency_ms,\n'
+          )
+          new = (
+              '        "benchmark_snapshot_id": benchmark_snapshot_id(ranking_policy),\n'
+              '        "score_provenance_mode": score_provenance_mode(ranking_policy),\n'
+              '        "manual_override_id": manual_override_id(ranking_policy),\n'
+              '        "max_latency_ms": policy_request.max_latency_ms,\n'
+          )
+          if text.count(old) != 1:
+              raise SystemExit("unexpected decision payload provenance shape")
+          ranking.write_text(text.replace(old, new))
+          PY
+      - uses: astral-sh/setup-uv@v6
+      - name: Validate scoped change
+        run: |
+          uvx --python 3.13 --from ruff==0.12.11 ruff check --fix packages/gateway-contracts/src/governed_llm_gateway_contracts/contracts.py packages/gateway-core/src/governed_llm_gateway_core/application/ranking.py packages/gateway-core/src/governed_llm_gateway_core/domain/evidence_ranking.py packages/gateway-core/src/governed_llm_gateway_core/domain/ranking_override.py tests/contract/test_phase11_override_rollback.py
+          uvx --python 3.13 --from ruff==0.12.11 ruff format packages/gateway-contracts/src/governed_llm_gateway_contracts/contracts.py packages/gateway-core/src/governed_llm_gateway_core/application/ranking.py packages/gateway-core/src/governed_llm_gateway_core/domain/evidence_ranking.py packages/gateway-core/src/governed_llm_gateway_core/domain/ranking_override.py tests/contract/test_phase11_override_rollback.py
+      - name: Commit wiring and remove workflow
+        run: |
+          rm .github/workflows/phase11-wire-override-provenance.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add packages/gateway-contracts/src/governed_llm_gateway_contracts/contracts.py packages/gateway-core/src/governed_llm_gateway_core/application/ranking.py packages/gateway-core/src/governed_llm_gateway_core/domain/evidence_ranking.py packages/gateway-core/src/governed_llm_gateway_core/domain/ranking_override.py tests/contract/test_phase11_override_rollback.py .github/workflows/phase11-wire-override-provenance.yml
+          git commit -m "feat: expose manual override routing provenance"
+          git push origin HEAD:feat/phase-11-evidence-driven-ranking
