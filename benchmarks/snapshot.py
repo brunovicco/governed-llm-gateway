@@ -21,7 +21,6 @@ from .contracts import (
 
 def dataset_digest(cases: Sequence[BenchmarkCase]) -> str:
     """Return a deterministic digest over the complete versioned dataset content."""
-
     payload = [_case_payload(case) for case in cases]
     return _sha256(_canonical_bytes(payload))
 
@@ -37,7 +36,6 @@ def build_snapshot(
     scorecards: Sequence[Scorecard],
 ) -> BenchmarkSnapshot:
     """Build a reproducible snapshot whose ID covers all routing-quality evidence."""
-
     for name, value in (
         ("benchmark_version", benchmark_version),
         ("runner_version", runner_version),
@@ -72,7 +70,6 @@ def build_snapshot(
 
 def canonical_snapshot_json(snapshot: BenchmarkSnapshot) -> str:
     """Serialize a snapshot in stable canonical JSON for reviewable evidence artifacts."""
-
     payload = {
         "schema_version": snapshot.schema_version,
         "benchmark_version": snapshot.benchmark_version,
@@ -89,7 +86,6 @@ def canonical_snapshot_json(snapshot: BenchmarkSnapshot) -> str:
 
 def persist_snapshot(root: Path, snapshot: BenchmarkSnapshot) -> Path:
     """Persist immutable evidence under benchmark-version/snapshot-id.json."""
-
     version_dir = root / snapshot.benchmark_version
     version_dir.mkdir(parents=True, exist_ok=True)
     path = version_dir / f"{snapshot.snapshot_id.removeprefix('sha256:')}.json"
