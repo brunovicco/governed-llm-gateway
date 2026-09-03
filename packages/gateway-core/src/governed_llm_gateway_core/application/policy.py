@@ -7,6 +7,7 @@ from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 
+from a2a_otel_kit import Observability
 from governed_llm_gateway_contracts import (
     DataClassification,
     GatewayRequest,
@@ -24,6 +25,7 @@ from governed_llm_gateway_core.domain.model_registry import ModelDeployment, Mod
 from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
 
 from .provider import ProviderPort, ProviderRequest, ProviderResponse
+from .telemetry import mark_span_failure, mark_span_success, set_gateway_span_attributes
 
 
 class PolicyProjectionError(ValueError):
@@ -227,9 +229,15 @@ def project_policy_request(
 class PolicyEnforcementService:
     """Phase 4 PEP flow: authorize first, then enforce one externally selected deployment."""
 
-    def __init__(self, policy: PolicyDecisionPort) -> None:
-        """Bind the deterministic PDP port used before every provider execution."""
+    def __init__(
+        self,
+        policy: PolicyDecisionPort,
+        *,
+        observability: Observability | None = None,
+    ) -> None:
+        """Bind the deterministic PDP port and optional Phase 9 telemetry foundation."""
         self._policy = policy
+        self._observability = observability
 
     async def authorize_candidates(
         self,
@@ -249,13 +257,55 @@ class PolicyEnforcementService:
             max_output_tokens_estimated=max_output_tokens_estimated,
             defaults=defaults,
         )
-        decision = await self._policy.authorize(metadata)
+        decision = await self._authorize(metadata)
         candidates = authorized_registry_candidates(registry, decision.authorization)
         return AuthorizedCandidateSet(
             policy=decision,
             registry_digest=registry.digest,
             candidates=candidates,
         )
+
+    async def _authorize(self, metadata: PolicyRequestMetadata) -> PolicyAuthorizationDecision:
+        if self._observability is None:
+            return await self._policy.authorize(metadata)
+
+        with self._observability.start_span(
+            "policy.route",
+            attributes={
+                "request_id": str(metadata.request_id),
+                "operation": "authorize",
+                "environment": metadata.environment,
+            },
+            record_exception=False,
+        ) as span:
+            set_gateway_span_attributes(span, {"llm.workload": metadata.workload})
+            try:
+                decision = await self._policy.authorize(metadata)
+            except PolicyDecisionError as exc:
+                attributes: dict[str, object] = {"error.type": exc.code.value}
+                if exc.status_code is not None:
+                    attributes["http.status_code"] = exc.status_code
+                set_gateway_span_attributes(span, attributes)
+                mark_span_failure(span, exc.code.value)
+                raise
+            except Exception:
+                mark_span_failure(span, "policy_unexpected_error")
+                raise
+
+            authorized_groups = decision.authorization.authorized_model_groups
+            set_gateway_span_attributes(
+                span,
+                {
+                    "routing.policy_id": decision.provenance.policy_id,
+                    "routing.policy_version": decision.provenance.policy_version,
+                    "routing.policy_digest": decision.provenance.policy_digest,
+                    "routing.model_group": (
+                        next(iter(authorized_groups)) if len(authorized_groups) == 1 else None
+                    ),
+                },
+            )
+            mark_span_success(span)
+            return decision
 
     async def execute_selected(
         self,
