@@ -197,7 +197,21 @@ semantics.
 Hybrid compilation is all-or-nothing for deployments already represented by the approved base ranking
 policy. Missing promoted evidence fails closed rather than silently mixing provenance.
 
-## Runtime provenance
+## Runtime activation boundary
+
+The current repository does not contain an executable bootstrap that discovers ranking configuration
+from `config/`. Gateway composition receives an immutable `RankingPolicy` object explicitly. Therefore
+Phase 11 activation is an explicit composition action: validated promoted evidence is compiled into a
+schema `1.1` `EvidenceDrivenRankingPolicy`, and that exact object is injected into the coordinator or
+runtime service.
+
+The legacy `ranking_policy_yaml.py` adapter remains a strict Phase 5/schema `1.0` loader and must not be
+interpreted as an automatic Phase 11 activation mechanism. In particular, runtime must not scan
+`benchmarks/results/`, choose a newest promotion, or infer an active evidence-driven policy from files.
+If a future executable bootstrap persists/loads schema `1.1` policies, that bootstrap must require an
+explicitly pinned approved artifact identity and preserve the same fail-closed provenance checks.
+
+## Runtime provenance and explainability
 
 Static Phase 5 routing keeps Phase 11 provenance unset. Evidence-driven routing records:
 
@@ -210,6 +224,11 @@ Static Phase 5 routing keeps Phase 11 provenance unset. Evidence-driven routing 
 The benchmark snapshot and manual override identities participate in deterministic routing-decision
 identity. Changing provenance therefore changes `routing_decision_id` even when the selected deployment
 or effective numeric score is unchanged.
+
+`POST /v1/route/explain` serializes the same Phase 11 reconstruction fields under its ranking evidence.
+Static policies return those optional fields as null; evidence-driven and manual-override policies
+return the exact active identities. This keeps the external explanation surface aligned with the
+internal routing provenance without exposing prompts, provider payloads, or credentials.
 
 This is reconstruction evidence only. It does not become a source of authorization.
 
