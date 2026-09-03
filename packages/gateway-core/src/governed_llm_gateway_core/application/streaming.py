@@ -190,6 +190,7 @@ class StreamingExecutionService:
                     else nullcontext(None)
                 )
 
+                retry_delay_after_span: float | None = None
                 with span_context as span:
                     if span is not None:
                         set_gateway_span_attributes(
@@ -381,9 +382,8 @@ class StreamingExecutionService:
                                         "llm.deployment": deployment_id,
                                     },
                                 )
-                            await self._sleeper(delay)
-                            continue
-                        if transient:
+                            retry_delay_after_span = delay
+                        elif transient:
                             if span is not None and candidate_index + 1 < len(bounded):
                                 add_gateway_span_event(
                                     span,
@@ -394,16 +394,21 @@ class StreamingExecutionService:
                                     },
                                 )
                             break
-                        yield _failed_event(
-                            request=request,
-                            sequence_number=1,
-                            routing=routing,
-                            code=exc.code.value,
-                            message="provider stream failed before output",
-                            retryable=False,
-                            partial=False,
-                        )
-                        return
+                        else:
+                            yield _failed_event(
+                                request=request,
+                                sequence_number=1,
+                                routing=routing,
+                                code=exc.code.value,
+                                message="provider stream failed before output",
+                                retryable=False,
+                                partial=False,
+                            )
+                            return
+
+                if retry_delay_after_span is not None:
+                    await self._sleeper(retry_delay_after_span)
+                    continue
 
         retryable = last_error.retryable if last_error is not None else False
         code = last_error.code.value if last_error is not None else "streaming_candidates_exhausted"

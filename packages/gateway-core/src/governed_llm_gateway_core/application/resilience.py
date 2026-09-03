@@ -325,6 +325,7 @@ class ResilientExecutionService:
                     else nullcontext(None)
                 )
                 started = self._clock()
+                retry_delay_after_span: float | None = None
                 with span_context as span:
                     if span is not None:
                         set_gateway_span_attributes(
@@ -416,9 +417,9 @@ class ResilientExecutionService:
                                 last_error_code=exc.code,
                             ) from exc
                         if can_retry and retry_delay is not None:
-                            await self._sleeper(retry_delay)
-                            continue
-                        break
+                            retry_delay_after_span = retry_delay
+                        else:
+                            break
                     else:
                         latency_ms = _latency_ms(started, self._clock())
                         self._health.record_success(deployment_id, latency_ms=latency_ms)
@@ -453,6 +454,10 @@ class ResilientExecutionService:
                             routing=routing,
                             attempts=tuple(attempts),
                         )
+
+                if retry_delay_after_span is not None:
+                    await self._sleeper(retry_delay_after_span)
+                    continue
 
         raise ResilienceExecutionError(
             "all bounded authorized execution candidates were exhausted",
