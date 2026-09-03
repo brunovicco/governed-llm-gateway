@@ -9,6 +9,8 @@ from enum import StrEnum
 from typing import Protocol
 from urllib.parse import urlsplit
 
+from a2a_otel_kit import inject_trace_context
+
 _MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 _SAFE_RESPONSE_HEADERS = frozenset({"retry-after"})
 
@@ -91,6 +93,8 @@ class StdlibJsonTransport:
         if parsed.query:
             path = f"{path}?{parsed.query}"
 
+        request_headers = dict(headers)
+        inject_trace_context(request_headers)
         body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         connection = http.client.HTTPSConnection(
             parsed.hostname,
@@ -98,7 +102,7 @@ class StdlibJsonTransport:
             timeout=timeout_seconds,
         )
         try:
-            connection.request("POST", path, body=body, headers=dict(headers))
+            connection.request("POST", path, body=body, headers=request_headers)
             response = connection.getresponse()
             raw = response.read(_MAX_RESPONSE_BYTES + 1)
             response_headers = {
