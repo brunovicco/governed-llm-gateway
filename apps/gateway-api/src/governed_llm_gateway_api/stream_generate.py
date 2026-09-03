@@ -1,14 +1,16 @@
-"""Authenticated Phase 8 SSE generation surface for governed streaming execution."""
+"""Authenticated SSE generation surface for governed streaming execution."""
 
+import asyncio
 import json
 from collections.abc import AsyncGenerator
-from contextlib import aclosing
+from contextlib import aclosing, nullcontext
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import FastAPI, Header, HTTPException
+from a2a_otel_kit import Observability, continue_trace, inject_trace_context
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from governed_llm_gateway_contracts import (
     DataClassification,
@@ -18,6 +20,7 @@ from governed_llm_gateway_contracts import (
     MessageRole,
     RequestLimits,
     RiskLevel,
+    StreamEventType,
     StructuredOutputSchema,
     ToolDefinition,
     WorkloadRequirements,
@@ -35,6 +38,12 @@ from governed_llm_gateway_core.application.ranking import (
     RouteExplainService,
 )
 from governed_llm_gateway_core.application.streaming import StreamingExecutionService
+from governed_llm_gateway_core.application.telemetry import (
+    mark_span_cancelled,
+    mark_span_failure,
+    mark_span_success,
+    set_gateway_span_attributes,
+)
 from governed_llm_gateway_core.domain.model_registry import ModelRegistry
 from governed_llm_gateway_core.domain.ranking import RankingPolicy, RankingPolicyError
 from governed_llm_gateway_core.domain.structured import (
@@ -46,6 +55,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .route_explain import ClientAuthenticationError, EffectiveContextResolver
 
 _WORKLOAD_PATTERN = r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"
+_TRACE_HEADERS = ("traceparent", "tracestate")
 
 
 class GenerateMessageModel(BaseModel):
@@ -257,49 +267,75 @@ class GenerateCoordinator:
         )
 
 
-def attach_generate_route(app: FastAPI, coordinator: GenerateCoordinator) -> None:
-    """Attach the Phase 8 governed SSE endpoint to an existing FastAPI application."""
+def attach_generate_route(
+    app: FastAPI,
+    coordinator: GenerateCoordinator,
+    *,
+    observability: Observability | None = None,
+) -> None:
+    """Attach governed SSE generation with optional Phase 9 trace continuation."""
 
     @app.post("/v1/generate", response_class=StreamingResponse)
     async def generate(
+        request: Request,
         payload: GenerateRequestModel,
         gateway_api_key: Annotated[str, Header(alias="X-Gateway-API-Key", min_length=1)],
     ) -> StreamingResponse:
-        try:
-            prepared = await coordinator.prepare(
-                api_key=gateway_api_key,
-                payload=payload,
-            )
-        except ClientAuthenticationError as exc:
-            raise HTTPException(
-                status_code=401,
-                detail={"code": "invalid_gateway_credential"},
-            ) from exc
-        except NoEligibleStreamingDeploymentError as exc:
-            raise HTTPException(
-                status_code=503,
-                detail={"code": "no_eligible_streaming_deployment"},
-            ) from exc
-        except RankingPolicyError as exc:
-            raise HTTPException(
-                status_code=503,
-                detail={"code": "ranking_policy_unavailable"},
-            ) from exc
-        except RankingInvariantViolation as exc:
-            raise HTTPException(
-                status_code=503,
-                detail={"code": "ranking_invariant_violation"},
-            ) from exc
-        except PolicyDecisionError as exc:
-            raise _policy_http_exception(exc) from exc
-        except (ValueError, PolicyProjectionError) as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"code": "invalid_generation_request"},
-            ) from exc
+        trace_carrier = _trace_carrier(request)
+        trace_context = continue_trace(trace_carrier) if trace_carrier else nullcontext()
+        stream_parent_carrier: dict[str, str] = {}
+
+        with trace_context:
+            if observability is None:
+                prepared = await _prepare_generation(
+                    coordinator,
+                    api_key=gateway_api_key,
+                    payload=payload,
+                )
+            else:
+                with observability.start_span(
+                    "llm.gateway.request",
+                    attributes={
+                        "request_id": str(payload.request_id),
+                        "operation": "generate",
+                    },
+                    record_exception=False,
+                ) as span:
+                    set_gateway_span_attributes(
+                        span,
+                        {
+                            "llm.workload": payload.workload,
+                            "llm.streaming": True,
+                        },
+                    )
+                    try:
+                        prepared = await _prepare_generation(
+                            coordinator,
+                            api_key=gateway_api_key,
+                            payload=payload,
+                        )
+                    except HTTPException as exc:
+                        set_gateway_span_attributes(span, {"http.status_code": exc.status_code})
+                        mark_span_failure(span, _http_error_code(exc))
+                        raise
+                    except Exception:
+                        mark_span_failure(span, "gateway_unexpected_error")
+                        raise
+
+                    set_gateway_span_attributes(
+                        span,
+                        _routing_attributes(prepared.decision),
+                    )
+                    inject_trace_context(stream_parent_carrier)
+                    mark_span_success(span)
 
         return StreamingResponse(
-            _sse_body(coordinator, prepared),
+            _sse_body(
+                coordinator,
+                prepared,
+                observability=observability,
+                trace_carrier=stream_parent_carrier,
+            ),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -308,14 +344,165 @@ def attach_generate_route(app: FastAPI, coordinator: GenerateCoordinator) -> Non
         )
 
 
+async def _prepare_generation(
+    coordinator: GenerateCoordinator,
+    *,
+    api_key: str,
+    payload: GenerateRequestModel,
+) -> PreparedStreamingExecution:
+    try:
+        return await coordinator.prepare(
+            api_key=api_key,
+            payload=payload,
+        )
+    except ClientAuthenticationError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "invalid_gateway_credential"},
+        ) from exc
+    except NoEligibleStreamingDeploymentError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "no_eligible_streaming_deployment"},
+        ) from exc
+    except RankingPolicyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "ranking_policy_unavailable"},
+        ) from exc
+    except RankingInvariantViolation as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "ranking_invariant_violation"},
+        ) from exc
+    except PolicyDecisionError as exc:
+        raise _policy_http_exception(exc) from exc
+    except (ValueError, PolicyProjectionError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "invalid_generation_request"},
+        ) from exc
+
+
 async def _sse_body(
     coordinator: GenerateCoordinator,
     prepared: PreparedStreamingExecution,
+    *,
+    observability: Observability | None,
+    trace_carrier: dict[str, str],
 ) -> AsyncGenerator[str]:
-    stream = coordinator.stream(prepared)
-    async with aclosing(stream) as events:
-        async for event in events:
-            yield _encode_sse(event)
+    if observability is None:
+        stream = coordinator.stream(prepared)
+        async with aclosing(stream) as events:
+            async for event in events:
+                yield _encode_sse(event)
+        return
+
+    trace_context = continue_trace(trace_carrier) if trace_carrier else nullcontext()
+    with trace_context:
+        with observability.start_span(
+            "llm.gateway.stream",
+            attributes={
+                "request_id": str(prepared.request.request_id),
+                "operation": "stream",
+            },
+            record_exception=False,
+        ) as span:
+            set_gateway_span_attributes(
+                span,
+                {
+                    "llm.workload": prepared.request.workload,
+                    "llm.streaming": True,
+                    **_routing_attributes(prepared.decision),
+                },
+            )
+            terminal = False
+            stream = coordinator.stream(prepared)
+            try:
+                async with aclosing(stream) as events:
+                    async for event in events:
+                        if event.usage is not None:
+                            set_gateway_span_attributes(
+                                span,
+                                {
+                                    "llm.input_tokens": event.usage.input_tokens,
+                                    "llm.output_tokens": event.usage.output_tokens,
+                                },
+                            )
+                        if event.event_type is StreamEventType.RESPONSE_FAILED:
+                            terminal = True
+                            set_gateway_span_attributes(
+                                span,
+                                {"llm.partial": event.partial},
+                            )
+                            mark_span_failure(
+                                span,
+                                event.error.code if event.error is not None else "stream_failed",
+                            )
+                        elif event.event_type is StreamEventType.RESPONSE_COMPLETED:
+                            terminal = True
+                            if event.routing is not None:
+                                set_gateway_span_attributes(
+                                    span,
+                                    _routing_attributes_from_provenance(event.routing),
+                                )
+                            mark_span_success(span)
+                        yield _encode_sse(event)
+            except asyncio.CancelledError:
+                mark_span_cancelled(span)
+                raise
+            except Exception:
+                mark_span_failure(span, "stream_unexpected_error")
+                raise
+            finally:
+                if not terminal:
+                    set_gateway_span_attributes(span, {"llm.partial": False})
+
+
+def _trace_carrier(request: Request) -> dict[str, str]:
+    return {
+        name: value
+        for name in _TRACE_HEADERS
+        if (value := request.headers.get(name)) is not None
+    }
+
+
+def _routing_attributes(decision: RankingDecision) -> dict[str, object]:
+    return _routing_attributes_from_provenance(decision.routing)
+
+
+def _routing_attributes_from_provenance(routing: object) -> dict[str, object]:
+    if not isinstance(routing, type(prepared_routing := _routing_type_marker())):
+        del prepared_routing
+    return {
+        "routing.decision_id": routing.routing_decision_id,
+        "routing.policy_id": routing.policy.policy_id,
+        "routing.policy_version": routing.policy.policy_version,
+        "routing.policy_digest": routing.policy.policy_digest,
+        "routing.model_group": routing.authorized_model_group,
+        "registry.digest": routing.model_registry_digest,
+        "ranking.policy_version": routing.ranking_policy_version,
+        "ranking.policy_digest": routing.ranking_policy_digest,
+        "ranking.score_snapshot_id": routing.score_snapshot_id,
+        "llm.provider": routing.provider,
+        "llm.model": routing.model,
+        "llm.deployment": routing.deployment,
+        "llm.fallback_count": max(0, len(routing.fallback_sequence) - 1),
+    }
+
+
+def _routing_type_marker() -> object:
+    from governed_llm_gateway_contracts import RoutingProvenance
+
+    return RoutingProvenance
+
+
+def _http_error_code(error: HTTPException) -> str:
+    if isinstance(error.detail, dict):
+        code = error.detail.get("code")
+        if isinstance(code, str) and code:
+            return code
+    return "http_error"
 
 
 def _encode_sse(event: GatewayStreamEvent) -> str:
