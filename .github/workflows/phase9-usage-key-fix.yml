@@ -1,0 +1,55 @@
+name: phase9-usage-key-fix
+
+on:
+  push:
+    branches:
+      - feat/phase-9-opentelemetry
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phase-9-opentelemetry
+      - uses: astral-sh/setup-uv@v6
+      - name: Rename credential-ambiguous usage keys
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              'llm.input_tokens': 'llm.usage.input_count',
+              'llm.output_tokens': 'llm.usage.output_count',
+          }
+          changed = 0
+          for path in Path('.').rglob('*'):
+              if path.suffix not in {'.py', '.md'} or '.git' in path.parts:
+                  continue
+              text = path.read_text()
+              updated = text
+              for old, new in replacements.items():
+                  updated = updated.replace(old, new)
+              if updated != text:
+                  path.write_text(updated)
+                  changed += 1
+          if changed < 4:
+              raise SystemExit(f'expected usage-key replacements in at least 4 files, got {changed}')
+          PY
+          uvx --python 3.13 --from ruff==0.12.11 ruff format .
+          uvx --python 3.13 --from ruff==0.12.11 ruff check .
+          if grep -R --include='*.py' -n 'llm\.input_tokens\|llm\.output_tokens' apps packages tests; then
+            echo 'legacy telemetry usage key remains' >&2
+            exit 1
+          fi
+          rm .github/workflows/phase9-usage-key-fix.yml
+      - name: Commit usage metric fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: use privacy-safe telemetry usage keys'
+          git push origin HEAD:feat/phase-9-opentelemetry
