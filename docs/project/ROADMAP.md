@@ -22,8 +22,9 @@ Current execution sequence:
    `be15c21ecfc76ef9bb727e5c4144c4929f028489`).
 10. Evaluation framework — COMPLETE (`governed-llm-gateway` PR #9, squash merge
     `db30ffc481d1a3c02fb01f46524b5190290fb7ac`).
-11. Evidence-driven ranking — CURRENT; ADR-0009 accepted, implementation in progress.
-12. Thin client SDK transport.
+11. Evidence-driven ranking — CURRENT; implementation validated, documentation/review preparation in
+    progress. ADR-0009 accepted.
+12. Thin client SDK transport — NOT STARTED; blocked on Phase 11 review and merge.
 13. Optional Verifiable AI Governance integration, including signed runtime authorization when used.
 14. Incremental real-project integrations.
 
@@ -70,9 +71,42 @@ Phase 11 uses an explicit promotion boundary:
 
 `immutable benchmark snapshot -> explicit approval/promotion -> versioned ranking evidence -> runtime ranking`
 
+Implemented Phase 11 behavior:
+
+- benchmark promotion maps exact benchmark target/workload evidence to exact runtime
+  deployment/workload identities;
+- runtime validates promoted evidence without importing the offline `benchmarks/` source root;
+- the first evidence-driven compiler replaces only bounded empirical `quality` and `availability`;
+  reliability, normalized latency/cost, weights, and hard expected-latency inputs remain static until
+  separately reviewed normalization semantics exist;
+- benchmark snapshot and promotion identities participate in the ranking-policy digest;
+- routing provenance exposes exact benchmark snapshot identity and explicit score-provenance mode;
+- manual override is a content-addressed, versioned, attributable operator action and may replace only
+  the benchmark-promoted quality/availability dimensions;
+- an active override carries exact `manual_override_id` provenance into the ranking policy and routing
+  decision identity;
+- override cannot add candidates, stack implicitly, bypass PDP authorization, or bypass gateway
+  eligibility;
+- rollback selects exactly one previously approved immutable ranking artifact by content-derived
+  artifact identity;
+- unknown/missing evidence, unknown override targets, and ambiguous rollback targets fail closed.
+
 Runtime must not discover or auto-promote the newest benchmark snapshot. Benchmark-derived evidence may
-only change ordering inside the already-authorized and otherwise-eligible candidate set. Promotion and
-manual override are versioned operator actions; rollback selects an earlier approved immutable artifact.
-No benchmark run, telemetry signal, or runtime outcome may automatically rewrite active ranking policy.
+only change ordering inside the already-authorized and otherwise-eligible candidate set. No benchmark
+run, telemetry signal, provider outcome, or runtime observation may automatically rewrite active
+ranking policy.
+
+Final implementation baseline before documentation synchronization:
+
+- head `d076ced8a99fcf89afa7f0d62234913501413a4d`;
+- GitHub Actions run `33814109995` — PASS;
+- pytest — 251 passed;
+- aggregate branch coverage — 81.27%;
+- mypy — PASS across 97 source files;
+- Ruff lint/format, Bandit, pip-audit, architecture check, secret scan, and Phase 0 gate — PASS.
+
+Phase 12 must not begin until Phase 11 documentation is synchronized, PR-head CI is green, independent
+architecture/security review returns APPROVE with no justified BLOCKER/HIGH/MEDIUM findings, and the
+Phase 11 PR is merged.
 
 Do not pull work forward when doing so weakens an authority boundary or requires an unstable contract.
