@@ -1,11 +1,12 @@
 import asyncio
 import http.client
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncIterator, Mapping
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
 import httpx
+import pytest
 from a2a_otel_kit import Observability, ObservabilitySettings
 from governed_llm_gateway_contracts import (
     Capability,
@@ -253,8 +254,9 @@ def test_gateway_attribute_boundary_is_deny_by_default() -> None:
         )
 
     finished = exporter.get_finished_spans()[0]
-    assert finished.attributes["llm.workload"] == "agent.orchestration"
-    assert "routing.decision_id" in finished.attributes
+    attributes = dict(finished.attributes or {})
+    assert attributes["llm.workload"] == "agent.orchestration"
+    assert "routing.decision_id" in attributes
     serialized = _telemetry_repr(exporter)
     assert PROMPT_SECRET not in serialized
     assert COMPLETION_SECRET not in serialized
@@ -354,7 +356,9 @@ class ChunkStream(httpx.AsyncByteStream):
         return None
 
 
-def test_sse_transport_injects_current_w3c_trace_context(monkeypatch) -> None:
+def test_sse_transport_injects_current_w3c_trace_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     observability, _ = _observability()
     captured_traceparent: str | None = None
     original_client = httpx.AsyncClient
@@ -392,7 +396,9 @@ def test_sse_transport_injects_current_w3c_trace_context(monkeypatch) -> None:
     assert CREDENTIAL_SECRET not in captured_traceparent
 
 
-def test_json_transport_injects_context_across_to_thread(monkeypatch) -> None:
+def test_json_transport_injects_context_across_to_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     observability, _ = _observability()
     captured_headers: dict[str, str] = {}
 
