@@ -58,7 +58,11 @@ def main() -> int:
                 relative = path.relative_to(ROOT)
                 violations.append(f"{relative}: forbidden imports: {sorted(blocked)}")
 
-    gateway_files = list((ROOT / "packages").rglob("*.py")) + list((ROOT / "apps").rglob("*.py"))
+    gateway_files = (
+        list((ROOT / "packages").rglob("*.py"))
+        + list((ROOT / "apps").rglob("*.py"))
+        + list((ROOT / "benchmarks").rglob("*.py"))
+    )
     business_roots = {
         "opslens",
         "ragforge",
