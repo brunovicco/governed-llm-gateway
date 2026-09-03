@@ -22,17 +22,17 @@ jobs:
 
           path = Path('apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py')
           text = path.read_text()
-          old = '''    *,
-    observability: Observability | None,
-    trace_carrier: dict[str, str],
-) -> AsyncGenerator[str]:'''
-          new = '''    *,
-    observability: Observability | None = None,
-    trace_carrier: dict[str, str] | None = None,
-) -> AsyncGenerator[str]:'''
-          if old not in text:
-              raise SystemExit('expected _sse_body signature not found')
-          path.write_text(text.replace(old, new, 1))
+          text = text.replace(
+              '    observability: Observability | None,\n',
+              '    observability: Observability | None = None,\n',
+              1,
+          )
+          text = text.replace(
+              '    trace_carrier: dict[str, str],\n',
+              '    trace_carrier: dict[str, str] | None = None,\n',
+              1,
+          )
+          path.write_text(text)
           PY
           rm .github/workflows/phase9-compat-fix.yml
       - name: Commit compatibility fix
