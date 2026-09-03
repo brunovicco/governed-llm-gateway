@@ -41,3 +41,4 @@ jobs:
             tests/contract/test_phase11_ranking_evidence_json.py
           git commit -m "style: normalize Phase 11 evidence ranking"
           git push origin HEAD:feat/phase-11-evidence-driven-ranking
+# retry after manual E501 wrap
