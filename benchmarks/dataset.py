@@ -13,7 +13,6 @@ _ALLOWED_CASE_KEYS = {"case_id", "workload", "scorer", "prompt", "expected", "me
 
 def load_dataset(path: Path) -> BenchmarkDataset:
     """Load a benchmark dataset and reject unknown fields or malformed case definitions."""
-
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("benchmark dataset root must be an object")
