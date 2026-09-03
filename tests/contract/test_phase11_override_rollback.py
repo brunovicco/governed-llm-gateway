@@ -7,6 +7,8 @@ from governed_llm_gateway_core.domain.evidence_ranking import (
     EvidenceDrivenRankingPolicy,
     EvidenceRankingError,
     ScoreProvenanceMode,
+    benchmark_snapshot_id,
+    manual_override_id,
 )
 from governed_llm_gateway_core.domain.ranking import (
     RankingWeights,
@@ -275,8 +277,8 @@ def test_rollback_selects_exact_previous_approved_policy() -> None:
 
     assert rolled_back is baseline
     assert rolled_back.digest == baseline.digest
-    assert rolled_back.benchmark_snapshot_id == baseline.benchmark_snapshot_id
-    assert rolled_back.manual_override_id is None
+    assert benchmark_snapshot_id(rolled_back) == baseline.benchmark_snapshot_id
+    assert manual_override_id(rolled_back) is None
 
 
 def test_rollback_unknown_or_ambiguous_artifact_fails_closed() -> None:

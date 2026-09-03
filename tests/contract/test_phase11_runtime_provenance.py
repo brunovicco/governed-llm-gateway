@@ -300,6 +300,7 @@ def test_manual_override_identity_changes_routing_decision_id() -> None:
 
     assert first.selected == second.selected
     assert first.selected is not None
+    assert second.selected is not None
     assert first.selected.score == second.selected.score
     assert first.routing.manual_override_id != second.routing.manual_override_id
     assert first.routing.routing_decision_id != second.routing.routing_decision_id
