@@ -4,9 +4,10 @@ import asyncio
 import hashlib
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from contextlib import aclosing
+from contextlib import aclosing, nullcontext
 from dataclasses import replace
 
+from a2a_otel_kit import Observability
 from governed_llm_gateway_contracts import (
     Capability,
     GatewayError,
@@ -34,6 +35,13 @@ from .provider import (
 )
 from .ranking import RankedCandidate, RankingDecision, RankingInvariantViolation
 from .resilience import InMemoryHealthTracker, ProviderResolutionError, ProviderResolver
+from .telemetry import (
+    add_gateway_span_event,
+    mark_span_cancelled,
+    mark_span_failure,
+    mark_span_success,
+    set_gateway_span_attributes,
+)
 
 Clock = Callable[[], float]
 Sleeper = Callable[[float], Awaitable[None]]
@@ -50,13 +58,15 @@ class StreamingExecutionService:
         retry_policy: RetryPolicy | None = None,
         clock: Clock = time.monotonic,
         sleeper: Sleeper = asyncio.sleep,
+        observability: Observability | None = None,
     ) -> None:
-        """Bind runtime health, provider resolution, and bounded retry controls."""
+        """Bind runtime health, provider resolution, retry controls, and optional telemetry."""
         self._health = health
         self._resolver = resolver
         self._retry_policy = retry_policy or RetryPolicy()
         self._clock = clock
         self._sleeper = sleeper
+        self._observability = observability
 
     async def stream(
         self,
@@ -94,7 +104,7 @@ class StreamingExecutionService:
         last_error: ProviderError | None = None
         last_routing = decision.routing
 
-        for candidate in bounded:
+        for candidate_index, candidate in enumerate(bounded):
             deployment = candidate.deployment
             deployment_id = deployment.deployment_id
             if not self._health.allow_request(deployment_id):
@@ -166,152 +176,239 @@ class StreamingExecutionService:
                 usage_seen = False
                 sequence = 0
                 started_at = self._clock()
+                span_context = (
+                    self._observability.start_span(
+                        "provider.inference",
+                        attributes={
+                            "request_id": str(request.request_id),
+                            "operation": "stream",
+                            "retry_count": attempt_number - 1,
+                        },
+                        record_exception=False,
+                    )
+                    if self._observability is not None
+                    else nullcontext(None)
+                )
 
-                try:
-                    provider_stream = resolved.stream(provider_request)
-                    async with aclosing(provider_stream) as events:
-                        async for event in events:
-                            if isinstance(event, ProviderResponseStarted):
-                                if provider_started:
+                retry_delay_after_span: float | None = None
+                with span_context as span:
+                    if span is not None:
+                        set_gateway_span_attributes(
+                            span,
+                            {
+                                "llm.workload": request.workload,
+                                "llm.provider": deployment.provider,
+                                "llm.model": deployment.model_id,
+                                "llm.deployment": deployment_id,
+                                "llm.attempt_number": attempt_number,
+                                "llm.fallback_count": len(fallback_sequence) - 1,
+                                "llm.streaming": True,
+                                "routing.decision_id": routing.routing_decision_id,
+                                "routing.model_group": routing.authorized_model_group,
+                                "registry.digest": routing.model_registry_digest,
+                                "ranking.policy_version": routing.ranking_policy_version,
+                                "ranking.policy_digest": routing.ranking_policy_digest,
+                                "ranking.score_snapshot_id": routing.score_snapshot_id,
+                            },
+                        )
+                    try:
+                        provider_stream = resolved.stream(provider_request)
+                        async with aclosing(provider_stream) as events:
+                            async for event in events:
+                                if isinstance(event, ProviderResponseStarted):
+                                    if provider_started:
+                                        raise _invalid_stream_event(
+                                            deployment.provider,
+                                            "provider emitted response start more than once",
+                                        )
+                                    provider_started = True
+                                    continue
+                                if not provider_started:
                                     raise _invalid_stream_event(
                                         deployment.provider,
-                                        "provider emitted response start more than once",
+                                        "provider emitted stream data before response start",
                                     )
-                                provider_started = True
-                                continue
-                            if not provider_started:
-                                raise _invalid_stream_event(
-                                    deployment.provider,
-                                    "provider emitted stream data before response start",
-                                )
 
-                            if isinstance(
-                                event,
-                                ProviderContentDelta
-                                | ProviderToolCallStarted
-                                | ProviderToolCallArgumentsDelta
-                                | ProviderToolCallCompleted,
-                            ):
-                                semantic_output = True
-                                if not public_started:
+                                if isinstance(
+                                    event,
+                                    ProviderContentDelta
+                                    | ProviderToolCallStarted
+                                    | ProviderToolCallArgumentsDelta
+                                    | ProviderToolCallCompleted,
+                                ):
+                                    if not semantic_output and span is not None:
+                                        set_gateway_span_attributes(
+                                            span,
+                                            {"llm.ttft_ms": _latency_ms(started_at, self._clock())},
+                                        )
+                                    semantic_output = True
+                                    if not public_started:
+                                        sequence += 1
+                                        public_started = True
+                                        yield GatewayStreamEvent(
+                                            event_type=StreamEventType.RESPONSE_STARTED,
+                                            request_id=request.request_id,
+                                            sequence_number=sequence,
+                                            routing=routing,
+                                        )
                                     sequence += 1
-                                    public_started = True
+                                    yield _semantic_gateway_event(
+                                        request=request,
+                                        sequence_number=sequence,
+                                        event=event,
+                                    )
+                                    continue
+
+                                if isinstance(event, ProviderUsageCompleted):
+                                    if usage_seen:
+                                        raise _invalid_stream_event(
+                                            deployment.provider,
+                                            "provider emitted final usage more than once",
+                                        )
+                                    if not semantic_output:
+                                        raise _invalid_stream_event(
+                                            deployment.provider,
+                                            "provider emitted final usage before semantic output",
+                                        )
+                                    usage_seen = True
+                                    if span is not None:
+                                        set_gateway_span_attributes(
+                                            span,
+                                            {
+                                                "llm.usage.input_count": event.usage.input_tokens,
+                                                "llm.usage.output_count": event.usage.output_tokens,
+                                            },
+                                        )
+                                    sequence += 1
                                     yield GatewayStreamEvent(
-                                        event_type=StreamEventType.RESPONSE_STARTED,
+                                        event_type=StreamEventType.USAGE_COMPLETED,
+                                        request_id=request.request_id,
+                                        sequence_number=sequence,
+                                        usage=Usage(
+                                            input_tokens=event.usage.input_tokens,
+                                            output_tokens=event.usage.output_tokens,
+                                        ),
+                                    )
+                                    continue
+
+                                if isinstance(event, ProviderResponseCompleted):
+                                    if not semantic_output or not usage_seen or not public_started:
+                                        raise _invalid_stream_event(
+                                            deployment.provider,
+                                            "provider completed before semantic output/final usage",
+                                        )
+                                    latency_ms = _latency_ms(started_at, self._clock())
+                                    self._health.record_success(
+                                        deployment_id,
+                                        latency_ms=latency_ms,
+                                    )
+                                    if span is not None:
+                                        set_gateway_span_attributes(
+                                            span,
+                                            {"llm.latency_ms": latency_ms},
+                                        )
+                                        mark_span_success(span)
+                                    sequence += 1
+                                    yield GatewayStreamEvent(
+                                        event_type=StreamEventType.RESPONSE_COMPLETED,
                                         request_id=request.request_id,
                                         sequence_number=sequence,
                                         routing=routing,
+                                        finish_reason=event.finish_reason,
                                     )
-                                sequence += 1
-                                yield _semantic_gateway_event(
-                                    request=request,
-                                    sequence_number=sequence,
-                                    event=event,
-                                )
-                                continue
+                                    return
 
-                            if isinstance(event, ProviderUsageCompleted):
-                                if usage_seen:
-                                    raise _invalid_stream_event(
-                                        deployment.provider,
-                                        "provider emitted final usage more than once",
-                                    )
-                                if not semantic_output:
-                                    raise _invalid_stream_event(
-                                        deployment.provider,
-                                        "provider emitted final usage before semantic output",
-                                    )
-                                usage_seen = True
-                                sequence += 1
-                                yield GatewayStreamEvent(
-                                    event_type=StreamEventType.USAGE_COMPLETED,
-                                    request_id=request.request_id,
-                                    sequence_number=sequence,
-                                    usage=Usage(
-                                        input_tokens=event.usage.input_tokens,
-                                        output_tokens=event.usage.output_tokens,
-                                    ),
+                                raise _invalid_stream_event(
+                                    deployment.provider,
+                                    "provider emitted an unknown normalized stream event",
                                 )
-                                continue
 
-                            if isinstance(event, ProviderResponseCompleted):
-                                if not semantic_output or not usage_seen or not public_started:
-                                    raise _invalid_stream_event(
-                                        deployment.provider,
-                                        "provider completed before semantic output and final usage",
-                                    )
-                                latency_ms = _latency_ms(started_at, self._clock())
-                                self._health.record_success(
-                                    deployment_id,
-                                    latency_ms=latency_ms,
-                                )
-                                sequence += 1
-                                yield GatewayStreamEvent(
-                                    event_type=StreamEventType.RESPONSE_COMPLETED,
-                                    request_id=request.request_id,
-                                    sequence_number=sequence,
-                                    routing=routing,
-                                    finish_reason=event.finish_reason,
-                                )
-                                return
+                        raise _invalid_stream_event(
+                            deployment.provider,
+                            "provider stream ended without normalized completion",
+                        )
+                    except asyncio.CancelledError:
+                        if span is not None:
+                            mark_span_cancelled(span)
+                        raise
+                    except ProviderError as exc:
+                        latency_ms = _latency_ms(started_at, self._clock())
+                        self._health.record_failure(deployment_id, exc, latency_ms=latency_ms)
+                        last_error = exc
+                        if span is not None:
+                            failure_attributes: dict[str, object] = {
+                                "llm.latency_ms": latency_ms,
+                                "llm.partial": semantic_output,
+                            }
+                            if exc.status_code is not None:
+                                failure_attributes["http.status_code"] = exc.status_code
+                            set_gateway_span_attributes(span, failure_attributes)
+                            mark_span_failure(span, exc.code.value)
 
-                            raise _invalid_stream_event(
-                                deployment.provider,
-                                "provider emitted an unknown normalized stream event",
+                        if semantic_output:
+                            sequence += 1
+                            yield _failed_event(
+                                request=request,
+                                sequence_number=sequence,
+                                routing=routing,
+                                code=exc.code.value,
+                                message="provider stream failed after partial output",
+                                retryable=False,
+                                partial=True,
                             )
+                            return
 
-                    raise _invalid_stream_event(
-                        deployment.provider,
-                        "provider stream ended without normalized completion",
-                    )
-                except asyncio.CancelledError:
-                    raise
-                except ProviderError as exc:
-                    latency_ms = _latency_ms(started_at, self._clock())
-                    self._health.record_failure(deployment_id, exc, latency_ms=latency_ms)
-                    last_error = exc
-
-                    if semantic_output:
-                        sequence += 1
-                        yield _failed_event(
-                            request=request,
-                            sequence_number=sequence,
-                            routing=routing,
-                            code=exc.code.value,
-                            message="provider stream failed after partial output",
-                            retryable=False,
-                            partial=True,
+                        transient = _is_transient(exc)
+                        can_retry = (
+                            transient
+                            and attempt_number < self._retry_policy.max_attempts_per_deployment
+                            and self._health.allow_request(deployment_id)
                         )
-                        return
+                        if can_retry:
+                            delay = _retry_delay_seconds(
+                                self._retry_policy,
+                                request_id=str(request.request_id),
+                                deployment_id=deployment_id,
+                                attempt_number=attempt_number,
+                                retry_after_seconds=exc.retry_after_seconds,
+                            )
+                            if span is not None:
+                                add_gateway_span_event(
+                                    span,
+                                    "llm.gateway.retry",
+                                    {
+                                        "retry_count": attempt_number,
+                                        "llm.retry_delay_ms": int(delay * 1000),
+                                        "llm.deployment": deployment_id,
+                                    },
+                                )
+                            retry_delay_after_span = delay
+                        elif transient:
+                            if span is not None and candidate_index + 1 < len(bounded):
+                                add_gateway_span_event(
+                                    span,
+                                    "llm.gateway.fallback",
+                                    {
+                                        "llm.fallback_count": len(fallback_sequence),
+                                        "llm.deployment": deployment_id,
+                                    },
+                                )
+                            break
+                        else:
+                            yield _failed_event(
+                                request=request,
+                                sequence_number=1,
+                                routing=routing,
+                                code=exc.code.value,
+                                message="provider stream failed before output",
+                                retryable=False,
+                                partial=False,
+                            )
+                            return
 
-                    transient = _is_transient(exc)
-                    can_retry = (
-                        transient
-                        and attempt_number < self._retry_policy.max_attempts_per_deployment
-                        and self._health.allow_request(deployment_id)
-                    )
-                    if can_retry:
-                        delay = _retry_delay_seconds(
-                            self._retry_policy,
-                            request_id=str(request.request_id),
-                            deployment_id=deployment_id,
-                            attempt_number=attempt_number,
-                            retry_after_seconds=exc.retry_after_seconds,
-                        )
-                        await self._sleeper(delay)
-                        continue
-                    if transient:
-                        break
-                    yield _failed_event(
-                        request=request,
-                        sequence_number=1,
-                        routing=routing,
-                        code=exc.code.value,
-                        message="provider stream failed before output",
-                        retryable=False,
-                        partial=False,
-                    )
-                    return
+                if retry_delay_after_span is not None:
+                    await self._sleeper(retry_delay_after_span)
+                    continue
 
         retryable = last_error.retryable if last_error is not None else False
         code = last_error.code.value if last_error is not None else "streaming_candidates_exhausted"

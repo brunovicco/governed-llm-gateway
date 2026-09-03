@@ -17,9 +17,9 @@ Current execution sequence:
 6. Add runtime health, bounded retry, safe fallback, and circuit breaker — COMPLETE
    (`governed-llm-gateway` PR #5).
 7. Structured output and tool normalization — COMPLETE (`governed-llm-gateway` PR #6).
-8. Streaming — CURRENT, IMPLEMENTED / IN REVIEW.
-9. OpenTelemetry via `a2a-otel-kit` — NEXT AFTER PHASE 8 MERGE.
-10. Evaluation framework.
+8. Streaming — COMPLETE (`governed-llm-gateway` PR #7).
+9. OpenTelemetry via `a2a-otel-kit` — CURRENT, IMPLEMENTED / READY FOR INDEPENDENT REVIEW.
+10. Evaluation framework — NEXT AFTER PHASE 9 REVIEW AND MERGE.
 11. Evidence-driven ranking.
 12. Thin client SDK transport.
 13. Optional Verifiable AI Governance integration, including signed runtime authorization when used.
@@ -47,7 +47,13 @@ gateway can safely round-trip `ToolResult` back into those provider APIs.
 
 Phase 8 adds normalized SSE events, explicit streaming capability, cancellation-safe upstream closure,
 final usage semantics, partial-output handling, and retry/fallback only before semantic output becomes
-visible. It does not add a new authorization source and does not pull OpenTelemetry forward from Phase
-9.
+visible. It does not add a new authorization source.
+
+Phase 9 adds metadata-only OpenTelemetry through the shared `a2a-otel-kit` foundation. It instruments
+gateway, policy, provider, retry/fallback, and streaming execution evidence; propagates only W3C trace
+context; preserves the deny-by-default payload/credential boundary; and keeps telemetry outside
+provider-neutral contracts/domain logic. Telemetry remains evidence only and cannot become an
+authorization, ranking, retry/fallback, or health authority.
 
 Do not pull work forward when doing so weakens an authority boundary or requires an unstable contract.
+Phase 10 must not start until Phase 9 completes independent architecture/security review and is merged.

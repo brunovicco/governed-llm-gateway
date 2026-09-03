@@ -1,10 +1,12 @@
-"""FastAPI composition for the metadata-only Phase 5 route explanation surface."""
+"""FastAPI composition for the metadata-only route explanation surface."""
 
+from contextlib import nullcontext
 from decimal import Decimal
 from typing import Annotated, Literal, Protocol
 from uuid import UUID
 
-from fastapi import FastAPI, Header, HTTPException
+from a2a_otel_kit import Observability, continue_trace
+from fastapi import FastAPI, Header, HTTPException, Request
 from governed_llm_gateway_contracts import (
     DataClassification,
     GatewayRequest,
@@ -24,12 +26,18 @@ from governed_llm_gateway_core.application.ranking import (
     RankingInvariantViolation,
     RouteExplainService,
 )
+from governed_llm_gateway_core.application.telemetry import (
+    mark_span_failure,
+    mark_span_success,
+    set_gateway_span_attributes,
+)
 from governed_llm_gateway_core.domain.model_registry import ModelRegistry
 from governed_llm_gateway_core.domain.ranking import RankingPolicy, RankingPolicyError
 from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
 from pydantic import BaseModel, ConfigDict, Field
 
 _WORKLOAD_PATTERN = r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"
+_TRACE_HEADERS = ("traceparent", "tracestate")
 
 
 class ClientAuthenticationError(RuntimeError):
@@ -140,7 +148,7 @@ class RejectedCandidateModel(BaseModel):
 
 
 class RankingExplainModel(BaseModel):
-    """Deterministic Phase 5 ranking evidence."""
+    """Deterministic ranking evidence."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -178,7 +186,7 @@ class RouteExplainCoordinator:
         ranking_policy: RankingPolicy,
         defaults: PolicyProjectionDefaults,
     ) -> None:
-        """Bind trusted context resolution and immutable Phase 5 routing inputs."""
+        """Bind trusted context resolution and immutable routing inputs."""
         self._context_resolver = context_resolver
         self._service = service
         self._registry = registry
@@ -209,44 +217,127 @@ class RouteExplainCoordinator:
         return _response(payload.request_id, decision)
 
 
-def create_app(coordinator: RouteExplainCoordinator) -> FastAPI:
-    """Create the Phase 5 API with an authenticated, no-inference explain route."""
+def create_app(
+    coordinator: RouteExplainCoordinator,
+    *,
+    observability: Observability | None = None,
+) -> FastAPI:
+    """Create the API with authenticated explain routing and optional Phase 9 tracing."""
     app = FastAPI(title="Governed LLM Gateway", version="0.1.0")
 
     @app.post("/v1/route/explain", response_model=RouteExplainResponseModel)
     async def route_explain(
+        request: Request,
         payload: RouteExplainRequestModel,
         gateway_api_key: Annotated[str, Header(alias="X-Gateway-API-Key", min_length=1)],
     ) -> RouteExplainResponseModel:
-        try:
-            return await coordinator.explain(
-                api_key=gateway_api_key,
-                payload=payload,
-            )
-        except ClientAuthenticationError as exc:
-            raise HTTPException(
-                status_code=401,
-                detail={"code": "invalid_gateway_credential"},
-            ) from exc
-        except PolicyProjectionError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"code": "invalid_policy_projection"},
-            ) from exc
-        except PolicyDecisionError as exc:
-            raise _policy_http_exception(exc) from exc
-        except RankingPolicyError as exc:
-            raise HTTPException(
-                status_code=503,
-                detail={"code": "ranking_policy_unavailable"},
-            ) from exc
-        except RankingInvariantViolation as exc:
-            raise HTTPException(
-                status_code=503,
-                detail={"code": "ranking_invariant_violation"},
-            ) from exc
+        trace_carrier = _trace_carrier(request)
+        trace_context = continue_trace(trace_carrier) if trace_carrier else nullcontext()
+        with trace_context:
+            if observability is None:
+                return await _execute_route_explain(
+                    coordinator,
+                    api_key=gateway_api_key,
+                    payload=payload,
+                )
+
+            with observability.start_span(
+                "llm.gateway.request",
+                attributes={
+                    "request_id": str(payload.request_id),
+                    "operation": "route.explain",
+                },
+                record_exception=False,
+            ) as span:
+                set_gateway_span_attributes(
+                    span,
+                    {
+                        "llm.workload": payload.workload,
+                        "llm.streaming": False,
+                    },
+                )
+                try:
+                    response = await _execute_route_explain(
+                        coordinator,
+                        api_key=gateway_api_key,
+                        payload=payload,
+                    )
+                except HTTPException as exc:
+                    set_gateway_span_attributes(span, {"http.status_code": exc.status_code})
+                    mark_span_failure(span, _http_error_code(exc))
+                    raise
+                except Exception:
+                    mark_span_failure(span, "gateway_unexpected_error")
+                    raise
+
+                set_gateway_span_attributes(
+                    span,
+                    {
+                        "routing.decision_id": response.ranking.decision_id,
+                        "routing.policy_id": response.policy.policy_id,
+                        "routing.policy_version": response.policy.policy_version,
+                        "routing.policy_digest": response.policy.policy_digest,
+                        "routing.model_group": response.authorized_model_group,
+                        "registry.digest": response.model_registry_digest,
+                        "ranking.policy_version": response.ranking.policy_version,
+                        "ranking.policy_digest": response.ranking.policy_digest,
+                        "ranking.score_snapshot_id": response.ranking.score_snapshot_id,
+                        "llm.deployment": response.selected_deployment,
+                    },
+                )
+                mark_span_success(span)
+                return response
 
     return app
+
+
+async def _execute_route_explain(
+    coordinator: RouteExplainCoordinator,
+    *,
+    api_key: str,
+    payload: RouteExplainRequestModel,
+) -> RouteExplainResponseModel:
+    try:
+        return await coordinator.explain(
+            api_key=api_key,
+            payload=payload,
+        )
+    except ClientAuthenticationError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "invalid_gateway_credential"},
+        ) from exc
+    except PolicyProjectionError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "invalid_policy_projection"},
+        ) from exc
+    except PolicyDecisionError as exc:
+        raise _policy_http_exception(exc) from exc
+    except RankingPolicyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "ranking_policy_unavailable"},
+        ) from exc
+    except RankingInvariantViolation as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "ranking_invariant_violation"},
+        ) from exc
+
+
+def _trace_carrier(request: Request) -> dict[str, str]:
+    return {
+        name: value for name in _TRACE_HEADERS if (value := request.headers.get(name)) is not None
+    }
+
+
+def _http_error_code(error: HTTPException) -> str:
+    if isinstance(error.detail, dict):
+        code = error.detail.get("code")
+        if isinstance(code, str) and code:
+            return code
+    return "http_error"
 
 
 def _policy_http_exception(error: PolicyDecisionError) -> HTTPException:
