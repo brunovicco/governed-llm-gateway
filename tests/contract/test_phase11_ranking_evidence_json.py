@@ -4,18 +4,18 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-
-from benchmarks.contracts import BenchmarkSnapshot, BenchmarkWorkload, Scorecard
-from benchmarks.promotion import (
-    canonical_promoted_evidence_json,
-    promote_snapshot,
-    PromotionMapping,
-)
 from governed_llm_gateway_core.adapters.ranking_evidence_json import (
     load_promoted_ranking_evidence,
     load_promoted_ranking_evidence_text,
 )
 from governed_llm_gateway_core.domain.ranking_evidence import RankingEvidenceError
+
+from benchmarks.contracts import BenchmarkSnapshot, BenchmarkWorkload, Scorecard
+from benchmarks.promotion import (
+    PromotionMapping,
+    canonical_promoted_evidence_json,
+    promote_snapshot,
+)
 
 
 def _evidence_json() -> str:

@@ -3,7 +3,6 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-
 from governed_llm_gateway_core.domain.evidence_ranking import (
     EvidenceDrivenRankingPolicy,
     EvidenceRankingError,
@@ -116,9 +115,7 @@ def test_hybrid_policy_digest_covers_benchmark_provenance() -> None:
         score_snapshot_id="phase11-hybrid-v1",
         source_date=TODAY,
     )
-    changed_evidence = replace(
-        _evidence(), benchmark_snapshot_id="sha256:" + "d" * 64
-    )
+    changed_evidence = replace(_evidence(), benchmark_snapshot_id="sha256:" + "d" * 64)
     second = compile_benchmark_hybrid_policy(
         _base_policy(),
         changed_evidence,

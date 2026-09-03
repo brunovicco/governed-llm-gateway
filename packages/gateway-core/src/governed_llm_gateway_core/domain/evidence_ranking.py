@@ -91,8 +91,7 @@ def compile_benchmark_hybrid_policy(
             empirical = evidence.for_runtime(workload.workload, static.deployment_id)
             if empirical is None:
                 raise EvidenceRankingError(
-                    "missing promoted evidence for "
-                    f"{workload.workload!r}/{static.deployment_id!r}"
+                    f"missing promoted evidence for {workload.workload!r}/{static.deployment_id!r}"
                 )
             deployments.append(
                 StaticDeploymentScore(
