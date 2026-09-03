@@ -8,10 +8,10 @@ from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 from types import MappingProxyType
-from typing import TypeAlias
 
-JsonScalar: TypeAlias = str | int | float | bool | None
-JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
 
 
 class BenchmarkWorkload(StrEnum):
@@ -44,6 +44,7 @@ class BenchmarkTarget:
     source_date: date
 
     def __post_init__(self) -> None:
+        """Validate normalized target provenance fields."""
         for field_name in ("target_id", "provider", "model", "api", "configuration"):
             value = getattr(self, field_name)
             if not value or value.strip() != value:
@@ -62,6 +63,7 @@ class BenchmarkCase:
     metadata: Mapping[str, JsonValue] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        """Validate case identity and freeze metadata."""
         if not self.case_id or self.case_id.strip() != self.case_id:
             raise ValueError("case_id must be non-empty and normalized")
         if not self.scorer or self.scorer.strip() != self.scorer:
@@ -81,6 +83,7 @@ class BenchmarkDataset:
     cases: tuple[BenchmarkCase, ...]
 
     def __post_init__(self) -> None:
+        """Require the Phase 10 dataset schema and public classification."""
         if self.schema_version != "1.0":
             raise ValueError("unsupported benchmark dataset schema_version")
         if not self.benchmark_version or self.benchmark_version.strip() != self.benchmark_version:
@@ -104,6 +107,7 @@ class ProviderCall:
     fallback_count: int = 0
 
     def __post_init__(self) -> None:
+        """Validate non-negative normalized provider-call metrics."""
         if self.latency_ms < 0:
             raise ValueError("latency_ms must be non-negative")
         if self.ttft_ms is not None and self.ttft_ms < 0:
@@ -137,6 +141,7 @@ class BenchmarkObservation:
     provider_error_status: int | None = None
 
     def __post_init__(self) -> None:
+        """Enforce mutually exclusive quality and provider-failure evidence."""
         if self.status is ObservationStatus.PROVIDER_FAILURE:
             if self.quality_score is not None:
                 raise ValueError("provider failures must not carry a quality score")
@@ -145,7 +150,11 @@ class BenchmarkObservation:
         elif self.provider_error_code is not None or self.provider_error_status is not None:
             raise ValueError("quality observations must not carry provider failure metadata")
 
-        if self.quality_score is not None and not Decimal("0") <= self.quality_score <= Decimal("1"):
+        valid_quality = (
+            self.quality_score is None
+            or Decimal("0") <= self.quality_score <= Decimal("1")
+        )
+        if not valid_quality:
             raise ValueError("quality_score must be between 0 and 1")
 
 
@@ -175,6 +184,7 @@ class Scorecard:
     provider_error_counts: Mapping[str, int]
 
     def __post_init__(self) -> None:
+        """Freeze provider error counts to keep scorecards immutable."""
         object.__setattr__(
             self,
             "provider_error_counts",
