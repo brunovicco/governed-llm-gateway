@@ -42,7 +42,9 @@ class EvidenceDrivenRankingPolicy(RankingPolicy):
     def __post_init__(self) -> None:
         """Require content-addressed benchmark and promotion identities."""
         if self.schema_version != "1.1":
-            raise EvidenceRankingError("evidence-driven ranking policy schema_version must be '1.1'")
+            raise EvidenceRankingError(
+                "evidence-driven ranking policy schema_version must be '1.1'"
+            )
         _require_sha256(self.benchmark_snapshot_id, "benchmark_snapshot_id")
         _require_sha256(self.promotion_evidence_id, "promotion_evidence_id")
 
@@ -70,7 +72,9 @@ def compile_benchmark_hybrid_policy(
     falling back to a mixture that is not visible in provenance.
     """
     if base_policy.schema_version != "1.0":
-        raise EvidenceRankingError("benchmark hybrid compilation requires a Phase 5 schema 1.0 base")
+        raise EvidenceRankingError(
+            "benchmark hybrid compilation requires a Phase 5 schema 1.0 base"
+        )
     _require_normalized(policy_version, "policy_version")
     _require_normalized(score_snapshot_id, "score_snapshot_id")
     if not base_policy.workloads:
