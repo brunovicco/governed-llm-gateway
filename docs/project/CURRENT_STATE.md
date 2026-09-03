@@ -15,7 +15,7 @@ Last updated: 2026-09-03
 | Phase 6 — Runtime Health, Retry and Safe Fallback | COMPLETE (`governed-llm-gateway` PR #5) |
 | Phase 7 — Structured Output and Tool Normalization | COMPLETE (`governed-llm-gateway` PR #6) |
 | Phase 8 — Streaming | COMPLETE (`governed-llm-gateway` PR #7) |
-| Phase 9 — OpenTelemetry | IMPLEMENTED — VALIDATION IN PROGRESS |
+| Phase 9 — OpenTelemetry | IMPLEMENTED — READY FOR INDEPENDENT REVIEW |
 | Phase 10+ | NOT STARTED |
 
 ## Durable architecture baseline
@@ -69,39 +69,65 @@ Delivered implementation:
 - ADR-0008 defines metadata-only telemetry and the deny-by-default payload boundary;
 - optional `Observability` injection keeps existing execution behavior valid when telemetry is not
   configured;
-- gateway request/stream, policy-route, and provider-inference spans are instrumented without
-  automatic exception recording;
-- retry and fallback decisions are represented as metadata-only span events;
+- `llm.gateway.request`, `llm.gateway.stream`, `policy.route`, and per-attempt
+  `provider.inference` spans are instrumented without automatic exception recording;
+- retry and fallback decisions are represented as metadata-only `llm.gateway.retry` and
+  `llm.gateway.fallback` span events;
 - provider inference attributes include bounded operational metadata such as provider/model/deployment,
-  latency, TTFT where applicable, and normalized token usage;
+  latency, TTFT where applicable, and normalized usage counts;
+- provider usage is exported as `llm.usage.input_count` / `llm.usage.output_count` because the shared
+  deny-by-default sanitizer intentionally rejects credential-like key names containing `token` even
+  when allowlisted; the sanitizer was not weakened or bypassed;
 - W3C `traceparent` / `tracestate` propagation is injected by the shared JSON and SSE transports and
   incoming trace context can be continued at the gateway API boundary;
 - remote prompts, completions, tool arguments/results, credentials, arbitrary headers, raw provider
   bodies, and raw exception messages are excluded from default exported telemetry;
-- architecture checks now forbid both direct OpenTelemetry and `a2a_otel_kit` imports in contracts and
+- architecture checks forbid both direct OpenTelemetry and `a2a_otel_kit` imports in contracts and
   domain layers;
-- contract tests use an in-memory OpenTelemetry exporter to verify trace continuity, retry/fallback
-  correlation, transport propagation, and metadata-only privacy behavior;
+- contract tests use an in-memory OpenTelemetry exporter to verify trace continuity, request/stream
+  parent relationships, retry/fallback correlation, transport propagation, success/failure evidence,
+  and metadata-only privacy behavior;
 - `uv.lock` and the runtime audit input include the Phase 9 dependency chain.
 
 The Phase 8 internal `_sse_body()` helper remains backward compatible: Phase 9 telemetry arguments are
 optional and default to `None`.
 
-## Validation checkpoint
+## Final Phase 9 code validation
 
-Current implementation head before this documentation checkpoint:
-`d9aa0d632f7f81cbb8bcaa70a11e278d21cd1188`.
+Code-validation head:
 
-Resolved during validation:
+`f7f955703a25d28c68851ce5229165a136ee7d7a`
 
-- Phase 9 dependency lock was regenerated successfully;
-- Ruff formatting/lint findings from the initial implementation were resolved;
-- a mypy regression found that two new internal streaming telemetry parameters had become mandatory;
-  the parameters were restored to optional defaults without changing tracing semantics;
-- temporary maintenance workflows were removed after use.
+GitHub Actions run:
 
-A full normal read-only quality run against the fixed implementation is still required before Phase 9
-can be marked complete or opened for final review.
+`33802472000`
+
+Results:
+
+- `uv lock --check` — PASS;
+- Ruff lint/format — PASS;
+- mypy — PASS across 75 source files;
+- pytest — **192 passed**;
+- aggregate coverage — **80.12%**, above the 80% minimum without relying on rounding;
+- Bandit — no identified issues;
+- pip-audit — no known vulnerabilities;
+- architecture check — PASS;
+- secret scan — PASS;
+- Phase 0 regression gate — PASS.
+
+Resolved during Phase 9 validation:
+
+- regenerated and verified the Phase 9 dependency lock;
+- restored optional `_sse_body()` telemetry defaults after mypy exposed a Phase 8 compatibility
+  regression;
+- replaced credential-ambiguous token-named telemetry keys with privacy-safe usage-count keys while
+  preserving normalized token-count values;
+- added telemetry error-path tests after an intermediate 79.82% result exposed reliance on rounded
+  coverage display; final actual coverage is 80.12%;
+- removed all temporary maintenance workflows after use.
+
+The known FastAPI/Starlette TestClient `httpx` → `httpx2` deprecation warning remains non-blocking and
+is separate maintenance work.
 
 ## Explicitly deferred
 
@@ -117,8 +143,8 @@ can be marked complete or opened for final review.
 
 ## Next step
 
-Run the normal read-only quality gate against the Phase 9 fixed implementation. Resolve only justified
-failures, then update `VALIDATION.md` and this checkpoint with final metrics, open the Phase 9 pull
-request, and request the required independent architecture/security review before merge.
+Open the Phase 9 pull request and run the required independent architecture/security review against the
+complete `main...feat/phase-9-opentelemetry` diff. Resolve any justified BLOCKER/HIGH/MEDIUM finding,
+rerun the normal read-only quality gate, and merge only after an explicit approval verdict.
 
 Phase 10 must not start until Phase 9 is independently reviewed and merged.
