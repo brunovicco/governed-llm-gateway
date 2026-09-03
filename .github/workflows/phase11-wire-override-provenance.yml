@@ -21,6 +21,18 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
+          test_file = Path("tests/contract/test_phase11_override_rollback.py")
+          text = test_file.read_text()
+          old = 'def _bundle(*overrides: ManualScoreOverride, reason: str = "incident mitigation") -> ManualOverrideBundle:\n'
+          new = (
+              "def _bundle(\n"
+              "    *overrides: ManualScoreOverride, reason: str = \"incident mitigation\"\n"
+              ") -> ManualOverrideBundle:\n"
+          )
+          if text.count(old) != 1:
+              raise SystemExit("unexpected override test helper shape")
+          test_file.write_text(text.replace(old, new))
+
           contracts = Path("packages/gateway-contracts/src/governed_llm_gateway_contracts/contracts.py")
           text = contracts.read_text()
           old = "    benchmark_snapshot_id: str | None = None\n    provider: str | None = None\n"
