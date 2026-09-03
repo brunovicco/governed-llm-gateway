@@ -218,9 +218,7 @@ def _record_payload(record: RankingEvidenceRecord) -> dict[str, object]:
     }
 
 
-def _require_exact_fields(
-    payload: Mapping[str, object], allowed: set[str], location: str
-) -> None:
+def _require_exact_fields(payload: Mapping[str, object], allowed: set[str], location: str) -> None:
     keys = set(payload)
     unknown = sorted(keys - allowed)
     if unknown:
