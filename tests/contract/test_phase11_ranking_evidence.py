@@ -6,9 +6,9 @@ import pytest
 
 from benchmarks.contracts import BenchmarkSnapshot, BenchmarkWorkload, Scorecard
 from benchmarks.promotion import (
-    PromotionMapping,
     canonical_promoted_evidence_json,
     promote_snapshot,
+    PromotionMapping,
 )
 from governed_llm_gateway_core.domain.ranking_evidence import (
     RankingEvidenceError,
