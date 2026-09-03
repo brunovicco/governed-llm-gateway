@@ -22,12 +22,15 @@ def _exact_json(case: BenchmarkCase, output: JsonValue) -> Decimal:
 
 
 def _contains_all(case: BenchmarkCase, output: JsonValue) -> Decimal:
-    if not isinstance(case.expected, list) or not all(isinstance(item, str) for item in case.expected):
+    expected_strings = isinstance(case.expected, list) and all(
+        isinstance(item, str) for item in case.expected
+    )
+    if not expected_strings:
         raise ValueError("contains_all scorer expects a list of required strings")
     if not isinstance(output, str):
         return Decimal("0")
     normalized = output.casefold()
-    required = [item.casefold() for item in case.expected]
+    required = [item.casefold() for item in case.expected if isinstance(item, str)]
     if not required:
         return Decimal("1")
     matches = sum(1 for item in required if item in normalized)
@@ -62,7 +65,6 @@ def _ordered_sequence(case: BenchmarkCase, output: JsonValue) -> Decimal:
 
 def build_default_scorers() -> Mapping[str, DeterministicScorer]:
     """Return the bounded credential-free scorer registry used by Phase 10 datasets."""
-
     scorers: dict[str, Callable[[BenchmarkCase, JsonValue], Decimal]] = {
         "exact_json": _exact_json,
         "contains_all": _contains_all,
@@ -76,7 +78,6 @@ def require_scorer(
     scorers: Mapping[str, DeterministicScorer], scorer_id: str
 ) -> DeterministicScorer:
     """Resolve a scorer by versioned dataset identifier and fail closed if unknown."""
-
     scorer = scorers.get(scorer_id)
     if scorer is None:
         raise ValueError(f"unknown deterministic scorer: {scorer_id}")
@@ -87,7 +88,6 @@ def ensure_supported_scorers(
     cases: Sequence[BenchmarkCase], scorers: Mapping[str, DeterministicScorer]
 ) -> None:
     """Validate all dataset scorer references before any provider call is attempted."""
-
     unknown = sorted({case.scorer for case in cases if case.scorer not in scorers})
     if unknown:
         raise ValueError(f"dataset references unknown deterministic scorers: {', '.join(unknown)}")
