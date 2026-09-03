@@ -29,6 +29,7 @@ class ScoreProvenanceMode(StrEnum):
     """Explicit source of the effective Phase 11 ranking scores."""
 
     BENCHMARK_HYBRID = "benchmark_hybrid"
+    MANUAL_OVERRIDE = "manual_override"
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,15 +39,24 @@ class EvidenceDrivenRankingPolicy(RankingPolicy):
     score_provenance_mode: ScoreProvenanceMode
     benchmark_snapshot_id: str
     promotion_evidence_id: str
+    manual_override_id: str | None = None
 
     def __post_init__(self) -> None:
-        """Require content-addressed benchmark and promotion identities."""
+        """Require content-addressed benchmark, promotion, and override identities."""
         if self.schema_version != "1.1":
             raise EvidenceRankingError(
                 "evidence-driven ranking policy schema_version must be '1.1'"
             )
         _require_sha256(self.benchmark_snapshot_id, "benchmark_snapshot_id")
         _require_sha256(self.promotion_evidence_id, "promotion_evidence_id")
+        if self.score_provenance_mode is ScoreProvenanceMode.MANUAL_OVERRIDE:
+            if self.manual_override_id is None:
+                raise EvidenceRankingError("manual override mode requires manual_override_id")
+            _require_sha256(self.manual_override_id, "manual_override_id")
+        elif self.manual_override_id is not None:
+            raise EvidenceRankingError(
+                "manual_override_id is only valid when score_provenance_mode is manual_override"
+            )
 
     def canonical_payload(self) -> dict[str, object]:
         """Extend the Phase 5 canonical payload with evidence provenance."""
@@ -54,6 +64,8 @@ class EvidenceDrivenRankingPolicy(RankingPolicy):
         payload["score_provenance_mode"] = self.score_provenance_mode.value
         payload["benchmark_snapshot_id"] = self.benchmark_snapshot_id
         payload["promotion_evidence_id"] = self.promotion_evidence_id
+        if self.manual_override_id is not None:
+            payload["manual_override_id"] = self.manual_override_id
         return payload
 
 
@@ -128,6 +140,20 @@ def benchmark_snapshot_id(policy: RankingPolicy) -> str | None:
     """Return benchmark provenance only for an explicitly evidence-driven policy."""
     if isinstance(policy, EvidenceDrivenRankingPolicy):
         return policy.benchmark_snapshot_id
+    return None
+
+
+def score_provenance_mode(policy: RankingPolicy) -> str | None:
+    """Return explicit Phase 11 score provenance when present."""
+    if isinstance(policy, EvidenceDrivenRankingPolicy):
+        return policy.score_provenance_mode.value
+    return None
+
+
+def manual_override_id(policy: RankingPolicy) -> str | None:
+    """Return manual override identity only when an override is active."""
+    if isinstance(policy, EvidenceDrivenRankingPolicy):
+        return policy.manual_override_id
     return None
 
 
