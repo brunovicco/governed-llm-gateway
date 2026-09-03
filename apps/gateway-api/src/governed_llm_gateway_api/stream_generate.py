@@ -20,6 +20,7 @@ from governed_llm_gateway_contracts import (
     MessageRole,
     RequestLimits,
     RiskLevel,
+    RoutingProvenance,
     StreamEventType,
     StructuredOutputSchema,
     ToolDefinition,
@@ -471,9 +472,7 @@ def _routing_attributes(decision: RankingDecision) -> dict[str, object]:
     return _routing_attributes_from_provenance(decision.routing)
 
 
-def _routing_attributes_from_provenance(routing: object) -> dict[str, object]:
-    if not isinstance(routing, type(prepared_routing := _routing_type_marker())):
-        del prepared_routing
+def _routing_attributes_from_provenance(routing: RoutingProvenance) -> dict[str, object]:
     return {
         "routing.decision_id": routing.routing_decision_id,
         "routing.policy_id": routing.policy.policy_id,
@@ -489,12 +488,6 @@ def _routing_attributes_from_provenance(routing: object) -> dict[str, object]:
         "llm.deployment": routing.deployment,
         "llm.fallback_count": max(0, len(routing.fallback_sequence) - 1),
     }
-
-
-def _routing_type_marker() -> object:
-    from governed_llm_gateway_contracts import RoutingProvenance
-
-    return RoutingProvenance
 
 
 def _http_error_code(error: HTTPException) -> str:
