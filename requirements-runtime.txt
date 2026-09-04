@@ -1,6 +1,6 @@
 # Runtime dependency audit input for the uv workspace.
 a2a-otel-kit==0.6.0
-cryptography==46.0.3
+cryptography==50.0.0
 FastAPI==0.141.1
 httpx==0.28.1
 jsonschema==4.26.0
