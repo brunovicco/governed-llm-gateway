@@ -1,0 +1,37 @@
+name: Repair Phase14 evidence expansion
+
+on:
+  push:
+    branches: [feat/provider-neutral-planner-evidence]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/provider-neutral-planner-evidence
+      - name: Repair one-shot workflow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          target = Path('.github/workflows/phase14-evidence-expand.yml')
+          text = target.read_text()
+          old = 'uv run ruff format packages/gateway-contracts'
+          new = 'uvx ruff format packages/gateway-contracts'
+          if old not in text:
+              raise SystemExit('expected formatter invocation not found')
+          target.write_text(text.replace(old, new))
+          Path('.github/workflows/fix-phase14-evidence-expand.yml').unlink()
+          PY
+      - name: Commit repair
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "ci: repair evidence expansion formatter"
+          git push
