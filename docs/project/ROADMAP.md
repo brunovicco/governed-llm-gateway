@@ -14,15 +14,11 @@ Current execution sequence:
 7. Structured output and tool normalization — COMPLETE (`governed-llm-gateway` PR #6).
 8. Streaming — COMPLETE (`governed-llm-gateway` PR #7).
 9. OpenTelemetry via `a2a-otel-kit` — COMPLETE (`governed-llm-gateway` PR #8).
-10. Evaluation framework — COMPLETE (`governed-llm-gateway` PR #9, squash merge
-    `db30ffc481d1a3c02fb01f46524b5190290fb7ac`).
-11. Evidence-driven ranking — COMPLETE (`governed-llm-gateway` PR #10, squash merge
-    `5888376da798d55b9f4139e943514dca0e573dea`).
-12. Thin client SDK transport — COMPLETE (`governed-llm-gateway` PR #11, squash merge
-    `1b9b3ef01f0efac49d1f2a92056473ec4b45c375`).
-13. Optional Verifiable AI Governance integration — CURRENT; signed authorization verification,
-    monotonic enforcement, runtime evidence and governed execution boundary are full-gate green.
-14. Incremental real-project integrations — NOT STARTED.
+10. Evaluation framework — COMPLETE (`governed-llm-gateway` PR #9, squash merge `db30ffc481d1a3c02fb01f46524b5190290fb7ac`).
+11. Evidence-driven ranking — COMPLETE (`governed-llm-gateway` PR #10, squash merge `5888376da798d55b9f4139e943514dca0e573dea`).
+12. Thin client SDK — COMPLETE (`governed-llm-gateway` PR #11, squash merge `1b9b3ef01f0efac49d1f2a92056473ec4b45c375`).
+13. Governance integration — COMPLETE (`governed-llm-gateway` PR #12, squash merge `ec18ad8e95490fdeb6ee4c6b9e26ae7cd5b1b0b1`).
+14. Incremental real-project integrations — IN PROGRESS.
 
 ## Permanent authority sequence
 
@@ -30,109 +26,140 @@ The portfolio authority chain is:
 
 `Verifiable AI Governance → Policy Model Router → Governed LLM Gateway → model provider`
 
-Phase 4 establishes the Policy Router-authorized candidate set. Later governance intersection,
-ranking, health, retry/fallback, benchmark promotion, SDK transport and telemetry may only narrow or
-execute inside that authority boundary:
+The permanent invariant remains:
 
 `Gateway allowed set ⊆ Policy Router authorized set`
 
-Governance authorization may narrow the set further but may not expand the Policy Router result.
-No client, benchmark result, telemetry signal, provider result, runtime observation or evidence record
-may broaden the authorization set.
+Governance authorization may narrow that set further but may never expand it. Ranking, health, retry/fallback, benchmark promotion, SDK transport, telemetry and runtime evidence are never independent authorization sources.
 
-## Completed runtime foundations
+## Completed gateway foundations after Phase 13
 
-Phase 6 owns replay safety: retry/fallback stays server-side and stops after observed semantic output,
-external side effects, or opaque continuation state unless a later explicit continuation contract says
-otherwise.
+Two upstream hardening changes were completed while exercising real consumers:
 
-Phase 7 normalizes structured output and tool calls but never executes business tools. Phase 8 adds the
-normalized SSE lifecycle and cancellation/partial-output semantics. Phase 9 adds metadata-only tracing
-without creating a new authority source.
+- PR #13, squash merge `96b09956e933db50bf9ea900973f8a0b2145cb3c`: exposes PEP 561 typed SDK packages for strict consumer type checking;
+- PR #15, squash merge `ba5661514f90aff96749789e3275ce5685e1aea4`: preserves terminal `ProviderExecution` evidence through SSE and `GatewayClient.generate()`;
+- PR #16, squash merge `e2f724d1339419207fbe89437fc5c590673dd33c`: expands provider-neutral execution provenance with provider response identity, finish reason, retry/fallback position and optional detailed usage while preserving fail-closed validation.
 
-Phase 10 creates offline benchmark evidence. Phase 11 consumes only explicitly promoted immutable
-evidence and preserves manual override/rollback as attributable operator configuration. Runtime never
-auto-discovers the newest benchmark snapshot or self-modifies ranking policy.
+The runtime evidence chain is now:
 
-Phase 12 adds the thin provider-neutral SDK. Consumers need only gateway URL/credential and do not own
-provider SDKs, provider keys, ranking, retry or fallback. The SDK preserves routing provenance and
-strictly bounds/validates its SSE transport.
+`normalized provider events → StreamingExecutionService → terminal SSE → API payload → SDK codec → GatewayResponse.execution`
 
-## Phase 12 completion
+Runtime evidence is descriptive only. It cannot authorize a retry, fallback, model/provider choice, tool execution, SQL execution or business action.
 
-PR #11 was reviewed and squash-merged at:
+## Phase 14 — Real project integrations
 
-`1b9b3ef01f0efac49d1f2a92056473ec4b45c375`
+Normative order from `SOURCE_ROADMAP.txt`:
 
-Final validated baseline reproduced in CI and locally on macOS/Python 3.13.12:
+1. `controlled-autonomy-lab`
+2. `getnet-multi-agent-support-v2`
+3. `OpsLens`
+4. `RAGForge`
+5. `Verifiable AI Governance`
 
-- 277 tests passed;
-- aggregate coverage 80.98%;
-- mypy/Ruff PASS across 102 files;
-- Bandit 0 issues;
-- pip-audit no known vulnerabilities;
-- architecture check, secret scan and Phase 0 gate PASS.
+The roadmap explicitly requires incremental migration and says not to migrate all consumers simultaneously.
 
-## Phase 13 — Governance Integration
+### Case 1 — controlled-autonomy-lab — COMPLETE
 
-Normative source scope:
+Consumer merge:
 
-- authorization context;
-- scope validation;
-- governance event sink;
-- runtime evidence.
+`238e4b93284579b5c9ba0d650161febcdbf83a51`
 
-Acceptance:
+Validated bounded text-generation integration:
 
-- gateway enforces authorized model group;
-- unauthorized expansion fails closed;
-- denial produces evidence;
-- execution evidence correlates to authorization.
+- opt-in gateway path;
+- consumer supplies gateway URL/credential plus workload/risk/data classification;
+- gateway owns provider/model/deployment selection and retry/fallback;
+- direct adapters remain only for benchmark comparability and unsupported provider-native continuation;
+- tool-result continuation fails closed instead of fabricating a user message when canonical continuation state is unavailable.
 
-ADR-0012 defines the Phase 13 boundary:
+Final consumer CI baseline:
 
-- integrate with the existing Verifiable AI Governance `SignedRuntimeAuthorization` v1.0 semantics;
-- keep the gateway as PEP/operational selector, not a second governance system or PDP;
-- signature verification remains behind an adapter/port boundary with explicit trusted keys;
-- no arbitrary key discovery from token-controlled URLs;
-- governance authorization is audience-, time-, request- and scope-bound;
-- governance/PDP authorization is intersected before registry eligibility/ranking/health;
-- ranking, retry, fallback and manual ranking override cannot resurrect governance-excluded groups;
-- denials and executions emit minimized correlated runtime evidence;
-- evidence is not a same-request authorization source;
-- prompts/completions/raw provider payloads remain excluded from default evidence.
+- 194 tests passed;
+- coverage 86.19%;
+- strict mypy passed;
+- Ruff passed;
+- Bandit 0 findings;
+- registry-auditable dependencies clean;
+- architecture dependency check passed.
 
-Validated Phase 13 implementation now includes:
+### Case 2 — getnet-multi-agent-support-v2 — COMPLETE
 
-- strict v1 JSON envelope parsing with duplicate-key and schema-drift rejection;
-- canonical signing bytes and Ed25519 verification against an explicit `kid` allowlist;
-- `cryptography==50.0.0`, remediating the vulnerable 46.0.3 bootstrap without audit waiver;
-- immutable verified-governance facts and exact runtime request binding;
-- audience/time/scope enforcement with stable denial reason codes;
-- governance/Policy Router model-group intersection that only narrows authorization;
-- final selected-model-group revalidation immediately before provider execution;
-- metadata-only denial and execution evidence correlated across governance authorization, Policy Router
-  decision, gateway routing decision, and actual provider/deployment;
-- local-first evidence journal with explicit `BEST_EFFORT` and `REQUIRED` remote-delivery modes;
-- governed execution wrapper around the existing resilience service, without duplicating retry/fallback;
-- real-provider attempt counting that excludes circuit-open skips;
-- tests proving governance denial blocks provider execution, fallback evidence names the actual final
-  deployment, and circuit-only paths do not fabricate provider-execution evidence.
+Consumer merge:
 
-Latest validated Phase 13 baseline:
+`6ee7f3db8f666e35f78f7df5524a1fc15e1ef0da`
 
-- branch `feat/phase-13-governance-integration`;
-- head `244eb7f6fdd46a8dc7375d4c76eee98d01c8868c`;
-- GitHub Actions run `33881234729` — PASS;
-- 317 tests passed;
-- aggregate coverage 81.10%;
-- `governance_execution.py` coverage 88.57%;
-- mypy/Ruff PASS across 110 files;
-- Bandit 0 issues across 11,525 lines of code;
-- pip-audit reports no known vulnerabilities;
-- architecture check, secret scan and Phase 0 gate PASS.
+Validated generation integration:
 
-Next boundary: synchronize review documentation, open the Phase 13 PR, then obtain independent
-architecture/security review. Phase 14 remains blocked until Phase 13 review approval and merge.
+- provider-neutral gateway request;
+- no local retry/fallback;
+- gateway credentials are independent of Gemini credentials;
+- semantic embeddings remain a separate Gemini-specific concern;
+- incomplete gateway credentials fail closed with no Gemini fallback;
+- failed gateway responses remain failures even when partial content exists.
 
-Do not pull work forward when doing so weakens an authority boundary or requires an unstable contract.
+Final consumer CI baseline:
+
+- 259 tests passed, 14 skipped, 1 deselected;
+- coverage 88.59%;
+- strict mypy passed;
+- Ruff/architecture/governance gates passed;
+- Bandit 0 findings;
+- auditable dependency set clean.
+
+### Case 3 — OpsLens — VALIDATED CANDIDATE, DEFERRED
+
+PR `brunovicco/opslens#89` reached a green integration candidate with the bounded semantic-query planner routed through the gateway. The candidate preserved the correct authority split: model output remains a structured proposal, deterministic OpsLens parsing/domain validation remains mandatory, and SQL/Athena execution stays outside the gateway.
+
+Validated candidate head:
+
+`939c0e46110329c3bac046e05f5908ffb6c6e889`
+
+Validation recorded before deferral:
+
+- Python CI `33888638650` — PASS;
+- 73 semantic-query tests passed;
+- strict Pyright: 0 errors / 0 warnings;
+- Ruff passed;
+- Terraform CI `33888638704` — PASS;
+- Checkov, Lambda package builds, Terraform validate and TFLint passed.
+
+**Current sequencing decision:** do not modify or merge OpsLens while that repository is undergoing active independent development. Reconcile the consumer only after its development state stabilizes. This is an intentional deferral, not a gateway blocker.
+
+### Case 4 — RAGForge — NOT STARTED
+
+Do not start Case 4 while Case 3 is intentionally deferred unless the integration order is explicitly revised. This preserves the roadmap instruction to avoid parallel consumer migrations.
+
+### Case 5 — Verifiable AI Governance — NOT STARTED
+
+Remains after the preceding consumer cases.
+
+## Current gateway baseline
+
+Latest upstream execution-provenance merge:
+
+`e2f724d1339419207fbe89437fc5c590673dd33c`
+
+Post-merge `main` quality run:
+
+`33926667666` — PASS.
+
+Pre-merge authoritative validation on the same functional change set included:
+
+- 330 tests passed;
+- aggregate coverage 80.82%;
+- mypy passed across 113 source files;
+- Ruff lint/format passed across 113 files;
+- Bandit 0 issues across 11,784 LOC;
+- pip-audit reported no known vulnerabilities;
+- architecture check, secret scan and Phase 0 gate passed.
+
+## Next boundary
+
+Keep OpsLens changes last while its repository is actively evolving. Until that consumer is ready for reconciliation:
+
+1. keep the gateway `main` baseline stable;
+2. do not start a second consumer migration in parallel;
+3. perform only upstream gateway hardening that is independently justified and consumer-agnostic;
+4. when OpsLens stabilizes, rebase/reconcile its integration against the then-current gateway commit and rerun its full native CI before merge.
+
+Do not pull work forward when doing so weakens an authority boundary, creates parallel consumer migrations or depends on an unstable consumer contract.
