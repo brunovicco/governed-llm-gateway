@@ -266,9 +266,7 @@ class GatewayClientProtocolHardeningTests(unittest.IsolatedAsyncioTestCase):
             },
             clear=True,
         ):
-            transport = httpx.MockTransport(
-                lambda request: httpx.Response(500, request=request)
-            )
+            transport = httpx.MockTransport(lambda request: httpx.Response(500, request=request))
             client = GatewayClient.from_env(transport=transport)
 
         try:
