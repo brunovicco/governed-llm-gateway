@@ -1,5 +1,7 @@
 """Immutable provider-neutral contracts for the Governed LLM Gateway."""
 
+from __future__ import annotations
+
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -230,6 +232,7 @@ class GatewayStreamEvent:
     tool_name: str | None = None
     tool_call: ToolCall | None = None
     usage: Usage | None = None
+    execution: ProviderExecution | None = None
     finish_reason: str | None = None
     error: GatewayError | None = None
     partial: bool = False
@@ -266,10 +269,12 @@ class GatewayStreamEvent:
             self._require()
         elif self.event_type is StreamEventType.RESPONSE_COMPLETED:
             self._require(routing=True)
+            self._validate_execution(ExecutionStatus.SUCCEEDED, required=False)
         elif self.event_type is StreamEventType.RESPONSE_FAILED:
             if self.error is None:
                 raise ValueError("response.failed requires error")
             self._require(routing=True)
+            self._validate_execution(ExecutionStatus.FAILED, required=False)
 
     def _require(self, *, routing: bool = False) -> None:
         if routing and self.routing is None:
@@ -283,6 +288,31 @@ class GatewayStreamEvent:
             raise ValueError("partial is only valid on response.failed")
         if self.error is not None and self.event_type is not StreamEventType.RESPONSE_FAILED:
             raise ValueError("error is only valid on response.failed")
+        if self.execution is not None and self.event_type not in {
+            StreamEventType.RESPONSE_COMPLETED,
+            StreamEventType.RESPONSE_FAILED,
+        }:
+            raise ValueError("execution is only valid on terminal response events")
+
+    def _validate_execution(self, status: ExecutionStatus, *, required: bool) -> None:
+        execution = self.execution
+        if execution is None:
+            if required:
+                raise ValueError(f"{self.event_type.value} requires provider execution evidence")
+            return
+        if not isinstance(execution, ProviderExecution):
+            raise ValueError("execution must use the provider-neutral ProviderExecution contract")
+        if execution.status is not status:
+            raise ValueError("terminal execution status does not match response event status")
+        routing = self.routing
+        if routing is None:
+            raise ValueError("terminal execution evidence requires routing provenance")
+        if (execution.provider, execution.model, execution.deployment) != (
+            routing.provider,
+            routing.model,
+            routing.deployment,
+        ):
+            raise ValueError("terminal execution evidence does not match routing provenance")
 
 
 @dataclass(frozen=True, slots=True)
@@ -294,7 +324,14 @@ class ProviderExecution:
     deployment: str
     status: ExecutionStatus
     latency_ms: int
-    usage: Usage = field(default_factory=Usage)
+    usage: Usage | None = None
+
+    def __post_init__(self) -> None:
+        """Validate concrete provider identity and measured execution metadata."""
+        if any(not value.strip() for value in (self.provider, self.model, self.deployment)):
+            raise ValueError("provider execution identity must be non-empty")
+        if self.latency_ms < 0:
+            raise ValueError("provider execution latency_ms must be non-negative")
 
 
 @dataclass(frozen=True, slots=True)

@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
+from decimal import Decimal
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
@@ -54,11 +55,14 @@ class ProviderUsage:
 
     input_tokens: int = 0
     output_tokens: int = 0
+    total_cost_usd: Decimal | None = None
 
     def __post_init__(self) -> None:
         """Reject impossible token counts instead of normalizing bad provider data silently."""
         if self.input_tokens < 0 or self.output_tokens < 0:
             raise ValueError("provider token usage must be non-negative")
+        if self.total_cost_usd is not None and self.total_cost_usd < 0:
+            raise ValueError("provider total_cost_usd must be non-negative")
 
 
 @dataclass(frozen=True, slots=True)

@@ -532,6 +532,25 @@ def _event_payload(event: GatewayStreamEvent) -> dict[str, object]:
         if event.usage.total_cost_usd is not None:
             usage["total_cost_usd"] = _canonical_decimal(event.usage.total_cost_usd)
         payload["usage"] = usage
+    if event.execution is not None:
+        execution: dict[str, object] = {
+            "provider": event.execution.provider,
+            "model": event.execution.model,
+            "deployment": event.execution.deployment,
+            "status": event.execution.status.value,
+            "latency_ms": event.execution.latency_ms,
+        }
+        if event.execution.usage is not None:
+            execution_usage: dict[str, object] = {
+                "input_tokens": event.execution.usage.input_tokens,
+                "output_tokens": event.execution.usage.output_tokens,
+            }
+            if event.execution.usage.total_cost_usd is not None:
+                execution_usage["total_cost_usd"] = _canonical_decimal(
+                    event.execution.usage.total_cost_usd
+                )
+            execution["usage"] = execution_usage
+        payload["execution"] = execution
     if event.finish_reason is not None:
         payload["finish_reason"] = event.finish_reason
     if event.error is not None:

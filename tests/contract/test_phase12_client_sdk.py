@@ -2,6 +2,7 @@ import json
 import os
 import unittest
 from collections.abc import Mapping
+from decimal import Decimal
 from unittest.mock import patch
 from uuid import UUID
 
@@ -21,9 +22,11 @@ from governed_llm_gateway_contracts import (
     Message,
     MessageRole,
     PolicyProvenance,
+    ProviderExecution,
     RiskLevel,
     RoutingProvenance,
     StreamEventType,
+    Usage,
 )
 
 REQUEST_ID = UUID("33333333-3333-4333-8333-333333333333")
@@ -110,6 +113,18 @@ def _completed_stream() -> str:
                 StreamEventType.RESPONSE_COMPLETED,
                 5,
                 routing=routing,
+                execution={
+                    "provider": "provider-a",
+                    "model": "model/a",
+                    "deployment": "candidate-a",
+                    "status": "succeeded",
+                    "latency_ms": 37,
+                    "usage": {
+                        "input_tokens": 10,
+                        "output_tokens": 2,
+                        "total_cost_usd": "0.01",
+                    },
+                },
                 finish_reason="stop",
             ),
         )
@@ -209,7 +224,21 @@ class GatewayClientTransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls, 1)
         self.assertEqual(response.status, ExecutionStatus.SUCCEEDED)
         self.assertEqual(response.content, "hello world")
-        self.assertIsNone(response.execution)
+        self.assertEqual(
+            response.execution,
+            ProviderExecution(
+                provider="provider-a",
+                model="model/a",
+                deployment="candidate-a",
+                status=ExecutionStatus.SUCCEEDED,
+                latency_ms=37,
+                usage=Usage(
+                    input_tokens=10,
+                    output_tokens=2,
+                    total_cost_usd=Decimal("0.01"),
+                ),
+            ),
+        )
         self.assertEqual(response.routing.benchmark_snapshot_id, "sha256:" + "5" * 64)
         self.assertEqual(response.routing.score_provenance_mode, "manual_override")
         self.assertEqual(response.routing.manual_override_id, "sha256:" + "6" * 64)

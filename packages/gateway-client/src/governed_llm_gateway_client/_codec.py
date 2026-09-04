@@ -9,9 +9,11 @@ from uuid import UUID
 import httpx
 from governed_llm_gateway_contracts import (
     CandidateRejection,
+    ExecutionStatus,
     GatewayError,
     GatewayStreamEvent,
     PolicyProvenance,
+    ProviderExecution,
     RejectionReason,
     RoutingProvenance,
     StreamEventType,
@@ -32,6 +34,7 @@ _EVENT_FIELDS = frozenset(
         "tool_name",
         "tool_call",
         "usage",
+        "execution",
         "finish_reason",
         "error",
         "partial",
@@ -60,6 +63,7 @@ _POLICY_FIELDS = frozenset({"decision_id", "policy_id", "policy_version", "polic
 _REJECTION_FIELDS = frozenset({"deployment", "reason", "detail"})
 _TOOL_CALL_FIELDS = frozenset({"call_id", "name", "arguments"})
 _USAGE_FIELDS = frozenset({"input_tokens", "output_tokens", "total_cost_usd"})
+_EXECUTION_FIELDS = frozenset({"provider", "model", "deployment", "status", "latency_ms", "usage"})
 _ERROR_FIELDS = frozenset({"code", "message", "retryable"})
 _TERMINAL_EVENTS = frozenset({StreamEventType.RESPONSE_COMPLETED, StreamEventType.RESPONSE_FAILED})
 _MAX_HTTP_CHUNK_BYTES = 64 * 1024
@@ -220,6 +224,7 @@ def _decode_event(payload: dict[str, object]) -> GatewayStreamEvent:
         routing_value = payload.get("routing")
         tool_call_value = payload.get("tool_call")
         usage_value = payload.get("usage")
+        execution_value = payload.get("execution")
         error_value = payload.get("error")
         return GatewayStreamEvent(
             event_type=event_type,
@@ -236,6 +241,9 @@ def _decode_event(payload: dict[str, object]) -> GatewayStreamEvent:
             else None,
             usage=_decode_usage(_as_object(usage_value, "usage"))
             if usage_value is not None
+            else None,
+            execution=_decode_execution(_as_object(execution_value, "execution"))
+            if execution_value is not None
             else None,
             finish_reason=_optional_str(payload, "finish_reason"),
             error=_decode_error(_as_object(error_value, "error"))
@@ -319,6 +327,21 @@ def _decode_usage(payload: dict[str, object]) -> Usage:
         input_tokens=_required_int(payload, "input_tokens"),
         output_tokens=_required_int(payload, "output_tokens"),
         total_cost_usd=cost,
+    )
+
+
+def _decode_execution(payload: dict[str, object]) -> ProviderExecution:
+    _check_fields(payload, _EXECUTION_FIELDS, "provider execution")
+    usage_value = payload.get("usage")
+    return ProviderExecution(
+        provider=_required_str(payload, "provider"),
+        model=_required_str(payload, "model"),
+        deployment=_required_str(payload, "deployment"),
+        status=ExecutionStatus(_required_str(payload, "status")),
+        latency_ms=_required_int(payload, "latency_ms"),
+        usage=_decode_usage(_as_object(usage_value, "execution usage"))
+        if usage_value is not None
+        else None,
     )
 
 
