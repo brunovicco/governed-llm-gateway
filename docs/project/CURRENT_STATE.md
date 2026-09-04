@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 ## Phase status
 
@@ -18,7 +18,7 @@ Last updated: 2026-09-03
 | Phase 9 — OpenTelemetry | COMPLETE (`governed-llm-gateway` PR #8) |
 | Phase 10 — Evaluation Framework | COMPLETE (`governed-llm-gateway` PR #9) |
 | Phase 11 — Evidence-Driven Ranking | COMPLETE (`governed-llm-gateway` PR #10) |
-| Phase 12 — Client SDK | CURRENT — VALIDATED / REVIEW READY |
+| Phase 12 — Client SDK | CURRENT — FINAL VALIDATION GREEN / REVIEW READY |
 | Phase 13+ | NOT STARTED |
 
 ## Durable architecture baseline
@@ -84,6 +84,8 @@ The accepted SDK boundary is intentionally thin:
 - no client-side model selection, ranking, retry, fallback, circuit breaking, or policy decisions;
 - `stream()` performs one `POST /v1/generate` request and yields validated `GatewayStreamEvent` values;
 - bounded incremental SSE parsing with strict UTF-8/JSON/sequence/terminal validation;
+- bounded total SSE stream size in addition to per-event bounds;
+- `Accept-Encoding: identity` with fail-closed rejection of non-identity encoded SSE responses;
 - every SSE event is bound to the exact `request_id` sent by the client;
 - `generate()` aggregates that same single stream into `GatewayResponse` without a second execution;
 - risk level and data classification remain explicit caller inputs rather than unsafe implicit defaults;
@@ -106,30 +108,36 @@ Implemented and full-gate validated on the branch:
    alongside `benchmark_snapshot_id`, preserving Phase 11 provenance for SDK consumers;
 7. updated `gateway-client` to `0.2.0`, added direct HTTPX transport dependency, and refreshed the
    workspace lock;
-8. made the client dependency boundary executable in both `architecture_check.py` and the engineering
-   harness configuration: stdlib + `gateway-contracts` + HTTPX only, with no core/API/benchmark/PDP or
-   provider-SDK imports;
-9. bounded HTTP/SSE reads, disabled redirects, disabled environment-derived proxy/client settings, and
-   fail closed when stream request identity or protocol sequencing is inconsistent;
-10. removed all temporary Phase 12 bootstrap/hardening workflows from the final branch diff.
+8. made the client dependency boundary executable as an explicit import allowlist in
+   `architecture_check.py`: stdlib + `gateway-contracts` + HTTPX only, with no core/API/benchmark/PDP
+   or provider-SDK imports;
+9. bounded HTTP/SSE reads, disabled redirects and environment-derived proxy/client settings, and fail
+   closed when stream request identity or protocol sequencing is inconsistent;
+10. added a finite total stream limit (16 MiB default, 128 MiB configuration ceiling) and identity-only
+    response encoding so transparent decompression cannot bypass bounded stream accounting;
+11. bounded HTTP error-body reads and refuse to decode compressed/oversized error bodies;
+12. removed all temporary Phase 12 bootstrap/hardening workflows from the final branch diff.
 
-Final validated Phase 12 head before PR preparation:
+Final clean Phase 12 validation before review completion:
 
-- head `d83075713503227780a979f399bf6bf8b891e1b5`;
-- GitHub Actions run `33829884632` — PASS;
-- pytest — 271 passed, 1 known nonblocking Starlette/httpx TestClient deprecation warning;
-- aggregate coverage — 80.93%;
-- mypy — PASS across 101 source files;
-- Ruff check/format — PASS across 101 files;
-- Bandit — PASS, 0 issues across 10,348 lines of code;
+- head `5db5a48e5829109af32de36e60bc21206120a431`;
+- GitHub Actions run `33875566172` — PASS;
+- pytest — 277 passed, 1 known nonblocking Starlette/httpx TestClient deprecation warning;
+- aggregate coverage — 80.98%;
+- mypy — PASS across 102 source files;
+- Ruff check/format — PASS across 102 files;
+- Bandit — PASS, 0 issues across 10,418 lines of code;
 - pip-audit — no known vulnerabilities;
-- architecture check, secret scan, and Phase 0 gate — PASS.
+- architecture check — PASS;
+- secret scan — PASS;
+- Phase 0 gate — PASS;
+- default quality workflow remained credential-free with read-only repository permissions.
 
 ## Next step
 
-Open the Phase 12 pull request, verify pull-request CI, and perform independent architecture/security
-review against ADR-0010 and the roadmap acceptance criteria. Phase 12 remains CURRENT until review is
-approved and the PR is merged. Do not start Phase 13 before that merge.
+Complete independent architecture/security review of PR #11 against ADR-0010 and the roadmap
+acceptance criteria. Phase 12 remains CURRENT until review is approved and the PR is merged. Do not
+start Phase 13 before that merge.
 
 ## Explicitly deferred
 
