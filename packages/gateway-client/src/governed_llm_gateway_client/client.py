@@ -77,9 +77,7 @@ class GatewayClientConfig:
         ):
             raise GatewayConfigurationError("max SSE stream size must be a positive integer")
         if self.max_sse_stream_bytes < self.max_sse_event_bytes:
-            raise GatewayConfigurationError(
-                "max SSE stream size must cover one maximum-size event"
-            )
+            raise GatewayConfigurationError("max SSE stream size must cover one maximum-size event")
         if self.max_sse_stream_bytes > _MAX_CONFIGURED_SSE_STREAM_BYTES:
             raise GatewayConfigurationError("max SSE stream size exceeds the client safety ceiling")
 
