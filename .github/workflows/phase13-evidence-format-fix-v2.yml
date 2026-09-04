@@ -1,0 +1,63 @@
+name: phase13-evidence-format-fix-v2
+on:
+  push:
+    branches: [feat/phase-13-governance-integration]
+    paths: [.github/workflows/phase13-evidence-format-fix-v2.yml]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply exact lint fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('packages/gateway-core/src/governed_llm_gateway_core/application/governance_evidence.py')
+          s = p.read_text()
+          s = s.replace(
+              '                raise ValueError("authorization denial evidence cannot contain provider attempt data")',
+              '                raise ValueError(\n                    "authorization denial evidence cannot contain provider attempt data"\n                )',
+          )
+          p.write_text(s)
+
+          p = Path('packages/gateway-core/src/governed_llm_gateway_core/domain/governance.py')
+          s = p.read_text()
+          s = s.replace(
+              '    def __init__(self, message: str, *, reason: GovernanceDenialReason) -> None:\n        super().__init__(message)',
+              '    def __init__(self, message: str, *, reason: GovernanceDenialReason) -> None:\n        """Retain a stable denial reason without exposing sensitive request content."""\n        super().__init__(message)',
+          )
+          s = s.replace(
+              '            "governance and Policy Router authorization have no executable model-group intersection",',
+              '            "governance and Policy Router authorization have no executable "\n            "model-group intersection",',
+          )
+          p.write_text(s)
+          PY
+          uvx --python 3.13 --from ruff==0.12.11 ruff check --fix \
+            packages/gateway-core/src/governed_llm_gateway_core/application/__init__.py \
+            packages/gateway-core/src/governed_llm_gateway_core/application/governance_evidence.py \
+            packages/gateway-core/src/governed_llm_gateway_core/domain/governance.py \
+            tests/contract/test_phase13_governance_evidence.py
+          uvx --python 3.13 --from ruff==0.12.11 ruff format \
+            packages/gateway-core/src/governed_llm_gateway_core/application/__init__.py \
+            packages/gateway-core/src/governed_llm_gateway_core/application/governance_evidence.py \
+            packages/gateway-core/src/governed_llm_gateway_core/domain/governance.py \
+            tests/contract/test_phase13_governance_evidence.py
+          uvx --python 3.13 --from ruff==0.12.11 ruff check \
+            packages/gateway-core/src/governed_llm_gateway_core/application/__init__.py \
+            packages/gateway-core/src/governed_llm_gateway_core/application/governance_evidence.py \
+            packages/gateway-core/src/governed_llm_gateway_core/domain/governance.py \
+            tests/contract/test_phase13_governance_evidence.py
+      - name: Remove workflows and commit
+        run: |
+          rm -f .github/workflows/phase13-evidence-format-fix.yml
+          rm -f .github/workflows/phase13-evidence-format-fix-v2.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'style: finalize Phase 13 governance evidence linting'
+          git push origin HEAD:feat/phase-13-governance-integration
