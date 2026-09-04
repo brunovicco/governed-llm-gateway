@@ -62,3 +62,19 @@ def test_execution_rejects_invalid_attempt_provenance() -> None:
             latency_ms=1,
             attempt_number=0,
         )
+
+
+def test_sdk_decoder_does_not_hide_invalid_attempt_number() -> None:
+    from governed_llm_gateway_client._codec import _decode_execution
+
+    payload: dict[str, object] = {
+        "provider": "anthropic",
+        "model": "claude",
+        "deployment": "d",
+        "status": "succeeded",
+        "latency_ms": 1,
+        "attempt_number": 0,
+        "fallback_index": 0,
+    }
+    with pytest.raises(ValueError, match="attempt_number"):
+        _decode_execution(payload)

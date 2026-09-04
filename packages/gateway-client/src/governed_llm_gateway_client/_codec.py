@@ -358,6 +358,8 @@ def _decode_usage(payload: dict[str, object]) -> Usage:
 def _decode_execution(payload: dict[str, object]) -> ProviderExecution:
     _check_fields(payload, _EXECUTION_FIELDS, "provider execution")
     usage_value = payload.get("usage")
+    attempt_number = _optional_int(payload, "attempt_number")
+    fallback_index = _optional_int(payload, "fallback_index")
     return ProviderExecution(
         provider=_required_str(payload, "provider"),
         model=_required_str(payload, "model"),
@@ -369,8 +371,8 @@ def _decode_execution(payload: dict[str, object]) -> ProviderExecution:
         else None,
         provider_request_id=_optional_str(payload, "provider_request_id"),
         finish_reason=_optional_str(payload, "finish_reason"),
-        attempt_number=_optional_int(payload, "attempt_number") or 1,
-        fallback_index=_optional_int(payload, "fallback_index") or 0,
+        attempt_number=1 if attempt_number is None else attempt_number,
+        fallback_index=0 if fallback_index is None else fallback_index,
     )
 
 
