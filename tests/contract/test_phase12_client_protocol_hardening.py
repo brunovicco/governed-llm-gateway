@@ -1,6 +1,7 @@
 import json
 import os
 import unittest
+from collections.abc import AsyncIterator
 from unittest.mock import patch
 from uuid import UUID
 
@@ -22,6 +23,15 @@ BASE_URL = "https://gateway.example"
 API_KEY = "gateway-test-secret"
 REQUEST_ID = UUID("44444444-4444-4444-8444-444444444444")
 OTHER_REQUEST_ID = UUID("55555555-5555-4555-8555-555555555555")
+
+
+class _ChunkedStream(httpx.AsyncByteStream):
+    def __init__(self, chunks: tuple[bytes, ...]) -> None:
+        self._chunks = chunks
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        for chunk in self._chunks:
+            yield chunk
 
 
 def _messages() -> tuple[Message, ...]:
@@ -212,6 +222,66 @@ class GatewayClientProtocolHardeningTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(GatewayProtocolError):
                 await _generate(client)
 
+    async def test_encoded_sse_response_fails_before_body_decode(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            self.assertEqual(request.headers["Accept-Encoding"], "identity")
+            return httpx.Response(
+                200,
+                headers={
+                    "content-type": "text/event-stream",
+                    "content-encoding": "gzip",
+                },
+                content=_sse(
+                    StreamEventType.RESPONSE_COMPLETED,
+                    1,
+                    routing=_routing_payload(),
+                ),
+                request=request,
+            )
+
+        async with GatewayClient(
+            GatewayClientConfig(base_url=BASE_URL, api_key=API_KEY),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            with self.assertRaises(GatewayProtocolError):
+                await _generate(client)
+
+    async def test_total_stream_size_limit_applies_without_content_length(self) -> None:
+        routing = _routing_payload()
+        events = [_sse(StreamEventType.RESPONSE_STARTED, 1, routing=routing)]
+        for sequence in range(2, 8):
+            events.append(
+                _sse(
+                    StreamEventType.CONTENT_DELTA,
+                    sequence,
+                    delta="x" * 450,
+                )
+            )
+        events.append(_sse(StreamEventType.RESPONSE_COMPLETED, 8, routing=routing))
+        body = "".join(events).encode()
+        self.assertGreater(len(body), 2500)
+        chunks = tuple(body[index : index + 256] for index in range(0, len(body), 256))
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                stream=_ChunkedStream(chunks),
+                request=request,
+            )
+
+        async with GatewayClient(
+            GatewayClientConfig(
+                base_url=BASE_URL,
+                api_key=API_KEY,
+                max_sse_event_bytes=2048,
+                max_sse_stream_bytes=2500,
+            ),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            with self.assertRaises(GatewayProtocolError):
+                await _generate(client)
+
     async def test_redirect_is_not_followed_and_gateway_key_is_not_exposed(self) -> None:
         calls: list[str] = []
 
@@ -246,6 +316,27 @@ class GatewayClientProtocolHardeningTests(unittest.IsolatedAsyncioTestCase):
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(502, content=oversized_body, request=request)
+
+        async with GatewayClient(
+            GatewayClientConfig(base_url=BASE_URL, api_key=API_KEY),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            with self.assertRaises(GatewayHTTPError) as raised:
+                await _generate(client)
+
+        self.assertEqual(raised.exception.code, "http_status_502")
+        self.assertNotIn(sensitive_code, str(raised.exception))
+
+    async def test_encoded_http_error_body_is_not_decoded_or_exposed(self) -> None:
+        sensitive_code = "compressed-sensitive-detail"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                502,
+                headers={"content-encoding": "gzip"},
+                json={"detail": {"code": sensitive_code}},
+                request=request,
+            )
 
         async with GatewayClient(
             GatewayClientConfig(base_url=BASE_URL, api_key=API_KEY),
