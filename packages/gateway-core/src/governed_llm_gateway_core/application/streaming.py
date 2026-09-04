@@ -10,8 +10,8 @@ from dataclasses import replace
 from a2a_otel_kit import Observability
 from governed_llm_gateway_contracts import (
     Capability,
-    GatewayError,
     ExecutionStatus,
+    GatewayError,
     GatewayRequest,
     GatewayStreamEvent,
     ProviderExecution,

@@ -269,7 +269,7 @@ class GatewayStreamEvent:
             self._require()
         elif self.event_type is StreamEventType.RESPONSE_COMPLETED:
             self._require(routing=True)
-            self._validate_execution(ExecutionStatus.SUCCEEDED, required=True)
+            self._validate_execution(ExecutionStatus.SUCCEEDED, required=False)
         elif self.event_type is StreamEventType.RESPONSE_FAILED:
             if self.error is None:
                 raise ValueError("response.failed requires error")
