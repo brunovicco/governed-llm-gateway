@@ -20,9 +20,9 @@ Current execution sequence:
     `5888376da798d55b9f4139e943514dca0e573dea`).
 12. Thin client SDK transport — COMPLETE (`governed-llm-gateway` PR #11, squash merge
     `1b9b3ef01f0efac49d1f2a92056473ec4b45c375`).
-13. Optional Verifiable AI Governance integration — CURRENT; signed authorization verification,
-    monotonic enforcement, runtime evidence and governed execution boundary are full-gate green.
-14. Incremental real-project integrations — NOT STARTED.
+13. Optional Verifiable AI Governance integration — COMPLETE (`governed-llm-gateway` PR #12,
+    squash merge `ec18ad8e95490fdeb6ee4c6b9e26ae7cd5b1b0b1`).
+14. Incremental real-project integrations — CURRENT.
 
 ## Permanent authority sequence
 
@@ -58,81 +58,57 @@ Phase 12 adds the thin provider-neutral SDK. Consumers need only gateway URL/cre
 provider SDKs, provider keys, ranking, retry or fallback. The SDK preserves routing provenance and
 strictly bounds/validates its SSE transport.
 
-## Phase 12 completion
+Phase 13 integrates optional signed Verifiable AI Governance authorization without turning the gateway
+into a second PDP. Governance scope can only narrow the Policy Router-authorized set, and denial/runtime
+execution evidence remains metadata-only and non-authoritative.
 
-PR #11 was reviewed and squash-merged at:
+## Phase 14 — Real project integrations
 
-`1b9b3ef01f0efac49d1f2a92056473ec4b45c375`
+Normative recommended order:
 
-Final validated baseline reproduced in CI and locally on macOS/Python 3.13.12:
+1. `controlled-autonomy-lab`
+2. `getnet-multi-agent-support-v2`
+3. `OpsLens`
+4. `RAGForge`
+5. `Verifiable AI Governance`
 
-- 277 tests passed;
-- aggregate coverage 80.98%;
-- mypy/Ruff PASS across 102 files;
-- Bandit 0 issues;
-- pip-audit no known vulnerabilities;
-- architecture check, secret scan and Phase 0 gate PASS.
+Each migration is an integration case. Consumers depend on the gateway; the gateway never depends on a
+business project. Migrations remain incremental rather than moving all consumers simultaneously.
 
-## Phase 13 — Governance Integration
+### Integration case 1 — controlled-autonomy-lab — COMPLETE
 
-Normative source scope:
+Consumer PR #24 was squash-merged as:
 
-- authorization context;
-- scope validation;
-- governance event sink;
-- runtime evidence.
+`238e4b93284579b5c9ba0d650161febcdbf83a51`
 
-Acceptance:
+The consumer now has an opt-in `LLM_PROVIDER=gateway` path for bounded text generation:
 
-- gateway enforces authorized model group;
-- unauthorized expansion fails closed;
-- denial produces evidence;
-- execution evidence correlates to authorization.
+- exact gateway SDK/contracts dependency pin;
+- explicit dotted workload identity;
+- no provider credentials, provider model selection, retry or fallback in the consumer path;
+- normalized gateway SSE text/usage mapped into the existing consumer model port;
+- direct provider adapters retained only for benchmark comparability and unsupported continuation cases;
+- bounded-agent tool-result continuation fails closed because no canonical provider-neutral continuation
+  contract exists yet.
 
-ADR-0012 defines the Phase 13 boundary:
+The first consumer also exposed a real SDK packaging defect: installed `gateway-client` and
+`gateway-contracts` were not PEP 561-discoverable. Gateway PR #13 added `py.typed` markers and was
+squash-merged as `96b09956e933db50bf9ea900973f8a0b2145cb3c` before the consumer integration was finalized.
 
-- integrate with the existing Verifiable AI Governance `SignedRuntimeAuthorization` v1.0 semantics;
-- keep the gateway as PEP/operational selector, not a second governance system or PDP;
-- signature verification remains behind an adapter/port boundary with explicit trusted keys;
-- no arbitrary key discovery from token-controlled URLs;
-- governance authorization is audience-, time-, request- and scope-bound;
-- governance/PDP authorization is intersected before registry eligibility/ranking/health;
-- ranking, retry, fallback and manual ranking override cannot resurrect governance-excluded groups;
-- denials and executions emit minimized correlated runtime evidence;
-- evidence is not a same-request authorization source;
-- prompts/completions/raw provider payloads remain excluded from default evidence.
+Consumer validation before merge:
 
-Validated Phase 13 implementation now includes:
+- GitHub Actions run `33883274493` — PASS;
+- 194 tests passed;
+- aggregate coverage 86.19%;
+- strict mypy PASS across 85 source files;
+- Ruff lint/format PASS across 88 files;
+- Bandit 0 issues across 6,281 lines of code;
+- pip-audit reported no known vulnerabilities in auditable registry dependencies.
 
-- strict v1 JSON envelope parsing with duplicate-key and schema-drift rejection;
-- canonical signing bytes and Ed25519 verification against an explicit `kid` allowlist;
-- `cryptography==50.0.0`, remediating the vulnerable 46.0.3 bootstrap without audit waiver;
-- immutable verified-governance facts and exact runtime request binding;
-- audience/time/scope enforcement with stable denial reason codes;
-- governance/Policy Router model-group intersection that only narrows authorization;
-- final selected-model-group revalidation immediately before provider execution;
-- metadata-only denial and execution evidence correlated across governance authorization, Policy Router
-  decision, gateway routing decision, and actual provider/deployment;
-- local-first evidence journal with explicit `BEST_EFFORT` and `REQUIRED` remote-delivery modes;
-- governed execution wrapper around the existing resilience service, without duplicating retry/fallback;
-- real-provider attempt counting that excludes circuit-open skips;
-- tests proving governance denial blocks provider execution, fallback evidence names the actual final
-  deployment, and circuit-only paths do not fabricate provider-execution evidence.
+### Integration case 2 — getnet-multi-agent-support-v2 — NEXT
 
-Latest validated Phase 13 baseline:
-
-- branch `feat/phase-13-governance-integration`;
-- head `244eb7f6fdd46a8dc7375d4c76eee98d01c8868c`;
-- GitHub Actions run `33881234729` — PASS;
-- 317 tests passed;
-- aggregate coverage 81.10%;
-- `governance_execution.py` coverage 88.57%;
-- mypy/Ruff PASS across 110 files;
-- Bandit 0 issues across 11,525 lines of code;
-- pip-audit reports no known vulnerabilities;
-- architecture check, secret scan and Phase 0 gate PASS.
-
-Next boundary: synchronize review documentation, open the Phase 13 PR, then obtain independent
-architecture/security review. Phase 14 remains blocked until Phase 13 review approval and merge.
+Start from the existing consumer model/provider boundary and migrate incrementally. Do not weaken the
+consumer's business-tool authority boundary, do not introduce client-side retry/fallback, and do not
+fake tool-result continuation if the current gateway contract cannot preserve the required agent state.
 
 Do not pull work forward when doing so weakens an authority boundary or requires an unstable contract.
