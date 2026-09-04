@@ -62,6 +62,7 @@ _TOOL_CALL_FIELDS = frozenset({"call_id", "name", "arguments"})
 _USAGE_FIELDS = frozenset({"input_tokens", "output_tokens", "total_cost_usd"})
 _ERROR_FIELDS = frozenset({"code", "message", "retryable"})
 _TERMINAL_EVENTS = frozenset({StreamEventType.RESPONSE_COMPLETED, StreamEventType.RESPONSE_FAILED})
+_MAX_HTTP_CHUNK_BYTES = 64 * 1024
 
 
 class _DuplicateJsonKeyError(ValueError):
@@ -72,6 +73,7 @@ async def _iter_sse_events(
     response: httpx.Response,
     *,
     max_event_bytes: int,
+    expected_request_id: UUID,
 ) -> AsyncIterator[GatewayStreamEvent]:
     expected_sequence = 1
     terminal = False
@@ -80,6 +82,8 @@ async def _iter_sse_events(
             raise GatewayProtocolError("gateway emitted an event after the terminal SSE event")
         event_name, event_id, payload = _parse_sse_frame(frame)
         event = _decode_event(payload)
+        if event.request_id != expected_request_id:
+            raise GatewayProtocolError("gateway SSE request_id does not match the request")
         if event.event_type.value != event_name:
             raise GatewayProtocolError("SSE event name does not match event payload")
         if event.sequence_number != event_id:
@@ -102,7 +106,9 @@ async def _iter_sse_frames(
     if max_event_bytes <= 0:
         raise GatewayProtocolError("max SSE event size must be positive")
     buffer = bytearray()
-    async for chunk in response.aiter_bytes():
+    async for chunk in response.aiter_bytes(
+        chunk_size=min(max_event_bytes, _MAX_HTTP_CHUNK_BYTES)
+    ):
         buffer.extend(chunk)
         while True:
             extracted = _extract_frame(buffer)
