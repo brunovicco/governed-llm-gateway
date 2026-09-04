@@ -18,7 +18,7 @@ Last updated: 2026-09-03
 | Phase 9 — OpenTelemetry | COMPLETE (`governed-llm-gateway` PR #8) |
 | Phase 10 — Evaluation Framework | COMPLETE (`governed-llm-gateway` PR #9) |
 | Phase 11 — Evidence-Driven Ranking | COMPLETE (`governed-llm-gateway` PR #10) |
-| Phase 12 — Client SDK | CURRENT — IMPLEMENTATION / VALIDATION |
+| Phase 12 — Client SDK | CURRENT — IMPLEMENTATION / FULL-GATE VALIDATION |
 | Phase 13+ | NOT STARTED |
 
 ## Durable architecture baseline
@@ -91,7 +91,7 @@ The accepted SDK boundary is intentionally thin:
 
 ## Current Phase 12 slice
 
-Implemented on the branch, pending full quality-gate validation:
+Implemented on the branch:
 
 1. accepted ADR-0010 and moved it out of the deferred ADR backlog;
 2. added sanitized client error classes for configuration/request/transport/HTTP/protocol failures;
@@ -100,17 +100,19 @@ Implemented on the branch, pending full quality-gate validation:
    credential-safe representation;
 5. added contract tests for one-attempt transport behavior, gateway-only request payloads, HTTP-error
    sanitization, SSE bounds/sequence failure, terminal failure aggregation, and Phase 11 provenance;
-6. identified a server compatibility gap: the SSE routing serializer exposed `benchmark_snapshot_id`
-   but not `score_provenance_mode` / `manual_override_id`; the current bootstrap slice patches and tests
-   those fields so consumers can satisfy the provenance-inspection acceptance criterion;
-7. client package metadata is moving to `0.2.0` with direct HTTPX transport dependency and refreshed
-   workspace lock.
+6. closed the SSE compatibility gap by serializing `score_provenance_mode` and `manual_override_id`
+   alongside `benchmark_snapshot_id`, preserving Phase 11 provenance for SDK consumers;
+7. updated `gateway-client` to `0.2.0`, added direct HTTPX transport dependency, and refreshed the
+   workspace lock;
+8. targeted Phase 12 Ruff, mypy, and contract tests passed in bootstrap run `33822108794`;
+9. both temporary Phase 12 bootstrap workflows self-removed, leaving clean head
+   `6c9042a1180d0945f774200fc97e66194d5df7e9`.
 
 ## Next step
 
-Complete the bootstrap/lock update, run the full quality gate, fix any lint/type/test/security findings,
-and record the first validated Phase 12 baseline. Do not start Phase 13 while Phase 12 remains under
-implementation/review.
+Run the full repository quality gate for the clean Phase 12 head, fix any cross-repository
+lint/type/test/security/coverage findings, and record the first complete Phase 12 validation baseline.
+Do not start Phase 13 while Phase 12 remains under implementation/review.
 
 ## Explicitly deferred
 
