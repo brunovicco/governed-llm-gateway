@@ -105,10 +105,42 @@ Consumer validation before merge:
 - Bandit 0 issues across 6,281 lines of code;
 - pip-audit reported no known vulnerabilities in auditable registry dependencies.
 
-### Integration case 2 — getnet-multi-agent-support-v2 — NEXT
+### Integration case 2 — getnet-multi-agent-support-v2 — COMPLETE
 
-Start from the existing consumer model/provider boundary and migrate incrementally. Do not weaken the
-consumer's business-tool authority boundary, do not introduce client-side retry/fallback, and do not
-fake tool-result continuation if the current gateway contract cannot preserve the required agent state.
+Consumer PR #3 was squash-merged as:
+
+`6ee7f3db8f666e35f78f7df5524a1fc15e1ef0da`
+
+The migration adds an opt-in gateway implementation of the existing one-shot `LLMPort` while keeping
+customer scope, market isolation, support-agent routing, evidence gates, web search and business-tool
+authority inside the consumer. The gateway path owns neither direct provider credentials nor concrete
+model selection/retry/fallback. Gemini semantic embeddings remain a separate direct capability because
+the gateway does not expose an embeddings service.
+
+A pre-review contract check found that a failed gateway terminal response may carry partial generated
+content. The consumer now requires `ExecutionStatus.SUCCEEDED` before returning any generated answer;
+failed partial output is rejected fail closed.
+
+Final consumer validation before merge:
+
+- GitHub Actions run `33886194928` — PASS;
+- 259 tests passed, 14 skipped and 1 deselected;
+- aggregate coverage 88.59%;
+- strict mypy PASS across 55 source files;
+- Ruff lint/format PASS across 118 files;
+- Bandit 0 issues across 2,022 lines of code;
+- pip-audit reported no known vulnerabilities in auditable registry dependencies;
+- architecture, MCP configuration, governance and vendored loop-schema gates passed.
+
+### Integration case 3 — OpsLens — CURRENT
+
+OpsLens already freezes a bounded semantic-query planner contract before model invocation. Its accepted
+ADR 0021 deliberately separates the model proposal from deterministic query construction, validation,
+SQL compilation and read-only Athena execution. The integration should preserve that narrower authority
+while moving provider/model selection and provider retry/fallback behind the gateway.
+
+The existing offline Bedrock request contract remains useful as a benchmark/reference artifact; the
+consumer migration must not turn a model response into SQL authority or broaden the supported semantic
+surface.
 
 Do not pull work forward when doing so weakens an authority boundary or requires an unstable contract.
