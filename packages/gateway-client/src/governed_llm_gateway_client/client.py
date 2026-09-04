@@ -41,7 +41,10 @@ from .errors import (
 _GATEWAY_URL_ENV = "GOVERNED_LLM_GATEWAY_URL"
 _GATEWAY_API_KEY_ENV = "GOVERNED_LLM_GATEWAY_API_KEY"
 _DEFAULT_MAX_SSE_EVENT_BYTES = 1024 * 1024
+_DEFAULT_MAX_SSE_STREAM_BYTES = 16 * 1024 * 1024
+_MAX_CONFIGURED_SSE_STREAM_BYTES = 128 * 1024 * 1024
 _MAX_ERROR_BODY_BYTES = 64 * 1024
+_IDENTITY_CONTENT_ENCODINGS = frozenset({"", "identity"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +55,7 @@ class GatewayClientConfig:
     api_key: str = field(repr=False)
     request_timeout_seconds: float = 60.0
     max_sse_event_bytes: int = _DEFAULT_MAX_SSE_EVENT_BYTES
+    max_sse_stream_bytes: int = _DEFAULT_MAX_SSE_STREAM_BYTES
 
     def __post_init__(self) -> None:
         """Fail closed on unsafe URLs, empty credentials, or invalid transport limits."""
@@ -60,8 +64,24 @@ class GatewayClientConfig:
             raise GatewayConfigurationError("gateway API key must be a normalized non-empty value")
         if self.request_timeout_seconds <= 0 or self.request_timeout_seconds > 300:
             raise GatewayConfigurationError("request timeout must be in the range (0, 300]")
-        if self.max_sse_event_bytes <= 0:
-            raise GatewayConfigurationError("max SSE event size must be positive")
+        if (
+            not isinstance(self.max_sse_event_bytes, int)
+            or isinstance(self.max_sse_event_bytes, bool)
+            or self.max_sse_event_bytes <= 0
+        ):
+            raise GatewayConfigurationError("max SSE event size must be a positive integer")
+        if (
+            not isinstance(self.max_sse_stream_bytes, int)
+            or isinstance(self.max_sse_stream_bytes, bool)
+            or self.max_sse_stream_bytes <= 0
+        ):
+            raise GatewayConfigurationError("max SSE stream size must be a positive integer")
+        if self.max_sse_stream_bytes < self.max_sse_event_bytes:
+            raise GatewayConfigurationError(
+                "max SSE stream size must cover one maximum-size event"
+            )
+        if self.max_sse_stream_bytes > _MAX_CONFIGURED_SSE_STREAM_BYTES:
+            raise GatewayConfigurationError("max SSE stream size exceeds the client safety ceiling")
 
 
 class GatewayClient:
@@ -164,11 +184,17 @@ class GatewayClient:
                 headers={
                     "X-Gateway-API-Key": self._config.api_key,
                     "Accept": "text/event-stream",
+                    "Accept-Encoding": "identity",
                 },
                 json=payload,
             ) as response:
                 if response.status_code < 200 or response.status_code >= 300:
                     raise await _http_error(response)
+                _validate_identity_response(response)
+                _validate_success_content_length(
+                    response,
+                    max_stream_bytes=self._config.max_sse_stream_bytes,
+                )
                 content_type = response.headers.get("content-type", "")
                 media_type = content_type.split(";", 1)[0].strip().lower()
                 if media_type != "text/event-stream":
@@ -178,6 +204,7 @@ class GatewayClient:
                 async for event in _iter_sse_events(
                     response,
                     max_event_bytes=self._config.max_sse_event_bytes,
+                    max_stream_bytes=self._config.max_sse_stream_bytes,
                     expected_request_id=expected_request_id,
                 ):
                     yield event
@@ -414,6 +441,30 @@ def _serialize_generate_request(
     }
 
 
+def _validate_identity_response(response: httpx.Response) -> None:
+    content_encoding = response.headers.get("content-encoding", "").strip().lower()
+    if content_encoding not in _IDENTITY_CONTENT_ENCODINGS:
+        raise GatewayProtocolError("gateway response content-encoding must be identity")
+
+
+def _validate_success_content_length(
+    response: httpx.Response,
+    *,
+    max_stream_bytes: int,
+) -> None:
+    value = response.headers.get("content-length")
+    if value is None:
+        return
+    try:
+        content_length = int(value)
+    except ValueError as exc:
+        raise GatewayProtocolError("gateway response content-length is invalid") from exc
+    if content_length < 0:
+        raise GatewayProtocolError("gateway response content-length is invalid")
+    if content_length > max_stream_bytes:
+        raise GatewayProtocolError("gateway SSE stream exceeds configured total size limit")
+
+
 async def _http_error(response: httpx.Response) -> GatewayHTTPError:
     body = await _read_bounded_error_body(response)
     code = _extract_http_error_code(body) or f"http_status_{response.status_code}"
@@ -421,8 +472,21 @@ async def _http_error(response: httpx.Response) -> GatewayHTTPError:
 
 
 async def _read_bounded_error_body(response: httpx.Response) -> bytes:
+    content_encoding = response.headers.get("content-encoding", "").strip().lower()
+    if content_encoding not in _IDENTITY_CONTENT_ENCODINGS:
+        return b""
+
+    content_length = response.headers.get("content-length")
+    if content_length is not None:
+        try:
+            parsed_length = int(content_length)
+        except ValueError:
+            return b""
+        if parsed_length < 0 or parsed_length > _MAX_ERROR_BODY_BYTES:
+            return b""
+
     body = bytearray()
-    async for chunk in response.aiter_bytes(chunk_size=_MAX_ERROR_BODY_BYTES):
+    async for chunk in response.aiter_raw(chunk_size=_MAX_ERROR_BODY_BYTES):
         if len(body) + len(chunk) > _MAX_ERROR_BODY_BYTES:
             return b""
         body.extend(chunk)
