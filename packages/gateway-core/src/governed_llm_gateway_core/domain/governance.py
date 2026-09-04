@@ -36,6 +36,7 @@ class GovernanceAuthorizationViolation(ValueError):
     """Raised when verified governance scope does not authorize the runtime request."""
 
     def __init__(self, message: str, *, reason: GovernanceDenialReason) -> None:
+        """Retain a stable denial reason without exposing sensitive request content."""
         super().__init__(message)
         self.reason = reason
 
@@ -229,7 +230,8 @@ def governance_authorized_candidates(
     )
     if not narrowed:
         raise GovernanceAuthorizationViolation(
-            "governance and Policy Router authorization have no executable model-group intersection",
+            "governance and Policy Router authorization have no executable "
+            "model-group intersection",
             reason=GovernanceDenialReason.NO_MODEL_GROUP_INTERSECTION,
         )
     return narrowed

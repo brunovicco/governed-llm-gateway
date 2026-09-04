@@ -81,7 +81,9 @@ class GovernanceRuntimeEvidence:
             if self.provider is not None or self.deployment_id is not None:
                 raise ValueError("authorization denial evidence cannot claim provider execution")
             if self.provider_error_code is not None or self.attempt_count is not None:
-                raise ValueError("authorization denial evidence cannot contain provider attempt data")
+                raise ValueError(
+                    "authorization denial evidence cannot contain provider attempt data"
+                )
             return
 
         if self.denial_reason is not None:

@@ -1,11 +1,11 @@
 """Application orchestration boundaries."""
 
 from .governance_evidence import (
+    GovernanceEventSink,
     GovernanceEvidenceDeliveryError,
     GovernanceEvidenceDeliveryMode,
     GovernanceEvidenceJournal,
     GovernanceEvidenceOutcome,
-    GovernanceEventSink,
     GovernanceRuntimeEvidence,
     build_governance_denial_evidence,
     build_governance_execution_evidence,
@@ -56,11 +56,11 @@ __all__ = [
     "AuthorizedCandidateSet",
     "ExecutionAttempt",
     "ExecutionAttemptOutcome",
+    "GovernanceEventSink",
     "GovernanceEvidenceDeliveryError",
     "GovernanceEvidenceDeliveryMode",
     "GovernanceEvidenceJournal",
     "GovernanceEvidenceOutcome",
-    "GovernanceEventSink",
     "GovernanceRuntimeEvidence",
     "InMemoryHealthTracker",
     "OperationalRankingService",
