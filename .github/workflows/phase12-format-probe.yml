@@ -1,0 +1,22 @@
+name: phase12-format-probe
+
+on:
+  push:
+    branches:
+      - feat/phase-12-client-sdk
+    paths:
+      - .github/workflows/phase12-format-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Show exact Ruff format diff
+        run: >-
+          uvx --python 3.13 --from ruff==0.12.11 ruff format --diff
+          packages/gateway-client/src/governed_llm_gateway_client/client.py
