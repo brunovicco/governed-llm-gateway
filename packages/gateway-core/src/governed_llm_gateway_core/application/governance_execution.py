@@ -22,6 +22,7 @@ from .governance_evidence import (
 )
 from .ranking import RankedCandidate, RankingDecision
 from .resilience import (
+    ExecutionAttempt,
     ExecutionAttemptOutcome,
     ResilienceExecutionError,
     ResilientExecutionResult,
@@ -124,14 +125,6 @@ class GovernanceExecutionService:
         except ResilienceExecutionError as exc:
             failed_candidate = _last_provider_attempt_candidate(decision, exc)
             if failed_candidate is not None:
-                provider_attempt_count = sum(
-                    attempt.outcome
-                    in {
-                        ExecutionAttemptOutcome.TRANSIENT_FAILURE,
-                        ExecutionAttemptOutcome.PERMANENT_FAILURE,
-                    }
-                    for attempt in exc.attempts
-                )
                 await self._evidence.record(
                     build_governance_execution_evidence(
                         authorization,
@@ -145,7 +138,7 @@ class GovernanceExecutionService:
                         provider=failed_candidate.deployment.provider,
                         deployment_id=failed_candidate.deployment.deployment_id,
                         succeeded=False,
-                        attempt_count=provider_attempt_count,
+                        attempt_count=_provider_attempt_count(exc.attempts),
                         provider_error_code=(
                             exc.last_error_code.value if exc.last_error_code is not None else None
                         ),
@@ -166,10 +159,23 @@ class GovernanceExecutionService:
                 provider=result.deployment.provider,
                 deployment_id=result.deployment.deployment_id,
                 succeeded=True,
-                attempt_count=len(result.attempts),
+                attempt_count=_provider_attempt_count(result.attempts),
             )
         )
         return result
+
+
+def _provider_attempt_count(attempts: tuple[ExecutionAttempt, ...]) -> int:
+    """Count only calls that reached a provider, excluding circuit-open skips."""
+    return sum(
+        attempt.outcome
+        in {
+            ExecutionAttemptOutcome.SUCCEEDED,
+            ExecutionAttemptOutcome.TRANSIENT_FAILURE,
+            ExecutionAttemptOutcome.PERMANENT_FAILURE,
+        }
+        for attempt in attempts
+    )
 
 
 def _last_provider_attempt_candidate(
