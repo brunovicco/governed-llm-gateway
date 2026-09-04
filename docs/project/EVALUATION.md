@@ -33,7 +33,7 @@ The framework provides:
 - distinct quality and provider-availability observation states;
 - deterministic scorecard aggregation;
 - canonical dataset digests and immutable content-derived snapshot identifiers;
-- versioned snapshot persistence suitable for review and later Phase 11 consumption;
+- versioned snapshot persistence suitable for review and Phase 11 promotion;
 - benchmark code included in Ruff, mypy, Bandit, architecture validation, and repository coverage.
 
 ## Initial dataset
@@ -152,20 +152,119 @@ Live-provider benchmark execution must remain explicitly separated under the exi
 `live_provider` pytest marker or an equally explicit manual benchmark workflow. Credentials must not
 be required by the default quality gate.
 
-## Phase 11 boundary
+## Phase 11 promotion boundary
 
-Phase 10 produces evaluation evidence only. Production ranking does **not** import, load, or consume
-benchmark result snapshots in this phase, and `benchmark_snapshot_id` remains unset in runtime routing
-provenance.
+ADR-0009 is accepted. Phase 11 converts selected benchmark evidence into runtime ranking inputs only
+through an explicit, attributable promotion boundary:
 
-ADR-0009 remains deferred to Phase 11, where approved benchmark snapshots may influence ordering only
-inside the already-authorized candidate set.
+```text
+immutable benchmark snapshot
+  -> explicit approval/promotion
+  -> content-addressed ranking evidence
+  -> evidence-driven ranking policy
+  -> runtime ranking inside the existing authorized/eligible set
+```
 
-The authorization invariant remains:
+Runtime code does not import the offline `benchmarks/` source root and does not discover or load the
+newest benchmark snapshot automatically. `ranking_evidence.py` validates a promoted artifact through a
+runtime-side contract and verifies its content-derived `evidence_id` before it can be compiled into a
+ranking policy.
+
+Promotion explicitly maps benchmark target/workload identities to runtime deployment/workload
+identities. It fails closed when completed quality evidence is absent, so provider-only failures cannot
+be converted into false quality-zero evidence.
+
+## Benchmark-hybrid ranking semantics
+
+The initial Phase 11 compiler is deliberately hybrid rather than inventing undocumented normalization.
+It replaces only the two benchmark dimensions that already have bounded, directly consumable meaning:
+
+- `quality` <- promoted mean benchmark quality;
+- `availability` <- promoted benchmark availability rate.
+
+The following remain explicit Phase 5 static/versioned inputs:
+
+- reliability;
+- normalized latency score;
+- normalized cost score;
+- workload weights;
+- `expected_latency_ms` used by the hard latency eligibility gate.
+
+Raw benchmark p95 latency and cost evidence are retained in promoted evidence but are **not** silently
+converted to `[0,1]` ranking scores. A future normalization rule requires its own explicit reviewed
+semantics.
+
+Hybrid compilation is all-or-nothing for deployments already represented by the approved base ranking
+policy. Missing promoted evidence fails closed rather than silently mixing provenance.
+
+## Runtime activation boundary
+
+The current repository does not contain an executable bootstrap that discovers ranking configuration
+from `config/`. Gateway composition receives an immutable `RankingPolicy` object explicitly. Therefore
+Phase 11 activation is an explicit composition action: validated promoted evidence is compiled into a
+schema `1.1` `EvidenceDrivenRankingPolicy`, and that exact object is injected into the coordinator or
+runtime service.
+
+The legacy `ranking_policy_yaml.py` adapter remains a strict Phase 5/schema `1.0` loader and must not be
+interpreted as an automatic Phase 11 activation mechanism. In particular, runtime must not scan
+`benchmarks/results/`, choose a newest promotion, or infer an active evidence-driven policy from files.
+If a future executable bootstrap persists/loads schema `1.1` policies, that bootstrap must require an
+explicitly pinned approved artifact identity and preserve the same fail-closed provenance checks.
+
+## Runtime provenance and explainability
+
+Static Phase 5 routing keeps Phase 11 provenance unset. Evidence-driven routing records:
+
+- ranking policy version and digest;
+- `score_snapshot_id`;
+- exact `benchmark_snapshot_id`;
+- `score_provenance_mode`;
+- `manual_override_id` when an override is active.
+
+The benchmark snapshot and manual override identities participate in deterministic routing-decision
+identity. Changing provenance therefore changes `routing_decision_id` even when the selected deployment
+or effective numeric score is unchanged.
+
+`POST /v1/route/explain` serializes the same Phase 11 reconstruction fields under its ranking evidence.
+Static policies return those optional fields as null; evidence-driven and manual-override policies
+return the exact active identities. This keeps the external explanation surface aligned with the
+internal routing provenance without exposing prompts, provider payloads, or credentials.
+
+This is reconstruction evidence only. It does not become a source of authorization.
+
+## Manual override and rollback
+
+Manual override is explicit, versioned, attributable configuration rather than mutable in-memory state.
+A `ManualOverrideBundle` records:
+
+- schema/version;
+- approval date;
+- approving operator identity;
+- reason;
+- exact workload/deployment targets;
+- replacement quality and/or availability values.
+
+The complete canonical bundle is content-addressed as `manual_override_id`. The initial override
+contract may replace only `quality` and `availability`, matching the dimensions promoted by the current
+benchmark compiler. It cannot add deployments, modify policy authorization, bypass eligibility, or
+implicitly stack on another active override. Replacing an override requires returning to the approved
+benchmark-hybrid baseline and applying a newly approved bundle.
+
+Rollback selects an explicitly identified previously approved immutable ranking artifact. The approval
+artifact identity binds approval metadata to the exact ranking-policy digest and benchmark/override
+provenance. Unknown or ambiguous rollback targets fail closed.
+
+## Authorization invariant
+
+The permanent invariant remains:
 
 ```text
 Gateway allowed set ⊆ Policy Router authorized set
 ```
 
-Benchmark evidence may eventually rank already-authorized candidates; it must never grant model or
-deployment authorization.
+Benchmark evidence and manual overrides may only change ordering among candidates already returned by
+the PDP and still passing gateway eligibility gates. Regression tests cover both candidate-set
+monotonicity and disabled-deployment rejection for benchmark-hybrid and manual-override modes.
+
+No benchmark run, telemetry signal, provider outcome, or runtime observation automatically rewrites the
+active ranking policy.

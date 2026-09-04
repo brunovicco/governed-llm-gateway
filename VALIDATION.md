@@ -1,4 +1,4 @@
-# Phase 0 through Phase 10 Validation Record
+# Phase 0 through Phase 11 Validation Record
 
 Date: 2026-09-03
 
@@ -35,6 +35,8 @@ Gateway allowed set ⊆ Policy Router authorized set
   `ed429a6554fb987cd4ab991d330b2005d8cfd0d7`.
 - Phase 9 — OpenTelemetry: PR #8, merge commit
   `be15c21ecfc76ef9bb727e5c4144c4929f028489`.
+- Phase 10 — Evaluation Framework: PR #9, squash merge
+  `db30ffc481d1a3c02fb01f46524b5190290fb7ac`.
 
 ## Phase 8 validation checkpoint
 
@@ -67,179 +69,192 @@ Read-only revalidation run `33803564689`:
 - pip-audit — no known vulnerabilities;
 - architecture/secret/Phase 0 gates — PASS.
 
-Phase 9 findings resolved before merge included:
+Phase 9 findings resolved before merge included restoring backward-compatible optional telemetry
+parameters, preserving the shared deny-by-default sanitizer, adding error-path coverage, and closing
+provider-attempt spans before retry backoff.
 
-- restoring backward-compatible optional `_sse_body()` telemetry parameters;
-- retaining the shared `a2a-otel-kit` deny-by-default sanitizer and exporting usage counts under
-  `llm.usage.input_count` / `llm.usage.output_count` rather than weakening credential-like-key
-  filtering;
-- adding telemetry error-path coverage after an intermediate rounded-coverage ambiguity;
-- closing `provider.inference` spans before retry backoff in both non-streaming and streaming paths;
-- adding a regression assertion proving that the provider span is finished before the retry sleeper
-  starts.
+## Phase 10 implementation and validation
 
-## Phase 10 implementation
+Phase 10 introduced the repository-level offline `benchmarks/` source root without making it a runtime
+dependency of the gateway packages.
 
-Phase 10 is implemented on `feat/phase-10-evaluation-framework` as an offline-first evaluation source
-root under `benchmarks/`. It does not become a runtime dependency of the gateway packages.
+Validated behavior includes:
 
-### Dataset and workload evidence
+- schema `1.0` / benchmark `gateway-eval-v1` public/synthetic dataset;
+- ten cases across `structured_extraction`, `rag_ptbr`, `code_generation`, `tool_use`, and
+  `agent_orchestration`;
+- strict dataset validation before provider execution;
+- deterministic scorer registry: `exact_json`, `contains_all`, `mapping_fields`, `ordered_sequence`;
+- provider-neutral executor/runner;
+- explicit `succeeded`, `quality_failure`, and `provider_failure` observations;
+- provider failures retain `quality_score = None`;
+- scorecards separately aggregate quality, availability, latency, TTFT, usage, cost, rate limits,
+  fallback frequency, and provider errors;
+- exact provider/model/API/configuration/source-date target provenance;
+- canonical dataset digest and content-addressed immutable benchmark snapshot identity;
+- immutable/idempotent result persistence without raw provider responses.
 
-`benchmarks/datasets/gateway-eval-v1.json`:
+Phase 10 quality hardening also resolved a coverage-report precision issue. The threshold was not
+lowered and benchmark code was not excluded; meaningful scorer tests raised actual coverage above 80%,
+and coverage precision is fixed at 2 decimals.
 
-- schema version `1.0`;
-- benchmark version `gateway-eval-v1`;
-- explicit data classification `public`;
-- ten public/synthetic cases;
-- two cases for each initial roadmap workload:
-  `structured_extraction`, `rag_ptbr`, `code_generation`, `tool_use`, and
-  `agent_orchestration`.
+Final Phase 10 validated baseline before merge:
 
-The strict loader rejects unknown fields, malformed JSON-compatible values, unsupported workload
-identifiers, and non-public Phase 10 datasets before provider execution.
+- GitHub Actions run `33807237149` — PASS;
+- pytest — 207 passed;
+- aggregate branch coverage — 80.56%;
+- Ruff lint/format — PASS;
+- mypy — PASS;
+- Bandit — no identified issues;
+- pip-audit — no known vulnerabilities;
+- architecture check — PASS;
+- secret scan — PASS;
+- Phase 0 regression gate — PASS;
+- credential-free default CI with no live provider/PDP calls.
 
-### Deterministic scorer evidence
+Independent architecture/security review returned `APPROVE` before PR #9 merged.
 
-The bounded scorer registry contains:
+## Phase 11 — Evidence-Driven Ranking
 
-- `exact_json`;
-- `contains_all`;
-- `mapping_fields`;
-- `ordered_sequence`.
+Active implementation branch:
 
-Scorers are deterministic/local and do not require another model or network call. The entire dataset
-is preflighted for known scorer identifiers before any benchmark executor call.
+`feat/phase-11-evidence-driven-ranking`
 
-### Provider/model target evidence
+ADR-0009 — Benchmark-Derived Routing Scores — is accepted.
 
-`benchmarks/runners/targets-v1.json`, matrix version `phase10-targets-v1`, identifies every target by:
+### Promotion and evidence boundary
 
-- provider;
-- exact model identifier;
-- API family/surface;
-- benchmark configuration;
-- source date.
-
-The initial matrix contains development/benchmark targets for NVIDIA, Groq, OpenRouter, and Google
-Gemini plus paid/control targets for OpenAI Responses and Anthropic Messages.
-
-Free/developer endpoints are public/synthetic benchmark/development targets only by default.
-
-### Quality versus provider availability
-
-The provider-neutral runner represents observations as:
-
-- `succeeded`;
-- `quality_failure`;
-- `provider_failure`.
-
-Provider failures have `quality_score = None`; rate limits, timeouts, and outages therefore remain
-availability/error evidence rather than becoming false zero-quality model results.
-
-Scorecards separately aggregate availability, quality success among completed calls, mean quality,
-latency p50/p95, TTFT p50/p95, usage, cost, rate-limit count, fallback frequency, and provider error
-counts.
-
-### Snapshot reproducibility
-
-Dataset digests and benchmark snapshot identifiers are canonical `sha256:` values. Snapshot identity
-covers:
-
-- benchmark and runner versions;
-- run date;
-- full dataset digest;
-- exact benchmark targets/configurations;
-- normalized observations;
-- aggregate scorecards.
-
-Equivalent evidence produces identical canonical JSON and snapshot ID. Changing target configuration
-changes the snapshot ID. Persisted snapshots are immutable/idempotent under:
+Phase 11 implements:
 
 ```text
-benchmarks/results/<benchmark-version>/<snapshot-sha256>.json
+immutable benchmark snapshot
+  -> explicit approval/promotion
+  -> content-addressed ranking evidence
+  -> evidence-driven ranking policy
+  -> runtime ordering inside the PDP-authorized/eligible set
 ```
 
-Raw provider responses are outside the persisted score-snapshot contract.
+`benchmarks/promotion.py` explicitly maps benchmark target/workload evidence to exact runtime
+workload/deployment identities. Promotion identity covers approval metadata, source benchmark snapshot,
+dataset digest, and promoted records. Provider-only failures cannot become false zero-quality evidence:
+promotion requires completed quality evidence and fails closed when it is absent.
 
-## Phase 10 validation findings resolved
+`benchmarks/promotion_store.py` persists promoted evidence immutably/idempotently and rejects
+same-identity/different-content collisions.
 
-### Repository source-root importability
+Runtime code does not import the repository-level benchmark runner. `ranking_evidence.py` and the
+strict JSON adapter validate promoted evidence on the runtime side and verify the content-derived
+`evidence_id`, including duplicate-key rejection.
 
-`benchmarks/` is intentionally not a runtime workspace package. mypy already treated the repository
-root as a source root; pytest initially did not when invoked as an installed console script.
-`pythonpath = ["."]` now makes this repository-level evaluation source boundary explicit without
-adding benchmark code to gateway runtime dependencies.
+### Benchmark-hybrid compilation
 
-### Strict scorer typing
+`evidence_ranking.py` introduces schema `1.1` evidence-driven policies with exact benchmark/promotion
+provenance. The initial compiler replaces only:
 
-Initial mypy validation exposed five scorer-registry/narrowing errors. The string-list scorer now
-performs explicit element narrowing and the scorer registry is typed directly as
-`dict[str, DeterministicScorer]`. No scorer semantics were relaxed.
+- `quality` with promoted mean quality;
+- `availability` with promoted availability rate.
 
-### Coverage threshold precision
+It deliberately does not invent normalization for benchmark latency/cost. Reliability, normalized
+latency score, normalized cost score, weights, and hard `expected_latency_ms` remain explicit static
+Phase 5 inputs until separately reviewed normalization semantics exist.
 
-After the first Phase 10 tests, all 199 tests passed but actual aggregate coverage was 79.63%. Default
-coverage display precision rounded the report to 80%, which allowed the workflow to continue despite
-the sub-threshold actual value.
+Compilation is all-or-nothing for deployments represented by the approved base ranking policy.
+Missing promoted evidence fails closed. Exact benchmark snapshot and promotion identities participate
+in the ranking-policy digest.
 
-The threshold was not lowered and `benchmarks/` was not excluded. Meaningful deterministic scorer
-branch tests increased actual coverage to **80.56%**, and `[tool.coverage.report] precision = 2` now
-makes future threshold evaluation/display unambiguous.
+### Runtime provenance and authority monotonicity
 
-## Phase 10 current validated baseline
+`RoutingProvenance` records Phase 11 reconstruction evidence:
 
-Validated source head before documentation-only synchronization:
+- exact `benchmark_snapshot_id`;
+- `score_provenance_mode`;
+- `manual_override_id` when present.
 
-`9a7b49407b0a040c976eac88fb29201ecf102a28`
+These identities also participate in deterministic `routing_decision_id` calculation. Static policies
+leave Phase 11 provenance unset.
+
+Contract tests prove benchmark-derived ranking cannot:
+
+- resurrect a deployment outside the PDP-provided candidate set;
+- bypass `enabled=False` eligibility;
+- create authorization independently of Policy Model Router.
+
+### Manual override
+
+`ranking_override.py` implements explicit, versioned, attributable manual override configuration.
+A bundle records approval version/date/operator/reason and exact target/value changes, and its complete
+canonical form produces a content-derived `manual_override_id`.
+
+The first override contract is intentionally narrow: it may replace only benchmark-promoted `quality`
+and/or `availability`. It cannot add deployments, change policy authorization, alter reliability,
+latency/cost scores, weights, or hard expected latency. Unknown targets fail closed.
+
+Overrides cannot stack implicitly. A replacement override must be applied from the approved
+benchmark-hybrid baseline, ensuring each active override has one explicit provenance identity.
+
+Runtime regression tests prove manual override cannot resurrect an excluded PDP candidate or bypass a
+disabled deployment. Changing only override attribution/reason changes the manual override identity and
+routing decision identity even when effective numeric score/selection remains unchanged.
+
+### Rollback
+
+`ApprovedRankingArtifact` binds approval metadata to an immutable ranking-policy digest and exact
+benchmark/manual-override provenance. `select_rollback_policy` requires an exact content-derived
+artifact identity and returns the previously approved immutable policy. Unknown or ambiguous rollback
+targets fail closed.
+
+Rollback therefore selects known configuration; it does not mutate the active policy in place and does
+not derive policy from live telemetry/runtime outcomes.
+
+## Phase 11 final implementation baseline before documentation synchronization
+
+Validated head:
+
+`d076ced8a99fcf89afa7f0d62234913501413a4d`
 
 GitHub Actions run:
 
-`33806876880`
+`33814109995`
 
 Results:
 
 - `uv lock --check` — PASS;
 - Ruff lint — PASS;
-- Ruff format — PASS, **84 files**;
-- mypy — PASS across **84 source files**;
-- pytest — **207 passed**;
-- aggregate branch coverage — **80.56%**;
-- `benchmarks/scoring.py` — **100%** coverage;
-- Bandit — PASS, no identified issues;
-- pip-audit — PASS, no known vulnerabilities;
+- Ruff format — PASS, **97 files**;
+- mypy — PASS across **97 source files**;
+- pytest — **251 passed**;
+- aggregate branch coverage — **81.27%**;
+- `ranking_override.py` — **91.78%** coverage;
+- `evidence_ranking.py` — **89.38%** coverage;
+- Bandit — PASS, **0 identified issues** across 9,564 lines scanned;
+- pip-audit — PASS, **no known vulnerabilities**;
 - architecture check — PASS;
 - secret scan — PASS;
 - Phase 0 regression gate — PASS;
 - default workflow token remains read-only;
 - credential-free and no live provider/PDP calls.
 
-The only test warning remains the existing FastAPI/Starlette TestClient `httpx` -> `httpx2`
-deprecation notice; it is non-blocking and unrelated to Phase 10.
+The only warning remains the existing FastAPI/Starlette TestClient `httpx` -> `httpx2` deprecation
+notice; it is non-blocking and unrelated to Phase 11.
 
-A final quality run is required after the documentation and coverage-precision checkpoint before the
-Phase 10 PR is considered review-ready.
+## Phase 11 review boundary
 
-## Phase boundary
+Implementation validation: **PASS**
 
-Phase 10 benchmark evidence is **not** consumed by production ranking. Runtime code does not import the
-benchmark source root and `benchmark_snapshot_id` remains unset in routing provenance.
+Authorization monotonicity regression coverage: **PASS**
 
-ADR-0009 — Benchmark-derived routing scores — remains deferred to Phase 11. Future benchmark-derived
-ranking may order only candidates already inside the PDP-authorized set and must never widen
-authorization.
+Benchmark quality-versus-availability separation: **PASS**
 
-## Phase 10 status
+Explicit promotion / content-addressed evidence: **PASS**
 
-Evaluation framework implementation: **IMPLEMENTED**
+Manual override / rollback behavior: **PASS**
 
-Deterministic dataset/scorer/runner/snapshot tests: **PASS**
+Documentation synchronization: **IN PROGRESS**
 
-Quality-versus-availability separation: **PASS**
+Independent architecture/security review: **PENDING**
 
-Credential-free default CI: **PASS**
+Phase 11 merge: **PENDING**
 
-Coverage precision hardening: **IMPLEMENTED; FINAL REVALIDATION PENDING**
-
-Independent architecture/security review and merge: **PENDING**
-
-Phase 11 remains blocked until Phase 10 is independently reviewed and merged.
+Phase 12 remains blocked until Phase 11 documentation is synchronized, PR-head CI is green,
+independent architecture/security review returns `APPROVE` with no justified BLOCKER/HIGH/MEDIUM
+findings, and the Phase 11 PR is merged.

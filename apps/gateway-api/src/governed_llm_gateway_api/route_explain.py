@@ -156,6 +156,9 @@ class RankingExplainModel(BaseModel):
     policy_version: str
     policy_digest: str
     score_snapshot_id: str
+    benchmark_snapshot_id: str | None = None
+    score_provenance_mode: str | None = None
+    manual_override_id: str | None = None
     selected_score: str | None
     alternatives: tuple[RankedCandidateModel, ...]
     rejected_candidates: tuple[RejectedCandidateModel, ...]
@@ -378,6 +381,9 @@ def _response(request_id: UUID, decision: RankingDecision) -> RouteExplainRespon
             policy_version=decision.routing.ranking_policy_version,
             policy_digest=decision.ranking_policy_digest,
             score_snapshot_id=decision.score_snapshot_id,
+            benchmark_snapshot_id=decision.routing.benchmark_snapshot_id,
+            score_provenance_mode=decision.routing.score_provenance_mode,
+            manual_override_id=decision.routing.manual_override_id,
             selected_score=(
                 _canonical_decimal(selected.score.total) if selected is not None else None
             ),

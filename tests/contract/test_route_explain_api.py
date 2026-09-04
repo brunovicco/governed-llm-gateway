@@ -24,6 +24,10 @@ from governed_llm_gateway_core.application import (
 )
 from governed_llm_gateway_core.application.ranking import RouteExplainService
 from governed_llm_gateway_core.domain.authorization import PolicyAuthorization
+from governed_llm_gateway_core.domain.evidence_ranking import (
+    EvidenceDrivenRankingPolicy,
+    ScoreProvenanceMode,
+)
 from governed_llm_gateway_core.domain.model_registry import (
     ModelDeployment,
     ModelRegistry,
@@ -145,19 +149,37 @@ def _ranking_policy() -> RankingPolicy:
     )
 
 
-def _client(resolver: FakeResolver | RejectingResolver) -> TestClient:
+def _client(
+    resolver: FakeResolver | RejectingResolver,
+    ranking_policy: RankingPolicy | None = None,
+) -> TestClient:
     policy = FakePolicy()
     coordinator = RouteExplainCoordinator(
         context_resolver=resolver,
         service=RouteExplainService(PolicyEnforcementService(policy)),
         registry=_registry(),
-        ranking_policy=_ranking_policy(),
+        ranking_policy=ranking_policy or _ranking_policy(),
         defaults=PolicyProjectionDefaults(
             max_latency_ms=10_000,
             max_cost_usd=Decimal("1"),
         ),
     )
     return TestClient(create_app(coordinator))
+
+
+def _evidence_ranking_policy() -> EvidenceDrivenRankingPolicy:
+    base = _ranking_policy()
+    return EvidenceDrivenRankingPolicy(
+        schema_version="1.1",
+        policy_version="ranking-benchmark-v1",
+        score_snapshot_id="benchmark-hybrid-v1",
+        source_date=TODAY,
+        workloads=base.workloads,
+        score_provenance_mode=ScoreProvenanceMode.MANUAL_OVERRIDE,
+        benchmark_snapshot_id="sha256:" + "c" * 64,
+        promotion_evidence_id="sha256:" + "d" * 64,
+        manual_override_id="sha256:" + "e" * 64,
+    )
 
 
 def _payload() -> dict[str, object]:
@@ -202,6 +224,9 @@ def test_route_explain_returns_deterministic_metadata_without_messages() -> None
     assert first.json()["selected_deployment"] == "candidate-a"
     assert first.json()["authorized_model_group"] == "agentic-strong"
     assert first.json()["ranking"]["decision_id"].startswith("sha256:")
+    assert first.json()["ranking"]["benchmark_snapshot_id"] is None
+    assert first.json()["ranking"]["score_provenance_mode"] is None
+    assert first.json()["ranking"]["manual_override_id"] is None
     assert "messages" not in first.json()
 
 
@@ -259,3 +284,20 @@ def test_route_explain_rejects_non_dotted_workload_at_http_boundary() -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_route_explain_exposes_phase11_reconstruction_provenance() -> None:
+    policy = _evidence_ranking_policy()
+    client = _client(FakeResolver(), policy)
+
+    response = client.post(
+        "/v1/route/explain",
+        json=_payload(),
+        headers={"X-Gateway-API-Key": TEST_CREDENTIAL},
+    )
+
+    assert response.status_code == 200
+    ranking = response.json()["ranking"]
+    assert ranking["benchmark_snapshot_id"] == policy.benchmark_snapshot_id
+    assert ranking["score_provenance_mode"] == "manual_override"
+    assert ranking["manual_override_id"] == policy.manual_override_id

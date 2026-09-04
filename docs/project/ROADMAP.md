@@ -20,9 +20,11 @@ Current execution sequence:
 8. Streaming — COMPLETE (`governed-llm-gateway` PR #7).
 9. OpenTelemetry via `a2a-otel-kit` — COMPLETE (`governed-llm-gateway` PR #8, merge commit
    `be15c21ecfc76ef9bb727e5c4144c4929f028489`).
-10. Evaluation framework — CURRENT, IMPLEMENTED / VALIDATION AND REVIEW PREPARATION.
-11. Evidence-driven ranking — NOT STARTED; blocked until Phase 10 review and merge.
-12. Thin client SDK transport.
+10. Evaluation framework — COMPLETE (`governed-llm-gateway` PR #9, squash merge
+    `db30ffc481d1a3c02fb01f46524b5190290fb7ac`).
+11. Evidence-driven ranking — CURRENT; implementation validated, documentation/review preparation in
+    progress. ADR-0009 accepted.
+12. Thin client SDK transport — NOT STARTED; blocked on Phase 11 review and merge.
 13. Optional Verifiable AI Governance integration, including signed runtime authorization when used.
 14. Incremental real-project integrations.
 
@@ -56,16 +58,55 @@ context; preserves the deny-by-default payload/credential boundary; and keeps te
 provider-neutral contracts/domain logic. Telemetry remains evidence only and cannot become an
 authorization, ranking, retry/fallback, or health authority.
 
-Phase 10 adds an offline-first evaluation source root under `benchmarks/`: strict public/synthetic
+Phase 10 added an offline-first evaluation source root under `benchmarks/`: strict public/synthetic
 versioned datasets, deterministic local scorers, a provider-neutral benchmark executor/runner,
 fully identified provider/model/API/configuration targets, explicit quality-vs-availability evidence,
 scorecards, canonical dataset digests, and immutable content-derived result snapshots. Benchmark code
 is included in repository lint, typing, security, architecture, and coverage gates.
 
-Phase 10 does **not** make runtime ranking consume benchmark evidence. `benchmark_snapshot_id` remains
-unset in routing provenance. ADR-0009 stays deferred to Phase 11, when approved benchmark snapshots may
-influence ordering only inside the PDP-authorized candidate set.
+Phase 10 remained evidence-only through merge. Runtime ranking did not consume benchmark results until
+Phase 11 was explicitly authorized by ADR-0009.
+
+Phase 11 uses an explicit promotion boundary:
+
+`immutable benchmark snapshot -> explicit approval/promotion -> versioned ranking evidence -> runtime ranking`
+
+Implemented Phase 11 behavior:
+
+- benchmark promotion maps exact benchmark target/workload evidence to exact runtime
+  deployment/workload identities;
+- runtime validates promoted evidence without importing the offline `benchmarks/` source root;
+- the first evidence-driven compiler replaces only bounded empirical `quality` and `availability`;
+  reliability, normalized latency/cost, weights, and hard expected-latency inputs remain static until
+  separately reviewed normalization semantics exist;
+- benchmark snapshot and promotion identities participate in the ranking-policy digest;
+- routing provenance exposes exact benchmark snapshot identity and explicit score-provenance mode;
+- manual override is a content-addressed, versioned, attributable operator action and may replace only
+  the benchmark-promoted quality/availability dimensions;
+- an active override carries exact `manual_override_id` provenance into the ranking policy and routing
+  decision identity;
+- override cannot add candidates, stack implicitly, bypass PDP authorization, or bypass gateway
+  eligibility;
+- rollback selects exactly one previously approved immutable ranking artifact by content-derived
+  artifact identity;
+- unknown/missing evidence, unknown override targets, and ambiguous rollback targets fail closed.
+
+Runtime must not discover or auto-promote the newest benchmark snapshot. Benchmark-derived evidence may
+only change ordering inside the already-authorized and otherwise-eligible candidate set. No benchmark
+run, telemetry signal, provider outcome, or runtime observation may automatically rewrite active
+ranking policy.
+
+Final implementation baseline before documentation synchronization:
+
+- head `d076ced8a99fcf89afa7f0d62234913501413a4d`;
+- GitHub Actions run `33814109995` — PASS;
+- pytest — 251 passed;
+- aggregate branch coverage — 81.27%;
+- mypy — PASS across 97 source files;
+- Ruff lint/format, Bandit, pip-audit, architecture check, secret scan, and Phase 0 gate — PASS.
+
+Phase 12 must not begin until Phase 11 documentation is synchronized, PR-head CI is green, independent
+architecture/security review returns APPROVE with no justified BLOCKER/HIGH/MEDIUM findings, and the
+Phase 11 PR is merged.
 
 Do not pull work forward when doing so weakens an authority boundary or requires an unstable contract.
-Phase 11 must not start until Phase 10 completes independent architecture/security review and is
-merged.

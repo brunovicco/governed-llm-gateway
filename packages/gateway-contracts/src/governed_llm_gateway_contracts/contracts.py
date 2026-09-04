@@ -208,6 +208,8 @@ class RoutingProvenance:
     ranking_policy_digest: str | None = None
     score_snapshot_id: str | None = None
     benchmark_snapshot_id: str | None = None
+    score_provenance_mode: str | None = None
+    manual_override_id: str | None = None
     provider: str | None = None
     model: str | None = None
     deployment: str | None = None
