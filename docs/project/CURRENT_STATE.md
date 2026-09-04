@@ -19,7 +19,7 @@ Last updated: 2026-09-04
 | Phase 10 — Evaluation Framework | COMPLETE (`governed-llm-gateway` PR #9) |
 | Phase 11 — Evidence-Driven Ranking | COMPLETE (`governed-llm-gateway` PR #10) |
 | Phase 12 — Thin Client SDK | COMPLETE (`governed-llm-gateway` PR #11) |
-| Phase 13 — Governance Integration | CURRENT — FIRST ENFORCEMENT SLICE GREEN |
+| Phase 13 — Governance Integration | CURRENT — IMPLEMENTATION GREEN, REVIEW PREPARATION |
 | Phase 14 | NOT STARTED |
 
 ## Durable architecture baseline
@@ -51,21 +51,11 @@ Final PR validation before merge:
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
-Local post-merge validation on macOS/Python 3.13.12 reproduced the same baseline exactly:
-
-- 277 tests passed;
-- aggregate coverage 80.98%;
-- mypy/Ruff PASS across 102 files;
-- Bandit 0 issues;
-- pip-audit no known vulnerabilities;
-- architecture check PASS;
-- secret scan PASS;
-- Phase 0 gate PASS.
+Local post-merge validation on macOS/Python 3.13.12 reproduced the same baseline exactly.
+The stale remote `tmp-ignore` branch was deleted after the Phase 12 merge.
 
 The only known warning remains the nonblocking FastAPI/Starlette TestClient deprecation for the
 current `httpx` integration in favor of `httpx2`.
-
-The stale remote `tmp-ignore` branch was also deleted after the Phase 12 merge.
 
 ## Phase 13 — Governance Integration
 
@@ -93,8 +83,6 @@ Acceptance:
 
 ## ADR-0012 — accepted
 
-ADR-0012 now defines the Phase 13 boundary.
-
 The authority chain is:
 
 `Verifiable AI Governance → Policy Model Router → Governed LLM Gateway → model provider`
@@ -115,47 +103,68 @@ Important decisions:
 - governance evidence is not a same-request authorization source;
 - prompts/completions/raw provider payloads are excluded from default evidence.
 
-## Phase 13 first validated slice
+## Phase 13 implementation state
 
-Implemented:
+Implemented and validated:
 
-1. `VerifiedGovernanceAuthorization` immutable domain projection for already-verified signed facts;
-2. exact trusted runtime request binding for workload, risk, data classification, token estimates,
+1. immutable `VerifiedGovernanceAuthorization` domain projection;
+2. exact trusted runtime binding for workload, risk, data classification, token estimates,
    structured-output requirement, latency ceiling and cost ceiling;
-3. audience and authorization-window enforcement;
-4. governance/PDP model-group intersection that can only narrow the Policy Router candidate set;
-5. fail-closed behavior when governance and Policy Router have no executable intersection;
-6. preservation of signed `workflow_id`/`task_id` for later evidence without inventing gateway values;
-7. contract tests proving request mismatches and attempted authorization expansion fail closed.
+3. stable fail-closed denial reason codes;
+4. audience and authorization-window enforcement;
+5. governance/PDP model-group intersection that only narrows Policy Router authorization;
+6. final selected-model-group revalidation immediately before provider execution;
+7. strict VAIG v1 JSON envelope parsing with duplicate-key and exact-schema validation;
+8. canonical Ed25519 signing-byte reconstruction and verification against explicit trusted `kid` keys;
+9. no network or token-controlled signing-key discovery;
+10. metadata-only governance evidence correlated to authorization, PDP decision, routing decision and
+    actual provider/deployment;
+11. local-first evidence journal plus explicit `BEST_EFFORT` and `REQUIRED` remote-delivery modes;
+12. `GovernanceExecutionService` wrapper around existing bounded resilience execution;
+13. provider-attempt accounting that excludes circuit-open skips;
+14. adversarial signature and runtime tests covering unknown keys, algorithm substitution, tampering,
+    request mismatch, authorization expansion, fallback evidence and no-provider-attempt paths.
 
-First Phase 13 full gate:
+The temporary crypto bootstrap exposed known advisories in `cryptography==46.0.3`. The dependency was
+remediated to `cryptography==50.0.0`, the lock regenerated, and the final gate reports no known
+vulnerabilities. No audit waiver was introduced.
 
-- head `6e296fe45d22e8062f0634ecda33c9f8ff6d06ec`;
-- GitHub Actions run `33877364977` — PASS;
-- pytest — 290 passed;
-- aggregate coverage — 81.05%;
-- mypy — PASS across 104 source files;
-- Ruff check/format — PASS across 104 files;
-- Bandit — 0 issues across 10,571 lines of code;
+Latest validated implementation baseline:
+
+- head `244eb7f6fdd46a8dc7375d4c76eee98d01c8868c`;
+- GitHub Actions run `33881234729` — PASS;
+- pytest — 317 passed;
+- aggregate coverage — 81.10%;
+- `governance_execution.py` — 88.57% coverage;
+- mypy — PASS across 110 source files;
+- Ruff check/format — PASS across 110 files;
+- Bandit — 0 issues across 11,525 lines of code;
 - pip-audit — no known vulnerabilities;
 - architecture check — PASS;
 - secret scan — PASS;
 - Phase 0 gate — PASS.
 
-## Next Phase 13 slice
+## Phase 13 review boundary
 
-Implement the wire adapter for Verifiable AI Governance runtime authorization while keeping the domain
-free of the external package:
+Implementation validation: **PASS**
 
-1. strict v1 JSON envelope parsing;
-2. canonical signing bytes compatible with the upstream contract;
-3. Ed25519 verification against an explicit `kid`-key allowlist/resolver;
-4. projection into `VerifiedGovernanceAuthorization`;
-5. adversarial tests for unknown keys, algorithm substitution, malformed canonical fields, signature
-   failure and schema drift;
-6. then integrate governance evidence/event-sink semantics into the governed execution path.
+Authorization monotonicity and scope enforcement: **PASS**
 
-Do not start Phase 14 before Phase 13 is reviewed, approved and merged.
+Signed authorization verification: **PASS**
+
+Denial/execution evidence correlation: **PASS**
+
+Governed provider-execution boundary: **PASS**
+
+Documentation synchronization: **IN PROGRESS**
+
+Independent architecture/security review: **PENDING**
+
+Phase 13 merge: **PENDING**
+
+Phase 14 remains blocked until Phase 13 documentation is synchronized, PR-head CI is green,
+independent architecture/security review returns `APPROVE` with no justified BLOCKER/HIGH/MEDIUM
+findings, and the Phase 13 PR is merged.
 
 ## Explicitly deferred
 
