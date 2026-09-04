@@ -192,7 +192,10 @@ def test_unknown_schema_field_fails_closed_even_when_signed() -> None:
     claims = deepcopy(_claims())
     claims["future_authority"] = "must-not-be-ignored"
     text = _signed_text(claims=claims)
-    with pytest.raises(GovernanceAuthorizationVerificationError, match="fields do not match v1 schema"):
+    with pytest.raises(
+        GovernanceAuthorizationVerificationError,
+        match="fields do not match v1 schema",
+    ):
         verify_governance_authorization_text(text, keys=_resolver())
 
 
@@ -222,7 +225,10 @@ def test_scope_without_model_for_runtime_data_class_fails_closed() -> None:
         assert isinstance(model, dict)
         model["allowed_data_classes"] = ["public"]
     text = _signed_text(claims=claims)
-    with pytest.raises(GovernanceAuthorizationVerificationError, match="runtime data classification"):
+    with pytest.raises(
+        GovernanceAuthorizationVerificationError,
+        match="runtime data classification",
+    ):
         verify_governance_authorization_text(text, keys=_resolver())
 
 
