@@ -1,0 +1,57 @@
+name: phase12-client-bootstrap
+
+on:
+  push:
+    branches:
+      - feat/phase-12-client-sdk
+    paths:
+      - .github/workflows/phase12-client-bootstrap.yml
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Patch Phase 11 provenance compatibility
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''        "benchmark_snapshot_id": routing.benchmark_snapshot_id,
+                  "provider": routing.provider,'''
+          new = '''        "benchmark_snapshot_id": routing.benchmark_snapshot_id,
+                  "score_provenance_mode": routing.score_provenance_mode,
+                  "manual_override_id": routing.manual_override_id,
+                  "provider": routing.provider,'''
+          if old not in text:
+              raise SystemExit("expected routing payload block not found")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+      - name: Refresh lock and format Phase 12 files
+        run: |
+          uv lock
+          uvx --python 3.13 --from ruff==0.12.11 ruff check --fix \
+            packages/gateway-client/src/governed_llm_gateway_client \
+            tests/contract/test_phase12_client_sdk.py \
+            apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py
+          uvx --python 3.13 --from ruff==0.12.11 ruff format \
+            packages/gateway-client/src/governed_llm_gateway_client \
+            tests/contract/test_phase12_client_sdk.py \
+            apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py
+      - name: Commit bootstrap result and self-remove
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock packages/gateway-client apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py tests/contract/test_phase12_client_sdk.py
+          git commit -m "feat: wire Phase 12 client transport"
+          git rm .github/workflows/phase12-client-bootstrap.yml
+          git commit -m "chore: remove Phase 12 bootstrap workflow"
+          git push origin HEAD:feat/phase-12-client-sdk
