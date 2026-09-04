@@ -274,7 +274,9 @@ class GatewayClient:
         content = "".join(content_parts) or None
         if terminal.event_type is StreamEventType.RESPONSE_COMPLETED:
             if terminal.execution is None:
-                raise GatewayProtocolError("completed gateway response is missing execution evidence")
+                raise GatewayProtocolError(
+                    "completed gateway response is missing execution evidence"
+                )
             if observed_usage is None or terminal.execution.usage != observed_usage:
                 raise GatewayProtocolError(
                     "terminal execution usage does not match normalized stream usage"
