@@ -62,8 +62,30 @@ _ROUTING_FIELDS = frozenset(
 _POLICY_FIELDS = frozenset({"decision_id", "policy_id", "policy_version", "policy_digest"})
 _REJECTION_FIELDS = frozenset({"deployment", "reason", "detail"})
 _TOOL_CALL_FIELDS = frozenset({"call_id", "name", "arguments"})
-_USAGE_FIELDS = frozenset({"input_tokens", "output_tokens", "total_cost_usd"})
-_EXECUTION_FIELDS = frozenset({"provider", "model", "deployment", "status", "latency_ms", "usage"})
+_USAGE_FIELDS = frozenset(
+    {
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "cache_read_input_tokens",
+        "cache_write_input_tokens",
+        "total_cost_usd",
+    }
+)
+_EXECUTION_FIELDS = frozenset(
+    {
+        "provider",
+        "model",
+        "deployment",
+        "status",
+        "latency_ms",
+        "usage",
+        "provider_request_id",
+        "finish_reason",
+        "attempt_number",
+        "fallback_index",
+    }
+)
 _ERROR_FIELDS = frozenset({"code", "message", "retryable"})
 _TERMINAL_EVENTS = frozenset({StreamEventType.RESPONSE_COMPLETED, StreamEventType.RESPONSE_FAILED})
 _MAX_HTTP_CHUNK_BYTES = 64 * 1024
@@ -326,6 +348,9 @@ def _decode_usage(payload: dict[str, object]) -> Usage:
     return Usage(
         input_tokens=_required_int(payload, "input_tokens"),
         output_tokens=_required_int(payload, "output_tokens"),
+        total_tokens=_optional_int(payload, "total_tokens"),
+        cache_read_input_tokens=_optional_int(payload, "cache_read_input_tokens"),
+        cache_write_input_tokens=_optional_int(payload, "cache_write_input_tokens"),
         total_cost_usd=cost,
     )
 
@@ -342,6 +367,10 @@ def _decode_execution(payload: dict[str, object]) -> ProviderExecution:
         usage=_decode_usage(_as_object(usage_value, "execution usage"))
         if usage_value is not None
         else None,
+        provider_request_id=_optional_str(payload, "provider_request_id"),
+        finish_reason=_optional_str(payload, "finish_reason"),
+        attempt_number=_optional_int(payload, "attempt_number") or 1,
+        fallback_index=_optional_int(payload, "fallback_index") or 0,
     )
 
 
@@ -395,6 +424,15 @@ def _required_int(payload: dict[str, object], key: str) -> int:
     value = payload.get(key)
     if not isinstance(value, int) or isinstance(value, bool):
         raise GatewayProtocolError(f"{key} must be an integer")
+    return value
+
+
+def _optional_int(payload: dict[str, object], key: str) -> int | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise GatewayProtocolError(f"{key} must be an integer when present")
     return value
 
 

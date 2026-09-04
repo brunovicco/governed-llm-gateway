@@ -165,16 +165,30 @@ class GatewayRequest:
 
 @dataclass(frozen=True, slots=True)
 class Usage:
-    """Normalized token and cost metadata."""
+    """Normalized token and cost metadata with optional provider-returned detail."""
 
     input_tokens: int = 0
     output_tokens: int = 0
+    total_tokens: int | None = None
+    cache_read_input_tokens: int | None = None
+    cache_write_input_tokens: int | None = None
     total_cost_usd: Decimal | None = None
 
     def __post_init__(self) -> None:
         """Reject impossible usage values rather than silently normalizing them."""
         if self.input_tokens < 0 or self.output_tokens < 0:
             raise ValueError("usage token counts must be non-negative")
+        if self.total_tokens is not None:
+            if self.total_tokens < 0:
+                raise ValueError("usage total_tokens must be non-negative")
+            if self.total_tokens != self.input_tokens + self.output_tokens:
+                raise ValueError("usage total_tokens must equal input_tokens plus output_tokens")
+        for name, value in (
+            ("cache_read_input_tokens", self.cache_read_input_tokens),
+            ("cache_write_input_tokens", self.cache_write_input_tokens),
+        ):
+            if value is not None and value < 0:
+                raise ValueError(f"usage {name} must be non-negative")
         if self.total_cost_usd is not None and self.total_cost_usd < 0:
             raise ValueError("usage total_cost_usd must be non-negative")
 
@@ -317,7 +331,7 @@ class GatewayStreamEvent:
 
 @dataclass(frozen=True, slots=True)
 class ProviderExecution:
-    """Normalized execution metadata without provider-specific response objects."""
+    """Normalized terminal execution evidence without provider-specific response objects."""
 
     provider: str
     model: str
@@ -325,6 +339,10 @@ class ProviderExecution:
     status: ExecutionStatus
     latency_ms: int
     usage: Usage | None = None
+    provider_request_id: str | None = None
+    finish_reason: str | None = None
+    attempt_number: int = 1
+    fallback_index: int = 0
 
     def __post_init__(self) -> None:
         """Validate concrete provider identity and measured execution metadata."""
@@ -332,6 +350,16 @@ class ProviderExecution:
             raise ValueError("provider execution identity must be non-empty")
         if self.latency_ms < 0:
             raise ValueError("provider execution latency_ms must be non-negative")
+        for name, value in (
+            ("provider_request_id", self.provider_request_id),
+            ("finish_reason", self.finish_reason),
+        ):
+            if value is not None and (not value.strip() or value.strip() != value):
+                raise ValueError(f"provider execution {name} must be normalized when present")
+        if self.attempt_number <= 0:
+            raise ValueError("provider execution attempt_number must be positive")
+        if self.fallback_index < 0:
+            raise ValueError("provider execution fallback_index must be non-negative")
 
 
 @dataclass(frozen=True, slots=True)
