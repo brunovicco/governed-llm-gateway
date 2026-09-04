@@ -2,11 +2,15 @@
 
 
 class GatewayClientError(RuntimeError):
-    """Base error for client configuration, transport, HTTP, or protocol failures."""
+    """Base error for client configuration, request, transport, HTTP, or protocol failures."""
 
 
 class GatewayConfigurationError(GatewayClientError):
     """Raised when local client configuration is missing or unsafe."""
+
+
+class GatewayRequestError(GatewayClientError):
+    """Raised when a request is invalid before transport begins."""
 
 
 class GatewayTransportError(GatewayClientError):
