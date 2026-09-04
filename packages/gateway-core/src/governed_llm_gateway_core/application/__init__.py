@@ -10,6 +10,7 @@ from .governance_evidence import (
     build_governance_denial_evidence,
     build_governance_execution_evidence,
 )
+from .governance_execution import GovernanceExecutionService, GovernanceExecutor
 from .policy import (
     AuthorizedCandidateSet,
     PolicyAuthorizationDecision,
@@ -61,6 +62,8 @@ __all__ = [
     "GovernanceEvidenceDeliveryMode",
     "GovernanceEvidenceJournal",
     "GovernanceEvidenceOutcome",
+    "GovernanceExecutionService",
+    "GovernanceExecutor",
     "GovernanceRuntimeEvidence",
     "InMemoryHealthTracker",
     "OperationalRankingService",
