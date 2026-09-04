@@ -88,7 +88,7 @@ class DeterministicClock:
     """Return fixed monotonic readings for start, TTFT, and terminal latency."""
 
     def __init__(self) -> None:
-        self._readings = iter((100.0, 100.1, 100.25))
+        self._readings = iter((100.0, 100.25))
 
     def __call__(self) -> float:
         return next(self._readings)
