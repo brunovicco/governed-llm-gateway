@@ -1,0 +1,107 @@
+name: phase12-security-hardening-v2
+
+on:
+  push:
+    branches:
+      - feat/phase-12-client-sdk
+    paths:
+      - .github/workflows/phase12-security-hardening-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Bound HTTP chunks and bind stream request identity
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          codec = Path("packages/gateway-client/src/governed_llm_gateway_client/_codec.py")
+          text = codec.read_text(encoding="utf-8")
+          anchor = '_TERMINAL_EVENTS = frozenset({StreamEventType.RESPONSE_COMPLETED, StreamEventType.RESPONSE_FAILED})\n'
+          if anchor not in text:
+              raise SystemExit("codec terminal constant anchor not found")
+          text = text.replace(anchor, anchor + '_MAX_HTTP_CHUNK_BYTES = 64 * 1024\n', 1)
+
+          old = '    expected_sequence = 1\n    terminal = False\n'
+          new = '    expected_sequence = 1\n    stream_request_id: UUID | None = None\n    terminal = False\n'
+          if old not in text:
+              raise SystemExit("codec stream state block not found")
+          text = text.replace(old, new, 1)
+
+          old = '''        event_name, event_id, payload = _parse_sse_frame(frame)
+        event = _decode_event(payload)
+        if event.event_type.value != event_name:
+'''
+          new = '''        event_name, event_id, payload = _parse_sse_frame(frame)
+        event = _decode_event(payload)
+        if stream_request_id is None:
+            stream_request_id = event.request_id
+        elif event.request_id != stream_request_id:
+            raise GatewayProtocolError("gateway SSE stream mixed request identifiers")
+        if event.event_type.value != event_name:
+'''
+          if old not in text:
+              raise SystemExit("codec event decode block not found")
+          text = text.replace(old, new, 1)
+
+          old = '    async for chunk in response.aiter_bytes():\n        buffer.extend(chunk)\n'
+          new = '''    async for chunk in response.aiter_bytes(
+        chunk_size=min(max_event_bytes, _MAX_HTTP_CHUNK_BYTES)
+    ):
+        buffer.extend(chunk)
+'''
+          if old not in text:
+              raise SystemExit("codec byte iterator not found")
+          codec.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          client = Path("packages/gateway-client/src/governed_llm_gateway_client/client.py")
+          text = client.read_text(encoding="utf-8")
+          anchor = '_MAX_ERROR_BODY_BYTES = 64 * 1024\n'
+          if anchor not in text:
+              raise SystemExit("client error body constant not found")
+          text = text.replace(anchor, anchor + '_MAX_HTTP_CHUNK_BYTES = 64 * 1024\n', 1)
+          old = '    async for chunk in response.aiter_bytes():\n        if len(body) + len(chunk) > _MAX_ERROR_BODY_BYTES:\n'
+          new = '''    async for chunk in response.aiter_bytes(
+        chunk_size=min(_MAX_ERROR_BODY_BYTES, _MAX_HTTP_CHUNK_BYTES)
+    ):
+        if len(body) + len(chunk) > _MAX_ERROR_BODY_BYTES:
+'''
+          if old not in text:
+              raise SystemExit("client error byte iterator not found")
+          client.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+      - name: Validate hardened client slice
+        run: |
+          uv sync --frozen
+          uvx --python 3.13 --from ruff==0.12.11 ruff format \
+            packages/gateway-client/src/governed_llm_gateway_client \
+            tests/contract/test_phase12_client_sdk.py \
+            tests/contract/test_phase12_client_protocol_hardening.py \
+            scripts/architecture_check.py
+          uvx --python 3.13 --from ruff==0.12.11 ruff check \
+            packages/gateway-client/src/governed_llm_gateway_client \
+            tests/contract/test_phase12_client_sdk.py \
+            tests/contract/test_phase12_client_protocol_hardening.py \
+            scripts/architecture_check.py
+          uv run --frozen --python 3.13 --all-packages --with mypy==1.17.1 --with pytest==8.4.1 --with types-jsonschema==4.26.0.20260518 \
+            mypy packages/gateway-client/src tests/contract/test_phase12_client_sdk.py tests/contract/test_phase12_client_protocol_hardening.py
+          uv run --frozen --python 3.13 --all-packages --with pytest==8.4.1 \
+            pytest -q tests/contract/test_phase12_client_sdk.py tests/contract/test_phase12_client_protocol_hardening.py
+          uv run python scripts/architecture_check.py
+      - name: Commit hardening and remove temporary workflows
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/gateway-client tests/contract/test_phase12_client_sdk.py tests/contract/test_phase12_client_protocol_hardening.py scripts/architecture_check.py
+          git commit -m "fix: harden Phase 12 client protocol boundary"
+          git rm .github/workflows/phase12-security-hardening.yml .github/workflows/phase12-security-hardening-v2.yml
+          git commit -m "chore: remove Phase 12 hardening workflows"
+          git push origin HEAD:feat/phase-12-client-sdk
