@@ -16,12 +16,29 @@ FORBIDDEN_CONTRACT_PREFIXES = {
     "sqlalchemy",
 }
 FORBIDDEN_DOMAIN_PREFIXES = FORBIDDEN_CONTRACT_PREFIXES | {"redis"}
+FORBIDDEN_CLIENT_PREFIXES = {
+    "a2a_otel_kit",
+    "anthropic",
+    "benchmarks",
+    "boto3",
+    "botocore",
+    "fastapi",
+    "google",
+    "governed_llm_gateway_api",
+    "governed_llm_gateway_core",
+    "openai",
+    "opentelemetry",
+    "policy_model_router",
+    "redis",
+    "sqlalchemy",
+}
 
 BOUNDARIES = {
     ROOT / "packages/gateway-contracts/src/governed_llm_gateway_contracts": (
         FORBIDDEN_CONTRACT_PREFIXES
     ),
     ROOT / "packages/gateway-core/src/governed_llm_gateway_core/domain": FORBIDDEN_DOMAIN_PREFIXES,
+    ROOT / "packages/gateway-client/src/governed_llm_gateway_client": FORBIDDEN_CLIENT_PREFIXES,
 }
 
 
