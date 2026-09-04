@@ -1,0 +1,96 @@
+name: phase12-finalize-bootstrap
+
+on:
+  push:
+    branches:
+      - feat/phase-12-client-sdk
+    paths:
+      - .github/workflows/phase12-finalize-bootstrap.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply deterministic Phase 12 fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          codec = Path("packages/gateway-client/src/governed_llm_gateway_client/_codec.py")
+          text = codec.read_text(encoding="utf-8")
+          replacements = {
+              '    matches = [(index, delimiter) for delimiter in delimiters if (index := buffer.find(delimiter)) >= 0]\n': '''    matches = [\n        (index, delimiter)\n        for delimiter in delimiters\n        if (index := buffer.find(delimiter)) >= 0\n    ]\n''',
+              '        raise GatewayProtocolError("gateway stream event violates the provider-neutral contract") from exc\n': '''        raise GatewayProtocolError(\n            "gateway stream event violates the provider-neutral contract"\n        ) from exc\n''',
+              '        fallback_sequence=tuple(_string_value(item, "fallback deployment") for item in fallback_items),\n': '''        fallback_sequence=tuple(\n            _string_value(item, "fallback deployment") for item in fallback_items\n        ),\n''',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f"expected codec text not found: {old!r}")
+              text = text.replace(old, new, 1)
+          codec.write_text(text, encoding="utf-8")
+
+          client = Path("packages/gateway-client/src/governed_llm_gateway_client/client.py")
+          text = client.read_text(encoding="utf-8")
+          replacements = {
+              '                    raise GatewayProtocolError("gateway response content-type is not text/event-stream")\n': '''                    raise GatewayProtocolError(\n                        "gateway response content-type is not text/event-stream"\n                    )\n''',
+              '            raise GatewayProtocolError("gateway stream completed without terminal routing provenance")\n': '''            raise GatewayProtocolError(\n                "gateway stream completed without terminal routing provenance"\n            )\n''',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f"expected client text not found: {old!r}")
+              text = text.replace(old, new, 1)
+          client.write_text(text, encoding="utf-8")
+
+          tests = Path("tests/contract/test_phase12_client_sdk.py")
+          text = tests.read_text(encoding="utf-8")
+          old = '                error={"code": "provider_timeout", "message": "provider timed out", "retryable": True},\n'
+          new = '''                error={\n                    "code": "provider_timeout",\n                    "message": "provider timed out",\n                    "retryable": True,\n                },\n'''
+          if old not in text:
+              raise SystemExit("expected long test error mapping not found")
+          text = text.replace(old, new, 1)
+          old = '''        with patch.dict(os.environ, {}, clear=True):\n            with self.assertRaises(GatewayConfigurationError):\n                GatewayClient.from_env()\n'''
+          new = '''        with (\n            patch.dict(os.environ, {}, clear=True),\n            self.assertRaises(GatewayConfigurationError),\n        ):\n            GatewayClient.from_env()\n'''
+          if old not in text:
+              raise SystemExit("expected nested context managers not found")
+          tests.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          server = Path("apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py")
+          text = server.read_text(encoding="utf-8")
+          old = '''        "benchmark_snapshot_id": routing.benchmark_snapshot_id,\n        "provider": routing.provider,'''
+          new = '''        "benchmark_snapshot_id": routing.benchmark_snapshot_id,\n        "score_provenance_mode": routing.score_provenance_mode,\n        "manual_override_id": routing.manual_override_id,\n        "provider": routing.provider,'''
+          if old not in text:
+              raise SystemExit("expected server routing payload block not found")
+          server.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+      - name: Refresh lock and validate slice
+        run: |
+          uv lock
+          uvx --python 3.13 --from ruff==0.12.11 ruff check --fix \
+            packages/gateway-client/src/governed_llm_gateway_client \
+            tests/contract/test_phase12_client_sdk.py \
+            apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py
+          uvx --python 3.13 --from ruff==0.12.11 ruff format \
+            packages/gateway-client/src/governed_llm_gateway_client \
+            tests/contract/test_phase12_client_sdk.py \
+            apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py
+          uv sync --frozen
+          uv run --frozen --python 3.13 --all-packages --with mypy==1.17.1 --with pytest==8.4.1 --with types-jsonschema==4.26.0.20260518 \
+            mypy packages/gateway-client/src tests/contract/test_phase12_client_sdk.py apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py
+          uv run --frozen --python 3.13 --all-packages --with pytest==8.4.1 \
+            pytest -q tests/contract/test_phase12_client_sdk.py
+      - name: Commit result and remove bootstrap workflows
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock packages/gateway-client apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py tests/contract/test_phase12_client_sdk.py
+          git commit -m "feat: validate Phase 12 client transport slice"
+          git rm .github/workflows/phase12-client-bootstrap.yml .github/workflows/phase12-finalize-bootstrap.yml
+          git commit -m "chore: remove Phase 12 bootstrap workflows"
+          git push origin HEAD:feat/phase-12-client-sdk
