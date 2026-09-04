@@ -122,6 +122,7 @@ class GovernanceEvidenceJournal:
         sink: GovernanceEventSink | None = None,
         delivery_mode: GovernanceEvidenceDeliveryMode = GovernanceEvidenceDeliveryMode.BEST_EFFORT,
     ) -> None:
+        """Bind an optional sink and explicit remote-delivery policy."""
         self._sink = sink
         self._delivery_mode = delivery_mode
         self._records: list[GovernanceRuntimeEvidence] = []
