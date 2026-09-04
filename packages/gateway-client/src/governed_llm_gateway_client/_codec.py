@@ -73,11 +73,16 @@ async def _iter_sse_events(
     response: httpx.Response,
     *,
     max_event_bytes: int,
+    max_stream_bytes: int,
     expected_request_id: UUID,
 ) -> AsyncIterator[GatewayStreamEvent]:
     expected_sequence = 1
     terminal = False
-    async for frame in _iter_sse_frames(response, max_event_bytes=max_event_bytes):
+    async for frame in _iter_sse_frames(
+        response,
+        max_event_bytes=max_event_bytes,
+        max_stream_bytes=max_stream_bytes,
+    ):
         if terminal:
             raise GatewayProtocolError("gateway emitted an event after the terminal SSE event")
         event_name, event_id, payload = _parse_sse_frame(frame)
@@ -102,11 +107,20 @@ async def _iter_sse_frames(
     response: httpx.Response,
     *,
     max_event_bytes: int,
+    max_stream_bytes: int,
 ) -> AsyncIterator[bytes]:
     if max_event_bytes <= 0:
         raise GatewayProtocolError("max SSE event size must be positive")
+    if max_stream_bytes < max_event_bytes:
+        raise GatewayProtocolError("max SSE stream size must cover one maximum-size event")
+
     buffer = bytearray()
-    async for chunk in response.aiter_bytes(chunk_size=min(max_event_bytes, _MAX_HTTP_CHUNK_BYTES)):
+    total_bytes = 0
+    chunk_size = min(max_event_bytes, _MAX_HTTP_CHUNK_BYTES)
+    async for chunk in response.aiter_raw(chunk_size=chunk_size):
+        total_bytes += len(chunk)
+        if total_bytes > max_stream_bytes:
+            raise GatewayProtocolError("gateway SSE stream exceeds configured total size limit")
         buffer.extend(chunk)
         while True:
             extracted = _extract_frame(buffer)
