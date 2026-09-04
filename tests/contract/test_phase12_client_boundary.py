@@ -2,6 +2,7 @@ import unittest
 
 from governed_llm_gateway_client import GatewayClientConfig
 from governed_llm_gateway_client.errors import GatewayConfigurationError
+
 from scripts.architecture_check import client_forbidden_imports
 
 
