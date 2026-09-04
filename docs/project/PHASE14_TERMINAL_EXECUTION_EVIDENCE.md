@@ -19,7 +19,8 @@ For successful executions produced by the current gateway runtime:
 
 - the terminal SSE event carries `ProviderExecution`;
 - provider/model/deployment come from the actual selected deployment;
-- `latency_ms` comes from the gateway execution clock;
+- `latency_ms` is measured by the gateway from provider-attempt start through normalized provider
+  completion; it is distinct from TTFT;
 - token usage and cost come only from normalized provider usage;
 - unavailable cost remains absent (`None`) and is never reconstructed as zero;
 - terminal execution identity must match terminal `RoutingProvenance`;
@@ -44,7 +45,7 @@ The SDK does not synthesize missing provider evidence from routing metadata or s
 Contract tests cover:
 
 - provider/model/deployment preservation;
-- measured latency propagation;
+- measured terminal latency propagation;
 - input/output token propagation;
 - provider-normalized total cost propagation;
 - omission of unknown cost rather than fabrication;
