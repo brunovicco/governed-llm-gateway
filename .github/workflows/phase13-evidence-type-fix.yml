@@ -1,0 +1,53 @@
+name: phase13-evidence-type-fix
+on:
+  push:
+    branches: [feat/phase-13-governance-integration]
+    paths: [.github/workflows/phase13-evidence-type-fix.yml]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply exact typing fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('packages/gateway-core/src/governed_llm_gateway_core/application/governance_evidence.py')
+          s = p.read_text()
+          s = s.replace(
+              '        for name, value in (\n            ("authorization_signing_digest", self.authorization_signing_digest),',
+              '        for name, optional_value in (\n            ("authorization_signing_digest", self.authorization_signing_digest),',
+          )
+          s = s.replace(
+              '            if value is not None and (not value or value.strip() != value):\n                raise ValueError(f"{name} must be normalized when present")',
+              '            if optional_value is not None and (\n                not optional_value or optional_value.strip() != optional_value\n            ):\n                raise ValueError(f"{name} must be normalized when present")',
+          )
+          p.write_text(s)
+
+          p = Path('packages/gateway-core/src/governed_llm_gateway_core/application/governance_execution.py')
+          s = p.read_text()
+          s = s.replace(
+              '    candidates = (\n        *((decision.selected,) if decision.selected is not None else ()),\n        *decision.alternatives,\n    )\n    for candidate in candidates:',
+              '    candidates: list[RankedCandidate] = list(decision.alternatives)\n    if decision.selected is not None:\n        candidates.insert(0, decision.selected)\n    for candidate in candidates:',
+          )
+          p.write_text(s)
+          PY
+          uvx --python 3.13 --from ruff==0.12.11 ruff format \
+            packages/gateway-core/src/governed_llm_gateway_core/application/governance_evidence.py \
+            packages/gateway-core/src/governed_llm_gateway_core/application/governance_execution.py
+          uvx --python 3.13 --from ruff==0.12.11 ruff check \
+            packages/gateway-core/src/governed_llm_gateway_core/application/governance_evidence.py \
+            packages/gateway-core/src/governed_llm_gateway_core/application/governance_execution.py
+      - name: Remove workflow and commit
+        run: |
+          rm .github/workflows/phase13-evidence-type-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: type governance evidence execution explicitly'
+          git push origin HEAD:feat/phase-13-governance-integration
