@@ -3,7 +3,7 @@
 The following roadmap decisions remain intentionally deferred until implementation evidence is
 available:
 
-- ADR-0012 — Governance authorization integration
+- none from the original Phase 0 reserved backlog.
 
 Already resolved after Phase 0:
 
@@ -13,6 +13,7 @@ Already resolved after Phase 0:
 - ADR-0009 — Benchmark-derived routing scores (Phase 11)
 - ADR-0010 — Client SDK boundary (Phase 12)
 - ADR-0011 — Streaming normalization (Phase 8)
+- ADR-0012 — Governance authorization integration (Phase 13)
 
 Additional implementation-evidence ADR:
 
