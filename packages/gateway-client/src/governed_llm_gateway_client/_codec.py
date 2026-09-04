@@ -117,7 +117,7 @@ async def _iter_sse_frames(
     buffer = bytearray()
     total_bytes = 0
     chunk_size = min(max_event_bytes, _MAX_HTTP_CHUNK_BYTES)
-    async for chunk in response.aiter_raw(chunk_size=chunk_size):
+    async for chunk in response.aiter_bytes(chunk_size=chunk_size):
         total_bytes += len(chunk)
         if total_bytes > max_stream_bytes:
             raise GatewayProtocolError("gateway SSE stream exceeds configured total size limit")

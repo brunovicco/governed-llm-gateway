@@ -231,11 +231,7 @@ class GatewayClientProtocolHardeningTests(unittest.IsolatedAsyncioTestCase):
                     "content-type": "text/event-stream",
                     "content-encoding": "gzip",
                 },
-                content=_sse(
-                    StreamEventType.RESPONSE_COMPLETED,
-                    1,
-                    routing=_routing_payload(),
-                ),
+                stream=_ChunkedStream((b"compressed-sse-body-not-read",)),
                 request=request,
             )
 
@@ -334,7 +330,7 @@ class GatewayClientProtocolHardeningTests(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(
                 502,
                 headers={"content-encoding": "gzip"},
-                json={"detail": {"code": sensitive_code}},
+                stream=_ChunkedStream((b'{"detail":{"code":"compressed-sensitive-detail"}}',)),
                 request=request,
             )
 

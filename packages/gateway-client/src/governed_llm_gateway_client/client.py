@@ -484,7 +484,7 @@ async def _read_bounded_error_body(response: httpx.Response) -> bytes:
             return b""
 
     body = bytearray()
-    async for chunk in response.aiter_raw(chunk_size=_MAX_ERROR_BODY_BYTES):
+    async for chunk in response.aiter_bytes(chunk_size=_MAX_ERROR_BODY_BYTES):
         if len(body) + len(chunk) > _MAX_ERROR_BODY_BYTES:
             return b""
         body.extend(chunk)
