@@ -1,6 +1,7 @@
 """Static architecture boundary validator for the gateway workspace."""
 
 import ast
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,21 +17,11 @@ FORBIDDEN_CONTRACT_PREFIXES = {
     "sqlalchemy",
 }
 FORBIDDEN_DOMAIN_PREFIXES = FORBIDDEN_CONTRACT_PREFIXES | {"redis"}
-FORBIDDEN_CLIENT_PREFIXES = {
-    "a2a_otel_kit",
-    "anthropic",
-    "benchmarks",
-    "boto3",
-    "botocore",
-    "fastapi",
-    "google",
-    "governed_llm_gateway_api",
-    "governed_llm_gateway_core",
-    "openai",
-    "opentelemetry",
-    "policy_model_router",
-    "redis",
-    "sqlalchemy",
+CLIENT_BOUNDARY = ROOT / "packages/gateway-client/src/governed_llm_gateway_client"
+CLIENT_ALLOWED_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {
+    "governed_llm_gateway_client",
+    "governed_llm_gateway_contracts",
+    "httpx",
 }
 
 BOUNDARIES = {
@@ -38,12 +29,11 @@ BOUNDARIES = {
         FORBIDDEN_CONTRACT_PREFIXES
     ),
     ROOT / "packages/gateway-core/src/governed_llm_gateway_core/domain": FORBIDDEN_DOMAIN_PREFIXES,
-    ROOT / "packages/gateway-client/src/governed_llm_gateway_client": FORBIDDEN_CLIENT_PREFIXES,
 }
 
 
 def imported_roots(path: Path) -> set[str]:
-    """Return top-level module names imported by one Python file."""
+    """Return top-level external module names imported by one Python file."""
 
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     roots: set[str] = set()
@@ -51,7 +41,10 @@ def imported_roots(path: Path) -> set[str]:
         if isinstance(node, ast.Import):
             roots.update(alias.name.split(".", maxsplit=1)[0] for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module:
-            roots.add(node.module.split(".", maxsplit=1)[0])
+            if node.level:
+                roots.add("__relative_import__")
+            else:
+                roots.add(node.module.split(".", maxsplit=1)[0])
         elif (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
@@ -59,6 +52,12 @@ def imported_roots(path: Path) -> set[str]:
         ):
             roots.add("__dynamic_import__")
     return roots
+
+
+def client_forbidden_imports(imports: set[str]) -> set[str]:
+    """Return client imports outside stdlib, contracts, HTTPX, and local relative imports."""
+
+    return imports - CLIENT_ALLOWED_IMPORT_ROOTS - {"__relative_import__"}
 
 
 def main() -> int:
@@ -74,6 +73,12 @@ def main() -> int:
             if blocked:
                 relative = path.relative_to(ROOT)
                 violations.append(f"{relative}: forbidden imports: {sorted(blocked)}")
+
+    for path in sorted(CLIENT_BOUNDARY.rglob("*.py")):
+        blocked = client_forbidden_imports(imported_roots(path))
+        if blocked:
+            relative = path.relative_to(ROOT)
+            violations.append(f"{relative}: client import allowlist violations: {sorted(blocked)}")
 
     gateway_files = (
         list((ROOT / "packages").rglob("*.py"))
