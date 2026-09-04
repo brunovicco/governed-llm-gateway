@@ -156,6 +156,7 @@ class GatewayClient:
             provider_timeout_seconds=provider_timeout_seconds,
             request_id=request_id,
         )
+        expected_request_id = UUID(cast(str, payload["request_id"]))
         try:
             async with self._http.stream(
                 "POST",
@@ -177,6 +178,7 @@ class GatewayClient:
                 async for event in _iter_sse_events(
                     response,
                     max_event_bytes=self._config.max_sse_event_bytes,
+                    expected_request_id=expected_request_id,
                 ):
                     yield event
         except GatewayClientError:
@@ -420,7 +422,7 @@ async def _http_error(response: httpx.Response) -> GatewayHTTPError:
 
 async def _read_bounded_error_body(response: httpx.Response) -> bytes:
     body = bytearray()
-    async for chunk in response.aiter_bytes():
+    async for chunk in response.aiter_bytes(chunk_size=_MAX_ERROR_BODY_BYTES):
         if len(body) + len(chunk) > _MAX_ERROR_BODY_BYTES:
             return b""
         body.extend(chunk)
