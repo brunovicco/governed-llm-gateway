@@ -1,0 +1,36 @@
+name: phase13-format-signature-test-v2
+
+on:
+  push:
+    branches:
+      - feat/phase-13-governance-integration
+    paths:
+      - .github/workflows/phase13-format-signature-test-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply exact Ruff format
+        run: |
+          uvx --python 3.13 --from ruff==0.12.11 ruff format \
+            tests/contract/test_phase13_governance_signature.py
+          uvx --python 3.13 --from ruff==0.12.11 ruff check \
+            tests/contract/test_phase13_governance_signature.py
+      - name: Commit format and remove temporary workflows
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm \
+            .github/workflows/phase13-format-signature-test.yml \
+            .github/workflows/phase13-format-signature-test-v2.yml
+          git add tests/contract/test_phase13_governance_signature.py
+          git commit -m "style: finalize Phase 13 signature test formatting"
+          git push origin HEAD:feat/phase-13-governance-integration
