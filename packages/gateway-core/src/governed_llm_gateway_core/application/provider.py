@@ -51,16 +51,30 @@ class ProviderFeatureSupport:
 
 @dataclass(frozen=True, slots=True)
 class ProviderUsage:
-    """Provider-normalized token usage for one inference call."""
+    """Provider-normalized token usage preserving optional provider-returned detail."""
 
     input_tokens: int = 0
     output_tokens: int = 0
+    total_tokens: int | None = None
+    cache_read_input_tokens: int | None = None
+    cache_write_input_tokens: int | None = None
     total_cost_usd: Decimal | None = None
 
     def __post_init__(self) -> None:
         """Reject impossible token counts instead of normalizing bad provider data silently."""
         if self.input_tokens < 0 or self.output_tokens < 0:
             raise ValueError("provider token usage must be non-negative")
+        if self.total_tokens is not None:
+            if self.total_tokens < 0:
+                raise ValueError("provider total_tokens must be non-negative")
+            if self.total_tokens != self.input_tokens + self.output_tokens:
+                raise ValueError("provider total_tokens must equal input_tokens plus output_tokens")
+        for name, value in (
+            ("cache_read_input_tokens", self.cache_read_input_tokens),
+            ("cache_write_input_tokens", self.cache_write_input_tokens),
+        ):
+            if value is not None and value < 0:
+                raise ValueError(f"provider {name} must be non-negative")
         if self.total_cost_usd is not None and self.total_cost_usd < 0:
             raise ValueError("provider total_cost_usd must be non-negative")
 

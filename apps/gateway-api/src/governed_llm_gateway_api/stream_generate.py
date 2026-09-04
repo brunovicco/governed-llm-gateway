@@ -529,6 +529,12 @@ def _event_payload(event: GatewayStreamEvent) -> dict[str, object]:
             "input_tokens": event.usage.input_tokens,
             "output_tokens": event.usage.output_tokens,
         }
+        if event.usage.total_tokens is not None:
+            usage["total_tokens"] = event.usage.total_tokens
+        if event.usage.cache_read_input_tokens is not None:
+            usage["cache_read_input_tokens"] = event.usage.cache_read_input_tokens
+        if event.usage.cache_write_input_tokens is not None:
+            usage["cache_write_input_tokens"] = event.usage.cache_write_input_tokens
         if event.usage.total_cost_usd is not None:
             usage["total_cost_usd"] = _canonical_decimal(event.usage.total_cost_usd)
         payload["usage"] = usage
@@ -540,11 +546,27 @@ def _event_payload(event: GatewayStreamEvent) -> dict[str, object]:
             "status": event.execution.status.value,
             "latency_ms": event.execution.latency_ms,
         }
+        execution["attempt_number"] = event.execution.attempt_number
+        execution["fallback_index"] = event.execution.fallback_index
+        if event.execution.provider_request_id is not None:
+            execution["provider_request_id"] = event.execution.provider_request_id
+        if event.execution.finish_reason is not None:
+            execution["finish_reason"] = event.execution.finish_reason
         if event.execution.usage is not None:
             execution_usage: dict[str, object] = {
                 "input_tokens": event.execution.usage.input_tokens,
                 "output_tokens": event.execution.usage.output_tokens,
             }
+            if event.execution.usage.total_tokens is not None:
+                execution_usage["total_tokens"] = event.execution.usage.total_tokens
+            if event.execution.usage.cache_read_input_tokens is not None:
+                execution_usage["cache_read_input_tokens"] = (
+                    event.execution.usage.cache_read_input_tokens
+                )
+            if event.execution.usage.cache_write_input_tokens is not None:
+                execution_usage["cache_write_input_tokens"] = (
+                    event.execution.usage.cache_write_input_tokens
+                )
             if event.execution.usage.total_cost_usd is not None:
                 execution_usage["total_cost_usd"] = _canonical_decimal(
                     event.execution.usage.total_cost_usd

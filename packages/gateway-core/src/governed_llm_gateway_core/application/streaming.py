@@ -174,6 +174,7 @@ class StreamingExecutionService:
                     timeout_seconds=provider_timeout_seconds,
                 )
                 provider_started = False
+                provider_response_id: str | None = None
                 public_started = False
                 semantic_output = False
                 usage_seen = False
@@ -226,6 +227,7 @@ class StreamingExecutionService:
                                             "provider emitted response start more than once",
                                         )
                                     provider_started = True
+                                    provider_response_id = event.response_id
                                     continue
                                 if not provider_started:
                                     raise _invalid_stream_event(
@@ -286,6 +288,9 @@ class StreamingExecutionService:
                                     final_usage = Usage(
                                         input_tokens=event.usage.input_tokens,
                                         output_tokens=event.usage.output_tokens,
+                                        total_tokens=event.usage.total_tokens,
+                                        cache_read_input_tokens=event.usage.cache_read_input_tokens,
+                                        cache_write_input_tokens=event.usage.cache_write_input_tokens,
                                         total_cost_usd=event.usage.total_cost_usd,
                                     )
                                     sequence += 1
@@ -319,6 +324,15 @@ class StreamingExecutionService:
                                             deployment.provider,
                                             "provider completed without normalized final usage",
                                         )
+                                    if (
+                                        provider_response_id is not None
+                                        and event.response_id is not None
+                                        and provider_response_id != event.response_id
+                                    ):
+                                        raise _invalid_stream_event(
+                                            deployment.provider,
+                                            "provider response id changed during the stream",
+                                        )
                                     execution = ProviderExecution(
                                         provider=deployment.provider,
                                         model=deployment.model_id,
@@ -326,6 +340,11 @@ class StreamingExecutionService:
                                         status=ExecutionStatus.SUCCEEDED,
                                         latency_ms=latency_ms,
                                         usage=final_usage,
+                                        provider_request_id=event.response_id
+                                        or provider_response_id,
+                                        finish_reason=event.finish_reason,
+                                        attempt_number=attempt_number,
+                                        fallback_index=len(fallback_sequence) - 1,
                                     )
                                     sequence += 1
                                     yield GatewayStreamEvent(
@@ -362,6 +381,9 @@ class StreamingExecutionService:
                             status=ExecutionStatus.FAILED,
                             latency_ms=latency_ms,
                             usage=final_usage,
+                            provider_request_id=provider_response_id,
+                            attempt_number=attempt_number,
+                            fallback_index=len(fallback_sequence) - 1,
                         )
                         if span is not None:
                             failure_attributes: dict[str, object] = {
