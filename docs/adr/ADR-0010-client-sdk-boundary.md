@@ -65,9 +65,13 @@ strings, and fragments are rejected. Redirect following is disabled so the gatew
 be forwarded implicitly to another origin.
 
 The client sends the credential only as `X-Gateway-API-Key` to the configured gateway endpoint.
+Environment-derived proxy/client settings are disabled. The client requests `Accept-Encoding:
+identity` and rejects non-identity encoded SSE responses before consuming their body, so bounded
+stream accounting cannot be bypassed by transparent decompression.
 
 HTTP/network errors are normalized into client-specific exceptions containing only stable status/code
-metadata. Raw response bodies are not surfaced through exception messages.
+metadata. Error-body reads are bounded, and non-identity encoded or oversized error bodies are not
+parsed or surfaced through exception messages.
 
 ### Streaming contract
 
@@ -77,9 +81,13 @@ metadata. Raw response bodies are not surfaced through exception messages.
 The SSE parser is bounded and incremental. It validates:
 
 - maximum event size;
+- maximum total stream size, with a finite configurable safety ceiling;
+- response content length when present;
+- identity-only content encoding;
 - UTF-8 and JSON syntax;
 - duplicate JSON keys;
 - SSE event/id consistency with the JSON payload;
+- exact request-ID correlation with the request sent by the client;
 - deterministic positive/contiguous sequence numbers;
 - known provider-neutral event/routing/error fields;
 - terminal completion/failure semantics.
@@ -175,6 +183,12 @@ server's own bounded retry/fallback behavior.
 ### Follow HTTP redirects automatically
 
 Rejected because a gateway credential could be forwarded to an unintended origin.
+
+### Accept compressed gateway streams transparently
+
+Rejected because transparent decompression complicates bounded transport accounting and can turn a
+small encoded response into a much larger decoded stream. The first client therefore requires
+identity encoding and fails closed otherwise.
 
 ### Return raw SSE dictionaries
 
