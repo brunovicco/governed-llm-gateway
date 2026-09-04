@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -209,8 +210,7 @@ class _FailingSink:
         raise RuntimeError("remote sink unavailable")
 
 
-@pytest.mark.asyncio
-async def test_journal_records_locally_before_successful_remote_delivery() -> None:
+def test_journal_records_locally_before_successful_remote_delivery() -> None:
     sink = _RecordingSink()
     journal = GovernanceEvidenceJournal(sink=sink)
     evidence = build_governance_denial_evidence(
@@ -222,14 +222,13 @@ async def test_journal_records_locally_before_successful_remote_delivery() -> No
         service_version="0.1.0",
     )
 
-    await journal.record(evidence)
+    asyncio.run(journal.record(evidence))
 
     assert journal.records == (evidence,)
     assert sink.events == [evidence]
 
 
-@pytest.mark.asyncio
-async def test_best_effort_sink_failure_keeps_local_evidence() -> None:
+def test_best_effort_sink_failure_keeps_local_evidence() -> None:
     journal = GovernanceEvidenceJournal(sink=_FailingSink())
     evidence = build_governance_denial_evidence(
         _authorization(),
@@ -240,13 +239,12 @@ async def test_best_effort_sink_failure_keeps_local_evidence() -> None:
         service_version="0.1.0",
     )
 
-    await journal.record(evidence)
+    asyncio.run(journal.record(evidence))
 
     assert journal.records == (evidence,)
 
 
-@pytest.mark.asyncio
-async def test_required_sink_failure_raises_after_local_recording() -> None:
+def test_required_sink_failure_raises_after_local_recording() -> None:
     journal = GovernanceEvidenceJournal(
         sink=_FailingSink(),
         delivery_mode=GovernanceEvidenceDeliveryMode.REQUIRED,
@@ -261,7 +259,7 @@ async def test_required_sink_failure_raises_after_local_recording() -> None:
     )
 
     with pytest.raises(GovernanceEvidenceDeliveryError, match="required governance evidence"):
-        await journal.record(evidence)
+        asyncio.run(journal.record(evidence))
 
     assert journal.records == (evidence,)
 
