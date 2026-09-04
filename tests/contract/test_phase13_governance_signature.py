@@ -136,9 +136,7 @@ def test_valid_vaig_v1_signature_projects_verified_authorization() -> None:
     text = _signed_text()
     authorization = verify_governance_authorization_text(text, keys=_resolver())
 
-    expected_signing_bytes = _canonical_bytes(
-        {"protected": _protected(), "claims": _claims()}
-    )
+    expected_signing_bytes = _canonical_bytes({"protected": _protected(), "claims": _claims()})
     assert str(authorization.authorization_id) == "11111111-1111-4111-8111-111111111111"
     assert authorization.key_id == _KEY_ID
     assert authorization.request.workflow_id == "workflow-1"
