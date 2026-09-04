@@ -17,6 +17,7 @@ from governed_llm_gateway_contracts import (
     DataClassification,
     ExecutionStatus,
     GatewayRequest,
+    GatewayResponse,
     GatewayStreamEvent,
     Message,
     MessageRole,
@@ -333,7 +334,7 @@ def test_gateway_client_generate_preserves_terminal_execution_and_usage_exactly(
             request=request,
         )
 
-    async def generate() -> object:
+    async def generate() -> GatewayResponse:
         async with GatewayClient(
             GatewayClientConfig(base_url=BASE_URL, api_key=API_KEY),
             transport=httpx.MockTransport(handler),
