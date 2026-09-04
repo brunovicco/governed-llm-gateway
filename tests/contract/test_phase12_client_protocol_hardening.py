@@ -72,7 +72,12 @@ def _sse(
     )
 
 
-def _response(request: httpx.Request, body: str, *, content_type: str = "text/event-stream") -> httpx.Response:
+def _response(
+    request: httpx.Request,
+    body: str,
+    *,
+    content_type: str = "text/event-stream",
+) -> httpx.Response:
     return httpx.Response(
         200,
         headers={"content-type": content_type},
@@ -92,6 +97,35 @@ async def _generate(client: GatewayClient) -> None:
 
 
 class GatewayClientProtocolHardeningTests(unittest.IsolatedAsyncioTestCase):
+    async def test_first_event_request_id_must_match_sent_request(self) -> None:
+        routing = _routing_payload()
+        body = "".join(
+            (
+                _sse(
+                    StreamEventType.RESPONSE_STARTED,
+                    1,
+                    request_id=OTHER_REQUEST_ID,
+                    routing=routing,
+                ),
+                _sse(
+                    StreamEventType.RESPONSE_COMPLETED,
+                    2,
+                    request_id=OTHER_REQUEST_ID,
+                    routing=routing,
+                ),
+            )
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return _response(request, body)
+
+        async with GatewayClient(
+            GatewayClientConfig(base_url=BASE_URL, api_key=API_KEY),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            with self.assertRaises(GatewayProtocolError):
+                await _generate(client)
+
     async def test_mixed_request_ids_fail_closed(self) -> None:
         routing = _routing_payload()
         body = "".join(
@@ -201,6 +235,28 @@ class GatewayClientProtocolHardeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(API_KEY, str(raised.exception))
         self.assertNotIn("attacker.example", str(raised.exception))
 
+    async def test_oversized_http_error_body_is_not_exposed(self) -> None:
+        sensitive_code = "sensitive-provider-detail"
+        oversized_body = json.dumps(
+            {
+                "detail": {"code": sensitive_code},
+                "padding": "x" * (70 * 1024),
+            }
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(502, content=oversized_body, request=request)
+
+        async with GatewayClient(
+            GatewayClientConfig(base_url=BASE_URL, api_key=API_KEY),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            with self.assertRaises(GatewayHTTPError) as raised:
+                await _generate(client)
+
+        self.assertEqual(raised.exception.code, "http_status_502")
+        self.assertNotIn(sensitive_code, str(raised.exception))
+
     async def test_from_env_builds_gateway_only_configuration(self) -> None:
         with patch.dict(
             os.environ,
@@ -210,7 +266,10 @@ class GatewayClientProtocolHardeningTests(unittest.IsolatedAsyncioTestCase):
             },
             clear=True,
         ):
-            client = GatewayClient.from_env(transport=httpx.MockTransport(lambda request: httpx.Response(500, request=request)))
+            transport = httpx.MockTransport(
+                lambda request: httpx.Response(500, request=request)
+            )
+            client = GatewayClient.from_env(transport=transport)
 
         try:
             self.assertEqual(client.base_url, BASE_URL)
