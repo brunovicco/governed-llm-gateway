@@ -25,6 +25,7 @@ from governed_llm_gateway_contracts import (
     StructuredOutputSchema,
     ToolCall,
     ToolDefinition,
+    Usage,
     WorkloadRequirements,
 )
 
@@ -231,6 +232,7 @@ class GatewayClient:
         """Aggregate one normalized SSE stream into a provider-neutral terminal response."""
         content_parts: list[str] = []
         tool_calls: list[ToolCall] = []
+        observed_usage: Usage | None = None
         terminal: GatewayStreamEvent | None = None
         async for event in self.stream(
             workload=workload,
@@ -253,6 +255,12 @@ class GatewayClient:
                 if event.tool_call is None:
                     raise GatewayProtocolError("completed tool-call event is missing tool_call")
                 tool_calls.append(event.tool_call)
+            elif event.event_type is StreamEventType.USAGE_COMPLETED:
+                if event.usage is None:
+                    raise GatewayProtocolError("usage-completed event is missing normalized usage")
+                if observed_usage is not None:
+                    raise GatewayProtocolError("gateway stream emitted final usage more than once")
+                observed_usage = event.usage
             if event.event_type in {
                 StreamEventType.RESPONSE_COMPLETED,
                 StreamEventType.RESPONSE_FAILED,
@@ -265,24 +273,38 @@ class GatewayClient:
             )
         content = "".join(content_parts) or None
         if terminal.event_type is StreamEventType.RESPONSE_COMPLETED:
+            if terminal.execution is None:
+                raise GatewayProtocolError("completed gateway response is missing execution evidence")
+            if observed_usage is None or terminal.execution.usage != observed_usage:
+                raise GatewayProtocolError(
+                    "terminal execution usage does not match normalized stream usage"
+                )
             return GatewayResponse(
                 request_id=terminal.request_id,
                 status=ExecutionStatus.SUCCEEDED,
                 content=content,
                 routing=terminal.routing,
-                execution=None,
+                execution=terminal.execution,
                 error=None,
                 structured_output=None,
                 tool_calls=tuple(tool_calls),
             )
         if terminal.error is None:
             raise GatewayProtocolError("failed terminal event is missing normalized gateway error")
+        if (
+            terminal.execution is not None
+            and terminal.execution.usage is not None
+            and terminal.execution.usage != observed_usage
+        ):
+            raise GatewayProtocolError(
+                "failed terminal execution usage does not match normalized stream usage"
+            )
         return GatewayResponse(
             request_id=terminal.request_id,
             status=ExecutionStatus.FAILED,
             content=content,
             routing=terminal.routing,
-            execution=None,
+            execution=terminal.execution,
             error=terminal.error,
             structured_output=None,
             tool_calls=tuple(tool_calls),

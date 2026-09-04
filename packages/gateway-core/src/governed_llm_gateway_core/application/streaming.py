@@ -11,8 +11,10 @@ from a2a_otel_kit import Observability
 from governed_llm_gateway_contracts import (
     Capability,
     GatewayError,
+    ExecutionStatus,
     GatewayRequest,
     GatewayStreamEvent,
+    ProviderExecution,
     RoutingProvenance,
     StreamEventType,
     Usage,
@@ -102,6 +104,7 @@ class StreamingExecutionService:
 
         fallback_sequence: list[str] = []
         last_error: ProviderError | None = None
+        last_execution: ProviderExecution | None = None
         last_routing = decision.routing
 
         for candidate_index, candidate in enumerate(bounded):
@@ -174,6 +177,7 @@ class StreamingExecutionService:
                 public_started = False
                 semantic_output = False
                 usage_seen = False
+                final_usage: Usage | None = None
                 sequence = 0
                 started_at = self._clock()
                 span_context = (
@@ -279,15 +283,17 @@ class StreamingExecutionService:
                                                 "llm.usage.output_count": event.usage.output_tokens,
                                             },
                                         )
+                                    final_usage = Usage(
+                                        input_tokens=event.usage.input_tokens,
+                                        output_tokens=event.usage.output_tokens,
+                                        total_cost_usd=event.usage.total_cost_usd,
+                                    )
                                     sequence += 1
                                     yield GatewayStreamEvent(
                                         event_type=StreamEventType.USAGE_COMPLETED,
                                         request_id=request.request_id,
                                         sequence_number=sequence,
-                                        usage=Usage(
-                                            input_tokens=event.usage.input_tokens,
-                                            output_tokens=event.usage.output_tokens,
-                                        ),
+                                        usage=final_usage,
                                     )
                                     continue
 
@@ -308,12 +314,26 @@ class StreamingExecutionService:
                                             {"llm.latency_ms": latency_ms},
                                         )
                                         mark_span_success(span)
+                                    if final_usage is None:
+                                        raise _invalid_stream_event(
+                                            deployment.provider,
+                                            "provider completed without normalized final usage",
+                                        )
+                                    execution = ProviderExecution(
+                                        provider=deployment.provider,
+                                        model=deployment.model_id,
+                                        deployment=deployment_id,
+                                        status=ExecutionStatus.SUCCEEDED,
+                                        latency_ms=latency_ms,
+                                        usage=final_usage,
+                                    )
                                     sequence += 1
                                     yield GatewayStreamEvent(
                                         event_type=StreamEventType.RESPONSE_COMPLETED,
                                         request_id=request.request_id,
                                         sequence_number=sequence,
                                         routing=routing,
+                                        execution=execution,
                                         finish_reason=event.finish_reason,
                                     )
                                     return
@@ -335,6 +355,14 @@ class StreamingExecutionService:
                         latency_ms = _latency_ms(started_at, self._clock())
                         self._health.record_failure(deployment_id, exc, latency_ms=latency_ms)
                         last_error = exc
+                        last_execution = ProviderExecution(
+                            provider=deployment.provider,
+                            model=deployment.model_id,
+                            deployment=deployment_id,
+                            status=ExecutionStatus.FAILED,
+                            latency_ms=latency_ms,
+                            usage=final_usage,
+                        )
                         if span is not None:
                             failure_attributes: dict[str, object] = {
                                 "llm.latency_ms": latency_ms,
@@ -355,6 +383,7 @@ class StreamingExecutionService:
                                 message="provider stream failed after partial output",
                                 retryable=False,
                                 partial=True,
+                                execution=last_execution,
                             )
                             return
 
@@ -403,6 +432,7 @@ class StreamingExecutionService:
                                 message="provider stream failed before output",
                                 retryable=False,
                                 partial=False,
+                                execution=last_execution,
                             )
                             return
 
@@ -420,6 +450,7 @@ class StreamingExecutionService:
             message="all bounded authorized streaming candidates were exhausted",
             retryable=retryable,
             partial=False,
+            execution=last_execution,
         )
 
 
@@ -516,12 +547,14 @@ def _failed_event(
     message: str,
     retryable: bool,
     partial: bool,
+    execution: ProviderExecution | None = None,
 ) -> GatewayStreamEvent:
     return GatewayStreamEvent(
         event_type=StreamEventType.RESPONSE_FAILED,
         request_id=request.request_id,
         sequence_number=sequence_number,
         routing=routing,
+        execution=execution,
         error=GatewayError(code=code, message=message, retryable=retryable),
         partial=partial,
     )
