@@ -60,7 +60,7 @@ class GovernanceRuntimeEvidence:
         ):
             if not value or value.strip() != value:
                 raise ValueError(f"{name} must be a normalized non-empty string")
-        for name, value in (
+        for name, optional_value in (
             ("authorization_signing_digest", self.authorization_signing_digest),
             ("authorization_key_id", self.authorization_key_id),
             ("policy_router_decision_id", self.policy_router_decision_id),
@@ -70,7 +70,9 @@ class GovernanceRuntimeEvidence:
             ("deployment_id", self.deployment_id),
             ("provider_error_code", self.provider_error_code),
         ):
-            if value is not None and (not value or value.strip() != value):
+            if optional_value is not None and (
+                not optional_value or optional_value.strip() != optional_value
+            ):
                 raise ValueError(f"{name} must be normalized when present")
         if self.attempt_count is not None and self.attempt_count < 0:
             raise ValueError("attempt_count must be non-negative when present")

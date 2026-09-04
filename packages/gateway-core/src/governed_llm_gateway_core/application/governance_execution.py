@@ -189,10 +189,9 @@ def _last_provider_attempt_candidate(
     if not attempted_ids:
         return None
     last_deployment_id = attempted_ids[-1]
-    candidates = (
-        *((decision.selected,) if decision.selected is not None else ()),
-        *decision.alternatives,
-    )
+    candidates: list[RankedCandidate] = list(decision.alternatives)
+    if decision.selected is not None:
+        candidates.insert(0, decision.selected)
     for candidate in candidates:
         if candidate.deployment.deployment_id == last_deployment_id:
             return candidate
