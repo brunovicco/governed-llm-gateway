@@ -5,6 +5,7 @@ description = "Domain and application core for Governed LLM Gateway"
 requires-python = ">=3.13,<3.15"
 dependencies = [
     "a2a-otel-kit==0.6.0",
+    "cryptography>=50.0.0,<51",
     "governed-llm-gateway-contracts",
     "httpx>=0.28.1,<0.29",
     "jsonschema>=4.26.0,<5",

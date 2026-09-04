@@ -18,134 +18,161 @@ Last updated: 2026-09-04
 | Phase 9 — OpenTelemetry | COMPLETE (`governed-llm-gateway` PR #8) |
 | Phase 10 — Evaluation Framework | COMPLETE (`governed-llm-gateway` PR #9) |
 | Phase 11 — Evidence-Driven Ranking | COMPLETE (`governed-llm-gateway` PR #10) |
-| Phase 12 — Client SDK | CURRENT — FINAL VALIDATION GREEN / REVIEW READY |
-| Phase 13+ | NOT STARTED |
+| Phase 12 — Thin Client SDK | COMPLETE (`governed-llm-gateway` PR #11) |
+| Phase 13 — Governance Integration | CURRENT — IMPLEMENTATION GREEN, REVIEW PREPARATION |
+| Phase 14 | NOT STARTED |
 
 ## Durable architecture baseline
 
 - uv workspace with explicit `gateway-contracts`, `gateway-core`, `gateway-client`, and `gateway-api`
   boundaries;
-- Policy Model Router remains the PDP; the gateway remains the PEP plus operational selector;
+- Verifiable AI Governance is an optional upstream governance authority;
+- Policy Model Router remains the deterministic PDP;
+- the gateway remains the PEP plus operational selector/executor;
 - permanent invariant: `Gateway allowed set ⊆ Policy Router authorized set`;
+- governance authorization may narrow that set further but may never expand it;
 - provider-specific SDKs/credentials remain behind gateway adapters;
 - metadata-only evidence remains the default;
 - business-tool execution remains outside the gateway;
-- no benchmark, telemetry, SDK, or client state becomes an authorization source.
+- benchmark, telemetry, SDK, client state and evidence are never authorization sources.
 
-## Completed through Phase 11
+## Phase 12 — completed
 
-Phase 10 merged through PR #9 at squash commit
-`db30ffc481d1a3c02fb01f46524b5190290fb7ac` after independent architecture/security review. It added
-the offline benchmark framework and immutable evaluation evidence.
+PR #11 was independently reviewed and squash-merged into `main` at:
 
-Phase 11 merged through PR #10 at squash commit
-`5888376da798d55b9f4139e943514dca0e573dea` after review approval. It added explicit benchmark
-promotion, content-addressed ranking evidence, benchmark-hybrid ranking, manual override, immutable
-rollback artifacts, and Phase 11 routing provenance while preserving authorization monotonicity.
+`1b9b3ef01f0efac49d1f2a92056473ec4b45c375`
 
-Final PR-head Phase 11 validation before merge:
+Final PR validation before merge:
 
-- head `444a386183233dcded5c367b391f7db713b79360`;
-- pull-request run `33814795729` — PASS;
-- pytest — 252 passed;
-- aggregate coverage — 81.28%;
-- mypy — PASS across 97 source files;
-- Ruff, Bandit, pip-audit, architecture, secret scan, and Phase 0 gate — PASS.
+- 277 tests passed;
+- aggregate coverage 80.98%;
+- mypy/Ruff passed across 102 files;
+- Bandit reported 0 issues across 10,418 lines of code;
+- pip-audit reported no known vulnerabilities;
+- architecture check, secret scan and Phase 0 gate passed.
 
-Post-merge `main` validation:
+Local post-merge validation on macOS/Python 3.13.12 reproduced the same baseline exactly.
+The stale remote `tmp-ignore` branch was deleted after the Phase 12 merge.
 
-- merge commit `5888376da798d55b9f4139e943514dca0e573dea`;
-- GitHub Actions run `33821014717` — PASS.
+The only known warning remains the nonblocking FastAPI/Starlette TestClient deprecation for the
+current `httpx` integration in favor of `httpx2`.
 
-## Phase 12 — Client SDK
+## Phase 13 — Governance Integration
 
 Active branch:
 
-`feat/phase-12-client-sdk`
+`feat/phase-13-governance-integration`
 
-The branch starts from the Phase 11 squash merge commit
-`5888376da798d55b9f4139e943514dca0e573dea`.
+The branch starts from the Phase 12 squash merge commit:
 
-ADR-0010 — Client SDK Boundary — is accepted.
+`1b9b3ef01f0efac49d1f2a92056473ec4b45c375`
 
-Normative acceptance remains:
+Normative roadmap scope:
 
-- consumer needs no provider SDK;
-- consumer needs no provider API key;
-- consumer does not implement retry/fallback;
-- consumer can inspect routing provenance.
+- authorization context;
+- scope validation;
+- governance event sink;
+- runtime evidence.
 
-The accepted SDK boundary is intentionally thin:
+Acceptance:
 
-- dependencies limited to `gateway-contracts`, HTTPX, and the standard library;
-- `GatewayClient.from_env()` reads only gateway URL/API-key configuration;
-- HTTPS-only base URL, no URL userinfo/query/fragment, redirects disabled;
-- gateway credential sent only through `X-Gateway-API-Key`;
-- no client-side model selection, ranking, retry, fallback, circuit breaking, or policy decisions;
-- `stream()` performs one `POST /v1/generate` request and yields validated `GatewayStreamEvent` values;
-- bounded incremental SSE parsing with strict UTF-8/JSON/sequence/terminal validation;
-- bounded total SSE stream size in addition to per-event bounds;
-- `Accept-Encoding: identity` with fail-closed rejection of non-identity encoded SSE responses;
-- every SSE event is bound to the exact `request_id` sent by the client;
-- `generate()` aggregates that same single stream into `GatewayResponse` without a second execution;
-- risk level and data classification remain explicit caller inputs rather than unsafe implicit defaults;
-- raw gateway error bodies and credentials are excluded from client exception text;
-- Phase 11 provenance is reconstructed for inspection but never interpreted as authorization.
+- gateway enforces authorized model group;
+- unauthorized expansion fails closed;
+- denial produces evidence;
+- execution evidence correlates to authorization.
 
-## Phase 12 validated slice
+## ADR-0012 — accepted
 
-Implemented and full-gate validated on the branch:
+The authority chain is:
 
-1. accepted ADR-0010 and moved it out of the deferred ADR backlog;
-2. added sanitized client error classes for configuration/request/transport/HTTP/protocol failures;
-3. added bounded strict SSE/JSON decoding into provider-neutral immutable contracts;
-4. implemented reusable async `GatewayClient`, `from_env()`, `stream()`, `generate()`, lifecycle, and
-   credential-safe representation;
-5. added contract tests for one-attempt transport behavior, gateway-only request payloads, HTTP-error
-   sanitization, SSE bounds/sequence/terminal failures, request correlation, redirects, and Phase 11
-   provenance;
-6. closed the SSE compatibility gap by serializing `score_provenance_mode` and `manual_override_id`
-   alongside `benchmark_snapshot_id`, preserving Phase 11 provenance for SDK consumers;
-7. updated `gateway-client` to `0.2.0`, added direct HTTPX transport dependency, and refreshed the
-   workspace lock;
-8. made the client dependency boundary executable as an explicit import allowlist in
-   `architecture_check.py`: stdlib + `gateway-contracts` + HTTPX only, with no core/API/benchmark/PDP
-   or provider-SDK imports;
-9. bounded HTTP/SSE reads, disabled redirects and environment-derived proxy/client settings, and fail
-   closed when stream request identity or protocol sequencing is inconsistent;
-10. added a finite total stream limit (16 MiB default, 128 MiB configuration ceiling) and identity-only
-    response encoding so transparent decompression cannot bypass bounded stream accounting;
-11. bounded HTTP error-body reads and refuse to decode compressed/oversized error bodies;
-12. removed all temporary Phase 12 bootstrap/hardening workflows from the final branch diff.
+`Verifiable AI Governance → Policy Model Router → Governed LLM Gateway → model provider`
 
-Final clean Phase 12 validation before review completion:
+Phase 13 consumes the existing Verifiable AI Governance `SignedRuntimeAuthorization` v1.0 semantics
+rather than inventing a parallel token. The external contract is Ed25519-signed, short-lived (maximum
+600 seconds), audience-bound, request-bound and scope-bound, and carries governance policy/control
+provenance.
 
-- head `5db5a48e5829109af32de36e60bc21206120a431`;
-- GitHub Actions run `33875566172` — PASS;
-- pytest — 277 passed, 1 known nonblocking Starlette/httpx TestClient deprecation warning;
-- aggregate coverage — 80.98%;
-- mypy — PASS across 102 source files;
-- Ruff check/format — PASS across 102 files;
-- Bandit — PASS, 0 issues across 10,418 lines of code;
+Important decisions:
+
+- governance integration remains optional at deployment/configuration level;
+- when required, missing/invalid/expired/wrong-audience/request-mismatched authorization fails closed;
+- signature verification stays behind an adapter/port boundary with explicitly configured trusted keys;
+- no token-controlled key discovery is allowed;
+- governance may only narrow Policy Router authorization;
+- ranking/health/retry/fallback operate only after governance/PDP intersection;
+- governance evidence is not a same-request authorization source;
+- prompts/completions/raw provider payloads are excluded from default evidence.
+
+## Phase 13 implementation state
+
+Implemented and validated:
+
+1. immutable `VerifiedGovernanceAuthorization` domain projection;
+2. exact trusted runtime binding for workload, risk, data classification, token estimates,
+   structured-output requirement, latency ceiling and cost ceiling;
+3. stable fail-closed denial reason codes;
+4. audience and authorization-window enforcement;
+5. governance/PDP model-group intersection that only narrows Policy Router authorization;
+6. final selected-model-group revalidation immediately before provider execution;
+7. strict VAIG v1 JSON envelope parsing with duplicate-key and exact-schema validation;
+8. canonical Ed25519 signing-byte reconstruction and verification against explicit trusted `kid` keys;
+9. no network or token-controlled signing-key discovery;
+10. metadata-only governance evidence correlated to authorization, PDP decision, routing decision and
+    actual provider/deployment;
+11. local-first evidence journal plus explicit `BEST_EFFORT` and `REQUIRED` remote-delivery modes;
+12. `GovernanceExecutionService` wrapper around existing bounded resilience execution;
+13. provider-attempt accounting that excludes circuit-open skips;
+14. adversarial signature and runtime tests covering unknown keys, algorithm substitution, tampering,
+    request mismatch, authorization expansion, fallback evidence and no-provider-attempt paths.
+
+The temporary crypto bootstrap exposed known advisories in `cryptography==46.0.3`. The dependency was
+remediated to `cryptography==50.0.0`, the lock regenerated, and the final gate reports no known
+vulnerabilities. No audit waiver was introduced.
+
+Latest validated implementation baseline:
+
+- head `244eb7f6fdd46a8dc7375d4c76eee98d01c8868c`;
+- GitHub Actions run `33881234729` — PASS;
+- pytest — 317 passed;
+- aggregate coverage — 81.10%;
+- `governance_execution.py` — 88.57% coverage;
+- mypy — PASS across 110 source files;
+- Ruff check/format — PASS across 110 files;
+- Bandit — 0 issues across 11,525 lines of code;
 - pip-audit — no known vulnerabilities;
 - architecture check — PASS;
 - secret scan — PASS;
-- Phase 0 gate — PASS;
-- default quality workflow remained credential-free with read-only repository permissions.
+- Phase 0 gate — PASS.
 
-## Next step
+## Phase 13 review boundary
 
-Complete independent architecture/security review of PR #11 against ADR-0010 and the roadmap
-acceptance criteria. Phase 12 remains CURRENT until review is approved and the PR is merged. Do not
-start Phase 13 before that merge.
+Implementation validation: **PASS**
+
+Authorization monotonicity and scope enforcement: **PASS**
+
+Signed authorization verification: **PASS**
+
+Denial/execution evidence correlation: **PASS**
+
+Governed provider-execution boundary: **PASS**
+
+Documentation synchronization: **IN PROGRESS**
+
+Independent architecture/security review: **PENDING**
+
+Phase 13 merge: **PENDING**
+
+Phase 14 remains blocked until Phase 13 documentation is synchronized, PR-head CI is green,
+independent architecture/security review returns `APPROVE` with no justified BLOCKER/HIGH/MEDIUM
+findings, and the Phase 13 PR is merged.
 
 ## Explicitly deferred
 
-- provider SDKs or provider API keys in consumers;
+- client-side provider credentials or provider SDKs;
 - client-side retry/fallback/circuit breaking/model selection;
-- OpenAI compatibility surface in the client;
-- unsafe defaulting of omitted data classification to `public`;
 - automatic/adaptive routing self-modification;
-- signed Verifiable AI Governance runtime authorization (Phase 13);
+- arbitrary key discovery from governance token contents;
+- using governance evidence/telemetry as a new authorization source;
 - provider-native tool-result continuation without canonical provider state;
-- payload/prompt/completion capture as default telemetry.
+- payload/prompt/completion capture as default telemetry/evidence;
+- Phase 14 consumer migrations.

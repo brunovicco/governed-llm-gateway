@@ -1,5 +1,16 @@
 """Application orchestration boundaries."""
 
+from .governance_evidence import (
+    GovernanceEventSink,
+    GovernanceEvidenceDeliveryError,
+    GovernanceEvidenceDeliveryMode,
+    GovernanceEvidenceJournal,
+    GovernanceEvidenceOutcome,
+    GovernanceRuntimeEvidence,
+    build_governance_denial_evidence,
+    build_governance_execution_evidence,
+)
+from .governance_execution import GovernanceExecutionService, GovernanceExecutor
 from .policy import (
     AuthorizedCandidateSet,
     PolicyAuthorizationDecision,
@@ -46,6 +57,14 @@ __all__ = [
     "AuthorizedCandidateSet",
     "ExecutionAttempt",
     "ExecutionAttemptOutcome",
+    "GovernanceEventSink",
+    "GovernanceEvidenceDeliveryError",
+    "GovernanceEvidenceDeliveryMode",
+    "GovernanceEvidenceJournal",
+    "GovernanceEvidenceOutcome",
+    "GovernanceExecutionService",
+    "GovernanceExecutor",
+    "GovernanceRuntimeEvidence",
     "InMemoryHealthTracker",
     "OperationalRankingService",
     "PolicyAuthorizationDecision",
@@ -75,5 +94,7 @@ __all__ = [
     "RouteExplainService",
     "ScoreBreakdown",
     "StaticProviderResolver",
+    "build_governance_denial_evidence",
+    "build_governance_execution_evidence",
     "project_policy_request",
 ]

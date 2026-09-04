@@ -1,6 +1,6 @@
-# Phase 0 through Phase 11 Validation Record
+# Phase 0 through Phase 13 Validation Record
 
-Date: 2026-09-03
+Date: 2026-09-04
 
 ## Toolchain
 
@@ -258,3 +258,68 @@ Phase 11 merge: **PENDING**
 Phase 12 remains blocked until Phase 11 documentation is synchronized, PR-head CI is green,
 independent architecture/security review returns `APPROVE` with no justified BLOCKER/HIGH/MEDIUM
 findings, and the Phase 11 PR is merged.
+
+## Phase 12 — Thin Client SDK completion
+
+Phase 12 was independently reviewed and squash-merged as PR #11 at
+`1b9b3ef01f0efac49d1f2a92056473ec4b45c375`. The final CI baseline was reproduced
+locally on macOS/Python 3.13.12:
+
+- 277 tests passed;
+- aggregate coverage 80.98%;
+- mypy/Ruff PASS across 102 files;
+- Bandit 0 issues across 10,418 lines of code;
+- pip-audit no known vulnerabilities;
+- architecture check, secret scan and Phase 0 gate PASS.
+
+## Phase 13 — Governance Integration validation checkpoint
+
+ADR-0012 is accepted. Phase 13 preserves the authority chain:
+
+```text
+Verifiable AI Governance -> Policy Model Router -> Governed LLM Gateway -> provider
+```
+
+and the permanent monotonicity invariant:
+
+```text
+Gateway allowed set ⊆ Policy Router authorized set
+```
+
+Validated Phase 13 behavior includes:
+
+- strict Verifiable AI Governance `SignedRuntimeAuthorization` v1.0 envelope parsing;
+- duplicate-key, schema-drift, malformed-identity and algorithm-substitution rejection;
+- canonical Ed25519 signature verification against an explicit trusted `kid` allowlist;
+- no token-controlled or network signing-key discovery;
+- maximum 600-second authorization lifetime plus audience/time/request/scope binding;
+- governance model-group authorization that only intersects/narrows the Policy Router set;
+- stable fail-closed denial reason codes and final selected-group revalidation immediately before execution;
+- metadata-only denial and execution evidence correlated across governance authorization, Policy Router decision, gateway routing decision and actual provider/deployment;
+- local-first governance evidence journal with explicit best-effort/required remote-delivery modes;
+- governance execution wrapper around existing retry/fallback rather than duplicate resilience logic;
+- provider-attempt accounting excludes circuit-open skips;
+- tests proving invalid governance blocks the executor, fallback evidence names the actual final deployment, terminal failure names the last real provider attempt, and circuit-only paths do not fabricate provider execution.
+
+The initial crypto bootstrap selected `cryptography==46.0.3`; `pip-audit` correctly rejected it due to
+known 2026 advisories. The dependency was upgraded to `cryptography==50.0.0` and the lock regenerated.
+No vulnerability waiver or audit exclusion was added.
+
+Latest implementation validation before review preparation:
+
+- head `244eb7f6fdd46a8dc7375d4c76eee98d01c8868c`;
+- GitHub Actions run `33881234729` — PASS;
+- pytest — 317 passed;
+- aggregate coverage — 81.10%;
+- `governance_execution.py` — 88.57% coverage;
+- Ruff lint/format — PASS across 110 files;
+- mypy — PASS across 110 source files;
+- Bandit — 0 issues across 11,525 lines of code;
+- pip-audit — no known vulnerabilities;
+- architecture check — PASS;
+- secret scan — PASS;
+- Phase 0 regression gate — PASS.
+
+Phase 13 implementation is ready for PR-head validation and independent architecture/security review.
+Phase 14 remains blocked until that review returns `APPROVE` with no justified BLOCKER/HIGH/MEDIUM
+findings and Phase 13 is merged.
