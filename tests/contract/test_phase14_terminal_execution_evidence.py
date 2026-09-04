@@ -176,11 +176,7 @@ def _request() -> GatewayRequest:
 def _sse(event: GatewayStreamEvent) -> str:
     payload = _event_payload(event)
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return (
-        f"event: {event.event_type.value}\n"
-        f"id: {event.sequence_number}\n"
-        f"data: {encoded}\n\n"
-    )
+    return f"event: {event.event_type.value}\nid: {event.sequence_number}\ndata: {encoded}\n\n"
 
 
 def test_runtime_terminal_execution_preserves_measured_identity_usage_latency_and_cost() -> None:

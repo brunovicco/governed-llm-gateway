@@ -49,11 +49,7 @@ def _routing() -> RoutingProvenance:
 def _sse(event: GatewayStreamEvent) -> str:
     payload = _event_payload(event)
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return (
-        f"event: {event.event_type.value}\n"
-        f"id: {event.sequence_number}\n"
-        f"data: {encoded}\n\n"
-    )
+    return f"event: {event.event_type.value}\nid: {event.sequence_number}\ndata: {encoded}\n\n"
 
 
 def test_generate_rejects_success_terminal_without_provider_execution_evidence() -> None:
