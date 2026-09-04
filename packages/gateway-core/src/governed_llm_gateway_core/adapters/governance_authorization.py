@@ -256,9 +256,9 @@ def _project_verified_authorization(
         ),
     )
 
-    risk_level = _require_enum(scope["risk_tier"], RiskLevel, "scope.risk_tier")
-    data_classification = _require_enum(
-        scope["data_classification"], DataClassification, "scope.data_classification"
+    risk_level = _require_risk_level(scope["risk_tier"], "scope.risk_tier")
+    data_classification = _require_data_classification(
+        scope["data_classification"], "scope.data_classification"
     )
     _require_identifier(scope["autonomy_level"], "scope.autonomy_level")
     _require_bounded_int(
@@ -330,9 +330,8 @@ def _parse_models(value: object, *, data_classification: DataClassification) -> 
             model["routing_group"], f"scope.models[{index}].routing_group"
         )
         _require_digest(model["review_digest"], f"scope.models[{index}].review_digest")
-        classes = _require_enum_tuple(
+        classes = _require_data_classification_tuple(
             model["allowed_data_classes"],
-            DataClassification,
             f"scope.models[{index}].allowed_data_classes",
         )
         if not classes:
@@ -484,22 +483,32 @@ def _require_short_text_tuple(value: object, context: str) -> tuple[str, ...]:
     return tuple(result)
 
 
-def _require_enum_tuple(
-    value: object, enum_type: type[DataClassification], context: str
-) -> tuple[DataClassification, ...]:
-    return tuple(_require_enum(item, enum_type, context) for item in _require_list(value, context))
-
-
-def _require_enum(
-    value: object, enum_type: type[RiskLevel] | type[DataClassification], context: str
-) -> RiskLevel | DataClassification:
+def _require_risk_level(value: object, context: str) -> RiskLevel:
     text = _require_string(value, context)
     try:
-        return enum_type(text)
+        return RiskLevel(text)
     except ValueError as exc:
         raise GovernanceAuthorizationVerificationError(
             f"{context} contains an unsupported value"
         ) from exc
+
+
+def _require_data_classification(value: object, context: str) -> DataClassification:
+    text = _require_string(value, context)
+    try:
+        return DataClassification(text)
+    except ValueError as exc:
+        raise GovernanceAuthorizationVerificationError(
+            f"{context} contains an unsupported value"
+        ) from exc
+
+
+def _require_data_classification_tuple(
+    value: object, context: str
+) -> tuple[DataClassification, ...]:
+    return tuple(
+        _require_data_classification(item, context) for item in _require_list(value, context)
+    )
 
 
 def _decode_signature(value: object) -> bytes:
