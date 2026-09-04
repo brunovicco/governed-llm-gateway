@@ -220,6 +220,10 @@ def test_runtime_terminal_execution_preserves_measured_identity_usage_latency_an
         status=ExecutionStatus.SUCCEEDED,
         latency_ms=250,
         usage=usage_event.usage,
+        provider_request_id="provider-response",
+        finish_reason="stop",
+        attempt_number=1,
+        fallback_index=0,
     )
 
 
@@ -250,6 +254,8 @@ def test_api_payload_preserves_terminal_execution_without_synthesizing_cost() ->
         "deployment": "deployment-a",
         "status": "succeeded",
         "latency_ms": 41,
+        "attempt_number": 1,
+        "fallback_index": 0,
         "usage": {"input_tokens": 7, "output_tokens": 3},
     }
 

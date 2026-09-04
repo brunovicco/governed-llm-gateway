@@ -78,3 +78,37 @@ def test_sdk_decoder_does_not_hide_invalid_attempt_number() -> None:
     }
     with pytest.raises(ValueError, match="attempt_number"):
         _decode_execution(payload)
+
+
+def test_sdk_decoder_preserves_extended_execution_and_usage_evidence() -> None:
+    from governed_llm_gateway_client._codec import _decode_execution
+
+    payload: dict[str, object] = {
+        "provider": "bedrock",
+        "model": "model-id",
+        "deployment": "deployment-a",
+        "status": "succeeded",
+        "latency_ms": 37,
+        "provider_request_id": "aws-request-id",
+        "finish_reason": "end_turn",
+        "attempt_number": 2,
+        "fallback_index": 1,
+        "usage": {
+            "input_tokens": 11,
+            "output_tokens": 5,
+            "total_tokens": 16,
+            "cache_read_input_tokens": 3,
+            "cache_write_input_tokens": 1,
+            "total_cost_usd": "0.0017",
+        },
+    }
+    execution = _decode_execution(payload)
+    assert execution.provider_request_id == "aws-request-id"
+    assert execution.finish_reason == "end_turn"
+    assert execution.attempt_number == 2
+    assert execution.fallback_index == 1
+    assert execution.usage is not None
+    assert execution.usage.total_tokens == 16
+    assert execution.usage.cache_read_input_tokens == 3
+    assert execution.usage.cache_write_input_tokens == 1
+    assert execution.usage.total_cost_usd == Decimal("0.0017")
