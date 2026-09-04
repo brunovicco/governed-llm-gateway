@@ -18,7 +18,7 @@ Last updated: 2026-09-03
 | Phase 9 — OpenTelemetry | COMPLETE (`governed-llm-gateway` PR #8) |
 | Phase 10 — Evaluation Framework | COMPLETE (`governed-llm-gateway` PR #9) |
 | Phase 11 — Evidence-Driven Ranking | COMPLETE (`governed-llm-gateway` PR #10) |
-| Phase 12 — Client SDK | CURRENT — IMPLEMENTATION / FULL-GATE VALIDATION |
+| Phase 12 — Client SDK | CURRENT — VALIDATED / REVIEW READY |
 | Phase 13+ | NOT STARTED |
 
 ## Durable architecture baseline
@@ -84,14 +84,15 @@ The accepted SDK boundary is intentionally thin:
 - no client-side model selection, ranking, retry, fallback, circuit breaking, or policy decisions;
 - `stream()` performs one `POST /v1/generate` request and yields validated `GatewayStreamEvent` values;
 - bounded incremental SSE parsing with strict UTF-8/JSON/sequence/terminal validation;
+- every SSE event is bound to the exact `request_id` sent by the client;
 - `generate()` aggregates that same single stream into `GatewayResponse` without a second execution;
 - risk level and data classification remain explicit caller inputs rather than unsafe implicit defaults;
 - raw gateway error bodies and credentials are excluded from client exception text;
 - Phase 11 provenance is reconstructed for inspection but never interpreted as authorization.
 
-## Current Phase 12 slice
+## Phase 12 validated slice
 
-Implemented on the branch:
+Implemented and full-gate validated on the branch:
 
 1. accepted ADR-0010 and moved it out of the deferred ADR backlog;
 2. added sanitized client error classes for configuration/request/transport/HTTP/protocol failures;
@@ -99,20 +100,36 @@ Implemented on the branch:
 4. implemented reusable async `GatewayClient`, `from_env()`, `stream()`, `generate()`, lifecycle, and
    credential-safe representation;
 5. added contract tests for one-attempt transport behavior, gateway-only request payloads, HTTP-error
-   sanitization, SSE bounds/sequence failure, terminal failure aggregation, and Phase 11 provenance;
+   sanitization, SSE bounds/sequence/terminal failures, request correlation, redirects, and Phase 11
+   provenance;
 6. closed the SSE compatibility gap by serializing `score_provenance_mode` and `manual_override_id`
    alongside `benchmark_snapshot_id`, preserving Phase 11 provenance for SDK consumers;
 7. updated `gateway-client` to `0.2.0`, added direct HTTPX transport dependency, and refreshed the
    workspace lock;
-8. targeted Phase 12 Ruff, mypy, and contract tests passed in bootstrap run `33822108794`;
-9. both temporary Phase 12 bootstrap workflows self-removed, leaving clean head
-   `6c9042a1180d0945f774200fc97e66194d5df7e9`.
+8. made the client dependency boundary executable in both `architecture_check.py` and the engineering
+   harness configuration: stdlib + `gateway-contracts` + HTTPX only, with no core/API/benchmark/PDP or
+   provider-SDK imports;
+9. bounded HTTP/SSE reads, disabled redirects, disabled environment-derived proxy/client settings, and
+   fail closed when stream request identity or protocol sequencing is inconsistent;
+10. removed all temporary Phase 12 bootstrap/hardening workflows from the final branch diff.
+
+Final validated Phase 12 head before PR preparation:
+
+- head `d83075713503227780a979f399bf6bf8b891e1b5`;
+- GitHub Actions run `33829884632` — PASS;
+- pytest — 271 passed, 1 known nonblocking Starlette/httpx TestClient deprecation warning;
+- aggregate coverage — 80.93%;
+- mypy — PASS across 101 source files;
+- Ruff check/format — PASS across 101 files;
+- Bandit — PASS, 0 issues across 10,348 lines of code;
+- pip-audit — no known vulnerabilities;
+- architecture check, secret scan, and Phase 0 gate — PASS.
 
 ## Next step
 
-Run the full repository quality gate for the clean Phase 12 head, fix any cross-repository
-lint/type/test/security/coverage findings, and record the first complete Phase 12 validation baseline.
-Do not start Phase 13 while Phase 12 remains under implementation/review.
+Open the Phase 12 pull request, verify pull-request CI, and perform independent architecture/security
+review against ADR-0010 and the roadmap acceptance criteria. Phase 12 remains CURRENT until review is
+approved and the PR is merged. Do not start Phase 13 before that merge.
 
 ## Explicitly deferred
 
