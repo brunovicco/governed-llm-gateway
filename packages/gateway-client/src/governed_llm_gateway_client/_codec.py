@@ -106,9 +106,7 @@ async def _iter_sse_frames(
     if max_event_bytes <= 0:
         raise GatewayProtocolError("max SSE event size must be positive")
     buffer = bytearray()
-    async for chunk in response.aiter_bytes(
-        chunk_size=min(max_event_bytes, _MAX_HTTP_CHUNK_BYTES)
-    ):
+    async for chunk in response.aiter_bytes(chunk_size=min(max_event_bytes, _MAX_HTTP_CHUNK_BYTES)):
         buffer.extend(chunk)
         while True:
             extracted = _extract_frame(buffer)
