@@ -9,11 +9,13 @@ from .authorization import (
 )
 from .governance import (
     GovernanceAuthorizationViolation,
+    GovernanceDenialReason,
     GovernancePolicyProvenance,
     GovernanceRequestBinding,
     GovernanceRuntimeRequest,
     VerifiedGovernanceAuthorization,
     enforce_governance_authorization,
+    enforce_governance_selected_group,
     governance_authorized_candidates,
 )
 from .model_registry import (
@@ -65,6 +67,7 @@ __all__ = [
     "EffectivePolicyContext",
     "FallbackSafetyState",
     "GovernanceAuthorizationViolation",
+    "GovernanceDenialReason",
     "GovernancePolicyProvenance",
     "GovernanceRequestBinding",
     "GovernanceRuntimeRequest",
@@ -91,6 +94,7 @@ __all__ = [
     "build_ranking_policy",
     "enforce_allowed_subset",
     "enforce_governance_authorization",
+    "enforce_governance_selected_group",
     "enforce_selected_group",
     "governance_authorized_candidates",
     "parse_and_validate_structured_output",
