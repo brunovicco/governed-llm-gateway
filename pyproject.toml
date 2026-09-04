@@ -98,3 +98,13 @@ deny-dynamic-imports = true
 path = "packages/gateway-core/src/governed_llm_gateway_core/domain"
 allowed-imports = ["stdlib", "governed_llm_gateway_contracts", "governed_llm_gateway_core"]
 deny-dynamic-imports = true
+
+[[tool.engineering-harness.architecture.boundaries]]
+path = "packages/gateway-client/src/governed_llm_gateway_client"
+allowed-imports = [
+    "stdlib",
+    "governed_llm_gateway_client",
+    "governed_llm_gateway_contracts",
+    "httpx",
+]
+deny-dynamic-imports = true

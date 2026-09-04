@@ -225,14 +225,18 @@ requires-dist = [
 
 [[package]]
 name = "governed-llm-gateway-client"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "packages/gateway-client" }
 dependencies = [
     { name = "governed-llm-gateway-contracts" },
+    { name = "httpx" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "governed-llm-gateway-contracts", editable = "packages/gateway-contracts" }]
+requires-dist = [
+    { name = "governed-llm-gateway-contracts", editable = "packages/gateway-contracts" },
+    { name = "httpx", specifier = ">=0.28.1,<0.29" },
+]
 
 [[package]]
 name = "governed-llm-gateway-contracts"

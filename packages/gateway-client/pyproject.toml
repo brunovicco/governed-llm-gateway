@@ -1,9 +1,12 @@
 [project]
 name = "governed-llm-gateway-client"
-version = "0.1.0"
-description = "Thin async client contract for Governed LLM Gateway"
+version = "0.2.0"
+description = "Thin async client for Governed LLM Gateway"
 requires-python = ">=3.13,<3.15"
-dependencies = ["governed-llm-gateway-contracts"]
+dependencies = [
+    "governed-llm-gateway-contracts",
+    "httpx>=0.28.1,<0.29",
+]
 
 [tool.uv.sources]
 governed-llm-gateway-contracts = { workspace = true }

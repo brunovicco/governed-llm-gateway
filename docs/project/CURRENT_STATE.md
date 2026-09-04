@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 ## Phase status
 
@@ -17,136 +17,135 @@ Last updated: 2026-09-03
 | Phase 8 — Streaming | COMPLETE (`governed-llm-gateway` PR #7) |
 | Phase 9 — OpenTelemetry | COMPLETE (`governed-llm-gateway` PR #8) |
 | Phase 10 — Evaluation Framework | COMPLETE (`governed-llm-gateway` PR #9) |
-| Phase 11 — Evidence-Driven Ranking | CURRENT — REVIEW PREPARATION |
-| Phase 12+ | NOT STARTED / BLOCKED ON PHASE 11 MERGE |
+| Phase 11 — Evidence-Driven Ranking | COMPLETE (`governed-llm-gateway` PR #10) |
+| Phase 12 — Client SDK | CURRENT — FINAL VALIDATION GREEN / REVIEW READY |
+| Phase 13+ | NOT STARTED |
 
 ## Durable architecture baseline
 
 - uv workspace with explicit `gateway-contracts`, `gateway-core`, `gateway-client`, and `gateway-api`
   boundaries;
-- provider-neutral contracts/domain and provider-specific infrastructure isolated in adapters;
 - Policy Model Router remains the PDP; the gateway remains the PEP plus operational selector;
-- core invariant: `Gateway allowed set ⊆ Policy Router authorized set`;
-- metadata-only evidence by default and fail-closed handling of untrusted configuration/external
-  responses;
-- provider-native feature support never grants model authorization by itself;
-- business-tool execution remains outside the gateway.
+- permanent invariant: `Gateway allowed set ⊆ Policy Router authorized set`;
+- provider-specific SDKs/credentials remain behind gateway adapters;
+- metadata-only evidence remains the default;
+- business-tool execution remains outside the gateway;
+- no benchmark, telemetry, SDK, or client state becomes an authorization source.
 
-## Completed through Phase 10
-
-Phase 9 merged through PR #8 at merge commit
-`be15c21ecfc76ef9bb727e5c4144c4929f028489` and added metadata-only OpenTelemetry through
-`a2a-otel-kit==0.6.0` while preserving telemetry as evidence only.
+## Completed through Phase 11
 
 Phase 10 merged through PR #9 at squash commit
-`db30ffc481d1a3c02fb01f46524b5190290fb7ac` after independent architecture/security review returned
-`APPROVE`. It established the offline `benchmarks/` source root, deterministic public/synthetic
-workloads and scorers, quality-versus-availability separation, exact target provenance, and immutable
-content-derived benchmark snapshots.
+`db30ffc481d1a3c02fb01f46524b5190290fb7ac` after independent architecture/security review. It added
+the offline benchmark framework and immutable evaluation evidence.
 
-Final Phase 10 validation before merge:
+Phase 11 merged through PR #10 at squash commit
+`5888376da798d55b9f4139e943514dca0e573dea` after review approval. It added explicit benchmark
+promotion, content-addressed ranking evidence, benchmark-hybrid ranking, manual override, immutable
+rollback artifacts, and Phase 11 routing provenance while preserving authorization monotonicity.
 
-- GitHub Actions run `33807237149` — PASS;
-- pytest — 207 passed;
-- aggregate branch coverage — 80.56%;
-- Ruff, mypy, Bandit, pip-audit, architecture check, secret scan, and Phase 0 gate — PASS.
+Final PR-head Phase 11 validation before merge:
 
-Coverage reporting remains fixed at precision 2. The existing FastAPI/Starlette TestClient `httpx` ->
-`httpx2` deprecation warning remains non-blocking maintenance work.
+- head `444a386183233dcded5c367b391f7db713b79360`;
+- pull-request run `33814795729` — PASS;
+- pytest — 252 passed;
+- aggregate coverage — 81.28%;
+- mypy — PASS across 97 source files;
+- Ruff, Bandit, pip-audit, architecture, secret scan, and Phase 0 gate — PASS.
 
-## Phase 11 — Evidence-Driven Ranking
+Post-merge `main` validation:
+
+- merge commit `5888376da798d55b9f4139e943514dca0e573dea`;
+- GitHub Actions run `33821014717` — PASS.
+
+## Phase 12 — Client SDK
 
 Active branch:
 
-`feat/phase-11-evidence-driven-ranking`
+`feat/phase-12-client-sdk`
 
-The branch starts from the Phase 10 merge commit
-`db30ffc481d1a3c02fb01f46524b5190290fb7ac`.
+The branch starts from the Phase 11 squash merge commit
+`5888376da798d55b9f4139e943514dca0e573dea`.
 
-ADR-0009 — Benchmark-Derived Routing Scores — is accepted.
+ADR-0010 — Client SDK Boundary — is accepted.
 
-The authority boundary is:
+Normative acceptance remains:
 
-`immutable benchmark snapshot -> explicit approval/promotion -> versioned ranking evidence -> runtime ranking`
+- consumer needs no provider SDK;
+- consumer needs no provider API key;
+- consumer does not implement retry/fallback;
+- consumer can inspect routing provenance.
 
-Permanent rules:
+The accepted SDK boundary is intentionally thin:
 
-- benchmark evidence may affect ordering only inside the PDP-authorized and otherwise-eligible set;
-- unapproved benchmark snapshots have zero runtime authority;
-- runtime never discovers or auto-loads the newest benchmark result;
-- the Phase 10 benchmark runner remains off the runtime request path;
-- provider failures remain availability evidence and never become quality score zeroes;
-- missing evidence fails closed;
-- manual override is explicit, versioned, attributable configuration and cannot broaden eligibility;
-- rollback selects a previously approved immutable ranking artifact;
-- benchmark runs, telemetry, and runtime outcomes never rewrite active ranking policy automatically.
+- dependencies limited to `gateway-contracts`, HTTPX, and the standard library;
+- `GatewayClient.from_env()` reads only gateway URL/API-key configuration;
+- HTTPS-only base URL, no URL userinfo/query/fragment, redirects disabled;
+- gateway credential sent only through `X-Gateway-API-Key`;
+- no client-side model selection, ranking, retry, fallback, circuit breaking, or policy decisions;
+- `stream()` performs one `POST /v1/generate` request and yields validated `GatewayStreamEvent` values;
+- bounded incremental SSE parsing with strict UTF-8/JSON/sequence/terminal validation;
+- bounded total SSE stream size in addition to per-event bounds;
+- `Accept-Encoding: identity` with fail-closed rejection of non-identity encoded SSE responses;
+- every SSE event is bound to the exact `request_id` sent by the client;
+- `generate()` aggregates that same single stream into `GatewayResponse` without a second execution;
+- risk level and data classification remain explicit caller inputs rather than unsafe implicit defaults;
+- raw gateway error bodies and credentials are excluded from client exception text;
+- Phase 11 provenance is reconstructed for inspection but never interpreted as authorization.
 
-## Phase 11 implementation
+## Phase 12 validated slice
 
-Implemented and validated:
+Implemented and full-gate validated on the branch:
 
-1. deterministic benchmark target/workload -> runtime deployment/workload promotion;
-2. promotion identity covering approval metadata, exact benchmark snapshot, dataset digest, and records;
-3. immutable/idempotent promoted-evidence persistence;
-4. runtime-side evidence validation without importing `benchmarks/`, including content-derived
-   `evidence_id` verification and duplicate-key rejection;
-5. schema `1.1` evidence-driven ranking policy and explicit `score_provenance_mode`;
-6. deterministic `benchmark_hybrid` compilation that replaces only empirical `quality` and
-   `availability`;
-7. static/versioned reliability, latency score, cost score, weights, and `expected_latency_ms` retained
-   until separately reviewed normalization semantics exist;
-8. all-or-nothing hybrid compilation with fail-closed missing evidence;
-9. exact benchmark/promotion identities included in ranking-policy digest;
-10. exact `benchmark_snapshot_id` included in routing provenance and routing-decision identity;
-11. authorization monotonicity regressions proving benchmark evidence cannot resurrect a PDP-excluded
-    candidate or bypass `enabled=False`;
-12. content-addressed, versioned, attributable `ManualOverrideBundle` configuration;
-13. manual override limited to promoted `quality`/`availability`, unable to add candidates or stack
-    implicitly;
-14. exact `manual_override_id` and score-provenance mode included in ranking and routing provenance;
-15. immutable `ApprovedRankingArtifact` identity and exact rollback selection with unknown/ambiguous
-    targets failing closed;
-16. runtime tests proving manual override also cannot bypass PDP authorization or deployment
-    eligibility and that provenance-only changes alter deterministic decision identity.
+1. accepted ADR-0010 and moved it out of the deferred ADR backlog;
+2. added sanitized client error classes for configuration/request/transport/HTTP/protocol failures;
+3. added bounded strict SSE/JSON decoding into provider-neutral immutable contracts;
+4. implemented reusable async `GatewayClient`, `from_env()`, `stream()`, `generate()`, lifecycle, and
+   credential-safe representation;
+5. added contract tests for one-attempt transport behavior, gateway-only request payloads, HTTP-error
+   sanitization, SSE bounds/sequence/terminal failures, request correlation, redirects, and Phase 11
+   provenance;
+6. closed the SSE compatibility gap by serializing `score_provenance_mode` and `manual_override_id`
+   alongside `benchmark_snapshot_id`, preserving Phase 11 provenance for SDK consumers;
+7. updated `gateway-client` to `0.2.0`, added direct HTTPX transport dependency, and refreshed the
+   workspace lock;
+8. made the client dependency boundary executable as an explicit import allowlist in
+   `architecture_check.py`: stdlib + `gateway-contracts` + HTTPX only, with no core/API/benchmark/PDP
+   or provider-SDK imports;
+9. bounded HTTP/SSE reads, disabled redirects and environment-derived proxy/client settings, and fail
+   closed when stream request identity or protocol sequencing is inconsistent;
+10. added a finite total stream limit (16 MiB default, 128 MiB configuration ceiling) and identity-only
+    response encoding so transparent decompression cannot bypass bounded stream accounting;
+11. bounded HTTP error-body reads and refuse to decode compressed/oversized error bodies;
+12. removed all temporary Phase 12 bootstrap/hardening workflows from the final branch diff.
 
-## Final Phase 11 implementation baseline
+Final clean Phase 12 validation before review completion:
 
-Validated source/documentation checkpoint before final review synchronization:
-
-`d076ced8a99fcf89afa7f0d62234913501413a4d`
-
-GitHub Actions run `33814109995` — PASS:
-
-- pytest — **251 passed**;
-- aggregate branch coverage — **81.27%**;
-- mypy — PASS across **97 source files**;
-- Ruff lint/format — PASS, 97 files;
-- Bandit — **0 identified issues**;
-- pip-audit — **no known vulnerabilities**;
+- head `5db5a48e5829109af32de36e60bc21206120a431`;
+- GitHub Actions run `33875566172` — PASS;
+- pytest — 277 passed, 1 known nonblocking Starlette/httpx TestClient deprecation warning;
+- aggregate coverage — 80.98%;
+- mypy — PASS across 102 source files;
+- Ruff check/format — PASS across 102 files;
+- Bandit — PASS, 0 issues across 10,418 lines of code;
+- pip-audit — no known vulnerabilities;
 - architecture check — PASS;
 - secret scan — PASS;
-- Phase 0 regression gate — PASS;
-- default CI remains credential-free and read-only with no live provider/PDP calls.
-
-`EVALUATION.md`, `ROADMAP.md`, and `VALIDATION.md` are synchronized with the Phase 11 implementation and
-accepted ADR-0009 semantics. The current documentation head requires one final PR-preparation quality
-run before the branch is considered review-ready.
-
-## Explicitly deferred
-
-- automatic/adaptive policy optimization or self-modifying routing;
-- normalized benchmark latency/cost ranking scores without separately reviewed normalization policy;
-- uncontrolled online-learning logic;
-- thin client HTTP transport completion (Phase 12);
-- signed Verifiable AI Governance runtime authorization (Phase 13);
-- provider-native tool-result continuation requiring a canonical transcript/state contract;
-- widening the supported JSON Schema subset without explicit safety/compatibility semantics;
-- shared/distributed circuit-breaker state beyond Phase 6;
-- treating policy `max_latency_ms` as an implicit total cross-retry streaming deadline;
-- payload capture or prompt/completion logging as default telemetry.
+- Phase 0 gate — PASS;
+- default quality workflow remained credential-free with read-only repository permissions.
 
 ## Next step
 
-Run the final documentation-synchronized quality gate, open the Phase 11 PR, and require independent
-architecture/security review. Do not start Phase 12 until PR-head CI is green, review returns `APPROVE`
-with no justified BLOCKER/HIGH/MEDIUM findings, and Phase 11 is merged.
+Complete independent architecture/security review of PR #11 against ADR-0010 and the roadmap
+acceptance criteria. Phase 12 remains CURRENT until review is approved and the PR is merged. Do not
+start Phase 13 before that merge.
+
+## Explicitly deferred
+
+- provider SDKs or provider API keys in consumers;
+- client-side retry/fallback/circuit breaking/model selection;
+- OpenAI compatibility surface in the client;
+- unsafe defaulting of omitted data classification to `public`;
+- automatic/adaptive routing self-modification;
+- signed Verifiable AI Governance runtime authorization (Phase 13);
+- provider-native tool-result continuation without canonical provider state;
+- payload/prompt/completion capture as default telemetry.
