@@ -232,6 +232,7 @@ class GatewayClientTransportTests(unittest.IsolatedAsyncioTestCase):
                 messages=_messages(),
                 risk_level=RiskLevel.HIGH,
                 data_classification=DataClassification.INTERNAL,
+                request_id=REQUEST_ID,
             )
 
         self.assertEqual(response.status, ExecutionStatus.FAILED)
