@@ -20,8 +20,8 @@ Current execution sequence:
     `5888376da798d55b9f4139e943514dca0e573dea`).
 12. Thin client SDK transport — COMPLETE (`governed-llm-gateway` PR #11, squash merge
     `1b9b3ef01f0efac49d1f2a92056473ec4b45c375`).
-13. Optional Verifiable AI Governance integration — CURRENT; ADR-0012 accepted, first enforcement
-    slice full-gate green.
+13. Optional Verifiable AI Governance integration — CURRENT; signed authorization verification,
+    monotonic enforcement, runtime evidence and governed execution boundary are full-gate green.
 14. Incremental real-project integrations — NOT STARTED.
 
 ## Permanent authority sequence
@@ -102,24 +102,37 @@ ADR-0012 defines the Phase 13 boundary:
 - evidence is not a same-request authorization source;
 - prompts/completions/raw provider payloads remain excluded from default evidence.
 
-First validated Phase 13 slice:
+Validated Phase 13 implementation now includes:
+
+- strict v1 JSON envelope parsing with duplicate-key and schema-drift rejection;
+- canonical signing bytes and Ed25519 verification against an explicit `kid` allowlist;
+- `cryptography==50.0.0`, remediating the vulnerable 46.0.3 bootstrap without audit waiver;
+- immutable verified-governance facts and exact runtime request binding;
+- audience/time/scope enforcement with stable denial reason codes;
+- governance/Policy Router model-group intersection that only narrows authorization;
+- final selected-model-group revalidation immediately before provider execution;
+- metadata-only denial and execution evidence correlated across governance authorization, Policy Router
+  decision, gateway routing decision, and actual provider/deployment;
+- local-first evidence journal with explicit `BEST_EFFORT` and `REQUIRED` remote-delivery modes;
+- governed execution wrapper around the existing resilience service, without duplicating retry/fallback;
+- real-provider attempt counting that excludes circuit-open skips;
+- tests proving governance denial blocks provider execution, fallback evidence names the actual final
+  deployment, and circuit-only paths do not fabricate provider-execution evidence.
+
+Latest validated Phase 13 baseline:
 
 - branch `feat/phase-13-governance-integration`;
-- head `6e296fe45d22e8062f0634ecda33c9f8ff6d06ec`;
-- GitHub Actions run `33877364977` — PASS;
-- 290 tests passed;
-- aggregate coverage 81.05%;
-- mypy/Ruff PASS across 104 files;
-- Bandit 0 issues across 10,571 lines of code;
-- pip-audit no known vulnerabilities;
+- head `244eb7f6fdd46a8dc7375d4c76eee98d01c8868c`;
+- GitHub Actions run `33881234729` — PASS;
+- 317 tests passed;
+- aggregate coverage 81.10%;
+- `governance_execution.py` coverage 88.57%;
+- mypy/Ruff PASS across 110 files;
+- Bandit 0 issues across 11,525 lines of code;
+- pip-audit reports no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate PASS.
 
-The slice adds immutable verified-governance facts, exact runtime-request binding, audience/time
-validation, and a model-group intersection that can only narrow the Policy Router candidate set.
-
-Next slice: strict v1 envelope parsing and Ed25519 verification compatible with the upstream Verifiable
-AI Governance contract, followed by denial/execution evidence and the governance event sink.
-
-Phase 14 must not begin before Phase 13 review approval and merge.
+Next boundary: synchronize review documentation, open the Phase 13 PR, then obtain independent
+architecture/security review. Phase 14 remains blocked until Phase 13 review approval and merge.
 
 Do not pull work forward when doing so weakens an authority boundary or requires an unstable contract.
