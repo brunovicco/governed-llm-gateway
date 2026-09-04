@@ -218,7 +218,9 @@ def _project_verified_authorization(
 
     _require_positive_int(subject["ai_system_version"], "subject.ai_system_version")
     _require_positive_int(subject["agent_version"], "subject.agent_version")
-    agent_review_digest = _require_digest(subject["agent_review_digest"], "subject.agent_review_digest")
+    agent_review_digest = _require_digest(
+        subject["agent_review_digest"], "subject.agent_review_digest"
+    )
 
     audience = _require_identifier_tuple(claims["audience"], "claims.audience")
     if not audience:
@@ -442,7 +444,9 @@ def _require_utc_datetime(value: object, context: str) -> datetime:
     try:
         parsed = datetime.fromisoformat(text[:-1] + "+00:00")
     except ValueError as exc:
-        raise GovernanceAuthorizationVerificationError(f"{context} is not a valid datetime") from exc
+        raise GovernanceAuthorizationVerificationError(
+            f"{context} is not a valid datetime"
+        ) from exc
     if parsed.tzinfo is None or parsed.utcoffset() != UTC.utcoffset(parsed):
         raise GovernanceAuthorizationVerificationError(f"{context} must be UTC")
     return parsed.astimezone(UTC)
@@ -480,16 +484,22 @@ def _require_short_text_tuple(value: object, context: str) -> tuple[str, ...]:
     return tuple(result)
 
 
-def _require_enum_tuple(value: object, enum_type: type[DataClassification], context: str) -> tuple[DataClassification, ...]:
+def _require_enum_tuple(
+    value: object, enum_type: type[DataClassification], context: str
+) -> tuple[DataClassification, ...]:
     return tuple(_require_enum(item, enum_type, context) for item in _require_list(value, context))
 
 
-def _require_enum(value: object, enum_type: type[RiskLevel] | type[DataClassification], context: str) -> RiskLevel | DataClassification:
+def _require_enum(
+    value: object, enum_type: type[RiskLevel] | type[DataClassification], context: str
+) -> RiskLevel | DataClassification:
     text = _require_string(value, context)
     try:
         return enum_type(text)
     except ValueError as exc:
-        raise GovernanceAuthorizationVerificationError(f"{context} contains an unsupported value") from exc
+        raise GovernanceAuthorizationVerificationError(
+            f"{context} contains an unsupported value"
+        ) from exc
 
 
 def _decode_signature(value: object) -> bytes:
