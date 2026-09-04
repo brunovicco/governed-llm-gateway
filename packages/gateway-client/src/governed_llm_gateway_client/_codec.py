@@ -61,9 +61,7 @@ _REJECTION_FIELDS = frozenset({"deployment", "reason", "detail"})
 _TOOL_CALL_FIELDS = frozenset({"call_id", "name", "arguments"})
 _USAGE_FIELDS = frozenset({"input_tokens", "output_tokens", "total_cost_usd"})
 _ERROR_FIELDS = frozenset({"code", "message", "retryable"})
-_TERMINAL_EVENTS = frozenset(
-    {StreamEventType.RESPONSE_COMPLETED, StreamEventType.RESPONSE_FAILED}
-)
+_TERMINAL_EVENTS = frozenset({StreamEventType.RESPONSE_COMPLETED, StreamEventType.RESPONSE_FAILED})
 
 
 class _DuplicateJsonKeyError(ValueError):
@@ -122,7 +120,9 @@ async def _iter_sse_frames(
 
 def _extract_frame(buffer: bytearray) -> bytes | None:
     delimiters = (b"\r\n\r\n", b"\n\n", b"\r\r")
-    matches = [(index, delimiter) for delimiter in delimiters if (index := buffer.find(delimiter)) >= 0]
+    matches = [
+        (index, delimiter) for delimiter in delimiters if (index := buffer.find(delimiter)) >= 0
+    ]
     if not matches:
         return None
     index, delimiter = min(matches, key=lambda item: item[0])
@@ -226,7 +226,9 @@ def _decode_event(payload: dict[str, object]) -> GatewayStreamEvent:
             partial=_optional_bool(payload, "partial", default=False),
         )
     except (ValueError, TypeError) as exc:
-        raise GatewayProtocolError("gateway stream event violates the provider-neutral contract") from exc
+        raise GatewayProtocolError(
+            "gateway stream event violates the provider-neutral contract"
+        ) from exc
 
 
 def _decode_routing(payload: dict[str, object]) -> RoutingProvenance:
@@ -260,7 +262,9 @@ def _decode_routing(payload: dict[str, object]) -> RoutingProvenance:
         rejected_candidates=tuple(
             _decode_rejection(_as_object(item, "rejected candidate")) for item in rejected_items
         ),
-        fallback_sequence=tuple(_string_value(item, "fallback deployment") for item in fallback_items),
+        fallback_sequence=tuple(
+            _string_value(item, "fallback deployment") for item in fallback_items
+        ),
     )
 
 

@@ -21,7 +21,6 @@ from governed_llm_gateway_contracts import (
     MessageRole,
     RequestLimits,
     RiskLevel,
-    RoutingProvenance,
     StreamEventType,
     StructuredOutputSchema,
     ToolCall,
@@ -172,7 +171,9 @@ class GatewayClient:
                 content_type = response.headers.get("content-type", "")
                 media_type = content_type.split(";", 1)[0].strip().lower()
                 if media_type != "text/event-stream":
-                    raise GatewayProtocolError("gateway response content-type is not text/event-stream")
+                    raise GatewayProtocolError(
+                        "gateway response content-type is not text/event-stream"
+                    )
                 async for event in _iter_sse_events(
                     response,
                     max_event_bytes=self._config.max_sse_event_bytes,
@@ -232,7 +233,9 @@ class GatewayClient:
                 terminal = event
 
         if terminal is None or terminal.routing is None:
-            raise GatewayProtocolError("gateway stream completed without terminal routing provenance")
+            raise GatewayProtocolError(
+                "gateway stream completed without terminal routing provenance"
+            )
         content = "".join(content_parts) or None
         if terminal.event_type is StreamEventType.RESPONSE_COMPLETED:
             return GatewayResponse(

@@ -126,7 +126,11 @@ def _failed_stream() -> str:
                 StreamEventType.RESPONSE_FAILED,
                 3,
                 routing=routing,
-                error={"code": "provider_timeout", "message": "provider timed out", "retryable": True},
+                error={
+                    "code": "provider_timeout",
+                    "message": "provider timed out",
+                    "retryable": True,
+                },
                 partial=True,
             ),
         )
@@ -160,9 +164,11 @@ class GatewayClientConfigTests(unittest.TestCase):
                 GatewayClientConfig(base_url=value, api_key=API_KEY)
 
     def test_from_env_fails_closed_when_connection_values_are_missing(self) -> None:
-        with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaises(GatewayConfigurationError):
-                GatewayClient.from_env()
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            self.assertRaises(GatewayConfigurationError),
+        ):
+            GatewayClient.from_env()
 
 
 class GatewayClientTransportTests(unittest.IsolatedAsyncioTestCase):

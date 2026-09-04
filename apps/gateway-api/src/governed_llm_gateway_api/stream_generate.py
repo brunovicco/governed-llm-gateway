@@ -566,6 +566,8 @@ def _routing_payload(event: GatewayStreamEvent) -> dict[str, object]:
         "ranking_policy_digest": routing.ranking_policy_digest,
         "score_snapshot_id": routing.score_snapshot_id,
         "benchmark_snapshot_id": routing.benchmark_snapshot_id,
+        "score_provenance_mode": routing.score_provenance_mode,
+        "manual_override_id": routing.manual_override_id,
         "provider": routing.provider,
         "model": routing.model,
         "deployment": routing.deployment,
