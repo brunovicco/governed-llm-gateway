@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Protocol
 
 from governed_llm_gateway_contracts import GatewayRequest
 
@@ -24,7 +25,6 @@ from .resilience import (
     ExecutionAttemptOutcome,
     ResilienceExecutionError,
     ResilientExecutionResult,
-    ResilientExecutionService,
 )
 
 EvidenceClock = Callable[[], datetime]
@@ -34,12 +34,28 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+class GovernanceExecutor(Protocol):
+    """Existing bounded executor shape consumed by governance orchestration."""
+
+    async def execute(
+        self,
+        request: GatewayRequest,
+        decision: RankingDecision,
+        *,
+        max_output_tokens: int,
+        provider_timeout_seconds: float = 30.0,
+        safety: FallbackSafetyState | None = None,
+    ) -> ResilientExecutionResult:
+        """Execute one already-ranked authorized request."""
+        ...
+
+
 class GovernanceExecutionService:
     """Validate signed governance immediately before bounded provider execution."""
 
     def __init__(
         self,
-        executor: ResilientExecutionService,
+        executor: GovernanceExecutor,
         evidence: GovernanceEvidenceJournal,
         *,
         expected_audience: str,
