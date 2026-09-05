@@ -161,9 +161,7 @@ def _openai_input_messages(request: ProviderRequest) -> list[dict[str, object]]:
             messages.append({"role": message.role.value, "content": message.content})
             continue
         content: list[dict[str, object]] = [{"type": "input_text", "text": message.content}]
-        content.extend(
-            {"type": "input_image", "image_url": image.url} for image in message.images
-        )
+        content.extend({"type": "input_image", "image_url": image.url} for image in message.images)
         messages.append({"role": message.role.value, "content": content})
     return messages
 

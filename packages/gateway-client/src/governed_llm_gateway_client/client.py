@@ -468,8 +468,7 @@ def _serialize_message(message: Message) -> dict[str, object]:
     }
     if message.images:
         payload["images"] = [
-            {"media_type": image.media_type.value, "url": image.url}
-            for image in message.images
+            {"media_type": image.media_type.value, "url": image.url} for image in message.images
         ]
     return payload
 
