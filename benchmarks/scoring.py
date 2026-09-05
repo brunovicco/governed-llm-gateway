@@ -12,6 +12,10 @@ from .workloads.agent_orchestration import (
     score_agent_orchestration,
 )
 from .workloads.code_generation import CODE_GENERATION_SCORER_ID, score_code_generation
+from .workloads.multimodal_analysis import (
+    MULTIMODAL_ANALYSIS_SCORER_ID,
+    score_multimodal_analysis,
+)
 from .workloads.rag_ptbr import RAG_PTBR_SCORER_ID, score_rag_ptbr
 from .workloads.structured_extraction import (
     STRUCTURED_EXTRACTION_SCORER_ID,
@@ -92,6 +96,7 @@ def build_default_scorers() -> Mapping[str, DeterministicScorer]:
         CODE_GENERATION_SCORER_ID: score_code_generation,
         TOOL_USE_SCORER_ID: score_tool_use,
         AGENT_ORCHESTRATION_SCORER_ID: score_agent_orchestration,
+        MULTIMODAL_ANALYSIS_SCORER_ID: score_multimodal_analysis,
     }
     return scorers
 

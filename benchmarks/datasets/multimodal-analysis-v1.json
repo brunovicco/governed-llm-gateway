@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "multimodal-analysis-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "multimodal.quadrant-colors.001",
+      "workload": "multimodal_analysis",
+      "scorer": "multimodal_analysis_v1",
+      "prompt": "Inspect the image and return a JSON object with exactly top_left, top_right, bottom_left, and bottom_right. Each value must be the lowercase English color visible in that quadrant.",
+      "expected": {
+        "top_left": "red",
+        "top_right": "green",
+        "bottom_left": "blue",
+        "bottom_right": "yellow"
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "synthetic": true,
+        "fixture_id": "multimodal.quadrants_rgb_001",
+        "fixture_media_type": "image/png",
+        "fixture_digest": "sha256:c016362530bd9a02aff8d3bf0b7114b38d7499b03e2acacb566f657f94bb5f76",
+        "response_format": "quadrant_colors_v1"
+      }
+    }
+  ]
+}

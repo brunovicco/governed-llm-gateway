@@ -19,6 +19,7 @@ class BenchmarkWorkload(StrEnum):
     CODE_GENERATION = "code_generation"
     TOOL_USE = "tool_use"
     AGENT_ORCHESTRATION = "agent_orchestration"
+    MULTIMODAL_ANALYSIS = "multimodal_analysis"
 
 
 class ObservationStatus(StrEnum):
