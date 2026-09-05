@@ -12,6 +12,10 @@ _ALLOWED_MANIFEST_KEYS = frozenset({"schema_version", "data_classification", "fi
 _ALLOWED_FIXTURE_KEYS = frozenset({"fixture_id", "media_type", "relative_path", "digest"})
 _MAX_FIXTURE_BYTES = 20 * 1024 * 1024
 _DIGEST_PREFIX = "sha256:"
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+_JPEG_SIGNATURE = b"\xff\xd8\xff"
+_RIFF_SIGNATURE = b"RIFF"
+_WEBP_SIGNATURE = b"WEBP"
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,7 +127,7 @@ def resolve_fixture(
     *,
     max_bytes: int = _MAX_FIXTURE_BYTES,
 ) -> ResolvedBenchmarkFixture:
-    """Read a local fixture only after containment, size, and digest validation."""
+    """Read a local fixture only after containment, size, digest, and media validation."""
     if max_bytes <= 0:
         raise ValueError("fixture max_bytes must be positive")
 
@@ -149,6 +153,8 @@ def resolve_fixture(
     actual_digest = _sha256(content)
     if actual_digest != fixture.digest:
         raise ValueError("benchmark fixture digest mismatch")
+    if not _matches_media_signature(fixture.media_type, content):
+        raise ValueError("benchmark fixture bytes do not match the declared media_type")
 
     return ResolvedBenchmarkFixture(fixture=fixture, content=content)
 
@@ -178,6 +184,20 @@ def _is_sha256_digest(value: str) -> bool:
         return False
     digest = value.removeprefix(_DIGEST_PREFIX)
     return len(digest) == 64 and all(character in "0123456789abcdef" for character in digest)
+
+
+def _matches_media_signature(media_type: str, content: bytes) -> bool:
+    if media_type == "image/png":
+        return content.startswith(_PNG_SIGNATURE)
+    if media_type == "image/jpeg":
+        return content.startswith(_JPEG_SIGNATURE)
+    if media_type == "image/webp":
+        return (
+            len(content) >= 12
+            and content.startswith(_RIFF_SIGNATURE)
+            and content[8:12] == _WEBP_SIGNATURE
+        )
+    return False
 
 
 def _sha256(content: bytes) -> str:

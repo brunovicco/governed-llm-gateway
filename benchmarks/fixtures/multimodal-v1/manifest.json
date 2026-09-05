@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "data_classification": "public",
+  "fixtures": [
+    {
+      "fixture_id": "multimodal.quadrants_rgb_001",
+      "media_type": "image/png",
+      "relative_path": "quadrants-rgb.png",
+      "digest": "sha256:c016362530bd9a02aff8d3bf0b7114b38d7499b03e2acacb566f657f94bb5f76"
+    }
+  ]
+}
