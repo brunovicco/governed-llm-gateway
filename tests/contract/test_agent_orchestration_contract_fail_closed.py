@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from benchmarks.contracts import BenchmarkCase, BenchmarkWorkload
+from benchmarks.contracts import BenchmarkCase, BenchmarkWorkload, JsonValue
 from benchmarks.workloads.agent_orchestration import (
     load_agent_orchestration_dataset,
     validate_agent_orchestration_case,
@@ -31,6 +31,10 @@ def _write(tmp_path: Path, payload: dict[str, object]) -> Path:
     path = tmp_path / "agent-orchestration-v1-invalid.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
+
+
+def _expected_with_steps(steps: list[JsonValue]) -> JsonValue:
+    return {"steps": steps}
 
 
 def test_rejects_wrong_workload() -> None:
@@ -125,7 +129,7 @@ def test_rejects_expected_undeclared_agent() -> None:
     assert isinstance(first_step, dict)
     changed_first = dict(first_step)
     changed_first["agent"] = "admin"
-    expected = {"steps": [changed_first, *steps[1:]]}
+    expected = _expected_with_steps([changed_first, *steps[1:]])
     case = replace(original, expected=expected)
 
     with pytest.raises(ValueError, match="uses an undeclared agent"):
@@ -141,7 +145,7 @@ def test_rejects_expected_undeclared_action() -> None:
     assert isinstance(first_step, dict)
     changed_first = dict(first_step)
     changed_first["action"] = "execute_business_side_effect"
-    expected = {"steps": [changed_first, *steps[1:]]}
+    expected = _expected_with_steps([changed_first, *steps[1:]])
     case = replace(original, expected=expected)
 
     with pytest.raises(ValueError, match="uses an undeclared action"):
@@ -157,7 +161,7 @@ def test_rejects_expected_invalid_handoff_target() -> None:
     assert isinstance(first_step, dict)
     changed_first = dict(first_step)
     changed_first["handoff_to"] = "admin"
-    expected = {"steps": [changed_first, *steps[1:]]}
+    expected = _expected_with_steps([changed_first, *steps[1:]])
     case = replace(original, expected=expected)
 
     with pytest.raises(ValueError, match="invalid handoff target"):
@@ -173,7 +177,7 @@ def test_rejects_expected_broken_handoff_chain() -> None:
     assert isinstance(first_step, dict)
     changed_first = dict(first_step)
     changed_first["handoff_to"] = "customer_support"
-    expected = {"steps": [changed_first, *steps[1:]]}
+    expected = _expected_with_steps([changed_first, *steps[1:]])
     case = replace(original, expected=expected)
 
     with pytest.raises(ValueError, match="handoff chain must match the next agent"):
@@ -189,7 +193,7 @@ def test_rejects_expected_non_terminal_final_handoff() -> None:
     assert isinstance(last_step, dict)
     changed_last = dict(last_step)
     changed_last["handoff_to"] = "router"
-    expected = {"steps": [*steps[:-1], changed_last]}
+    expected = _expected_with_steps([*steps[:-1], changed_last])
     case = replace(original, expected=expected)
 
     with pytest.raises(ValueError, match="must terminate with null handoff"):
