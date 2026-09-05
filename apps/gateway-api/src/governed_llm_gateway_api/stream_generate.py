@@ -16,6 +16,8 @@ from governed_llm_gateway_contracts import (
     DataClassification,
     GatewayRequest,
     GatewayStreamEvent,
+    ImageInput,
+    ImageMediaType,
     Message,
     MessageRole,
     RequestLimits,
@@ -59,6 +61,19 @@ _WORKLOAD_PATTERN = r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*
 _TRACE_HEADERS = ("traceparent", "tracestate")
 
 
+class GenerateImageModel(BaseModel):
+    """Bounded HTTPS image reference accepted by the streaming API."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    media_type: ImageMediaType
+    url: str = Field(min_length=1, max_length=2048)
+
+    def to_contract(self) -> ImageInput:
+        """Build the immutable provider-neutral image input contract."""
+        return ImageInput(media_type=self.media_type, url=self.url)
+
+
 class GenerateMessageModel(BaseModel):
     """One provider-neutral message accepted by the streaming API."""
 
@@ -66,6 +81,7 @@ class GenerateMessageModel(BaseModel):
 
     role: MessageRole
     content: str = Field(min_length=1)
+    images: tuple[GenerateImageModel, ...] = Field(default=(), max_length=8)
 
 
 class GenerateRequirementsModel(BaseModel):
@@ -142,7 +158,14 @@ class GenerateRequestModel(BaseModel):
 
     def to_gateway_request(self) -> GatewayRequest:
         """Validate all execution contracts before an HTTP 200 streaming response can begin."""
-        messages = tuple(Message(role=item.role, content=item.content) for item in self.messages)
+        messages = tuple(
+            Message(
+                role=item.role,
+                content=item.content,
+                images=tuple(image.to_contract() for image in item.images),
+            )
+            for item in self.messages
+        )
         if any(message.role is MessageRole.TOOL for message in messages):
             raise ValueError(
                 "tool-result continuation is not supported without exact provider-native state"

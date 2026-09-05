@@ -1,7 +1,7 @@
 """Streaming variant for explicitly verified OpenAI-compatible chat-completions endpoints."""
 
 import json
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 from dataclasses import dataclass
 
 from governed_llm_gateway_contracts import ToolCall
@@ -29,7 +29,11 @@ from governed_llm_gateway_core.domain.structured import (
 from .http_json import JsonTransport, TransportFailure
 from .http_sse import HttpxSseTransport, SseTransport
 from .openai_compatible import OpenAICompatibleAdapter, _require_openai_strict_schema
-from .provider_common import normalize_transport_failure, require_non_negative_int
+from .provider_common import (
+    normalize_transport_failure,
+    require_non_negative_int,
+    require_supported_request_features,
+)
 from .streaming_common import open_provider_sse, parse_sse_json
 
 
@@ -75,8 +79,9 @@ class OpenAICompatibleStreamingAdapter(OpenAICompatibleAdapter):
         )
         self._sse_transport = sse_transport or HttpxSseTransport()
 
-    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
         """Yield normalized chat-completion chunks for an explicitly verified endpoint."""
+        require_supported_request_features(self._provider, request, self.feature_support)
         if not self.feature_support.native_streaming:
             raise self._invalid_request("streaming is not enabled for this endpoint")
         if not self.feature_support.streaming_usage:

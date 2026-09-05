@@ -29,8 +29,12 @@ from governed_llm_gateway_core.domain.structured import (
 
 from .http_json import JsonTransport, TransportFailure
 from .http_sse import HttpxSseTransport, SseTransport
-from .openai_responses import OpenAIResponsesAdapter, _require_openai_strict_schema
-from .provider_common import normalize_transport_failure
+from .openai_responses import (
+    OpenAIResponsesAdapter,
+    _openai_input_messages,
+    _require_openai_strict_schema,
+)
+from .provider_common import normalize_transport_failure, require_supported_request_features
 from .streaming_common import (
     in_stream_unavailable,
     open_provider_sse,
@@ -52,6 +56,7 @@ class OpenAIResponsesStreamingAdapter(OpenAIResponsesAdapter):
     feature_support = ProviderFeatureSupport(
         native_structured_output=True,
         native_tool_calling=True,
+        native_image_input=True,
         native_streaming=True,
         streaming_usage=True,
     )
@@ -70,14 +75,11 @@ class OpenAIResponsesStreamingAdapter(OpenAIResponsesAdapter):
 
     async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
         """Yield provider-neutral Responses events and close the upstream stream on cancellation."""
+        require_supported_request_features("openai", request, self.feature_support)
         instructions = "\n\n".join(
             message.content for message in request.messages if message.role is MessageRole.SYSTEM
         )
-        input_messages = [
-            {"role": message.role.value, "content": message.content}
-            for message in request.messages
-            if message.role is not MessageRole.SYSTEM
-        ]
+        input_messages = _openai_input_messages(request)
         if not input_messages:
             raise ProviderError(
                 provider="openai",

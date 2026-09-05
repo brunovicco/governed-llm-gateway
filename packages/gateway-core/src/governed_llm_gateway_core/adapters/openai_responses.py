@@ -14,6 +14,7 @@ from governed_llm_gateway_core.adapters.provider_common import (
     normalize_transport_failure,
     require_non_negative_int,
     require_success_payload,
+    require_supported_request_features,
 )
 from governed_llm_gateway_core.application.provider import (
     ProviderError,
@@ -39,6 +40,7 @@ class OpenAIResponsesAdapter:
     feature_support = ProviderFeatureSupport(
         native_structured_output=True,
         native_tool_calling=True,
+        native_image_input=True,
     )
 
     def __init__(
@@ -56,15 +58,12 @@ class OpenAIResponsesAdapter:
         self._transport = transport or StdlibJsonTransport()
 
     async def generate(self, request: ProviderRequest) -> ProviderResponse:
-        """Generate text, structured output, or client-side tool calls."""
+        """Generate text, structured output, image analysis, or client-side tool calls."""
+        require_supported_request_features("openai", request, self.feature_support)
         instructions = "\n\n".join(
             message.content for message in request.messages if message.role is MessageRole.SYSTEM
         )
-        input_messages = [
-            {"role": message.role.value, "content": message.content}
-            for message in request.messages
-            if message.role is not MessageRole.SYSTEM
-        ]
+        input_messages = _openai_input_messages(request)
         if not input_messages:
             raise ProviderError(
                 provider="openai",
@@ -151,6 +150,20 @@ class OpenAIResponsesAdapter:
             structured_output=structured_output,
             tool_calls=tool_calls,
         )
+
+
+def _openai_input_messages(request: ProviderRequest) -> list[dict[str, object]]:
+    messages: list[dict[str, object]] = []
+    for message in request.messages:
+        if message.role is MessageRole.SYSTEM:
+            continue
+        if not message.images:
+            messages.append({"role": message.role.value, "content": message.content})
+            continue
+        content: list[dict[str, object]] = [{"type": "input_text", "text": message.content}]
+        content.extend({"type": "input_image", "image_url": image.url} for image in message.images)
+        messages.append({"role": message.role.value, "content": content})
+    return messages
 
 
 def _extract_text(data: Mapping[str, object]) -> str:

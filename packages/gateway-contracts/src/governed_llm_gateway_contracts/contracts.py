@@ -6,11 +6,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from re import fullmatch
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from .enums import (
     DataClassification,
     ExecutionStatus,
+    ImageMediaType,
     MessageRole,
     RejectionReason,
     RiskLevel,
@@ -20,14 +22,55 @@ from .errors import GatewayError
 
 _TOOL_NAME_PATTERN = r"[A-Za-z_][A-Za-z0-9_-]{0,127}"
 _SCHEMA_NAME_PATTERN = r"[A-Za-z_][A-Za-z0-9_-]{0,63}"
+_MAX_IMAGE_URL_LENGTH = 2048
+_MAX_IMAGES_PER_MESSAGE = 8
+_MAX_IMAGES_PER_REQUEST = 16
+
+
+@dataclass(frozen=True, slots=True)
+class ImageInput:
+    """Provider-neutral HTTPS image reference forwarded without gateway fetching."""
+
+    media_type: ImageMediaType
+    url: str
+
+    def __post_init__(self) -> None:
+        """Reject ambiguous or credential-bearing image references before provider I/O."""
+        if not isinstance(self.media_type, ImageMediaType):
+            raise ValueError("image media_type must use the provider-neutral vocabulary")
+        if not self.url or self.url.strip() != self.url:
+            raise ValueError("image URL must be a normalized non-empty string")
+        if len(self.url) > _MAX_IMAGE_URL_LENGTH:
+            raise ValueError("image URL exceeds the maximum supported length")
+        try:
+            parsed = urlsplit(self.url)
+            _ = parsed.port
+        except ValueError as exc:
+            raise ValueError("image URL is invalid") from exc
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise ValueError("image URL must be an absolute HTTPS URL")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("image URL must not contain userinfo")
+        if parsed.query or parsed.fragment:
+            raise ValueError("image URL must not contain query or fragment")
 
 
 @dataclass(frozen=True, slots=True)
 class Message:
-    """Provider-neutral message."""
+    """Provider-neutral message with bounded optional image-understanding input."""
 
     role: MessageRole
     content: str
+    images: tuple[ImageInput, ...] = ()
+
+    def __post_init__(self) -> None:
+        """Keep the first multimodal contract bounded to user-supplied URL images."""
+        if len(self.images) > _MAX_IMAGES_PER_MESSAGE:
+            raise ValueError("message exceeds the maximum image count")
+        if any(not isinstance(image, ImageInput) for image in self.images):
+            raise ValueError("message images must use the provider-neutral ImageInput contract")
+        if self.images and self.role is not MessageRole.USER:
+            raise ValueError("image input is supported only on user messages")
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,6 +204,11 @@ class GatewayRequest:
             raise ValueError("tool definitions require tool_calling capability")
         if self.structured_output is not None and not self.requirements.structured_output:
             raise ValueError("structured output schema requires structured_output capability")
+        image_count = sum(len(message.images) for message in self.messages)
+        if image_count > _MAX_IMAGES_PER_REQUEST:
+            raise ValueError("request exceeds the maximum image count")
+        if image_count and not self.requirements.vision:
+            raise ValueError("image input requires vision capability")
 
 
 @dataclass(frozen=True, slots=True)

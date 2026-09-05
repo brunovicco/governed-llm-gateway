@@ -444,9 +444,7 @@ def _serialize_generate_request(
             "min_context_tokens": request.requirements.min_context_tokens,
         },
         "limits": limits,
-        "messages": [
-            {"role": message.role.value, "content": message.content} for message in request.messages
-        ],
+        "messages": [_serialize_message(message) for message in request.messages],
         "agent_identity": request.agent_identity,
         "tools": [
             {
@@ -461,6 +459,18 @@ def _serialize_generate_request(
         "max_output_tokens": max_output_tokens,
         "provider_timeout_seconds": provider_timeout_seconds,
     }
+
+
+def _serialize_message(message: Message) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "role": message.role.value,
+        "content": message.content,
+    }
+    if message.images:
+        payload["images"] = [
+            {"media_type": image.media_type.value, "url": image.url} for image in message.images
+        ]
+    return payload
 
 
 def _validate_identity_response(response: httpx.Response) -> None:

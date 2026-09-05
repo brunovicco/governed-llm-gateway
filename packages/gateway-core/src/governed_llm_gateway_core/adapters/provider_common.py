@@ -2,9 +2,29 @@
 
 from collections.abc import Mapping
 
-from governed_llm_gateway_core.application.provider import ProviderError, ProviderErrorCode
+from governed_llm_gateway_core.application.provider import (
+    ProviderError,
+    ProviderErrorCode,
+    ProviderFeatureSupport,
+    ProviderRequest,
+)
 
 from .http_json import JsonHttpResponse, TransportFailure, TransportFailureKind
+
+
+def require_supported_request_features(
+    provider: str,
+    request: ProviderRequest,
+    support: ProviderFeatureSupport,
+) -> None:
+    """Reject provider-neutral features this API family cannot translate safely."""
+    if request.has_image_input and not support.native_image_input:
+        raise ProviderError(
+            provider=provider,
+            code=ProviderErrorCode.INVALID_REQUEST,
+            message=f"{provider} API family does not support provider-neutral image input",
+            retryable=False,
+        )
 
 
 def require_success_payload(provider: str, response: JsonHttpResponse) -> Mapping[str, object]:

@@ -1,7 +1,7 @@
 """Streaming variant of the native Google Gemini generateContent adapter."""
 
 import json
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 from urllib.parse import quote
 
 from governed_llm_gateway_contracts import MessageRole, ToolCall
@@ -31,7 +31,11 @@ from governed_llm_gateway_core.domain.structured import (
 from .gemini import GeminiAdapter
 from .http_json import JsonTransport, TransportFailure
 from .http_sse import HttpxSseTransport, SseTransport
-from .provider_common import normalize_transport_failure, require_non_negative_int
+from .provider_common import (
+    normalize_transport_failure,
+    require_non_negative_int,
+    require_supported_request_features,
+)
 from .streaming_common import open_provider_sse, parse_sse_json
 
 
@@ -57,8 +61,9 @@ class GeminiStreamingAdapter(GeminiAdapter):
         super().__init__(api_key=api_key, base_url=base_url, transport=transport)
         self._sse_transport = sse_transport or HttpxSseTransport()
 
-    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
         """Yield normalized Gemini stream events and require final usage metadata."""
+        require_supported_request_features("google", request, self.feature_support)
         system = "\n\n".join(
             message.content for message in request.messages if message.role is MessageRole.SYSTEM
         )

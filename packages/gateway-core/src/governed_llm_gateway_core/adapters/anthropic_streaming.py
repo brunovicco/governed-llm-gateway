@@ -1,7 +1,7 @@
 """Streaming variant of the native Anthropic Messages API adapter."""
 
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 
 from governed_llm_gateway_contracts import MessageRole, ToolCall
@@ -31,7 +31,11 @@ from governed_llm_gateway_core.domain.structured import (
 from .anthropic import AnthropicMessagesAdapter
 from .http_json import JsonTransport, TransportFailure
 from .http_sse import HttpxSseTransport, SseTransport
-from .provider_common import normalize_transport_failure, require_non_negative_int
+from .provider_common import (
+    normalize_transport_failure,
+    require_non_negative_int,
+    require_supported_request_features,
+)
 from .streaming_common import open_provider_sse, parse_sse_json
 
 
@@ -70,8 +74,9 @@ class AnthropicMessagesStreamingAdapter(AnthropicMessagesAdapter):
         )
         self._sse_transport = sse_transport or HttpxSseTransport()
 
-    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
         """Yield normalized Messages events and close upstream resources on cancellation."""
+        require_supported_request_features("anthropic", request, self.feature_support)
         system = "\n\n".join(
             message.content for message in request.messages if message.role is MessageRole.SYSTEM
         )

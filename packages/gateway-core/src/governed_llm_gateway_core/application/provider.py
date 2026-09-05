@@ -45,6 +45,7 @@ class ProviderFeatureSupport:
 
     native_structured_output: bool = False
     native_tool_calling: bool = False
+    native_image_input: bool = False
     native_streaming: bool = False
     streaming_usage: bool = False
 
@@ -109,6 +110,11 @@ class ProviderRequest:
             validate_structured_output_schema(self.structured_output)
         if self.tools:
             validate_tool_definitions(self.tools)
+
+    @property
+    def has_image_input(self) -> bool:
+        """Return whether the request contains provider-neutral image input."""
+        return any(message.images for message in self.messages)
 
 
 @dataclass(frozen=True, slots=True)
