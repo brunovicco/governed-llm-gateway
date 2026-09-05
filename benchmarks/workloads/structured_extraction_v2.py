@@ -174,12 +174,13 @@ def _validate_schema_definition(schema: Mapping[str, JsonValue], *, path: str) -
             raise ValueError(
                 f"structured extraction v2 object schema {path} required must be a string list"
             )
-        if len(required) != len(set(required)):
+        required_fields = [item for item in required if isinstance(item, str)]
+        if len(required_fields) != len(set(required_fields)):
             raise ValueError(
                 "structured extraction v2 object schema "
                 f"{path} required must not contain duplicates"
             )
-        unknown_required = sorted(set(required) - set(properties))
+        unknown_required = sorted(set(required_fields) - set(properties))
         if unknown_required:
             raise ValueError(
                 "structured extraction v2 object schema "
@@ -206,6 +207,7 @@ def _validate_schema_definition(schema: Mapping[str, JsonValue], *, path: str) -
 
 def _schema_types(schema: Mapping[str, JsonValue], *, path: str) -> tuple[str, ...]:
     raw_type = schema.get("type")
+    types: tuple[str, ...]
     if isinstance(raw_type, str):
         types = (raw_type,)
     elif (
@@ -319,7 +321,7 @@ def _compare_values(
             return 0, _value_units(expected), (StructuredExtractionIssue("wrong_type", path),)
         matched = 0
         total = 0
-        issues: list[StructuredExtractionIssue] = []
+        issues = []
         if len(expected) != len(actual):
             issues.append(StructuredExtractionIssue("array_length_mismatch", path))
         for index in range(max(len(expected), len(actual))):

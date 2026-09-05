@@ -342,7 +342,7 @@ def test_scorecard_snapshot_and_explicit_promotion_are_deterministic() -> None:
 
 def test_promotion_fails_closed_without_quality_evidence_or_consistent_mapping() -> None:
     cases = _dataset_cases()
-    failures = {
+    failures: dict[str, JsonValue | BenchmarkProviderFailure] = {
         case.case_id: BenchmarkProviderFailure(code="unavailable", status_code=503)
         for case in cases
     }
