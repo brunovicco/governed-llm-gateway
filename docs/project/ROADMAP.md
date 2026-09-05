@@ -40,15 +40,20 @@ Consumer-driven, provider-neutral hardening completed before the workload benchm
 - PR #15, squash merge `ba5661514f90aff96749789e3275ce5685e1aea4`: terminal `ProviderExecution` evidence through SSE and `GatewayClient.generate()`;
 - PR #16, squash merge `e2f724d1339419207fbe89437fc5c590673dd33c`: provider-neutral execution provenance including provider response identity, finish reason, retry/fallback position and optional detailed usage.
 
+Later post-core hardening extends the same provider-neutral evidence with:
+
+- PR #37: terminal selected-deployment `api_family`;
+- PR #40: terminal concrete positive `max_output_tokens` carried by the attempted request.
+
 The runtime evidence chain is:
 
 `normalized provider events → StreamingExecutionService → terminal SSE → API payload → SDK codec → GatewayResponse.execution`
 
 Runtime evidence is descriptive only. It cannot authorize a retry, fallback, model/provider choice, tool execution, SQL execution or business action.
 
-## Initial workload-specific benchmark program — COMPLETE 5/5
+## Benchmark program — CORE 5/5 COMPLETE; POST-CORE MULTIMODAL/EVIDENCE HARDENING COMPLETE
 
-The roadmap says to start with five workloads. The generic Phase 10/11 framework is now exercised by all five through separate semantic increments:
+The roadmap says to start with five workloads. The generic Phase 10/11 framework is exercised by all five through separate semantic increments:
 
 1. `structured_extraction` — PR #19 established v1; PR #22 added hardened `structured-extraction-v2` while preserving historical v1 evidence;
 2. `rag_ptbr` — PR #20, `rag-ptbr-v1`;
@@ -56,9 +61,28 @@ The roadmap says to start with five workloads. The generic Phase 10/11 framework
 4. `tool_use` — PR #23, `tool-use-v1`;
 5. `agent_orchestration` — PR #24, `agent-orchestration-v1`.
 
-The completed matrix remains public/synthetic, deterministic, credential-free by default and explicitly non-authoritative. Workload scorers reuse the existing runner → scorecard → content-addressed snapshot → explicit promotion path. Provider failures remain availability evidence rather than false quality-zero scores.
+The roadmap also says to add multimodal only after core execution is stable. That condition was satisfied before the post-core sequence:
 
-Completion of this matrix does not alter the Phase 14 consumer order. See `docs/evaluation/BENCHMARK_MATRIX.md`.
+- PRs #26–#28 established bounded provider-neutral image input and reviewed native translations for OpenAI Responses, Anthropic Messages and Gemini;
+- PRs #29–#31 established deterministic local fixture integrity and immutable public publication;
+- PR #32 added `multimodal-analysis-v1` using actual visual input and deterministic scoring;
+- PRs #33–#34 added provider-neutral gateway request materialization and terminal response normalization without a benchmark-side model-forcing path;
+- PRs #35–#36 preserved observed terminal provider/model/deployment identity in benchmark evidence;
+- PRs #37–#39 added terminal API-family provenance and explicit benchmark target API-family attestation;
+- PRs #40–#41 added terminal max-output provenance and explicit benchmark target max-output attestation;
+- PR #42 added optional target-matrix version/digest provenance to immutable benchmark snapshots.
+
+The completed benchmark path remains public/synthetic, deterministic and credential-free by default. Provider failures remain availability evidence rather than false quality-zero results. Promotion remains explicit and non-authoritative.
+
+Target declarations are versioned rather than rewritten:
+
+- schema `1.0` / `targets-v1.json` — historical provider/model/API/configuration identity;
+- schema `1.1` / `targets-v2.json` — explicit reviewed `api_family`;
+- schema `1.2` / `targets-v3.json` — explicit reviewed `api_family` + positive `max_output_tokens`.
+
+Snapshots may remain historical schema `1.0`, or opt into schema `1.1` target-matrix version/digest provenance. Declarative provider configuration is not treated as runtime attestation unless the provider-neutral execution contract actually carries the corresponding evidence.
+
+Completion of these gateway-internal increments does not alter the Phase 14 consumer order. See `docs/evaluation/BENCHMARK_MATRIX.md`.
 
 ## Phase 14 — Real project integrations
 
@@ -149,21 +173,21 @@ Remains after the preceding consumer cases.
 
 ## Current gateway baseline
 
-Latest merged baseline after completion of the workload matrix:
+Latest merged and validated baseline:
 
-`a8f2003663eb9ac713df6929a8c7b5bc79573e69` (PR #24)
+`cb0fbac9c278df3e20bf9b26b20cb06f697f4d71` (PR #42)
 
 Post-merge `main` quality run:
 
-`33968458431` — PASS.
+`33993826048` — PASS.
 
 Validation:
 
-- 421 tests passed;
-- aggregate coverage 81.32%;
-- mypy passed across 132 source files;
-- Ruff lint/format passed across 132 files;
-- Bandit 0 issues across 12,883 LOC;
+- 546 tests passed;
+- aggregate coverage 82.08%;
+- strict mypy passed across 151 source files;
+- Ruff lint/format passed across 151 files;
+- Bandit reported no issues across 13,905 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
@@ -174,7 +198,9 @@ Until OpsLens is ready for reconciliation:
 1. keep the gateway `main` baseline stable;
 2. do not start a second consumer migration in parallel;
 3. perform only upstream gateway hardening that is independently justified and consumer-agnostic;
-4. do not treat completion of benchmark workload 5/5 as permission to bypass the Phase 14 order;
-5. when OpsLens stabilizes, rebase/reconcile its integration against the then-current gateway commit and rerun its full native Python and Terraform CI before merge.
+4. do not create benchmark-only routing/model-selection bypasses to force a nominal target;
+5. keep live-provider benchmark execution explicitly separated from credential-free default CI and normal authorization semantics;
+6. do not treat benchmark completion or runtime provenance as permission to bypass the Phase 14 order;
+7. when OpsLens stabilizes, rebase/reconcile its integration against the then-current gateway commit and rerun its full native Python and Terraform CI before merge.
 
 Do not pull work forward when doing so weakens an authority boundary, creates parallel consumer migrations or depends on an unstable consumer contract.
