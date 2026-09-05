@@ -50,9 +50,7 @@ def validate_tool_use_case(case: BenchmarkCase) -> None:
     allowed_tools = metadata.get("allowed_tools")
     if not isinstance(allowed_tools, list) or not allowed_tools:
         raise ValueError("tool use allowed_tools must be a non-empty string list")
-    if not all(
-        isinstance(item, str) and item and item.strip() == item for item in allowed_tools
-    ):
+    if not all(isinstance(item, str) and item and item.strip() == item for item in allowed_tools):
         raise ValueError("tool use allowed_tools must contain normalized strings")
     if len(allowed_tools) != len(set(allowed_tools)):
         raise ValueError("tool use allowed_tools must not contain duplicates")
