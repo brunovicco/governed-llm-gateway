@@ -78,7 +78,7 @@ def _parse_python(source: str) -> ast.Module:
 
 def _validate_safe_candidate(tree: ast.AST) -> None:
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
+        if isinstance(node, ast.Import | ast.ImportFrom):
             roots = _import_roots(node)
             blocked = sorted(roots & _FORBIDDEN_IMPORT_ROOTS)
             if blocked:
