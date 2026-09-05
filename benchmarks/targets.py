@@ -18,7 +18,8 @@ _BASE_TARGET_FIELDS = {
     "source_date",
 }
 _API_FAMILY_TARGET_FIELDS = _BASE_TARGET_FIELDS | {"api_family"}
-_SUPPORTED_SCHEMA_VERSIONS = {"1.0", "1.1"}
+_MAX_OUTPUT_TARGET_FIELDS = _API_FAMILY_TARGET_FIELDS | {"max_output_tokens"}
+_SUPPORTED_SCHEMA_VERSIONS = {"1.0", "1.1", "1.2"}
 
 
 def load_targets(path: Path) -> tuple[str, tuple[BenchmarkTarget, ...]]:
@@ -36,9 +37,12 @@ def load_targets(path: Path) -> tuple[str, tuple[BenchmarkTarget, ...]]:
     if not isinstance(raw_targets, list) or not raw_targets:
         raise ValueError("benchmark target matrix must contain at least one target")
 
-    allowed_target_fields = (
-        _BASE_TARGET_FIELDS if schema_version == "1.0" else _API_FAMILY_TARGET_FIELDS
-    )
+    if schema_version == "1.0":
+        allowed_target_fields = _BASE_TARGET_FIELDS
+    elif schema_version == "1.1":
+        allowed_target_fields = _API_FAMILY_TARGET_FIELDS
+    else:
+        allowed_target_fields = _MAX_OUTPUT_TARGET_FIELDS
     targets: list[BenchmarkTarget] = []
     for index, raw_target in enumerate(raw_targets):
         if not isinstance(raw_target, dict):
@@ -49,6 +53,11 @@ def load_targets(path: Path) -> tuple[str, tuple[BenchmarkTarget, ...]]:
         api_family = (
             None if schema_version == "1.0" else _required_string(raw_target, "api_family", label)
         )
+        max_output_tokens = (
+            _required_positive_int(raw_target, "max_output_tokens", label)
+            if schema_version == "1.2"
+            else None
+        )
         targets.append(
             BenchmarkTarget(
                 target_id=_required_string(raw_target, "target_id", label),
@@ -58,6 +67,7 @@ def load_targets(path: Path) -> tuple[str, tuple[BenchmarkTarget, ...]]:
                 configuration=_required_string(raw_target, "configuration", label),
                 source_date=date.fromisoformat(source_date),
                 api_family=api_family,
+                max_output_tokens=max_output_tokens,
             )
         )
 
@@ -77,4 +87,11 @@ def _required_string(payload: dict[str, object], key: str, label: str) -> str:
     value = payload.get(key)
     if not isinstance(value, str) or not value or value.strip() != value:
         raise ValueError(f"{label} {key} must be a normalized non-empty string")
+    return value
+
+
+def _required_positive_int(payload: dict[str, object], key: str, label: str) -> int:
+    value = payload.get(key)
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{label} {key} must be a positive integer")
     return value

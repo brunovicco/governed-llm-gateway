@@ -120,6 +120,8 @@ def _target_payload(target: BenchmarkTarget) -> dict[str, object]:
     }
     if target.api_family is not None:
         payload["api_family"] = target.api_family
+    if target.max_output_tokens is not None:
+        payload["max_output_tokens"] = target.max_output_tokens
     return payload
 
 
@@ -145,6 +147,8 @@ def _observation_payload(item: BenchmarkObservation) -> dict[str, object]:
         payload["deployment"] = item.deployment
         if item.api_family is not None:
             payload["api_family"] = item.api_family
+        if item.max_output_tokens is not None:
+            payload["max_output_tokens"] = item.max_output_tokens
     return payload
 
 
