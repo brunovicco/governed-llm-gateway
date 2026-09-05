@@ -30,6 +30,7 @@ from governed_llm_gateway_core.application.provider import (
     ProviderError,
     ProviderErrorCode,
     ProviderFeatureSupport,
+    ProviderPort,
     ProviderRequest,
     ProviderResponse,
     ProviderResponseCompleted,
@@ -169,7 +170,7 @@ def _request() -> GatewayRequest:
     )
 
 
-def _collect(provider: object) -> tuple[GatewayStreamEvent, ...]:
+def _collect(provider: ProviderPort) -> tuple[GatewayStreamEvent, ...]:
     deployment = _deployment()
     service = StreamingExecutionService(
         health=InMemoryHealthTracker(),
