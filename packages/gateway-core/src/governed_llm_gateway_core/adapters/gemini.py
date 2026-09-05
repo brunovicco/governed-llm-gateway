@@ -40,6 +40,7 @@ class GeminiAdapter:
     feature_support = ProviderFeatureSupport(
         native_structured_output=True,
         native_tool_calling=True,
+        native_image_input=True,
     )
 
     def __init__(
@@ -57,19 +58,13 @@ class GeminiAdapter:
         self._transport = transport or StdlibJsonTransport()
 
     async def generate(self, request: ProviderRequest) -> ProviderResponse:
-        """Generate text, structured output, or client-side function calls."""
+        """Generate text, image analysis, structured output, or client-side function calls."""
         require_supported_request_features("google", request, self.feature_support)
+        _require_external_url_image_model_support(request)
         system = "\n\n".join(
             message.content for message in request.messages if message.role is MessageRole.SYSTEM
         )
-        contents = [
-            {
-                "role": "model" if message.role is MessageRole.ASSISTANT else "user",
-                "parts": [{"text": message.content}],
-            }
-            for message in request.messages
-            if message.role is not MessageRole.SYSTEM
-        ]
+        contents = _google_contents(request)
         if not contents:
             raise ProviderError(
                 provider="google",
@@ -143,6 +138,45 @@ class GeminiAdapter:
             finish_reason=finish_reason,
             structured_output=structured_output,
             tool_calls=tool_calls,
+        )
+
+
+def _google_contents(request: ProviderRequest) -> list[dict[str, object]]:
+    """Translate provider-neutral messages into native Gemini content parts."""
+    contents: list[dict[str, object]] = []
+    for message in request.messages:
+        if message.role is MessageRole.SYSTEM:
+            continue
+        parts: list[dict[str, object]] = [
+            {
+                "fileData": {
+                    "mimeType": image.media_type.value,
+                    "fileUri": image.url,
+                }
+            }
+            for image in message.images
+        ]
+        parts.append({"text": message.content})
+        contents.append(
+            {
+                "role": "model" if message.role is MessageRole.ASSISTANT else "user",
+                "parts": parts,
+            }
+        )
+    return contents
+
+
+def _require_external_url_image_model_support(request: ProviderRequest) -> None:
+    """Fail before provider I/O for Gemini 2.0, which lacks external-URL file input."""
+    if not request.has_image_input:
+        return
+    model = request.model.removeprefix("models/")
+    if model == "gemini-2.0" or model.startswith("gemini-2.0-"):
+        raise ProviderError(
+            provider="google",
+            code=ProviderErrorCode.INVALID_REQUEST,
+            message="google Gemini 2.0 models do not support external URL image input",
+            retryable=False,
         )
 
 
