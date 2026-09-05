@@ -73,7 +73,7 @@ Those values are not currently represented as equivalent provider-neutral model-
 
 `BenchmarkTarget.configuration` remains declarative and unverified.
 
-Terminal max-output provenance is only the runtime evidence foundation required before a future benchmark target schema can declare an explicit expected max-output setting and attest it fail-closed. No parser is introduced for the historical opaque configuration string.
+Benchmark target schema `1.2` now declares `max_output_tokens` as an explicit typed field and attests it fail-closed against this terminal evidence. See `BENCHMARK_TARGET_MAX_OUTPUT_ATTESTATION_V1.md`. No parser is introduced for the historical opaque configuration string.
 
 ## Authority boundary
 
