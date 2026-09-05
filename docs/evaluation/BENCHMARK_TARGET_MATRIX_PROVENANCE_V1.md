@@ -1,18 +1,18 @@
 # Benchmark Target Matrix Provenance v1
 
-Status: **IMPLEMENTED — pending branch/PR validation**
+Status: **COMPLETE — merged in PR #42 and validated on `main`**
 
 ## Purpose
 
 Phase 10 requires reproducible benchmark evidence with explicit provider, model, API, configuration, date, and benchmark version provenance.
 
-Benchmark snapshots already content-address the serialized target list as part of `snapshot_id`. That makes target drift detectable, but it does not explicitly identify the reviewed target-matrix version from which the list was loaded.
+Benchmark snapshots already content-addressed the serialized target list as part of `snapshot_id`. That made target drift detectable, but did not explicitly identify the reviewed target-matrix version from which the list was loaded.
 
 This boundary makes that origin directly reviewable without turning target metadata into runtime authority.
 
 ## Contract
 
-`build_snapshot(...)` now accepts an optional:
+`build_snapshot(...)` accepts an optional:
 
 ```text
 target_matrix_version
@@ -121,6 +121,18 @@ The implementation is deterministic and credential-free:
 - digest behavior is tested against the checked-in `targets-v3.json` matrix;
 - semantic drift is exercised by changing versioned target fields in memory;
 - historical schema behavior is covered explicitly.
+
+Final branch validation for PR #42 on head `dd0d4398f93c00c8bfb180768c453ab313f10f79`:
+
+- 546 tests passed;
+- aggregate coverage 82.08%;
+- strict mypy passed across 151 source files;
+- Ruff lint/format passed across 151 files;
+- Bandit reported no issues across 13,905 LOC;
+- pip-audit reported no known vulnerabilities;
+- architecture check, secret scan and Phase 0 gate passed.
+
+The post-merge `main` quality run `33993826048` also passed at `cb0fbac9c278df3e20bf9b26b20cb06f697f4d71`.
 
 ## Non-goals
 
