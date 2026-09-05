@@ -225,7 +225,5 @@ def test_legacy_target_snapshot_shape_omits_target_api_family() -> None:
     )
     serialized = canonical_snapshot_json(snapshot)
 
-    target_fragment = (
-        serialized.split('"targets":[', maxsplit=1)[1].split('],', maxsplit=1)[0]
-    )
+    target_fragment = serialized.split('"targets":[', maxsplit=1)[1].split("],", maxsplit=1)[0]
     assert '"api_family":' not in target_fragment

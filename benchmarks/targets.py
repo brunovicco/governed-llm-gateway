@@ -37,9 +37,7 @@ def load_targets(path: Path) -> tuple[str, tuple[BenchmarkTarget, ...]]:
         raise ValueError("benchmark target matrix must contain at least one target")
 
     allowed_target_fields = (
-        _BASE_TARGET_FIELDS
-        if schema_version == "1.0"
-        else _API_FAMILY_TARGET_FIELDS
+        _BASE_TARGET_FIELDS if schema_version == "1.0" else _API_FAMILY_TARGET_FIELDS
     )
     targets: list[BenchmarkTarget] = []
     for index, raw_target in enumerate(raw_targets):
@@ -49,9 +47,7 @@ def load_targets(path: Path) -> tuple[str, tuple[BenchmarkTarget, ...]]:
         _reject_unknown(raw_target, allowed_target_fields, label)
         source_date = _required_string(raw_target, "source_date", label)
         api_family = (
-            None
-            if schema_version == "1.0"
-            else _required_string(raw_target, "api_family", label)
+            None if schema_version == "1.0" else _required_string(raw_target, "api_family", label)
         )
         targets.append(
             BenchmarkTarget(
