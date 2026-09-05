@@ -1,0 +1,242 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "structured-extraction-v2",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "structured_extraction.invoice_ptbr_002",
+      "workload": "structured_extraction",
+      "scorer": "structured_extraction_v2",
+      "prompt": "Retorne somente JSON. Fatura INV-204 da Horizonte Serviços Ltda. possui 3 itens, total de 1480.75 BRL e está paga. Extraia invoice_id, supplier, line_count, total, currency e paid.",
+      "expected": {
+        "invoice_id": "INV-204",
+        "supplier": "Horizonte Serviços Ltda.",
+        "line_count": 3,
+        "total": 1480.75,
+        "currency": "BRL",
+        "paid": true
+      },
+      "metadata": {
+        "contract_version": "2.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "output_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["invoice_id", "supplier", "line_count", "total", "currency", "paid"],
+          "properties": {
+            "invoice_id": {"type": "string"},
+            "supplier": {"type": "string"},
+            "line_count": {"type": "integer"},
+            "total": {"type": "number"},
+            "currency": {"type": "string", "enum": ["BRL", "USD", "EUR"]},
+            "paid": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "structured_extraction.support_ticket_ptbr_002",
+      "workload": "structured_extraction",
+      "scorer": "structured_extraction_v2",
+      "prompt": "Retorne somente JSON com os campos solicitados. Chamado TCK-208 tem prioridade alta e impacto em produção. Serviço afetado: Checkout API, tier gold. Ainda não há equipe atribuída. O texto também contém a observação interna 'revisar depois', que não faz parte do schema. Extraia ticket_id, priority, affected_service, production_impact e assigned_team.",
+      "expected": {
+        "ticket_id": "TCK-208",
+        "priority": "high",
+        "affected_service": {
+          "name": "Checkout API",
+          "tier": "gold"
+        },
+        "production_impact": true,
+        "assigned_team": null
+      },
+      "metadata": {
+        "contract_version": "2.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "output_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ticket_id", "priority", "affected_service", "production_impact", "assigned_team"],
+          "properties": {
+            "ticket_id": {"type": "string"},
+            "priority": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+            "affected_service": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "tier"],
+              "properties": {
+                "name": {"type": "string"},
+                "tier": {"type": "string", "enum": ["bronze", "silver", "gold"]}
+              }
+            },
+            "production_impact": {"type": "boolean"},
+            "assigned_team": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "structured_extraction.purchase_order_en_002",
+      "workload": "structured_extraction",
+      "scorer": "structured_extraction_v2",
+      "prompt": "Return JSON only. Purchase order PO-901 is approved for supplier Northwind Components in Canada. It contains two lines: SKU-A1 quantity 2 at 49.90 each, and SKU-B7 quantity 1 at 120.00. Expedited is false. No discount code was provided; omit discount_code when absent.",
+      "expected": {
+        "po_id": "PO-901",
+        "status": "approved",
+        "supplier": {
+          "name": "Northwind Components",
+          "country": "CA"
+        },
+        "items": [
+          {"sku": "SKU-A1", "quantity": 2, "unit_price": 49.9},
+          {"sku": "SKU-B7", "quantity": 1, "unit_price": 120.0}
+        ],
+        "expedited": false
+      },
+      "metadata": {
+        "contract_version": "2.0",
+        "language": "en",
+        "synthetic": true,
+        "output_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["po_id", "status", "supplier", "items", "expedited"],
+          "properties": {
+            "po_id": {"type": "string"},
+            "status": {"type": "string", "enum": ["draft", "approved", "rejected"]},
+            "supplier": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "country"],
+              "properties": {
+                "name": {"type": "string"},
+                "country": {"type": "string"}
+              }
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["sku", "quantity", "unit_price"],
+                "properties": {
+                  "sku": {"type": "string"},
+                  "quantity": {"type": "integer"},
+                  "unit_price": {"type": "number"}
+                }
+              }
+            },
+            "expedited": {"type": "boolean"},
+            "discount_code": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "structured_extraction.incident_en_002",
+      "workload": "structured_extraction",
+      "scorer": "structured_extraction_v2",
+      "prompt": "Return JSON only. Incident INC-55 is severity critical and active. Estimated affected users: 1200. Impacted regions are sa-east-1 and us-east-1. Root cause is not yet known. Extract incident_id, severity, active, estimated_users, impacted_regions and root_cause.",
+      "expected": {
+        "incident_id": "INC-55",
+        "severity": "critical",
+        "active": true,
+        "estimated_users": 1200,
+        "impacted_regions": ["sa-east-1", "us-east-1"],
+        "root_cause": null
+      },
+      "metadata": {
+        "contract_version": "2.0",
+        "language": "en",
+        "synthetic": true,
+        "output_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["incident_id", "severity", "active", "estimated_users", "impacted_regions", "root_cause"],
+          "properties": {
+            "incident_id": {"type": "string"},
+            "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+            "active": {"type": "boolean"},
+            "estimated_users": {"type": "integer"},
+            "impacted_regions": {"type": "array", "items": {"type": "string"}},
+            "root_cause": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "structured_extraction.customer_request_ptbr_002",
+      "workload": "structured_extraction",
+      "scorer": "structured_extraction_v2",
+      "prompt": "Retorne somente JSON. Solicitação CR-19 pede segunda via de cobrança do produto Plano Pro, com urgência normal. Canais preferidos: email e app. Não requer retorno telefônico. Extraia request_id, request_type, details, preferred_channels e callback_required.",
+      "expected": {
+        "request_id": "CR-19",
+        "request_type": "billing_copy",
+        "details": {
+          "product": "Plano Pro",
+          "urgency": "normal"
+        },
+        "preferred_channels": ["email", "app"],
+        "callback_required": false
+      },
+      "metadata": {
+        "contract_version": "2.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "output_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["request_id", "request_type", "details", "preferred_channels", "callback_required"],
+          "properties": {
+            "request_id": {"type": "string"},
+            "request_type": {"type": "string", "enum": ["billing_copy", "cancel", "upgrade"]},
+            "details": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["product", "urgency"],
+              "properties": {
+                "product": {"type": "string"},
+                "urgency": {"type": "string", "enum": ["low", "normal", "high"]}
+              }
+            },
+            "preferred_channels": {"type": "array", "items": {"type": "string"}},
+            "callback_required": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "structured_extraction.delivery_ptbr_002",
+      "workload": "structured_extraction",
+      "scorer": "structured_extraction_v2",
+      "prompt": "Retorne somente JSON. Entrega DLV-88 possui 4 volumes, peso total 18.25 kg, modo express e destino Campinas. A entrega ainda não foi concluída. Extraia delivery_id, package_count, total_weight_kg, mode, destination e delivered.",
+      "expected": {
+        "delivery_id": "DLV-88",
+        "package_count": 4,
+        "total_weight_kg": 18.25,
+        "mode": "express",
+        "destination": "Campinas",
+        "delivered": false
+      },
+      "metadata": {
+        "contract_version": "2.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "output_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["delivery_id", "package_count", "total_weight_kg", "mode", "destination", "delivered"],
+          "properties": {
+            "delivery_id": {"type": "string"},
+            "package_count": {"type": "integer"},
+            "total_weight_kg": {"type": "number"},
+            "mode": {"type": "string", "enum": ["standard", "express"]},
+            "destination": {"type": "string"},
+            "delivered": {"type": "boolean"}
+          }
+        }
+      }
+    }
+  ]
+}
