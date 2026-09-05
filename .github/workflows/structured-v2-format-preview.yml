@@ -1,0 +1,23 @@
+name: structured-v2-format-preview
+
+on:
+  push:
+    branches:
+      - feat/benchmark-structured-extraction-v2
+
+permissions:
+  contents: read
+
+jobs:
+  format-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Format changed Python files
+        run: |
+          uvx --python 3.13 --from ruff==0.12.11 ruff format \
+            benchmarks/workloads/structured_extraction_v2.py \
+            tests/contract/test_structured_extraction_v2_benchmark.py
+      - name: Print formatter diff
+        run: git diff -- benchmarks/workloads/structured_extraction_v2.py tests/contract/test_structured_extraction_v2_benchmark.py
