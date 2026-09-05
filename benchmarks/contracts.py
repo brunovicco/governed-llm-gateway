@@ -275,23 +275,22 @@ class BenchmarkSnapshot:
     target_matrix_digest: str | None = None
 
     def __post_init__(self) -> None:
-        """Validate snapshot schema compatibility and optional target-matrix provenance."""
-        matrix_fields = (self.target_matrix_version, self.target_matrix_digest)
+        """Require matrix provenance only for the versioned snapshot extension."""
         if self.schema_version == "1.0":
-            if any(value is not None for value in matrix_fields):
-                raise ValueError("benchmark snapshot schema 1.0 does not support target matrix provenance")
+            if self.target_matrix_version is not None or self.target_matrix_digest is not None:
+                raise ValueError("snapshot schema 1.0 must not carry target matrix provenance")
             return
         if self.schema_version != "1.1":
             raise ValueError("unsupported benchmark snapshot schema_version")
-        if self.target_matrix_version is None or self.target_matrix_digest is None:
-            raise ValueError("benchmark snapshot schema 1.1 requires target matrix provenance")
         if (
-            not self.target_matrix_version
+            self.target_matrix_version is None
+            or not self.target_matrix_version
             or self.target_matrix_version.strip() != self.target_matrix_version
         ):
-            raise ValueError("target_matrix_version must be non-empty and normalized")
-        if not _is_sha256_digest(self.target_matrix_digest):
-            raise ValueError("target_matrix_digest must be canonical sha256 provenance")
+            raise ValueError("snapshot schema 1.1 requires normalized target_matrix_version")
+        digest = self.target_matrix_digest
+        if digest is None or not _is_sha256_digest(digest):
+            raise ValueError("snapshot schema 1.1 requires canonical target_matrix_digest")
 
 
 def _is_sha256_digest(value: str) -> bool:
@@ -299,6 +298,4 @@ def _is_sha256_digest(value: str) -> bool:
     if not value.startswith(prefix):
         return False
     digest = value.removeprefix(prefix)
-    return len(digest) == 64 and digest == digest.lower() and all(
-        character in "0123456789abcdef" for character in digest
-    )
+    return len(digest) == 64 and all(character in "0123456789abcdef" for character in digest)
