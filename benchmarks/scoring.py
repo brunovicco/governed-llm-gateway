@@ -7,6 +7,10 @@ from decimal import Decimal
 from typing import Protocol
 
 from .contracts import BenchmarkCase, JsonValue
+from .workloads.agent_orchestration import (
+    AGENT_ORCHESTRATION_SCORER_ID,
+    score_agent_orchestration,
+)
 from .workloads.code_generation import CODE_GENERATION_SCORER_ID, score_code_generation
 from .workloads.rag_ptbr import RAG_PTBR_SCORER_ID, score_rag_ptbr
 from .workloads.structured_extraction import (
@@ -87,6 +91,7 @@ def build_default_scorers() -> Mapping[str, DeterministicScorer]:
         RAG_PTBR_SCORER_ID: score_rag_ptbr,
         CODE_GENERATION_SCORER_ID: score_code_generation,
         TOOL_USE_SCORER_ID: score_tool_use,
+        AGENT_ORCHESTRATION_SCORER_ID: score_agent_orchestration,
     }
     return scorers
 

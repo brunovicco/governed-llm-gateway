@@ -1,0 +1,304 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "agent-orchestration-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "agent_orchestration.faq_001",
+      "workload": "agent_orchestration",
+      "scorer": "agent_orchestration_v1",
+      "prompt": "Synthetic support request: a visitor asks where to find the public API documentation. Propose only the ordered agent trajectory as JSON. Do not execute agents or tools.",
+      "expected": {
+        "steps": [
+          {
+            "agent": "router",
+            "action": "classify_request",
+            "handoff_to": "knowledge"
+          },
+          {
+            "agent": "knowledge",
+            "action": "answer_public_knowledge",
+            "handoff_to": null
+          }
+        ]
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "synthetic": true,
+        "execute_steps": false,
+        "allowed_agents": [
+          "router",
+          "knowledge",
+          "customer_support",
+          "escalation"
+        ],
+        "allowed_actions": {
+          "router": [
+            "classify_request"
+          ],
+          "knowledge": [
+            "answer_public_knowledge",
+            "gather_policy_context"
+          ],
+          "customer_support": [
+            "resolve_customer_request",
+            "inspect_customer_context"
+          ],
+          "escalation": [
+            "prepare_human_handoff"
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "agent_orchestration.order_001",
+      "workload": "agent_orchestration",
+      "scorer": "agent_orchestration_v1",
+      "prompt": "Synthetic support request: an authenticated customer asks for the status of order ORD-42. Propose only the ordered agent trajectory as JSON. Do not execute agents or tools.",
+      "expected": {
+        "steps": [
+          {
+            "agent": "router",
+            "action": "classify_request",
+            "handoff_to": "customer_support"
+          },
+          {
+            "agent": "customer_support",
+            "action": "resolve_customer_request",
+            "handoff_to": null
+          }
+        ]
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "synthetic": true,
+        "execute_steps": false,
+        "allowed_agents": [
+          "router",
+          "knowledge",
+          "customer_support",
+          "escalation"
+        ],
+        "allowed_actions": {
+          "router": [
+            "classify_request"
+          ],
+          "knowledge": [
+            "answer_public_knowledge",
+            "gather_policy_context"
+          ],
+          "customer_support": [
+            "resolve_customer_request",
+            "inspect_customer_context"
+          ],
+          "escalation": [
+            "prepare_human_handoff"
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "agent_orchestration.refund_policy_001",
+      "workload": "agent_orchestration",
+      "scorer": "agent_orchestration_v1",
+      "prompt": "Synthetic support request: a customer asks whether the refund policy permits a return and then needs help applying that policy to order ORD-77. Propose only the ordered agent trajectory as JSON. Do not execute agents or tools.",
+      "expected": {
+        "steps": [
+          {
+            "agent": "router",
+            "action": "classify_request",
+            "handoff_to": "knowledge"
+          },
+          {
+            "agent": "knowledge",
+            "action": "gather_policy_context",
+            "handoff_to": "customer_support"
+          },
+          {
+            "agent": "customer_support",
+            "action": "resolve_customer_request",
+            "handoff_to": null
+          }
+        ]
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "synthetic": true,
+        "execute_steps": false,
+        "allowed_agents": [
+          "router",
+          "knowledge",
+          "customer_support",
+          "escalation"
+        ],
+        "allowed_actions": {
+          "router": [
+            "classify_request"
+          ],
+          "knowledge": [
+            "answer_public_knowledge",
+            "gather_policy_context"
+          ],
+          "customer_support": [
+            "resolve_customer_request",
+            "inspect_customer_context"
+          ],
+          "escalation": [
+            "prepare_human_handoff"
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "agent_orchestration.unresolved_001",
+      "workload": "agent_orchestration",
+      "scorer": "agent_orchestration_v1",
+      "prompt": "Synthetic support request: a customer reports an account-specific issue that support can inspect but cannot resolve with the available information. Propose only the ordered agent trajectory as JSON, ending in human escalation. Do not execute agents or tools.",
+      "expected": {
+        "steps": [
+          {
+            "agent": "router",
+            "action": "classify_request",
+            "handoff_to": "customer_support"
+          },
+          {
+            "agent": "customer_support",
+            "action": "inspect_customer_context",
+            "handoff_to": "escalation"
+          },
+          {
+            "agent": "escalation",
+            "action": "prepare_human_handoff",
+            "handoff_to": null
+          }
+        ]
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "synthetic": true,
+        "execute_steps": false,
+        "allowed_agents": [
+          "router",
+          "knowledge",
+          "customer_support",
+          "escalation"
+        ],
+        "allowed_actions": {
+          "router": [
+            "classify_request"
+          ],
+          "knowledge": [
+            "answer_public_knowledge",
+            "gather_policy_context"
+          ],
+          "customer_support": [
+            "resolve_customer_request",
+            "inspect_customer_context"
+          ],
+          "escalation": [
+            "prepare_human_handoff"
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "agent_orchestration.onboarding_001",
+      "workload": "agent_orchestration",
+      "scorer": "agent_orchestration_v1",
+      "prompt": "Synthetic merchant-support request: a merchant needs public onboarding requirements explained before receiving case-specific support. Propose only the ordered agent trajectory as JSON. Do not execute agents or tools.",
+      "expected": {
+        "steps": [
+          {
+            "agent": "router",
+            "action": "classify_request",
+            "handoff_to": "knowledge"
+          },
+          {
+            "agent": "knowledge",
+            "action": "gather_policy_context",
+            "handoff_to": "customer_support"
+          },
+          {
+            "agent": "customer_support",
+            "action": "resolve_customer_request",
+            "handoff_to": null
+          }
+        ]
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "synthetic": true,
+        "execute_steps": false,
+        "allowed_agents": [
+          "router",
+          "knowledge",
+          "customer_support",
+          "escalation"
+        ],
+        "allowed_actions": {
+          "router": [
+            "classify_request"
+          ],
+          "knowledge": [
+            "answer_public_knowledge",
+            "gather_policy_context"
+          ],
+          "customer_support": [
+            "resolve_customer_request",
+            "inspect_customer_context"
+          ],
+          "escalation": [
+            "prepare_human_handoff"
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "agent_orchestration.unsupported_001",
+      "workload": "agent_orchestration",
+      "scorer": "agent_orchestration_v1",
+      "prompt": "Synthetic support request: the request does not match the available knowledge or customer-support capabilities and must be handed to a human. Propose only the ordered agent trajectory as JSON. Do not execute agents or tools.",
+      "expected": {
+        "steps": [
+          {
+            "agent": "router",
+            "action": "classify_request",
+            "handoff_to": "escalation"
+          },
+          {
+            "agent": "escalation",
+            "action": "prepare_human_handoff",
+            "handoff_to": null
+          }
+        ]
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "synthetic": true,
+        "execute_steps": false,
+        "allowed_agents": [
+          "router",
+          "knowledge",
+          "customer_support",
+          "escalation"
+        ],
+        "allowed_actions": {
+          "router": [
+            "classify_request"
+          ],
+          "knowledge": [
+            "answer_public_knowledge",
+            "gather_policy_context"
+          ],
+          "customer_support": [
+            "resolve_customer_request",
+            "inspect_customer_context"
+          ],
+          "escalation": [
+            "prepare_human_handoff"
+          ]
+        }
+      }
+    }
+  ]
+}
