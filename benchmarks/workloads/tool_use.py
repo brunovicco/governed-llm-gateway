@@ -217,9 +217,7 @@ def _compare_values(
         for key in sorted(set(output) - set(expected)):
             issues.append(ToolUseIssue("unexpected_argument", _child_path(path, key)))
         for key in sorted(set(expected) & set(output)):
-            issues.extend(
-                _compare_values(expected[key], output[key], path=_child_path(path, key))
-            )
+            issues.extend(_compare_values(expected[key], output[key], path=_child_path(path, key)))
         return tuple(issues)
 
     if isinstance(expected, list) and isinstance(output, list):
