@@ -127,6 +127,7 @@ class BenchmarkRunner:
             provider=call.provider,
             model=call.model,
             deployment=call.deployment,
+            api_family=call.api_family,
         )
 
 
