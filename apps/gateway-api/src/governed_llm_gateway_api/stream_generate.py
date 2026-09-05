@@ -131,7 +131,7 @@ class GenerateStructuredOutputModel(BaseModel):
     schema_definition: dict[str, object] = Field(alias="schema")
 
     def to_contract(self) -> StructuredOutputSchema:
-        """Build the immutable structured-output contract."""
+        """Build the immutable provider-neutral structured-output contract."""
         return StructuredOutputSchema(name=self.name, schema=self.schema_definition)
 
 
@@ -571,6 +571,8 @@ def _event_payload(event: GatewayStreamEvent) -> dict[str, object]:
         }
         execution["attempt_number"] = event.execution.attempt_number
         execution["fallback_index"] = event.execution.fallback_index
+        if event.execution.api_family is not None:
+            execution["api_family"] = event.execution.api_family
         if event.execution.provider_request_id is not None:
             execution["provider_request_id"] = event.execution.provider_request_id
         if event.execution.finish_reason is not None:
