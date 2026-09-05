@@ -47,7 +47,9 @@ def build_multimodal_gateway_execution_plan(
     fixture_media_type = _required_metadata_string(case, "fixture_media_type")
 
     if publication.fixture_id != fixture_id:
-        raise ValueError("multimodal execution publication fixture_id does not match benchmark case")
+        raise ValueError(
+            "multimodal execution publication fixture_id does not match benchmark case"
+        )
     if publication.digest != fixture_digest:
         raise ValueError("multimodal execution publication digest does not match benchmark case")
 
