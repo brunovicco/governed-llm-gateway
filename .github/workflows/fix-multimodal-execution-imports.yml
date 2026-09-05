@@ -1,0 +1,30 @@
+name: fix-multimodal-execution-imports
+
+on:
+  push:
+    branches:
+      - feat/multimodal-gateway-execution-plan-v1
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply authoritative Ruff import fix and formatting
+        run: |
+          uvx --python 3.13 --from ruff==0.12.11 ruff check --fix tests/contract/test_multimodal_gateway_execution_plan.py
+          uvx --python 3.13 --from ruff==0.12.11 ruff format tests/contract/test_multimodal_gateway_execution_plan.py
+      - name: Commit fixes when needed
+        run: |
+          if git diff --quiet -- tests/contract/test_multimodal_gateway_execution_plan.py; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/contract/test_multimodal_gateway_execution_plan.py
+          git commit -m "style: fix multimodal execution test imports"
+          git push
