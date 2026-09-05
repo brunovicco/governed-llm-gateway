@@ -86,6 +86,8 @@ Historical targets omit the field and preserve their prior canonical target shap
 
 A future gateway-backed benchmark executor must not claim complete configuration attestation until those effective settings have their own reviewed execution-evidence contract.
 
+The first bounded runtime foundation now exists for max-output evidence through `ProviderExecution.max_output_tokens`; see `TERMINAL_MAX_OUTPUT_PROVENANCE_V1.md`. That evidence does not parse, reinterpret, or attest the opaque historical `BenchmarkTarget.configuration` field.
+
 ## Authority boundary
 
 Target API-family attestation is benchmark evidence, not authorization.
@@ -104,4 +106,4 @@ The contract is deterministic and credential-free. Tests exercise strict target 
 
 ## Next boundary
 
-The remaining target-identity gap is **effective configuration provenance**. `BenchmarkTarget.configuration` must stay unverified until the runtime can expose bounded, provider-neutral evidence for the configuration that was actually executed.
+Effective configuration provenance remains intentionally incremental. The runtime now preserves the concrete max-output limit sent to the adapter, but benchmark targets still need an explicit future schema field before max-output can be attested fail-closed. Temperature, top-p, reasoning/thinking controls, and provider-specific settings remain outside the current provider-neutral execution contract.
