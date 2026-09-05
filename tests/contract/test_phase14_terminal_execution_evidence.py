@@ -225,6 +225,7 @@ def test_runtime_terminal_execution_preserves_measured_identity_usage_latency_an
         attempt_number=1,
         fallback_index=0,
         api_family="openai-compatible",
+        max_output_tokens=64,
     )
 
 
