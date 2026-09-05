@@ -4,9 +4,6 @@ from decimal import Decimal
 from uuid import UUID
 
 import pytest
-
-from benchmarks.multimodal_response import normalize_multimodal_gateway_response
-from benchmarks.runner import BenchmarkProviderFailure
 from governed_llm_gateway_contracts import (
     ExecutionStatus,
     GatewayError,
@@ -16,6 +13,9 @@ from governed_llm_gateway_contracts import (
     RoutingProvenance,
     Usage,
 )
+
+from benchmarks.multimodal_response import normalize_multimodal_gateway_response
+from benchmarks.runner import BenchmarkProviderFailure
 
 _REQUEST_ID = UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 
