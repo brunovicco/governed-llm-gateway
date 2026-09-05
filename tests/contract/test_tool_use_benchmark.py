@@ -57,7 +57,10 @@ def test_tool_use_scorer_separates_tool_selection_and_arguments() -> None:
     ) == Decimal("0.5")
     assert score_tool_use(
         case,
-        {"name": "search_docs", "arguments": {"city": "São Paulo", "date": "2026-09-06"}},
+        {
+            "name": "search_docs",
+            "arguments": {"city": "São Paulo", "date": "2026-09-06"},
+        },
     ) == Decimal("0.5")
     assert score_tool_use(
         case,
@@ -65,7 +68,11 @@ def test_tool_use_scorer_separates_tool_selection_and_arguments() -> None:
     ) == Decimal("0")
     assert score_tool_use(
         case,
-        {"name": "get_weather", "arguments": {"city": "São Paulo", "date": "2026-09-06"}, "extra": true},
+        {
+            "name": "get_weather",
+            "arguments": {"city": "São Paulo", "date": "2026-09-06"},
+            "extra": True,
+        },
     ) == Decimal("0")
 
 
@@ -74,7 +81,10 @@ def test_tool_use_arguments_are_type_sensitive() -> None:
 
     assert score_tool_use(
         case,
-        {"name": "get_customer", "arguments": {"customer_id": "C-100", "include_contacts": 1}},
+        {
+            "name": "get_customer",
+            "arguments": {"customer_id": "C-100", "include_contacts": 1},
+        },
     ) == Decimal("0.5")
 
 
