@@ -109,7 +109,7 @@ def assess_structured_extraction_v2(
     schema_score = Decimal("1") if not schema_issues else Decimal("0")
     value_score = Decimal(matched) / Decimal(max(total, 1))
     score = (schema_score + value_score) / Decimal("2")
-    issues = tuple(sorted(set((*schema_issues, *value_issues))))
+    issues = tuple(sorted({*schema_issues, *value_issues}))
     return StructuredExtractionAssessment(
         score=score,
         schema_score=schema_score,
