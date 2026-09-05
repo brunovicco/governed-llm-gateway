@@ -159,7 +159,7 @@ def assess_tool_use(case: BenchmarkCase, output: JsonValue) -> ToolUseAssessment
     if not isinstance(expected_name, str) or not isinstance(expected_arguments, dict):
         raise AssertionError("validated tool use expected output is inconsistent")
 
-    issues: list[ToolUseIssue] = []
+    issues = []
     if output_name not in allowed_tools:
         issues.append(ToolUseIssue("undeclared_tool", "/name"))
         return ToolUseAssessment(
