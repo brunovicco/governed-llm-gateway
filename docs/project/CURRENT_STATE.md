@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-09-04
+Last updated: 2026-09-05
 
 ## Phase status
 
@@ -96,15 +96,45 @@ The provider-neutral terminal evidence now supports:
 
 Unknown optional evidence remains absent rather than being synthesized as zero. Contradictory provider response IDs and invalid retry/fallback provenance fail closed.
 
-Post-merge `main` quality run `33926667666` passed.
+## Workload-specific benchmark matrix — COMPLETE 5/5
 
-The authoritative functional gate immediately before merge reported:
+The generic Phase 10/11 benchmark and promotion framework is now exercised by all five initial roadmap workloads through PRs #19–#24:
 
-- 330 tests passed;
-- aggregate coverage 80.82%;
-- mypy passed across 113 source files;
-- Ruff lint/format passed across 113 files;
-- Bandit 0 issues across 11,784 LOC;
+1. `structured_extraction` — v1 established in PR #19; hardened `structured-extraction-v2` added in PR #22 without rewriting historical v1 semantics;
+2. `rag_ptbr` — `rag-ptbr-v1`, PR #20;
+3. `code_generation` — `code-generation-v1`, PR #21;
+4. `tool_use` — `tool-use-v1`, PR #23;
+5. `agent_orchestration` — `agent-orchestration-v1`, PR #24.
+
+Shared properties remain:
+
+- public/synthetic versioned fixtures;
+- credential-free deterministic default CI;
+- workload-specific fail-closed contracts;
+- provider failures separated from completed model-quality failures;
+- deterministic dataset digests and content-addressed snapshots;
+- explicit promotion only;
+- no live tool execution, generated-code execution or agent execution;
+- no LLM-as-judge dependency in the default path;
+- benchmark/promoted evidence can affect ranking only inside the already-authorized and eligible set.
+
+The completed workload ledger is documented in `docs/evaluation/BENCHMARK_MATRIX.md`.
+
+Latest benchmark-complete `main` baseline after PR #24:
+
+`a8f2003663eb9ac713df6929a8c7b5bc79573e69`
+
+Post-merge quality run:
+
+`33968458431` — PASS.
+
+Validation:
+
+- 421 tests passed;
+- aggregate coverage 81.32%;
+- mypy passed across 132 source files;
+- Ruff lint/format passed across 132 files;
+- Bandit 0 issues across 12,883 LOC;
 - pip-audit no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
@@ -175,7 +205,7 @@ Authority boundary in that candidate remained correct: the model produces only a
 
 ### Case 4 — RAGForge — NOT STARTED
 
-Not started because Case 3 is deliberately deferred and the roadmap prohibits simultaneous consumer migration.
+Not started because Case 3 is deliberately deferred. Issue #18 explicitly preserves the sequencing guard and prohibits starting RAGForge in parallel unless the normative order is revised.
 
 ### Case 5 — Verifiable AI Governance — NOT STARTED
 
@@ -183,7 +213,7 @@ Remains after the preceding integration cases.
 
 ## Current working boundary
 
-1. Keep `governed-llm-gateway/main` stable at the provider-neutral provenance baseline.
+1. Keep `governed-llm-gateway/main` stable at the benchmark-complete, provider-neutral baseline.
 2. Do not modify OpsLens until its independent development state is ready for reconciliation.
 3. Do not begin RAGForge in parallel unless the roadmap order is explicitly revised.
 4. Accept upstream gateway changes only when they are consumer-agnostic and independently justified.
@@ -197,6 +227,6 @@ Remains after the preceding integration cases.
 - client-side retry/fallback/circuit breaking/model selection;
 - automatic/adaptive routing self-modification;
 - arbitrary key discovery from governance token contents;
-- using governance/runtime evidence as a new authorization source;
+- using governance/runtime/benchmark evidence as a new authorization source;
 - provider-native tool-result continuation without canonical provider state;
 - payload/prompt/completion capture as default telemetry/evidence.
