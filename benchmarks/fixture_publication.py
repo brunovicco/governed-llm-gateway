@@ -38,7 +38,9 @@ class BenchmarkFixturePublication:
         if self.source != _PUBLICATION_SOURCE:
             raise ValueError("publication source must be github_raw_commit in v1")
         if not _is_commit_sha(self.source_revision):
-            raise ValueError("publication source_revision must be a 40-character lowercase commit SHA")
+            raise ValueError(
+                "publication source_revision must be a 40-character lowercase commit SHA"
+            )
         _validate_publication_url(self.url, self.source_revision)
 
 
@@ -122,7 +124,10 @@ def validate_fixture_publications(
             details.append(f"missing: {', '.join(missing)}")
         if unknown:
             details.append(f"unknown: {', '.join(unknown)}")
-        raise ValueError("fixture publication catalog does not match fixture catalog: " + "; ".join(details))
+        detail_text = "; ".join(details)
+        raise ValueError(
+            f"fixture publication catalog does not match fixture catalog: {detail_text}"
+        )
 
     for fixture in fixtures.fixtures:
         publication = publications.require(fixture.fixture_id)
@@ -141,10 +146,10 @@ def _validate_publication_url(url: str, source_revision: str) -> None:
     if parsed.query or parsed.fragment:
         raise ValueError("publication url must not contain query or fragment")
     try:
-        parsed.port
+        port = parsed.port
     except ValueError as exc:
         raise ValueError("publication url contains an invalid port") from exc
-    if parsed.port is not None:
+    if port is not None:
         raise ValueError("publication url must not override the HTTPS port")
 
     path_segments = tuple(segment for segment in parsed.path.split("/") if segment)
