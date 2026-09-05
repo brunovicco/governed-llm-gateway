@@ -25,6 +25,7 @@ from .snapshot import (
     canonical_snapshot_json,
     dataset_digest,
     persist_snapshot,
+    target_matrix_digest,
 )
 from .targets import load_targets
 
@@ -51,4 +52,5 @@ __all__ = [
     "load_dataset",
     "load_targets",
     "persist_snapshot",
+    "target_matrix_digest",
 ]

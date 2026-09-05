@@ -270,3 +270,31 @@ class BenchmarkSnapshot:
     targets: tuple[BenchmarkTarget, ...]
     observations: tuple[BenchmarkObservation, ...]
     scorecards: tuple[Scorecard, ...]
+    target_matrix_version: str | None = None
+    target_matrix_digest: str | None = None
+
+    def __post_init__(self) -> None:
+        """Require matrix provenance only for the versioned snapshot extension."""
+        if self.schema_version == "1.0":
+            if self.target_matrix_version is not None or self.target_matrix_digest is not None:
+                raise ValueError("snapshot schema 1.0 must not carry target matrix provenance")
+            return
+        if self.schema_version != "1.1":
+            raise ValueError("unsupported benchmark snapshot schema_version")
+        if (
+            self.target_matrix_version is None
+            or not self.target_matrix_version
+            or self.target_matrix_version.strip() != self.target_matrix_version
+        ):
+            raise ValueError("snapshot schema 1.1 requires normalized target_matrix_version")
+        digest = self.target_matrix_digest
+        if digest is None or not _is_sha256_digest(digest):
+            raise ValueError("snapshot schema 1.1 requires canonical target_matrix_digest")
+
+
+def _is_sha256_digest(value: str) -> bool:
+    prefix = "sha256:"
+    if not value.startswith(prefix):
+        return False
+    digest = value.removeprefix(prefix)
+    return len(digest) == 64 and all(character in "0123456789abcdef" for character in digest)

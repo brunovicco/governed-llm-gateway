@@ -25,6 +25,20 @@ def dataset_digest(cases: Sequence[BenchmarkCase]) -> str:
     return _sha256(_canonical_bytes(payload))
 
 
+def target_matrix_digest(
+    matrix_version: str,
+    targets: Sequence[BenchmarkTarget],
+) -> str:
+    """Return a canonical digest over the effective versioned benchmark target matrix."""
+    if not matrix_version or matrix_version.strip() != matrix_version:
+        raise ValueError("target matrix version must be non-empty and normalized")
+    payload = {
+        "matrix_version": matrix_version,
+        "targets": [_target_payload(target) for target in targets],
+    }
+    return _sha256(_canonical_bytes(payload))
+
+
 def build_snapshot(
     *,
     benchmark_version: str,
@@ -34,6 +48,7 @@ def build_snapshot(
     targets: Sequence[BenchmarkTarget],
     observations: Sequence[BenchmarkObservation],
     scorecards: Sequence[Scorecard],
+    target_matrix_version: str | None = None,
 ) -> BenchmarkSnapshot:
     """Build a reproducible snapshot whose ID covers all routing-quality evidence."""
     for name, value in (
@@ -44,8 +59,14 @@ def build_snapshot(
             raise ValueError(f"{name} must be non-empty and normalized")
 
     dataset_sha = dataset_digest(cases)
-    base_payload = {
-        "schema_version": "1.0",
+    matrix_sha: str | None = None
+    schema_version = "1.0"
+    if target_matrix_version is not None:
+        matrix_sha = target_matrix_digest(target_matrix_version, targets)
+        schema_version = "1.1"
+
+    base_payload: dict[str, object] = {
+        "schema_version": schema_version,
         "benchmark_version": benchmark_version,
         "runner_version": runner_version,
         "run_date": run_date.isoformat(),
@@ -54,9 +75,13 @@ def build_snapshot(
         "observations": [_observation_payload(item) for item in observations],
         "scorecards": [_scorecard_payload(item) for item in scorecards],
     }
+    if target_matrix_version is not None and matrix_sha is not None:
+        base_payload["target_matrix_version"] = target_matrix_version
+        base_payload["target_matrix_digest"] = matrix_sha
+
     snapshot_id = _sha256(_canonical_bytes(base_payload))
     return BenchmarkSnapshot(
-        schema_version="1.0",
+        schema_version=schema_version,
         benchmark_version=benchmark_version,
         runner_version=runner_version,
         run_date=run_date,
@@ -65,12 +90,14 @@ def build_snapshot(
         targets=tuple(targets),
         observations=tuple(observations),
         scorecards=tuple(scorecards),
+        target_matrix_version=target_matrix_version,
+        target_matrix_digest=matrix_sha,
     )
 
 
 def canonical_snapshot_json(snapshot: BenchmarkSnapshot) -> str:
     """Serialize a snapshot in stable canonical JSON for reviewable evidence artifacts."""
-    payload = {
+    payload: dict[str, object] = {
         "schema_version": snapshot.schema_version,
         "benchmark_version": snapshot.benchmark_version,
         "runner_version": snapshot.runner_version,
@@ -81,6 +108,9 @@ def canonical_snapshot_json(snapshot: BenchmarkSnapshot) -> str:
         "observations": [_observation_payload(item) for item in snapshot.observations],
         "scorecards": [_scorecard_payload(item) for item in snapshot.scorecards],
     }
+    if snapshot.target_matrix_version is not None:
+        payload["target_matrix_version"] = snapshot.target_matrix_version
+        payload["target_matrix_digest"] = snapshot.target_matrix_digest
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
 
 
