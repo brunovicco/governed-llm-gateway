@@ -36,22 +36,23 @@ This is an intentional compatibility boundary, not a claim that missing API-fami
 
 ## Target-attestation boundary
 
-This increment does **not** compare `api_family` against `BenchmarkTarget.api`.
+This evidence increment does **not** compare `api_family` against the historical `BenchmarkTarget.api` field.
 
 `BenchmarkTarget.api` is historical target metadata whose string vocabulary predates terminal `ModelDeployment.api_family` evidence. Existing targets may use API labels that are more specific, differently namespaced, or otherwise not textually identical to the registry API-family vocabulary.
 
-Therefore the following would be unsafe:
+Therefore the following remains unsafe:
 
 ```text
 BenchmarkTarget.api == ProviderExecution.api_family
 ```
 
-unless a reviewed versioned equivalence contract defines that relationship.
+The successor contract, `BENCHMARK_TARGET_API_FAMILY_ATTESTATION_V1.md`, adds a separate explicit `BenchmarkTarget.api_family` declaration under target-matrix schema `1.1`. Only that explicit field is eligible for exact terminal attestation. Historical schema `1.0` targets remain unattested.
 
-The snapshot deliberately preserves both facts independently:
+The snapshot therefore keeps the concepts separate:
 
 ```text
-target.api                     # declared target metadata
+target.api                     # declared API family/surface metadata
+target.api_family              # optional explicit adapter-family expectation
 observation.api_family         # observed terminal execution evidence
 ```
 
@@ -70,7 +71,7 @@ This increment does not infer or attest:
 - sampling parameters;
 - arbitrary adapter configuration.
 
-A gateway-backed benchmark executor must not claim a fully identified benchmark target until effective configuration evidence has an explicit reviewed representation.
+A gateway-backed benchmark executor must not claim a fully attested benchmark target until effective configuration evidence has an explicit reviewed representation.
 
 ## Authority boundary
 
@@ -95,8 +96,8 @@ Gateway allowed set ⊆ Policy Router authorized set
 
 All tests remain credential-free and deterministic. No provider call, fixture hosting, secret, or external network dependency is added by this increment.
 
-## Next boundary
+## Successor boundary
 
-The next safe benchmark step is a reviewed **target API-family attestation contract** that defines when a declared `BenchmarkTarget.api` can be compared to observed `api_family`, while preserving historical target vocabulary.
+Explicit target API-family attestation is implemented by `BENCHMARK_TARGET_API_FAMILY_ATTESTATION_V1.md` and `benchmarks/runners/targets-v2.json`.
 
-`BenchmarkTarget.configuration` remains a separate blocker before any gateway-backed executor can claim full target identity.
+The next unresolved target-identity boundary is effective `BenchmarkTarget.configuration` provenance.
