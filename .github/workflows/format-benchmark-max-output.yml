@@ -6,6 +6,8 @@ on:
       - feat/benchmark-target-max-output-attestation-v1
     paths:
       - .github/workflows/format-benchmark-max-output.yml
+      - benchmarks/runner.py
+      - tests/contract/test_benchmark_max_output_gateway_normalization.py
 
 permissions:
   contents: write
