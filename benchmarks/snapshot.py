@@ -140,6 +140,8 @@ def _observation_payload(item: BenchmarkObservation) -> dict[str, object]:
         payload["provider"] = item.provider
         payload["model"] = item.model
         payload["deployment"] = item.deployment
+        if item.api_family is not None:
+            payload["api_family"] = item.api_family
     return payload
 
 

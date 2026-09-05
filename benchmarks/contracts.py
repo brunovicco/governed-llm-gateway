@@ -106,6 +106,7 @@ class ProviderCall:
     provider: str | None = None
     model: str | None = None
     deployment: str | None = None
+    api_family: str | None = None
 
     def __post_init__(self) -> None:
         """Validate normalized metrics and optional terminal execution identity."""
@@ -127,14 +128,18 @@ class ProviderCall:
             ("model", self.model),
             ("deployment", self.deployment),
         )
-        if all(value is None for _, value in identity):
-            return
-        for name, value in identity:
-            if value is None or not value or value.strip() != value:
-                raise ValueError(
-                    f"provider call {name} must be present and normalized "
-                    "when execution identity is set"
-                )
+        if not all(value is None for _, value in identity):
+            for name, value in identity:
+                if value is None or not value or value.strip() != value:
+                    raise ValueError(
+                        f"provider call {name} must be present and normalized "
+                        "when execution identity is set"
+                    )
+        if self.api_family is not None:
+            if self.provider is None:
+                raise ValueError("provider call api_family requires execution identity")
+            if not self.api_family or self.api_family.strip() != self.api_family:
+                raise ValueError("provider call api_family must be normalized when present")
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +162,7 @@ class BenchmarkObservation:
     provider: str | None = None
     model: str | None = None
     deployment: str | None = None
+    api_family: str | None = None
 
     def __post_init__(self) -> None:
         """Enforce quality/failure semantics and normalized optional execution identity."""
@@ -179,14 +185,18 @@ class BenchmarkObservation:
             ("model", self.model),
             ("deployment", self.deployment),
         )
-        if all(value is None for _, value in identity):
-            return
-        for name, value in identity:
-            if value is None or not value or value.strip() != value:
-                raise ValueError(
-                    f"benchmark observation {name} must be present and normalized "
-                    "when execution identity is set"
-                )
+        if not all(value is None for _, value in identity):
+            for name, value in identity:
+                if value is None or not value or value.strip() != value:
+                    raise ValueError(
+                        f"benchmark observation {name} must be present and normalized "
+                        "when execution identity is set"
+                    )
+        if self.api_family is not None:
+            if self.provider is None:
+                raise ValueError("benchmark observation api_family requires execution identity")
+            if not self.api_family or self.api_family.strip() != self.api_family:
+                raise ValueError("benchmark observation api_family must be normalized when present")
 
 
 @dataclass(frozen=True, slots=True)
