@@ -34,18 +34,18 @@ The framework provides:
 
 ## Generic Phase 10 baseline
 
-`benchmarks/datasets/gateway-eval-v1.json` remains the original schema `1.0` generic benchmark baseline, explicitly classified `public`. It contains two public/synthetic cases for each roadmap workload and uses the original generic deterministic scorers:
+`benchmarks/datasets/gateway-eval-v1.json` remains the original schema `1.0` generic benchmark baseline, explicitly classified `public`. It contains two public/synthetic cases for each original roadmap workload and uses the original generic deterministic scorers:
 
 - `exact_json`;
 - `contains_all`;
 - `mapping_fields`;
 - `ordered_sequence`.
 
-That dataset is preserved as the initial framework evidence. It is not silently rewritten when workload-specific contracts evolve.
+That dataset is preserved as the initial framework evidence. It is not silently rewritten when workload-specific contracts evolve or when post-core multimodal evaluation is added.
 
-## Workload-specific matrix — COMPLETE 5/5
+## Workload-specific matrix — CORE 5/5 COMPLETE; MULTIMODAL EXTENSION COMPLETE
 
-PRs #19–#24 added explicit versioned workload contracts on top of the Phase 10/11 foundation:
+PRs #19–#24 added the initial five explicit versioned workload contracts on top of the Phase 10/11 foundation. PR #32 later added the roadmap-authorized multimodal extension after core execution and image-input foundations stabilized.
 
 | Workload | Current reviewed contract | Core deterministic semantics |
 |---|---|---|
@@ -54,13 +54,14 @@ PRs #19–#24 added explicit versioned workload contracts on top of the Phase 10
 | `code_generation` | `code-generation-v1` | normalized Python AST exactness; candidate code is never executed |
 | `tool_use` | `tool-use-v1` | tool selection + exact recursive type-sensitive arguments; tool execution disabled |
 | `agent_orchestration` | `agent-orchestration-v1` | observable agent/action sequence + handoff accuracy; step execution disabled |
+| `multimodal_analysis` | `multimodal-analysis-v1` | actual fixture-bound image inspection with deterministic quadrant/color scoring |
 
-`structured-extraction-v1` from PR #19 remains a historical contract. PR #22 added v2 rather than rewriting already-versioned semantics.
+`structured-extraction-v1` from PR #19 remains a historical contract. PR #22 added v2 rather than rewriting already-versioned semantics. The original `gateway-eval-v1` dataset also remains the historical five-workload generic baseline; multimodal was added as a new workload contract instead of mutating that dataset.
 
-All five workload contracts reuse:
+All workload contracts reuse the same non-authoritative evidence path:
 
 ```text
-versioned dataset
+versioned dataset / fixture provenance
   -> contract validation
   -> BenchmarkRunner
   -> deterministic scorer
@@ -81,25 +82,37 @@ Workload-specific scorers are intentionally bounded and auditable. They do not c
 - code-generation v1 compares safe normalized AST structure and does not execute candidate code;
 - tool-use v1 scores proposed calls/arguments and never executes business tools;
 - agent-orchestration v1 scores an observable trajectory and never executes agents or inspects hidden reasoning;
-- structured-extraction v2 separates schema validity from exact reviewed value accuracy.
+- structured-extraction v2 separates schema validity from exact reviewed value accuracy;
+- multimodal-analysis v1 scores four exact visual quadrant labels against a deterministic real image fixture.
 
 More permissive, behavioral or execution-based evaluators require separately reviewed contracts and security boundaries.
 
-## Initial target matrix
+## Versioned target matrices and execution attestation
 
-`benchmarks/runners/targets-v1.json` records matrix version `phase10-targets-v1`. Every target records:
+Benchmark targets remain reviewed configuration data rather than application-code preferences.
 
-- provider;
-- exact model identifier;
-- API family/surface;
-- benchmark configuration;
-- source date.
+The repository preserves three target-matrix generations:
 
-The initial matrix contains development/benchmark targets for NVIDIA, Groq, OpenRouter and Google Gemini, plus paid/control targets for OpenAI Responses and Anthropic Messages.
+- `benchmarks/runners/targets-v1.json`, schema `1.0`: historical provider/model/API/configuration identity;
+- `benchmarks/runners/targets-v2.json`, schema `1.1`: adds explicit reviewed `api_family`;
+- `benchmarks/runners/targets-v3.json`, schema `1.2`: additionally requires positive `max_output_tokens`.
+
+Every target still records provider, exact model identifier, API surface, benchmark configuration and source date. Later schemas add explicit fields rather than parsing the opaque `configuration` string.
+
+Gateway-backed terminal evidence can preserve:
+
+- concrete provider/model/deployment identity;
+- selected `api_family`;
+- concrete provider-neutral `max_output_tokens` carried by the attempted request;
+- latency, fallback position, normalized usage and optional cost.
+
+The benchmark runner fails closed before scoring when an attested completed call contradicts the declared provider/model target, declared API family, or declared max-output value. Missing required terminal attestation evidence also fails closed. Provider failures remain availability evidence and are not converted into false configuration mismatches.
+
+This does **not** attest arbitrary values inside `BenchmarkTarget.configuration`. Temperature, top-p, reasoning/thinking mode, access/tier labels and provider-specific controls remain declarative unless a future provider-neutral runtime contract can prove them explicitly.
 
 Free-tier or developer-access endpoints are benchmark/development targets only. They must not receive confidential/private evaluation fixtures by default.
 
-A result must not be described as a "best model" result unless provider, exact model, API, configuration, run date and benchmark version are stated together.
+A result must not be described as a "best model" result unless provider, exact model, API/configuration provenance, run date and benchmark version are stated together.
 
 ## Quality versus availability
 
@@ -131,7 +144,9 @@ Online gateway runtime health and circuit-breaker state remain separate mutable 
 
 ## Snapshot reproducibility
 
-A dataset digest is derived from canonical JSON over the complete ordered benchmark case content. A benchmark snapshot identifier is a `sha256:` digest over:
+A dataset digest is derived from canonical JSON over the complete ordered benchmark case content.
+
+Historical snapshot schema `1.0` remains valid. Its snapshot identifier covers:
 
 - snapshot schema version;
 - benchmark version;
@@ -142,7 +157,11 @@ A dataset digest is derived from canonical JSON over the complete ordered benchm
 - normalized observations;
 - aggregated scorecards.
 
-Changing a target configuration changes the snapshot ID. Rebuilding the same evidence produces the same ID and canonical JSON.
+New snapshots may opt into schema `1.1` by supplying an explicit `target_matrix_version`. Schema 1.1 additionally stores a canonical `target_matrix_digest` over the matrix version plus the complete effective ordered target payload. Both matrix provenance fields participate in `snapshot_id`.
+
+This makes reviewed matrix origin directly auditable while preserving historical schema 1.0 artifact shape. The matrix digest proves which target declaration was used; it does not turn every opaque configuration claim into runtime attestation.
+
+Observed provider/model/deployment identity, `api_family` and `max_output_tokens` are serialized into benchmark observations only when present. Their presence therefore affects immutable snapshot identity without fabricating values for historical/replay evidence.
 
 Persisted artifacts are stored under:
 
@@ -154,11 +173,19 @@ Persistence is immutable/idempotent: an existing snapshot ID with different cont
 
 ## CI and live-provider boundary
 
-Default CI is credential-free and deterministic. It validates loaders, workload contracts, scorers, aggregation, reproducibility, failure classification, privacy-oriented result structure and architecture rules without live PDP/provider calls.
+Default CI is credential-free and deterministic. It validates loaders, workload contracts, multimodal fixture integrity/publication metadata, scorers, aggregation, response normalization, attestation, reproducibility, failure classification, privacy-oriented result structure and architecture rules without live PDP/provider calls.
 
-Live-provider benchmark execution must remain explicitly separated under the existing `live_provider` pytest marker or an equally explicit manual benchmark workflow. Credentials must not be required by the default quality gate.
+The repository now has provider-neutral building blocks for a future gateway-backed multimodal execution path:
 
-Public/synthetic workload fixtures do not create a policy exception for confidential/private provider use.
+1. validated `multimodal-analysis-v1` case + immutable fixture publication;
+2. provider-neutral `GatewayRequest` materialization with `requirements.vision = true`;
+3. ordinary gateway authorization/routing/resilience/provider execution;
+4. terminal `GatewayResponse` normalization into `ProviderCall`;
+5. execution-identity/API-family/max-output integrity checks before deterministic scoring.
+
+There is still no benchmark-side model-forcing bypass and no required live-provider executor in default CI. A future live execution adapter must call an already-authorized gateway composition and fail closed if observed terminal execution does not match the reviewed benchmark target requirements.
+
+Credentials must remain outside the default quality gate. Public/synthetic workload fixtures do not create a policy exception for confidential/private provider use.
 
 ## Phase 11 promotion boundary
 

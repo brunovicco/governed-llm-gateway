@@ -1,10 +1,10 @@
 # Multimodal Input Foundation
 
-Status: initial image-input contract implemented after the core execution baseline stabilized.
+Status: bounded image-input runtime plus deterministic multimodal benchmark foundations implemented after the core execution baseline stabilized.
 
 ## Scope
 
-The first multimodal increment adds **image understanding input only**. It does not add image generation or a general file transport.
+The multimodal runtime currently supports **image understanding input only**. It does not add image generation or a general file transport.
 
 Provider-neutral messages may carry bounded image references alongside text:
 
@@ -33,7 +33,7 @@ Signed URLs are deliberately outside v1 because their query strings commonly car
 
 ## Capability and authority boundaries
 
-Model/deployment eligibility already requires the vision capability and image modality to be declared together in the registry. A request with `requirements.vision = true` therefore narrows the already-authorized candidate set to deployments advertising vision.
+Model/deployment eligibility requires the vision capability and image modality to be declared together in the registry. A request with `requirements.vision = true` therefore narrows the already-authorized candidate set to deployments advertising vision.
 
 The provider wire contract is a separate concern. `ProviderFeatureSupport.native_image_input` defaults to `false`; an adapter must opt in only when its exact API family has a reviewed native translation. Registry capability never implies wire-format support automatically.
 
@@ -118,39 +118,39 @@ Google may support signed external URLs, but the provider-neutral gateway v1 con
 
 Generic OpenAI-compatible adapters intentionally remain `native_image_input = false`. Compatibility labels alone are not enough to infer a reviewed multimodal wire format, so direct image calls fail closed before provider I/O.
 
-## Multimodal benchmark fixture foundation
+## Multimodal benchmark path
 
-A future `multimodal analysis` benchmark must evaluate actual visual input rather than a textual surrogate. The benchmark layer therefore has a separate credential-free fixture contract before any multimodal workload/scorer is declared complete.
+The post-core multimodal benchmark is implemented through separate reviewed boundaries rather than a single provider-coupled runner.
 
-A fixture manifest contains only public, immutable descriptors:
+### Fixture integrity and publication
 
-```json
-{
-  "schema_version": "1.0",
-  "data_classification": "public",
-  "fixtures": [
-    {
-      "fixture_id": "multimodal.sample_001",
-      "media_type": "image/png",
-      "relative_path": "images/sample.png",
-      "digest": "sha256:<64 lowercase hex characters>"
-    }
-  ]
-}
-```
+The benchmark fixture catalog is local, public and content-addressed. It verifies normalized relative paths, JPEG/PNG/WebP media signatures, size bounds, root containment and SHA-256 before bytes are exposed.
 
-The fixture resolver is intentionally local-only and credential-free. Before returning bytes to a future benchmark executor boundary it verifies:
+The initial visual fixture is `multimodal.quadrants_rgb_001`, a deterministic 16 × 16 RGB PNG. Its publication record is separately bound to the exact fixture digest and a commit-pinned `raw.githubusercontent.com` HTTPS URL. Default CI validates publication metadata without downloading the remote image.
 
-- the manifest and fixture fields are strict and versioned;
-- classification is explicitly `public`;
-- fixture IDs are unique;
-- media type stays inside the reviewed JPEG/PNG/WebP set;
-- the path is normalized and relative;
-- the resolved path remains contained inside the configured fixture root, including through symlinks;
-- the file is non-empty and bounded to 20 MiB by default;
-- SHA-256 matches the manifest before bytes are exposed to the executor.
+### `multimodal-analysis-v1`
 
-This foundation does **not** yet declare `multimodal_analysis-v1`, does not call a provider, does not fetch images from the network, and does not add benchmark evidence to routing. A later workload increment must bind benchmark cases to verified fixture IDs and define deterministic visual-task scoring before multimodal benchmark evidence can be promoted.
+The benchmark workload evaluates actual visual input rather than a text surrogate. The initial case asks for the colors of four image quadrants and uses deterministic scoring: each exact quadrant/color match contributes `0.25`; invalid top-level shape scores zero; no LLM-as-judge is used.
+
+### Provider-neutral gateway materialization
+
+A validated multimodal case plus immutable fixture publication can be materialized into the existing `GatewayRequest` contract with:
+
+- caller-provided request/workload identity;
+- public / low-risk benchmark context;
+- `requirements.vision = true`;
+- non-empty benchmark prompt;
+- one provider-neutral `ImageInput` pointing at the commit-pinned publication URL.
+
+This is not authorization and does not force a provider/model/deployment. The request must pass through the normal policy, registry, ranking, resilience and provider-execution path.
+
+### Terminal benchmark evidence
+
+A terminal `GatewayResponse` can be normalized into `ProviderCall` evidence while keeping successful-but-malformed output as model-quality evidence and provider/gateway failures as availability evidence.
+
+Where available, terminal evidence preserves provider/model/deployment identity, `api_family`, `max_output_tokens`, latency, fallback index, normalized token usage and optional cost. Benchmark target schemas can require exact API-family and max-output attestation before scoring.
+
+There is still no benchmark-side model-forcing bypass and no live provider/network requirement in default CI.
 
 ## Privacy and observability
 
@@ -171,4 +171,6 @@ Benchmark fixture bytes are local evaluation inputs, not runtime telemetry. Thei
 - image preprocessing or fetching by the gateway;
 - implicit vision inference from message shape without `requirements.vision`;
 - generic OpenAI-compatible image support without endpoint-specific verification;
-- a promoted multimodal benchmark workload until verified fixture references and deterministic scoring are reviewed together.
+- benchmark-side provider/model forcing;
+- credential-bearing live-provider benchmark execution in default CI;
+- automatic promotion or routing mutation from multimodal benchmark evidence.
