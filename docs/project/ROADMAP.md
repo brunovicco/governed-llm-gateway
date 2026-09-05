@@ -34,17 +34,31 @@ Governance authorization may narrow that set further but may never expand it. Ra
 
 ## Completed gateway foundations after Phase 13
 
-Two upstream hardening changes were completed while exercising real consumers:
+Consumer-driven, provider-neutral hardening completed before the workload benchmark expansion:
 
-- PR #13, squash merge `96b09956e933db50bf9ea900973f8a0b2145cb3c`: exposes PEP 561 typed SDK packages for strict consumer type checking;
-- PR #15, squash merge `ba5661514f90aff96749789e3275ce5685e1aea4`: preserves terminal `ProviderExecution` evidence through SSE and `GatewayClient.generate()`;
-- PR #16, squash merge `e2f724d1339419207fbe89437fc5c590673dd33c`: expands provider-neutral execution provenance with provider response identity, finish reason, retry/fallback position and optional detailed usage while preserving fail-closed validation.
+- PR #13, squash merge `96b09956e933db50bf9ea900973f8a0b2145cb3c`: PEP 561 typed SDK packages;
+- PR #15, squash merge `ba5661514f90aff96749789e3275ce5685e1aea4`: terminal `ProviderExecution` evidence through SSE and `GatewayClient.generate()`;
+- PR #16, squash merge `e2f724d1339419207fbe89437fc5c590673dd33c`: provider-neutral execution provenance including provider response identity, finish reason, retry/fallback position and optional detailed usage.
 
-The runtime evidence chain is now:
+The runtime evidence chain is:
 
 `normalized provider events → StreamingExecutionService → terminal SSE → API payload → SDK codec → GatewayResponse.execution`
 
 Runtime evidence is descriptive only. It cannot authorize a retry, fallback, model/provider choice, tool execution, SQL execution or business action.
+
+## Initial workload-specific benchmark program — COMPLETE 5/5
+
+The roadmap says to start with five workloads. The generic Phase 10/11 framework is now exercised by all five through separate semantic increments:
+
+1. `structured_extraction` — PR #19 established v1; PR #22 added hardened `structured-extraction-v2` while preserving historical v1 evidence;
+2. `rag_ptbr` — PR #20, `rag-ptbr-v1`;
+3. `code_generation` — PR #21, `code-generation-v1`;
+4. `tool_use` — PR #23, `tool-use-v1`;
+5. `agent_orchestration` — PR #24, `agent-orchestration-v1`.
+
+The completed matrix remains public/synthetic, deterministic, credential-free by default and explicitly non-authoritative. Workload scorers reuse the existing runner → scorecard → content-addressed snapshot → explicit promotion path. Provider failures remain availability evidence rather than false quality-zero scores.
+
+Completion of this matrix does not alter the Phase 14 consumer order. See `docs/evaluation/BENCHMARK_MATRIX.md`.
 
 ## Phase 14 — Real project integrations
 
@@ -127,7 +141,7 @@ Validation recorded before deferral:
 
 ### Case 4 — RAGForge — NOT STARTED
 
-Do not start Case 4 while Case 3 is intentionally deferred unless the integration order is explicitly revised. This preserves the roadmap instruction to avoid parallel consumer migrations.
+Do not start Case 4 while Case 3 is intentionally deferred unless the integration order is explicitly revised. Issue #18 records this sequencing guard.
 
 ### Case 5 — Verifiable AI Governance — NOT STARTED
 
@@ -135,31 +149,32 @@ Remains after the preceding consumer cases.
 
 ## Current gateway baseline
 
-Latest upstream execution-provenance merge:
+Latest merged baseline after completion of the workload matrix:
 
-`e2f724d1339419207fbe89437fc5c590673dd33c`
+`a8f2003663eb9ac713df6929a8c7b5bc79573e69` (PR #24)
 
 Post-merge `main` quality run:
 
-`33926667666` — PASS.
+`33968458431` — PASS.
 
-Pre-merge authoritative validation on the same functional change set included:
+Validation:
 
-- 330 tests passed;
-- aggregate coverage 80.82%;
-- mypy passed across 113 source files;
-- Ruff lint/format passed across 113 files;
-- Bandit 0 issues across 11,784 LOC;
+- 421 tests passed;
+- aggregate coverage 81.32%;
+- mypy passed across 132 source files;
+- Ruff lint/format passed across 132 files;
+- Bandit 0 issues across 12,883 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
 ## Next boundary
 
-Keep OpsLens changes last while its repository is actively evolving. Until that consumer is ready for reconciliation:
+Until OpsLens is ready for reconciliation:
 
 1. keep the gateway `main` baseline stable;
 2. do not start a second consumer migration in parallel;
 3. perform only upstream gateway hardening that is independently justified and consumer-agnostic;
-4. when OpsLens stabilizes, rebase/reconcile its integration against the then-current gateway commit and rerun its full native CI before merge.
+4. do not treat completion of benchmark workload 5/5 as permission to bypass the Phase 14 order;
+5. when OpsLens stabilizes, rebase/reconcile its integration against the then-current gateway commit and rerun its full native Python and Terraform CI before merge.
 
 Do not pull work forward when doing so weakens an authority boundary, creates parallel consumer migrations or depends on an unstable consumer contract.
