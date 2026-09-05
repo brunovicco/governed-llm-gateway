@@ -13,6 +13,7 @@ from .workloads.structured_extraction import (
     STRUCTURED_EXTRACTION_SCORER_ID,
     score_structured_extraction,
 )
+from .workloads.tool_use import TOOL_USE_SCORER_ID, score_tool_use
 
 
 class DeterministicScorer(Protocol):
@@ -80,6 +81,7 @@ def build_default_scorers() -> Mapping[str, DeterministicScorer]:
         STRUCTURED_EXTRACTION_SCORER_ID: score_structured_extraction,
         RAG_PTBR_SCORER_ID: score_rag_ptbr,
         CODE_GENERATION_SCORER_ID: score_code_generation,
+        TOOL_USE_SCORER_ID: score_tool_use,
     }
     return scorers
 
