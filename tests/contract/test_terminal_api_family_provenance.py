@@ -1,4 +1,4 @@
-"""Contract tests for terminal provider API-family provenance."""
+"""Contract tests for terminal provider execution provenance."""
 
 import asyncio
 from collections.abc import AsyncIterator
@@ -27,6 +27,8 @@ from governed_llm_gateway_contracts import (
 )
 from governed_llm_gateway_core.application.provider import (
     ProviderContentDelta,
+    ProviderError,
+    ProviderErrorCode,
     ProviderFeatureSupport,
     ProviderRequest,
     ProviderResponse,
@@ -60,11 +62,29 @@ class _StreamingProvider:
         raise AssertionError("test requires streaming execution")
 
     async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
-        del request
+        assert request.max_output_tokens == 64
         yield ProviderResponseStarted(response_id="provider-response")
         yield ProviderContentDelta(delta="ok")
         yield ProviderUsageCompleted(usage=ProviderUsage(input_tokens=4, output_tokens=2))
         yield ProviderResponseCompleted(response_id="provider-response", finish_reason="stop")
+
+
+class _FailingStreamingProvider:
+    feature_support = ProviderFeatureSupport(native_streaming=True, streaming_usage=True)
+
+    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+        del request
+        raise AssertionError("test requires streaming execution")
+
+    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+        assert request.max_output_tokens == 64
+        raise ProviderError(
+            provider="provider-a",
+            code=ProviderErrorCode.INVALID_REQUEST,
+            message="synthetic provider rejection",
+            retryable=False,
+        )
+        yield ProviderResponseStarted(response_id="unreachable")
 
 
 class _Clock:
@@ -149,13 +169,11 @@ def _request() -> GatewayRequest:
     )
 
 
-def test_runtime_terminal_execution_preserves_selected_api_family() -> None:
+def _collect(provider: object) -> tuple[GatewayStreamEvent, ...]:
     deployment = _deployment()
     service = StreamingExecutionService(
         health=InMemoryHealthTracker(),
-        resolver=StaticProviderResolver(
-            {(deployment.provider, deployment.api_family): _StreamingProvider()}
-        ),
+        resolver=StaticProviderResolver({(deployment.provider, deployment.api_family): provider}),
         clock=_Clock(),
     )
 
@@ -171,14 +189,28 @@ def test_runtime_terminal_execution_preserves_selected_api_family() -> None:
             ]
         )
 
-    terminal = asyncio.run(collect())[-1]
+    return asyncio.run(collect())
+
+
+def test_runtime_terminal_execution_preserves_selected_api_family_and_max_output() -> None:
+    terminal = _collect(_StreamingProvider())[-1]
 
     assert terminal.event_type is StreamEventType.RESPONSE_COMPLETED
     assert terminal.execution is not None
     assert terminal.execution.api_family == "openai-compatible"
+    assert terminal.execution.max_output_tokens == 64
 
 
-def test_api_payload_and_client_codec_round_trip_api_family() -> None:
+def test_failed_terminal_execution_preserves_attempted_max_output() -> None:
+    terminal = _collect(_FailingStreamingProvider())[-1]
+
+    assert terminal.event_type is StreamEventType.RESPONSE_FAILED
+    assert terminal.execution is not None
+    assert terminal.execution.status is ExecutionStatus.FAILED
+    assert terminal.execution.max_output_tokens == 64
+
+
+def test_api_payload_and_client_codec_round_trip_execution_provenance() -> None:
     execution = ProviderExecution(
         provider="provider-a",
         model="model/a",
@@ -186,6 +218,7 @@ def test_api_payload_and_client_codec_round_trip_api_family() -> None:
         status=ExecutionStatus.SUCCEEDED,
         latency_ms=25,
         api_family="openai-compatible",
+        max_output_tokens=64,
     )
     event = GatewayStreamEvent(
         event_type=StreamEventType.RESPONSE_COMPLETED,
@@ -199,10 +232,11 @@ def test_api_payload_and_client_codec_round_trip_api_family() -> None:
     execution_payload = payload["execution"]
     assert isinstance(execution_payload, dict)
     assert execution_payload["api_family"] == "openai-compatible"
+    assert execution_payload["max_output_tokens"] == 64
     assert _decode_event(payload).execution == execution
 
 
-def test_legacy_terminal_payload_omits_absent_api_family() -> None:
+def test_legacy_terminal_payload_omits_absent_optional_execution_provenance() -> None:
     event = GatewayStreamEvent(
         event_type=StreamEventType.RESPONSE_COMPLETED,
         request_id=_REQUEST_ID,
@@ -221,6 +255,7 @@ def test_legacy_terminal_payload_omits_absent_api_family() -> None:
     execution_payload = payload["execution"]
     assert isinstance(execution_payload, dict)
     assert "api_family" not in execution_payload
+    assert "max_output_tokens" not in execution_payload
     assert _decode_event(payload).execution == event.execution
 
 
@@ -234,4 +269,17 @@ def test_provider_execution_rejects_non_normalized_api_family(api_family: str) -
             status=ExecutionStatus.SUCCEEDED,
             latency_ms=1,
             api_family=api_family,
+        )
+
+
+@pytest.mark.parametrize("max_output_tokens", [0, -1])
+def test_provider_execution_rejects_non_positive_max_output_tokens(max_output_tokens: int) -> None:
+    with pytest.raises(ValueError, match="max_output_tokens must be positive"):
+        ProviderExecution(
+            provider="provider-a",
+            model="model/a",
+            deployment="deployment-a",
+            status=ExecutionStatus.SUCCEEDED,
+            latency_ms=1,
+            max_output_tokens=max_output_tokens,
         )
