@@ -84,6 +84,7 @@ _EXECUTION_FIELDS = frozenset(
         "finish_reason",
         "attempt_number",
         "fallback_index",
+        "api_family",
     }
 )
 _ERROR_FIELDS = frozenset({"code", "message", "retryable"})
@@ -373,6 +374,7 @@ def _decode_execution(payload: dict[str, object]) -> ProviderExecution:
         finish_reason=_optional_str(payload, "finish_reason"),
         attempt_number=1 if attempt_number is None else attempt_number,
         fallback_index=0 if fallback_index is None else fallback_index,
+        api_family=_optional_str(payload, "api_family"),
     )
 
 
