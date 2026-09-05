@@ -1,8 +1,8 @@
-# Initial Benchmark Workload Matrix
+# Benchmark Workload Matrix
 
-Status: **COMPLETE — 5/5 initial roadmap workloads implemented**
+Status: **COMPLETE — 5/5 core roadmap workloads plus post-core multimodal extension implemented**
 
-The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority.
+The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority. After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension.
 
 ## Matrix
 
@@ -13,15 +13,18 @@ The Phase 10 framework originally established a generic provider-neutral benchma
 | `code_generation` | `code-generation-v1` | normalized Python AST exactness; candidate code is never executed | #21 |
 | `tool_use` | `tool-use-v1` | tool-selection score + exact recursive type-sensitive argument score; tool execution disabled | #23 |
 | `agent_orchestration` | `agent-orchestration-v1` | observable agent/action sequence + handoff accuracy; agent execution disabled | #24 |
+| `multimodal_analysis` | `multimodal-analysis-v1` | actual fixture-bound image inspection + deterministic quadrant/color scoring | #32 |
 
 `structured-extraction-v1` is preserved as historical benchmark semantics. The v2 contract is the current hardened structured-extraction reference; v1 evidence must not be silently rewritten.
 
+The original generic `gateway-eval-v1` dataset remains the historical five-workload framework baseline. `multimodal_analysis` was added as a separate post-core workload contract rather than mutating that dataset.
+
 ## Shared evidence pipeline
 
-Every workload reuses the existing provider-neutral Phase 10/11 path:
+Every workload reuses the provider-neutral Phase 10/11 path:
 
 ```text
-versioned public/synthetic dataset
+versioned public/synthetic dataset or fixture provenance
   -> contract validation
   -> BenchmarkRunner
   -> deterministic workload scorer
@@ -80,23 +83,76 @@ The v1 contract scores an observable proposed trajectory:
 
 It evaluates sequence and handoffs without hidden reasoning. `execute_steps=false` is mandatory. It does not execute agents, tools, human escalations or side effects and it is not a multi-agent runtime.
 
-## Post-core multimodal extension
+### multimodal_analysis
 
-The roadmap also names `multimodal analysis` as a future benchmark class after core execution is stable. The gateway now has a reviewed provider-neutral image-input contract plus native translations for OpenAI Responses, Anthropic Messages and Google Gemini.
+`multimodal-analysis-v1` evaluates a real deterministic 16 × 16 RGB PNG fixture with four solid-color quadrants. The case is bound to a reviewed fixture ID, media type and SHA-256 digest.
 
-A multimodal benchmark must still evaluate **actual visual input**. Text-only prompts describing an imagined image are not accepted as a multimodal benchmark substitute.
+The deterministic scorer requires exactly `top_left`, `top_right`, `bottom_left` and `bottom_right`. Each exact color match contributes `0.25`. Invalid top-level shape scores zero. No model-as-judge is used.
 
-The first post-core benchmark increment therefore establishes a credential-free local fixture boundary before defining `multimodal_analysis-v1`:
+## Post-core multimodal and evidence hardening
+
+The roadmap allows multimodal only after core execution is stable. The completed sequence is:
 
 ```text
-strict public fixture manifest
-  -> normalized relative path + media type + SHA-256
-  -> root-containment / size / digest validation
-  -> verified fixture bytes
-  -> future multimodal BenchmarkExecutor
+bounded provider-neutral image input
+  -> reviewed native provider translations
+  -> local fixture integrity
+  -> immutable public fixture publication
+  -> multimodal-analysis-v1 dataset/scorer
+  -> provider-neutral GatewayRequest materialization
+  -> ordinary authorized gateway execution boundary
+  -> GatewayResponse -> ProviderCall normalization
+  -> terminal execution identity / API family / max-output attestation
+  -> immutable snapshot + target-matrix provenance
 ```
 
-This foundation does not add a new `BenchmarkWorkload`, scorer, scorecard semantics, snapshot promotion, or ranking evidence. A later reviewed increment must bind cases to verified fixture IDs and define deterministic visual-task scoring.
+### Runtime image input
+
+PRs #26–#28 established HTTPS URL image input for user messages with explicit `requirements.vision = true`. Native reviewed translations exist for OpenAI Responses, Anthropic Messages and Gemini. Generic OpenAI-compatible image input remains fail closed unless its exact endpoint behavior is separately reviewed.
+
+### Fixture and workload evidence
+
+PRs #29–#31 added a credential-free fixture integrity/publication path. PR #32 added `multimodal-analysis-v1`, backed by the real deterministic `multimodal.quadrants_rgb_001` PNG.
+
+Default CI does not fetch the published fixture or call a provider.
+
+### Gateway execution composition boundary
+
+PR #33 materializes a validated multimodal case into the existing provider-neutral `GatewayRequest`; PR #34 normalizes a terminal `GatewayResponse` into benchmark `ProviderCall` evidence.
+
+Materialization never chooses or authorizes a provider/model. The request must still pass through normal PDP authorization, gateway eligibility, ranking, resilience and execution.
+
+### Evidence integrity and attestation
+
+PRs #35–#42 progressively preserve and verify execution facts the runtime can actually prove:
+
+- observed provider/model/deployment identity;
+- terminal `api_family`;
+- terminal provider-neutral `max_output_tokens`;
+- explicit target schema evolution (`1.0` -> `1.1` -> `1.2`);
+- optional snapshot target-matrix version/digest provenance.
+
+Completed calls that contradict an attested target fail closed before deterministic scoring. Provider failures remain availability evidence.
+
+Opaque configuration strings are still declarative. The benchmark does not infer temperature, top-p, reasoning/thinking mode, access tier or provider-specific controls from those strings.
+
+## Target matrices
+
+The reviewed target catalog is versioned rather than rewritten:
+
+- `targets-v1.json` / schema `1.0`: provider/model/API/configuration/source-date identity;
+- `targets-v2.json` / schema `1.1`: explicit reviewed `api_family`;
+- `targets-v3.json` / schema `1.2`: explicit reviewed `api_family` and positive `max_output_tokens`.
+
+Schema 1.1/1.2 attestation compares declared target fields to observed terminal evidence before scoring. Historical schema 1.0 remains valid without those later requirements.
+
+## Snapshot provenance
+
+Historical benchmark snapshot schema `1.0` remains valid and content-addresses the benchmark version, runner version, run date, dataset digest, target payloads, observations and scorecards.
+
+New snapshots may opt into schema `1.1` target-matrix provenance by supplying a normalized matrix version. The snapshot then records a canonical `target_matrix_digest` over matrix version plus the complete ordered target payload. Both provenance fields participate in `snapshot_id`.
+
+This proves which reviewed matrix declaration produced the snapshot. It does not attest arbitrary provider-specific configuration claims.
 
 ## Authority boundary
 
@@ -113,6 +169,7 @@ Benchmark data, observations, scorecards, snapshots and promoted evidence cannot
 - authorize a business tool or side effect;
 - execute generated code;
 - execute an agent trajectory;
+- force a provider/model solely because it is named by a benchmark target;
 - self-promote;
 - automatically activate a new ranking policy;
 - mutate policy or routing from online telemetry.
@@ -123,25 +180,28 @@ Promotion is an explicit reviewed conversion from immutable benchmark evidence i
 
 Default CI remains credential-free and deterministic:
 
-- no live provider/network dependency is required by the workload contract tests;
+- no live provider/network dependency is required by workload contract tests;
 - no LLM-as-judge path is required;
 - public/synthetic fixtures are used;
-- workload contract drift fails closed;
+- workload/target/attestation contract drift fails closed;
 - snapshot/digest behavior is replayable;
 - architecture/security/secret gates cover benchmark code.
 
-Before the multimodal benchmark-fixture foundation branch, the validated `main` baseline after PR #28 is:
+Latest validated `main` baseline after PR #42:
 
-- 448 tests passed;
-- 81.64% aggregate coverage;
-- mypy and Ruff passed across 133 source files;
-- Bandit reported no issues;
+- commit `cb0fbac9c278df3e20bf9b26b20cb06f697f4d71`;
+- post-merge quality run `33993826048` — PASS;
+- 546 tests passed;
+- 82.08% aggregate coverage;
+- strict mypy and Ruff passed across 151 source files;
+- Bandit reported no issues across 13,905 LOC;
 - pip-audit reported no known vulnerabilities;
-- architecture check, secret scan and Phase 0 gate passed;
-- `main` commit `3428d7776cda5ab9374f1c5cae1ee4b66f27525c` passed the post-merge quality workflow.
+- architecture check, secret scan and Phase 0 gate passed.
 
 ## Next boundary
 
-Completing the initial 5/5 matrix and adding consumer-agnostic multimodal foundations do **not** create a new Phase 14 consumer migration exception.
+Completion of the core 5/5 matrix, multimodal extension and execution-evidence hardening does **not** create a new Phase 14 consumer migration exception.
 
-Issue #18 still defers OpsLens reconciliation and explicitly prevents starting RAGForge in parallel unless the normative integration order is revised. Until that changes, additional gateway work should remain consumer-agnostic and independently justified.
+Issue #18 still defers OpsLens reconciliation and explicitly prevents starting RAGForge in parallel unless the normative integration order is revised.
+
+Until that changes, further gateway work should be consumer-agnostic and independently justified. A future live benchmark executor must use normal gateway authorization and must not introduce a benchmark-only provider/model forcing path.
