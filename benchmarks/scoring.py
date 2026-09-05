@@ -11,6 +11,7 @@ from .workloads.agent_orchestration import (
     AGENT_ORCHESTRATION_SCORER_ID,
     score_agent_orchestration,
 )
+from .workloads.classification import CLASSIFICATION_SCORER_ID, score_classification
 from .workloads.code_generation import CODE_GENERATION_SCORER_ID, score_code_generation
 from .workloads.long_context import LONG_CONTEXT_SCORER_ID, score_long_context
 from .workloads.multimodal_analysis import (
@@ -99,6 +100,7 @@ def build_default_scorers() -> Mapping[str, DeterministicScorer]:
         AGENT_ORCHESTRATION_SCORER_ID: score_agent_orchestration,
         MULTIMODAL_ANALYSIS_SCORER_ID: score_multimodal_analysis,
         LONG_CONTEXT_SCORER_ID: score_long_context,
+        CLASSIFICATION_SCORER_ID: score_classification,
     }
     return scorers
 
