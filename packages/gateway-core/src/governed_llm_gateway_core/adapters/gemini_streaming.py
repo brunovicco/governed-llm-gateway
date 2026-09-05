@@ -1,7 +1,7 @@
 """Streaming variant of the native Google Gemini generateContent adapter."""
 
 import json
-from collections.abc import AsyncGenerator, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 from urllib.parse import quote
 
 from governed_llm_gateway_contracts import MessageRole, ToolCall

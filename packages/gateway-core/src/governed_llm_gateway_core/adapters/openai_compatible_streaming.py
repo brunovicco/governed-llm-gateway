@@ -1,7 +1,7 @@
 """Streaming variant for explicitly verified OpenAI-compatible chat-completions endpoints."""
 
 import json
-from collections.abc import AsyncGenerator, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 from dataclasses import dataclass
 
 from governed_llm_gateway_contracts import ToolCall
