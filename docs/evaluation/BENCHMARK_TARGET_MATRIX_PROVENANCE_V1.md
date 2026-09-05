@@ -23,7 +23,7 @@ When it is omitted, historical behavior is preserved:
 ```text
 snapshot schema_version = 1.0
 no target_matrix_version
-a no target_matrix_digest
+no target_matrix_digest
 ```
 
 When it is provided, the builder emits snapshot schema `1.1` with:
