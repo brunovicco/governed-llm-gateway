@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "data_classification": "public",
+  "publications": [
+    {
+      "fixture_id": "multimodal.quadrants_rgb_001",
+      "digest": "sha256:c016362530bd9a02aff8d3bf0b7114b38d7499b03e2acacb566f657f94bb5f76",
+      "source": "github_raw_commit",
+      "source_revision": "627dff6edb500a7d85bc58792992a2dd8b196892",
+      "url": "https://raw.githubusercontent.com/brunovicco/governed-llm-gateway/627dff6edb500a7d85bc58792992a2dd8b196892/benchmarks/fixtures/multimodal-v1/quadrants-rgb.png"
+    }
+  ]
+}
