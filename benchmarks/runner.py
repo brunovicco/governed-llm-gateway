@@ -36,6 +36,10 @@ class BenchmarkProviderFailure(Exception):
             raise ValueError("provider failure latency_ms must be non-negative")
 
 
+class BenchmarkTargetMismatchError(ValueError):
+    """Raised when observed terminal execution identity contradicts the declared target."""
+
+
 class BenchmarkExecutor(Protocol):
     """Execute one benchmark case against one fully identified provider/model target."""
 
@@ -101,6 +105,7 @@ class BenchmarkRunner:
                 provider_error_status=exc.status_code,
             )
 
+        _require_observed_target_identity(call, target)
         score = require_scorer(self._scorers, case.scorer)(case, call.output)
         status = (
             ObservationStatus.SUCCEEDED
@@ -119,6 +124,18 @@ class BenchmarkRunner:
             output_units=call.output_units,
             cost_usd=call.cost_usd,
             fallback_count=call.fallback_count,
+        )
+
+
+def _require_observed_target_identity(call: ProviderCall, target: BenchmarkTarget) -> None:
+    """Reject completed calls whose observed provider/model contradict the benchmark target."""
+    if call.provider is None:
+        return
+    if (call.provider, call.model) != (target.provider, target.model):
+        raise BenchmarkTargetMismatchError(
+            "observed benchmark execution identity does not match declared target: "
+            f"observed={call.provider}/{call.model}; "
+            f"target={target.provider}/{target.model}"
         )
 
 

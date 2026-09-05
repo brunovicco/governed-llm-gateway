@@ -34,6 +34,9 @@ def normalize_multimodal_gateway_response(response: GatewayResponse) -> Provider
         output_units=usage.output_tokens if usage is not None else None,
         cost_usd=usage.total_cost_usd if usage is not None else None,
         fallback_count=execution.fallback_index,
+        provider=execution.provider,
+        model=execution.model,
+        deployment=execution.deployment,
     )
 
 
