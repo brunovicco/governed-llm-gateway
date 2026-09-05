@@ -28,7 +28,7 @@ from governed_llm_gateway_core.domain.structured import (
     validate_tool_call,
 )
 
-from .anthropic import AnthropicMessagesAdapter
+from .anthropic import AnthropicMessagesAdapter, _anthropic_messages
 from .http_json import JsonTransport, TransportFailure
 from .http_sse import HttpxSseTransport, SseTransport
 from .provider_common import (
@@ -54,6 +54,7 @@ class AnthropicMessagesStreamingAdapter(AnthropicMessagesAdapter):
         native_tool_calling=True,
         native_streaming=True,
         streaming_usage=True,
+        native_image_input=True,
     )
 
     def __init__(
@@ -80,11 +81,7 @@ class AnthropicMessagesStreamingAdapter(AnthropicMessagesAdapter):
         system = "\n\n".join(
             message.content for message in request.messages if message.role is MessageRole.SYSTEM
         )
-        messages = [
-            {"role": message.role.value, "content": message.content}
-            for message in request.messages
-            if message.role is not MessageRole.SYSTEM
-        ]
+        messages = _anthropic_messages(request)
         if not messages:
             raise _invalid_request("anthropic request requires at least one non-system message")
 

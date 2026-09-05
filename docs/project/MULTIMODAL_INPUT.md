@@ -47,9 +47,11 @@ Image input cannot add model groups or deployments. It only creates another gate
 
 Policy Model Router API 1.0 does not currently receive a dedicated vision flag. The gateway can still narrow PDP authorization through registry capability checks without violating monotonic authorization. Expanding the PDP request vocabulary is a separate cross-repository contract change and must not be inferred from this increment.
 
-## Initial adapter support
+## Reviewed adapter support
 
-Native OpenAI Responses is the first explicitly enabled image-input API family. The adapter maps a provider-neutral user message to Responses content parts:
+### OpenAI Responses
+
+Native OpenAI Responses maps a provider-neutral user message to Responses content parts:
 
 ```json
 {
@@ -63,7 +65,33 @@ Native OpenAI Responses is the first explicitly enabled image-input API family. 
 
 Native and streaming Responses paths share the same translation.
 
-Anthropic Messages, Gemini `generateContent`, and generic OpenAI-compatible adapters intentionally remain `native_image_input = false` in this increment. Direct calls fail closed before provider I/O instead of silently dropping image content. Each API family should be enabled in its own reviewed adapter increment.
+### Anthropic Messages
+
+Native Anthropic Messages is the second explicitly reviewed image-input API family. The adapter maps the same provider-neutral message to Anthropic content blocks, placing image blocks before the text block:
+
+```json
+{
+  "role": "user",
+  "content": [
+    {
+      "type": "image",
+      "source": {
+        "type": "url",
+        "url": "https://images.example/image.png"
+      }
+    },
+    {"type": "text", "text": "Describe the image."}
+  ]
+}
+```
+
+Non-streaming and streaming Anthropic paths reuse the same translation helper and both advertise `native_image_input = true`.
+
+Anthropic supports additional image formats in some API configurations, but the provider-neutral gateway contract remains deliberately narrower: JPEG, PNG, and WebP only. Provider capability does not automatically widen the gateway contract.
+
+### Still fail-closed
+
+Gemini `generateContent` and generic OpenAI-compatible adapters intentionally remain `native_image_input = false`. Direct calls fail closed before provider I/O instead of silently dropping image content. Each API family should be enabled in its own reviewed adapter increment.
 
 ## Privacy and observability
 
@@ -81,4 +109,5 @@ Existing telemetry continues to record bounded metadata such as workload, provid
 - image output/generation;
 - image preprocessing or fetching by the gateway;
 - implicit vision inference from message shape without `requirements.vision`;
+- Gemini native image input until its exact wire contract is separately reviewed;
 - generic OpenAI-compatible image support without endpoint-specific verification.

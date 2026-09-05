@@ -40,6 +40,7 @@ class AnthropicMessagesAdapter:
     feature_support = ProviderFeatureSupport(
         native_structured_output=True,
         native_tool_calling=True,
+        native_image_input=True,
     )
 
     def __init__(
@@ -61,16 +62,12 @@ class AnthropicMessagesAdapter:
         self._transport = transport or StdlibJsonTransport()
 
     async def generate(self, request: ProviderRequest) -> ProviderResponse:
-        """Generate text, structured output, or client-side tool calls."""
+        """Generate text, image analysis, structured output, or client-side tool calls."""
         require_supported_request_features("anthropic", request, self.feature_support)
         system = "\n\n".join(
             message.content for message in request.messages if message.role is MessageRole.SYSTEM
         )
-        messages = [
-            {"role": message.role.value, "content": message.content}
-            for message in request.messages
-            if message.role is not MessageRole.SYSTEM
-        ]
+        messages = _anthropic_messages(request)
         if not messages:
             raise ProviderError(
                 provider="anthropic",
@@ -143,6 +140,30 @@ class AnthropicMessagesAdapter:
             structured_output=structured_output,
             tool_calls=tool_calls,
         )
+
+
+def _anthropic_messages(request: ProviderRequest) -> list[dict[str, object]]:
+    """Translate provider-neutral messages into native Anthropic content blocks."""
+    messages: list[dict[str, object]] = []
+    for message in request.messages:
+        if message.role is MessageRole.SYSTEM:
+            continue
+        if not message.images:
+            messages.append({"role": message.role.value, "content": message.content})
+            continue
+        content: list[dict[str, object]] = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "url",
+                    "url": image.url,
+                },
+            }
+            for image in message.images
+        ]
+        content.append({"type": "text", "text": message.content})
+        messages.append({"role": message.role.value, "content": content})
+    return messages
 
 
 def _extract_content(

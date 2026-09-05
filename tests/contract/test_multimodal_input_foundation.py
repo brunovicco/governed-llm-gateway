@@ -410,15 +410,118 @@ def test_openai_responses_streaming_uses_same_native_image_translation() -> None
     assert upstream.closed is True
 
 
-@pytest.mark.parametrize("adapter_name", ["anthropic", "gemini", "compatible"])
+def test_anthropic_translates_url_image_to_native_content_blocks() -> None:
+    transport = FakeJsonTransport(
+        JsonHttpResponse(
+            status_code=200,
+            headers={},
+            payload={
+                "id": "msg-image",
+                "content": [{"type": "text", "text": "a diagram"}],
+                "usage": {"input_tokens": 10, "output_tokens": 2},
+                "stop_reason": "end_turn",
+            },
+        )
+    )
+    adapter = AnthropicMessagesAdapter(api_key="secret", transport=transport)
+
+    response = asyncio.run(adapter.generate(_provider_request()))
+
+    assert response.text == "a diagram"
+    assert adapter.feature_support.native_image_input is True
+    payload = transport.calls[0]["payload"]
+    assert isinstance(payload, dict)
+    assert payload["messages"] == [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {"type": "url", "url": IMAGE_URL},
+                },
+                {"type": "text", "text": "Describe the image."},
+            ],
+        }
+    ]
+
+
+def test_anthropic_streaming_uses_same_native_image_translation() -> None:
+    upstream = FakeSseStream(
+        [
+            SseEvent(
+                event=None,
+                data=json.dumps(
+                    {
+                        "type": "message_start",
+                        "message": {"id": "msg-image", "usage": {"input_tokens": 10}},
+                    }
+                ),
+            ),
+            SseEvent(
+                event=None,
+                data=json.dumps(
+                    {
+                        "type": "content_block_start",
+                        "index": 0,
+                        "content_block": {"type": "text", "text": ""},
+                    }
+                ),
+            ),
+            SseEvent(
+                event=None,
+                data=json.dumps(
+                    {
+                        "type": "content_block_delta",
+                        "index": 0,
+                        "delta": {"type": "text_delta", "text": "diagram"},
+                    }
+                ),
+            ),
+            SseEvent(
+                event=None,
+                data=json.dumps(
+                    {
+                        "type": "message_delta",
+                        "delta": {"stop_reason": "end_turn"},
+                        "usage": {"output_tokens": 2},
+                    }
+                ),
+            ),
+            SseEvent(event=None, data=json.dumps({"type": "message_stop"})),
+        ]
+    )
+    transport = FakeSseTransport(upstream)
+    adapter = AnthropicMessagesStreamingAdapter(api_key="secret", sse_transport=transport)
+
+    events = asyncio.run(_collect(adapter.stream(_provider_request())))
+
+    assert events
+    assert adapter.feature_support.native_image_input is True
+    payload = transport.calls[0]["payload"]
+    assert isinstance(payload, dict)
+    assert payload["messages"] == [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {"type": "url", "url": IMAGE_URL},
+                },
+                {"type": "text", "text": "Describe the image."},
+            ],
+        }
+    ]
+    assert payload["stream"] is True
+    assert upstream.closed is True
+
+
+@pytest.mark.parametrize("adapter_name", ["gemini", "compatible"])
 def test_other_non_streaming_adapters_fail_closed_before_image_provider_io(
     adapter_name: str,
 ) -> None:
     transport = FakeJsonTransport()
     adapter: ProviderPort
-    if adapter_name == "anthropic":
-        adapter = AnthropicMessagesAdapter(api_key="secret", transport=transport)
-    elif adapter_name == "gemini":
+    if adapter_name == "gemini":
         adapter = GeminiAdapter(api_key="secret", transport=transport)
     else:
         adapter = OpenAICompatibleAdapter(
@@ -436,13 +539,11 @@ def test_other_non_streaming_adapters_fail_closed_before_image_provider_io(
     assert transport.calls == []
 
 
-@pytest.mark.parametrize("adapter_name", ["anthropic", "gemini", "compatible"])
+@pytest.mark.parametrize("adapter_name", ["gemini", "compatible"])
 def test_other_streaming_adapters_fail_closed_before_image_provider_io(adapter_name: str) -> None:
     transport = RejectingSseTransport()
     adapter: ProviderStreamingPort
-    if adapter_name == "anthropic":
-        adapter = AnthropicMessagesStreamingAdapter(api_key="secret", sse_transport=transport)
-    elif adapter_name == "gemini":
+    if adapter_name == "gemini":
         adapter = GeminiStreamingAdapter(api_key="secret", sse_transport=transport)
     else:
         adapter = OpenAICompatibleStreamingAdapter(
