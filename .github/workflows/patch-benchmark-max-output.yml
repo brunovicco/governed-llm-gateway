@@ -1,0 +1,128 @@
+name: patch-benchmark-max-output
+
+on:
+  push:
+    branches:
+      - feat/benchmark-target-max-output-attestation-v1
+    paths:
+      - .github/workflows/patch-benchmark-max-output.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/benchmark-target-max-output-attestation-v1
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply bounded benchmark max-output attestation patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              if new in text:
+                  return
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"unexpected replacement count for {path}: {count}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          replace_once(
+              "benchmarks/contracts.py",
+              "    source_date: date\n    api_family: str | None = None\n\n    def __post_init__(self) -> None:\n",
+              "    source_date: date\n    api_family: str | None = None\n    max_output_tokens: int | None = None\n\n    def __post_init__(self) -> None:\n",
+          )
+          replace_once(
+              "benchmarks/contracts.py",
+              "            raise ValueError(\"api_family must be normalized when present\")\n\n\n@dataclass(frozen=True, slots=True)\nclass BenchmarkCase:\n",
+              "            raise ValueError(\"api_family must be normalized when present\")\n        if self.max_output_tokens is not None and self.max_output_tokens <= 0:\n            raise ValueError(\"max_output_tokens must be positive when present\")\n\n\n@dataclass(frozen=True, slots=True)\nclass BenchmarkCase:\n",
+          )
+          replace_once(
+              "benchmarks/contracts.py",
+              "    deployment: str | None = None\n    api_family: str | None = None\n\n    def __post_init__(self) -> None:\n",
+              "    deployment: str | None = None\n    api_family: str | None = None\n    max_output_tokens: int | None = None\n\n    def __post_init__(self) -> None:\n",
+          )
+          replace_once(
+              "benchmarks/contracts.py",
+              "                raise ValueError(\"provider call api_family must be normalized when present\")\n\n\n@dataclass(frozen=True, slots=True)\nclass BenchmarkObservation:\n",
+              "                raise ValueError(\"provider call api_family must be normalized when present\")\n        if self.max_output_tokens is not None:\n            if self.provider is None:\n                raise ValueError(\"provider call max_output_tokens requires execution identity\")\n            if self.max_output_tokens <= 0:\n                raise ValueError(\"provider call max_output_tokens must be positive when present\")\n\n\n@dataclass(frozen=True, slots=True)\nclass BenchmarkObservation:\n",
+          )
+          replace_once(
+              "benchmarks/contracts.py",
+              "    deployment: str | None = None\n    api_family: str | None = None\n\n    def __post_init__(self) -> None:\n        \"\"\"Enforce quality/failure semantics and normalized optional execution identity.\"\"\"\n",
+              "    deployment: str | None = None\n    api_family: str | None = None\n    max_output_tokens: int | None = None\n\n    def __post_init__(self) -> None:\n        \"\"\"Enforce quality/failure semantics and normalized optional execution identity.\"\"\"\n",
+          )
+          replace_once(
+              "benchmarks/contracts.py",
+              "                raise ValueError(\"benchmark observation api_family must be normalized when present\")\n\n\n@dataclass(frozen=True, slots=True)\nclass Scorecard:\n",
+              "                raise ValueError(\"benchmark observation api_family must be normalized when present\")\n        if self.max_output_tokens is not None:\n            if self.provider is None:\n                raise ValueError(\"benchmark observation max_output_tokens requires execution identity\")\n            if self.max_output_tokens <= 0:\n                raise ValueError(\n                    \"benchmark observation max_output_tokens must be positive when present\"\n                )\n\n\n@dataclass(frozen=True, slots=True)\nclass Scorecard:\n",
+          )
+
+          replace_once(
+              "benchmarks/targets.py",
+              "_API_FAMILY_TARGET_FIELDS = _BASE_TARGET_FIELDS | {\"api_family\"}\n_SUPPORTED_SCHEMA_VERSIONS = {\"1.0\", \"1.1\"}\n",
+              "_API_FAMILY_TARGET_FIELDS = _BASE_TARGET_FIELDS | {\"api_family\"}\n_MAX_OUTPUT_TARGET_FIELDS = _API_FAMILY_TARGET_FIELDS | {\"max_output_tokens\"}\n_SUPPORTED_SCHEMA_VERSIONS = {\"1.0\", \"1.1\", \"1.2\"}\n",
+          )
+          replace_once(
+              "benchmarks/targets.py",
+              "    allowed_target_fields = (\n        _BASE_TARGET_FIELDS if schema_version == \"1.0\" else _API_FAMILY_TARGET_FIELDS\n    )\n",
+              "    if schema_version == \"1.0\":\n        allowed_target_fields = _BASE_TARGET_FIELDS\n    elif schema_version == \"1.1\":\n        allowed_target_fields = _API_FAMILY_TARGET_FIELDS\n    else:\n        allowed_target_fields = _MAX_OUTPUT_TARGET_FIELDS\n",
+          )
+          replace_once(
+              "benchmarks/targets.py",
+              "        api_family = (\n            None if schema_version == \"1.0\" else _required_string(raw_target, \"api_family\", label)\n        )\n        targets.append(\n",
+              "        api_family = (\n            None if schema_version == \"1.0\" else _required_string(raw_target, \"api_family\", label)\n        )\n        max_output_tokens = (\n            _required_positive_int(raw_target, \"max_output_tokens\", label)\n            if schema_version == \"1.2\"\n            else None\n        )\n        targets.append(\n",
+          )
+          replace_once(
+              "benchmarks/targets.py",
+              "                source_date=date.fromisoformat(source_date),\n                api_family=api_family,\n            )\n",
+              "                source_date=date.fromisoformat(source_date),\n                api_family=api_family,\n                max_output_tokens=max_output_tokens,\n            )\n",
+          )
+          replace_once(
+              "benchmarks/targets.py",
+              "def _required_string(payload: dict[str, object], key: str, label: str) -> str:\n    value = payload.get(key)\n    if not isinstance(value, str) or not value or value.strip() != value:\n        raise ValueError(f\"{label} {key} must be a normalized non-empty string\")\n    return value\n",
+              "def _required_string(payload: dict[str, object], key: str, label: str) -> str:\n    value = payload.get(key)\n    if not isinstance(value, str) or not value or value.strip() != value:\n        raise ValueError(f\"{label} {key} must be a normalized non-empty string\")\n    return value\n\n\ndef _required_positive_int(payload: dict[str, object], key: str, label: str) -> int:\n    value = payload.get(key)\n    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:\n        raise ValueError(f\"{label} {key} must be a positive integer\")\n    return value\n",
+          )
+
+          replace_once(
+              "benchmarks/runner.py",
+              "            api_family=call.api_family,\n        )\n",
+              "            api_family=call.api_family,\n            max_output_tokens=call.max_output_tokens,\n        )\n",
+          )
+          replace_once(
+              "benchmarks/runner.py",
+              "    if call.provider is None:\n        if target.api_family is not None:\n            raise BenchmarkTargetMismatchError(\n                \"declared benchmark target api_family requires terminal execution evidence\"\n            )\n        return\n",
+              "    if call.provider is None:\n        if target.api_family is not None or target.max_output_tokens is not None:\n            raise BenchmarkTargetMismatchError(\n                \"declared benchmark target execution attestation requires terminal execution evidence\"\n            )\n        return\n",
+          )
+          replace_once(
+              "benchmarks/runner.py",
+              "    if target.api_family is None:\n        return\n    if call.api_family is None:\n        raise BenchmarkTargetMismatchError(\n            \"declared benchmark target api_family requires observed terminal api_family evidence\"\n        )\n    if call.api_family != target.api_family:\n        raise BenchmarkTargetMismatchError(\n            \"observed benchmark api_family does not match declared target: \"\n            f\"observed={call.api_family}; target={target.api_family}\"\n        )\n",
+              "    if target.api_family is not None:\n        if call.api_family is None:\n            raise BenchmarkTargetMismatchError(\n                \"declared benchmark target api_family requires observed terminal api_family evidence\"\n            )\n        if call.api_family != target.api_family:\n            raise BenchmarkTargetMismatchError(\n                \"observed benchmark api_family does not match declared target: \"\n                f\"observed={call.api_family}; target={target.api_family}\"\n            )\n\n    if target.max_output_tokens is not None:\n        if call.max_output_tokens is None:\n            raise BenchmarkTargetMismatchError(\n                \"declared benchmark target max_output_tokens requires observed terminal evidence\"\n            )\n        if call.max_output_tokens != target.max_output_tokens:\n            raise BenchmarkTargetMismatchError(\n                \"observed benchmark max_output_tokens does not match declared target: \"\n                f\"observed={call.max_output_tokens}; target={target.max_output_tokens}\"\n            )\n",
+          )
+
+          replace_once(
+              "benchmarks/snapshot.py",
+              "    if target.api_family is not None:\n        payload[\"api_family\"] = target.api_family\n    return payload\n",
+              "    if target.api_family is not None:\n        payload[\"api_family\"] = target.api_family\n    if target.max_output_tokens is not None:\n        payload[\"max_output_tokens\"] = target.max_output_tokens\n    return payload\n",
+          )
+          replace_once(
+              "benchmarks/snapshot.py",
+              "        if item.api_family is not None:\n            payload[\"api_family\"] = item.api_family\n    return payload\n",
+              "        if item.api_family is not None:\n            payload[\"api_family\"] = item.api_family\n        if item.max_output_tokens is not None:\n            payload[\"max_output_tokens\"] = item.max_output_tokens\n    return payload\n",
+          )
+          PY
+          uvx --python 3.13 --from ruff==0.12.11 ruff format benchmarks/contracts.py benchmarks/targets.py benchmarks/runner.py benchmarks/snapshot.py
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add benchmarks/contracts.py benchmarks/targets.py benchmarks/runner.py benchmarks/snapshot.py
+          git commit -m "feat: add benchmark max output attestation contract"
+          git push origin HEAD:feat/benchmark-target-max-output-attestation-v1
