@@ -118,11 +118,47 @@ Google may support signed external URLs, but the provider-neutral gateway v1 con
 
 Generic OpenAI-compatible adapters intentionally remain `native_image_input = false`. Compatibility labels alone are not enough to infer a reviewed multimodal wire format, so direct image calls fail closed before provider I/O.
 
+## Multimodal benchmark fixture foundation
+
+A future `multimodal analysis` benchmark must evaluate actual visual input rather than a textual surrogate. The benchmark layer therefore has a separate credential-free fixture contract before any multimodal workload/scorer is declared complete.
+
+A fixture manifest contains only public, immutable descriptors:
+
+```json
+{
+  "schema_version": "1.0",
+  "data_classification": "public",
+  "fixtures": [
+    {
+      "fixture_id": "multimodal.sample_001",
+      "media_type": "image/png",
+      "relative_path": "images/sample.png",
+      "digest": "sha256:<64 lowercase hex characters>"
+    }
+  ]
+}
+```
+
+The fixture resolver is intentionally local-only and credential-free. Before returning bytes to a future benchmark executor boundary it verifies:
+
+- the manifest and fixture fields are strict and versioned;
+- classification is explicitly `public`;
+- fixture IDs are unique;
+- media type stays inside the reviewed JPEG/PNG/WebP set;
+- the path is normalized and relative;
+- the resolved path remains contained inside the configured fixture root, including through symlinks;
+- the file is non-empty and bounded to 20 MiB by default;
+- SHA-256 matches the manifest before bytes are exposed to the executor.
+
+This foundation does **not** yet declare `multimodal_analysis-v1`, does not call a provider, does not fetch images from the network, and does not add benchmark evidence to routing. A later workload increment must bind benchmark cases to verified fixture IDs and define deterministic visual-task scoring before multimodal benchmark evidence can be promoted.
+
 ## Privacy and observability
 
 Image URLs are request content. They must not be added to metadata-only OpenTelemetry attributes, routing evidence, benchmark evidence, or logs by default.
 
 Existing telemetry continues to record bounded metadata such as workload, provider/model/deployment identity, latency, retries/fallbacks, and normalized usage. The gateway does not capture the referenced image bytes.
+
+Benchmark fixture bytes are local evaluation inputs, not runtime telemetry. Their digest and stable fixture identity may appear in benchmark provenance, but raw fixture bytes should not be copied into scorecards, routing evidence, or logs.
 
 ## Deferred
 
@@ -134,4 +170,5 @@ Existing telemetry continues to record bounded metadata such as workload, provid
 - image output/generation;
 - image preprocessing or fetching by the gateway;
 - implicit vision inference from message shape without `requirements.vision`;
-- generic OpenAI-compatible image support without endpoint-specific verification.
+- generic OpenAI-compatible image support without endpoint-specific verification;
+- a promoted multimodal benchmark workload until verified fixture references and deterministic scoring are reviewed together.
