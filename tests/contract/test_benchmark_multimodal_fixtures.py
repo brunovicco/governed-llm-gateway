@@ -70,7 +70,7 @@ def test_fixture_descriptor_rejects_unsupported_media_type_and_unsafe_paths() ->
 
     for relative_path in (
         "../sample.png",
-        "/tmp/sample.png",
+        "/root/sample.png",
         "images/../sample.png",
         "images\\sample.png",
         " images/sample.png",
