@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "code-generation-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "code_generation.double_001",
+      "workload": "code_generation",
+      "scorer": "code_generation_ast_v1",
+      "prompt": "Escreva em Python uma função double(value) que retorne value * 2. Retorne apenas código.",
+      "expected": "def double(value):\n    return value * 2\n",
+      "metadata": {"contract_version": "1.0", "language": "python", "synthetic": true, "comparison": "ast_exact", "execute_candidate": false}
+    },
+    {
+      "case_id": "code_generation.is_even_001",
+      "workload": "code_generation",
+      "scorer": "code_generation_ast_v1",
+      "prompt": "Escreva em Python uma função is_even(value) que retorne se value é par. Retorne apenas código.",
+      "expected": "def is_even(value):\n    return value % 2 == 0\n",
+      "metadata": {"contract_version": "1.0", "language": "python", "synthetic": true, "comparison": "ast_exact", "execute_candidate": false}
+    },
+    {
+      "case_id": "code_generation.first_or_none_001",
+      "workload": "code_generation",
+      "scorer": "code_generation_ast_v1",
+      "prompt": "Escreva em Python uma função first_or_none(items) que retorne items[0] quando houver itens e None caso contrário. Retorne apenas código.",
+      "expected": "def first_or_none(items):\n    return items[0] if items else None\n",
+      "metadata": {"contract_version": "1.0", "language": "python", "synthetic": true, "comparison": "ast_exact", "execute_candidate": false}
+    },
+    {
+      "case_id": "code_generation.increment_all_001",
+      "workload": "code_generation",
+      "scorer": "code_generation_ast_v1",
+      "prompt": "Escreva em Python uma função increment_all(values) que retorne uma nova lista com cada valor acrescido de 1 usando list comprehension. Retorne apenas código.",
+      "expected": "def increment_all(values):\n    return [value + 1 for value in values]\n",
+      "metadata": {"contract_version": "1.0", "language": "python", "synthetic": true, "comparison": "ast_exact", "execute_candidate": false}
+    },
+    {
+      "case_id": "code_generation.normalize_name_001",
+      "workload": "code_generation",
+      "scorer": "code_generation_ast_v1",
+      "prompt": "Escreva em Python uma função normalize_name(name) que remova espaços nas pontas e converta o texto para minúsculas. Retorne apenas código.",
+      "expected": "def normalize_name(name):\n    return name.strip().lower()\n",
+      "metadata": {"contract_version": "1.0", "language": "python", "synthetic": true, "comparison": "ast_exact", "execute_candidate": false}
+    },
+    {
+      "case_id": "code_generation.clamp_zero_001",
+      "workload": "code_generation",
+      "scorer": "code_generation_ast_v1",
+      "prompt": "Escreva em Python uma função clamp_zero(value) que retorne 0 se value for negativo e o próprio value caso contrário. Retorne apenas código.",
+      "expected": "def clamp_zero(value):\n    return 0 if value < 0 else value\n",
+      "metadata": {"contract_version": "1.0", "language": "python", "synthetic": true, "comparison": "ast_exact", "execute_candidate": false}
+    }
+  ]
+}
