@@ -12,7 +12,7 @@ type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
 
 
 class BenchmarkWorkload(StrEnum):
-    """Initial Phase 10 benchmark workload vocabulary."""
+    """Versioned benchmark workload vocabulary."""
 
     STRUCTURED_EXTRACTION = "structured_extraction"
     RAG_PTBR = "rag_ptbr"
@@ -20,6 +20,7 @@ class BenchmarkWorkload(StrEnum):
     TOOL_USE = "tool_use"
     AGENT_ORCHESTRATION = "agent_orchestration"
     MULTIMODAL_ANALYSIS = "multimodal_analysis"
+    LONG_CONTEXT = "long_context"
 
 
 class ObservationStatus(StrEnum):

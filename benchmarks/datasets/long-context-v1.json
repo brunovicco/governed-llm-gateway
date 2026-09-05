@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "long-context-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "long-context.needle-early.001",
+      "workload": "long_context",
+      "scorer": "long_context_v1",
+      "prompt": "Read the complete synthetic record set. Exactly one numbered record contains a needle value. Return only a JSON object with the single key \"needle\" and the exact value from that record.",
+      "expected": {
+        "needle": "amber-signal"
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "generator_version": "numbered-records-v1",
+        "needle_position": "early",
+        "needle_record": 128,
+        "record_count": 8192,
+        "response_format": "needle_value_v1",
+        "synthetic": true
+      }
+    },
+    {
+      "case_id": "long-context.needle-middle.001",
+      "workload": "long_context",
+      "scorer": "long_context_v1",
+      "prompt": "Read the complete synthetic record set. Exactly one numbered record contains a needle value. Return only a JSON object with the single key \"needle\" and the exact value from that record.",
+      "expected": {
+        "needle": "cobalt-signal"
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "generator_version": "numbered-records-v1",
+        "needle_position": "middle",
+        "needle_record": 4096,
+        "record_count": 8192,
+        "response_format": "needle_value_v1",
+        "synthetic": true
+      }
+    },
+    {
+      "case_id": "long-context.needle-late.001",
+      "workload": "long_context",
+      "scorer": "long_context_v1",
+      "prompt": "Read the complete synthetic record set. Exactly one numbered record contains a needle value. Return only a JSON object with the single key \"needle\" and the exact value from that record.",
+      "expected": {
+        "needle": "violet-signal"
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "generator_version": "numbered-records-v1",
+        "needle_position": "late",
+        "needle_record": 8064,
+        "record_count": 8192,
+        "response_format": "needle_value_v1",
+        "synthetic": true
+      }
+    }
+  ]
+}
