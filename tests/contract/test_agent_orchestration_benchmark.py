@@ -11,6 +11,7 @@ from benchmarks.contracts import (
     BenchmarkCase,
     BenchmarkTarget,
     BenchmarkWorkload,
+    JsonValue,
     ObservationStatus,
     ProviderCall,
 )
@@ -205,7 +206,7 @@ def test_agent_orchestration_penalizes_missing_and_extra_steps() -> None:
     assert missing.score == Decimal("0.5")
     assert ("missing_step", "/steps/1") in {(issue.code, issue.path) for issue in missing.issues}
 
-    extra_step = {
+    extra_step: JsonValue = {
         "agent": "escalation",
         "action": "prepare_human_handoff",
         "handoff_to": None,
