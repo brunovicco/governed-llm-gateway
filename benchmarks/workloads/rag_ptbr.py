@@ -29,9 +29,7 @@ def validate_rag_ptbr_case(case: BenchmarkCase) -> None:
         raise ValueError("rag ptbr v1 requires its versioned deterministic scorer")
     if not isinstance(case.expected, list) or not case.expected:
         raise ValueError("rag ptbr expected facts must be a non-empty string list")
-    if not all(
-        isinstance(item, str) and item.strip() == item and item for item in case.expected
-    ):
+    if not all(isinstance(item, str) and item.strip() == item and item for item in case.expected):
         raise ValueError("rag ptbr expected facts must be normalized strings")
 
     metadata = case.metadata
@@ -67,14 +65,8 @@ def score_rag_ptbr(case: BenchmarkCase, output: JsonValue) -> Decimal:
     forbidden = case.metadata.get("forbidden_claims", [])
     if not isinstance(forbidden, list):
         raise AssertionError("validated rag ptbr forbidden_claims must be a list")
-    if any(
-        isinstance(item, str) and item.casefold() in normalized for item in forbidden
-    ):
+    if any(isinstance(item, str) and item.casefold() in normalized for item in forbidden):
         return Decimal("0")
 
-    matches = sum(
-        1
-        for item in expected
-        if isinstance(item, str) and item.casefold() in normalized
-    )
+    matches = sum(1 for item in expected if isinstance(item, str) and item.casefold() in normalized)
     return Decimal(matches) / Decimal(len(expected))
