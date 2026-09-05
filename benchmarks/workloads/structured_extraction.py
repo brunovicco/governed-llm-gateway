@@ -65,11 +65,14 @@ def score_structured_extraction(case: BenchmarkCase, output: JsonValue) -> Decim
     return Decimal(matches) / Decimal(denominator)
 
 
-def _validate_output_schema(schema: Mapping[str, JsonValue], expected: dict[str, JsonValue]) -> None:
+def _validate_output_schema(
+    schema: Mapping[str, JsonValue], expected: dict[str, JsonValue]
+) -> None:
     allowed = {"type", "additionalProperties", "required", "properties"}
     unknown = sorted(set(schema) - allowed)
     if unknown:
-        raise ValueError(f"structured extraction output_schema contains unknown fields: {', '.join(unknown)}")
+        fields = ", ".join(unknown)
+        raise ValueError(f"structured extraction output_schema contains unknown fields: {fields}")
     if schema.get("type") != "object":
         raise ValueError("structured extraction output_schema.type must be object")
     if schema.get("additionalProperties") is not False:
@@ -94,7 +97,9 @@ def _validate_output_schema(schema: Mapping[str, JsonValue], expected: dict[str,
         property_type = value.get("type")
         if not isinstance(property_type, str | list):
             raise ValueError("structured extraction property type must be a string or string list")
-        if isinstance(property_type, list) and not all(isinstance(item, str) for item in property_type):
+        if isinstance(property_type, list) and not all(
+            isinstance(item, str) for item in property_type
+        ):
             raise ValueError("structured extraction property type list must contain strings")
 
 
