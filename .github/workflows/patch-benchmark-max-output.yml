@@ -33,35 +33,63 @@ jobs:
                   raise SystemExit(f"unexpected replacement count for {path}: {count}")
               file.write_text(text.replace(old, new, 1), encoding="utf-8")
 
-          replace_once(
+          def replace_in_section(path: str, start: str, end: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              start_index = text.index(start)
+              end_index = text.index(end, start_index)
+              section = text[start_index:end_index]
+              if new in section:
+                  return
+              count = section.count(old)
+              if count != 1:
+                  raise SystemExit(
+                      f"unexpected section replacement count for {path} {start!r}: {count}"
+                  )
+              section = section.replace(old, new, 1)
+              file.write_text(text[:start_index] + section + text[end_index:], encoding="utf-8")
+
+          replace_in_section(
               "benchmarks/contracts.py",
-              "    source_date: date\n    api_family: str | None = None\n\n    def __post_init__(self) -> None:\n",
-              "    source_date: date\n    api_family: str | None = None\n    max_output_tokens: int | None = None\n\n    def __post_init__(self) -> None:\n",
+              "class BenchmarkTarget:",
+              "class BenchmarkCase:",
+              "    source_date: date\n    api_family: str | None = None\n",
+              "    source_date: date\n    api_family: str | None = None\n    max_output_tokens: int | None = None\n",
           )
-          replace_once(
+          replace_in_section(
               "benchmarks/contracts.py",
-              "            raise ValueError(\"api_family must be normalized when present\")\n\n\n@dataclass(frozen=True, slots=True)\nclass BenchmarkCase:\n",
-              "            raise ValueError(\"api_family must be normalized when present\")\n        if self.max_output_tokens is not None and self.max_output_tokens <= 0:\n            raise ValueError(\"max_output_tokens must be positive when present\")\n\n\n@dataclass(frozen=True, slots=True)\nclass BenchmarkCase:\n",
+              "class BenchmarkTarget:",
+              "class BenchmarkCase:",
+              "            raise ValueError(\"api_family must be normalized when present\")\n",
+              "            raise ValueError(\"api_family must be normalized when present\")\n        if self.max_output_tokens is not None and self.max_output_tokens <= 0:\n            raise ValueError(\"max_output_tokens must be positive when present\")\n",
           )
-          replace_once(
+          replace_in_section(
               "benchmarks/contracts.py",
-              "    deployment: str | None = None\n    api_family: str | None = None\n\n    def __post_init__(self) -> None:\n",
-              "    deployment: str | None = None\n    api_family: str | None = None\n    max_output_tokens: int | None = None\n\n    def __post_init__(self) -> None:\n",
+              "class ProviderCall:",
+              "class BenchmarkObservation:",
+              "    deployment: str | None = None\n    api_family: str | None = None\n",
+              "    deployment: str | None = None\n    api_family: str | None = None\n    max_output_tokens: int | None = None\n",
           )
-          replace_once(
+          replace_in_section(
               "benchmarks/contracts.py",
-              "                raise ValueError(\"provider call api_family must be normalized when present\")\n\n\n@dataclass(frozen=True, slots=True)\nclass BenchmarkObservation:\n",
-              "                raise ValueError(\"provider call api_family must be normalized when present\")\n        if self.max_output_tokens is not None:\n            if self.provider is None:\n                raise ValueError(\"provider call max_output_tokens requires execution identity\")\n            if self.max_output_tokens <= 0:\n                raise ValueError(\"provider call max_output_tokens must be positive when present\")\n\n\n@dataclass(frozen=True, slots=True)\nclass BenchmarkObservation:\n",
+              "class ProviderCall:",
+              "class BenchmarkObservation:",
+              "                raise ValueError(\"provider call api_family must be normalized when present\")\n",
+              "                raise ValueError(\"provider call api_family must be normalized when present\")\n        if self.max_output_tokens is not None:\n            if self.provider is None:\n                raise ValueError(\"provider call max_output_tokens requires execution identity\")\n            if self.max_output_tokens <= 0:\n                raise ValueError(\"provider call max_output_tokens must be positive when present\")\n",
           )
-          replace_once(
+          replace_in_section(
               "benchmarks/contracts.py",
-              "    deployment: str | None = None\n    api_family: str | None = None\n\n    def __post_init__(self) -> None:\n        \"\"\"Enforce quality/failure semantics and normalized optional execution identity.\"\"\"\n",
-              "    deployment: str | None = None\n    api_family: str | None = None\n    max_output_tokens: int | None = None\n\n    def __post_init__(self) -> None:\n        \"\"\"Enforce quality/failure semantics and normalized optional execution identity.\"\"\"\n",
+              "class BenchmarkObservation:",
+              "class Scorecard:",
+              "    deployment: str | None = None\n    api_family: str | None = None\n",
+              "    deployment: str | None = None\n    api_family: str | None = None\n    max_output_tokens: int | None = None\n",
           )
-          replace_once(
+          replace_in_section(
               "benchmarks/contracts.py",
-              "                raise ValueError(\"benchmark observation api_family must be normalized when present\")\n\n\n@dataclass(frozen=True, slots=True)\nclass Scorecard:\n",
-              "                raise ValueError(\"benchmark observation api_family must be normalized when present\")\n        if self.max_output_tokens is not None:\n            if self.provider is None:\n                raise ValueError(\"benchmark observation max_output_tokens requires execution identity\")\n            if self.max_output_tokens <= 0:\n                raise ValueError(\n                    \"benchmark observation max_output_tokens must be positive when present\"\n                )\n\n\n@dataclass(frozen=True, slots=True)\nclass Scorecard:\n",
+              "class BenchmarkObservation:",
+              "class Scorecard:",
+              "                raise ValueError(\"benchmark observation api_family must be normalized when present\")\n",
+              "                raise ValueError(\"benchmark observation api_family must be normalized when present\")\n        if self.max_output_tokens is not None:\n            if self.provider is None:\n                raise ValueError(\"benchmark observation max_output_tokens requires execution identity\")\n            if self.max_output_tokens <= 0:\n                raise ValueError(\n                    \"benchmark observation max_output_tokens must be positive when present\"\n                )\n",
           )
 
           replace_once(
