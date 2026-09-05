@@ -14,6 +14,7 @@ from governed_llm_gateway_core.adapters.provider_common import (
     normalize_transport_failure,
     require_non_negative_int,
     require_success_payload,
+    require_supported_request_features,
 )
 from governed_llm_gateway_core.application.provider import (
     ProviderError,
@@ -57,6 +58,7 @@ class GeminiAdapter:
 
     async def generate(self, request: ProviderRequest) -> ProviderResponse:
         """Generate text, structured output, or client-side function calls."""
+        require_supported_request_features("google", request, self.feature_support)
         system = "\n\n".join(
             message.content for message in request.messages if message.role is MessageRole.SYSTEM
         )

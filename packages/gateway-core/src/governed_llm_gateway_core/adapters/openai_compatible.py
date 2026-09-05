@@ -14,6 +14,7 @@ from governed_llm_gateway_core.adapters.provider_common import (
     normalize_transport_failure,
     require_non_negative_int,
     require_success_payload,
+    require_supported_request_features,
 )
 from governed_llm_gateway_core.application.provider import (
     ProviderError,
@@ -64,6 +65,7 @@ class OpenAICompatibleAdapter:
 
     async def generate(self, request: ProviderRequest) -> ProviderResponse:
         """Generate through an endpoint whose optional features were explicitly verified."""
+        require_supported_request_features(self._provider, request, self.feature_support)
         structured_unsupported = (
             request.structured_output is not None
             and not self.feature_support.native_structured_output

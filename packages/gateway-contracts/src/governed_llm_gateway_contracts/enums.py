@@ -82,3 +82,11 @@ class Modality(StrEnum):
 
     TEXT = "text"
     IMAGE = "image"
+
+
+class ImageMediaType(StrEnum):
+    """Initial provider-neutral image media types supported by URL input."""
+
+    JPEG = "image/jpeg"
+    PNG = "image/png"
+    WEBP = "image/webp"
