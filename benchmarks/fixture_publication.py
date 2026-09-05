@@ -11,9 +11,7 @@ from benchmarks.fixtures import BenchmarkFixtureManifest
 
 _PUBLICATION_SOURCE = "github_raw_commit"
 _ALLOWED_MANIFEST_KEYS = frozenset({"schema_version", "data_classification", "publications"})
-_ALLOWED_PUBLICATION_KEYS = frozenset(
-    {"fixture_id", "digest", "source", "source_revision", "url"}
-)
+_ALLOWED_PUBLICATION_KEYS = frozenset({"fixture_id", "digest", "source", "source_revision", "url"})
 _DIGEST_PREFIX = "sha256:"
 _MAX_URL_LENGTH = 2048
 _GITHUB_RAW_HOST = "raw.githubusercontent.com"
