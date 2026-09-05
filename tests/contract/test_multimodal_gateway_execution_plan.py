@@ -12,7 +12,11 @@ from governed_llm_gateway_contracts import (
     RiskLevel,
 )
 
-from benchmarks.fixture_publication import load_fixture_publication_manifest
+from benchmarks.contracts import BenchmarkCase
+from benchmarks.fixture_publication import (
+    BenchmarkFixturePublication,
+    load_fixture_publication_manifest,
+)
 from benchmarks.multimodal_execution import build_multimodal_gateway_execution_plan
 from benchmarks.workloads.multimodal_analysis import load_multimodal_analysis_dataset
 
@@ -20,7 +24,7 @@ _REQUEST_ID = UUID("11111111-2222-3333-4444-555555555555")
 _WORKLOAD_IDENTITY = "benchmarks.multimodal-analysis-v1"
 
 
-def _inputs():
+def _inputs() -> tuple[BenchmarkCase, BenchmarkFixturePublication]:
     repo_root = Path(__file__).resolve().parents[2]
     fixture_root = repo_root / "benchmarks" / "fixtures" / "multimodal-v1"
     dataset = load_multimodal_analysis_dataset(
@@ -81,7 +85,7 @@ def test_execution_plan_does_not_invent_authorized_workload_identity() -> None:
 
 def test_execution_plan_rejects_publication_identity_drift() -> None:
     case, publication = _inputs()
-    changed_publication = type(publication)(
+    changed_publication = BenchmarkFixturePublication(
         fixture_id="multimodal.other",
         digest=publication.digest,
         source=publication.source,
@@ -100,7 +104,7 @@ def test_execution_plan_rejects_publication_identity_drift() -> None:
 
 def test_execution_plan_rejects_publication_digest_drift() -> None:
     case, publication = _inputs()
-    changed_publication = type(publication)(
+    changed_publication = BenchmarkFixturePublication(
         fixture_id=publication.fixture_id,
         digest="sha256:" + "0" * 64,
         source=publication.source,
