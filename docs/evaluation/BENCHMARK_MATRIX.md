@@ -1,8 +1,8 @@
 # Benchmark Workload Matrix
 
-Status: **COMPLETE — 5/5 core roadmap workloads plus post-core multimodal extension implemented**
+Status: **COMPLETE — 5/5 core roadmap workloads plus reviewed post-core multimodal, long-context and classification extensions implemented**
 
-The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority. After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension.
+The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority. After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension, PR #44 added `long_context`, and PR #45 added `classification`.
 
 ## Matrix
 
@@ -14,10 +14,12 @@ The Phase 10 framework originally established a generic provider-neutral benchma
 | `tool_use` | `tool-use-v1` | tool-selection score + exact recursive type-sensitive argument score; tool execution disabled | #23 |
 | `agent_orchestration` | `agent-orchestration-v1` | observable agent/action sequence + handoff accuracy; agent execution disabled | #24 |
 | `multimodal_analysis` | `multimodal-analysis-v1` | actual fixture-bound image inspection + deterministic quadrant/color scoring | #32 |
+| `long_context` | `long-context-v1` | tokenizer-neutral retrieval of one reviewed synthetic needle across early/middle/late positions in 8,192 generated records | #44 |
+| `classification` | `classification-v1` | exact closed-set support-intent label from immutable `support-intents-v1`; no model-as-judge | #45 |
 
 `structured-extraction-v1` is preserved as historical benchmark semantics. The v2 contract is the current hardened structured-extraction reference; v1 evidence must not be silently rewritten.
 
-The original generic `gateway-eval-v1` dataset remains the historical five-workload framework baseline. `multimodal_analysis` was added as a separate post-core workload contract rather than mutating that dataset.
+The original generic `gateway-eval-v1` dataset remains the historical five-workload framework baseline. Post-core workloads were added as separate versioned contracts rather than mutating that dataset.
 
 ## Shared evidence pipeline
 
@@ -89,6 +91,18 @@ It evaluates sequence and handoffs without hidden reasoning. `execute_steps=fals
 
 The deterministic scorer requires exactly `top_left`, `top_right`, `bottom_left` and `bottom_right`. Each exact color match contributes `0.25`. Invalid top-level shape scores zero. No model-as-judge is used.
 
+### long_context
+
+`long-context-v1` deterministically materializes exactly 8,192 synthetic numbered records per case and places one reviewed needle at an early, middle or late record. The checked-in dataset stores the compact generator specification; the canonical dataset digest is computed over the fully materialized prompt.
+
+The contract deliberately does not infer an exact token count or provider context-window capability from character length. Those are provider/runtime facts, not benchmark metadata. The scorer accepts only the exact reviewed `{"needle": "<value>"}` result.
+
+### classification
+
+`classification-v1` evaluates exact closed-set classification over six reviewed synthetic support-intent labels in `support-intents-v1`, with exactly two cases per label.
+
+The scorer requires exactly `{"label": "<reviewed-label>"}`. Unknown labels, wrong types, extra/missing fields or the wrong reviewed label score zero. No embeddings, external data or model-as-judge path is used.
+
 ## Post-core multimodal and evidence hardening
 
 The roadmap allows multimodal only after core execution is stable. The completed sequence is:
@@ -135,6 +149,12 @@ PRs #35–#42 progressively preserve and verify execution facts the runtime can 
 Completed calls that contradict an attested target fail closed before deterministic scoring. Provider failures remain availability evidence.
 
 Opaque configuration strings are still declarative. The benchmark does not infer temperature, top-p, reasoning/thinking mode, access tier or provider-specific controls from those strings.
+
+## Additional post-core deterministic workloads
+
+PR #44 added `long-context-v1` without a provider tokenizer dependency or a fabricated token-count claim. PR #45 added `classification-v1` as an exact closed-set workload with immutable label vocabulary and strict dataset drift checks.
+
+Both are consumer-agnostic benchmark extensions. Neither adds a live executor, changes provider selection, or creates a benchmark-only authorization/routing path.
 
 ## Target matrices
 
@@ -187,20 +207,20 @@ Default CI remains credential-free and deterministic:
 - snapshot/digest behavior is replayable;
 - architecture/security/secret gates cover benchmark code.
 
-Latest validated `main` baseline after PR #42:
+Latest validated `main` baseline after PR #45:
 
-- commit `cb0fbac9c278df3e20bf9b26b20cb06f697f4d71`;
-- post-merge quality run `33993826048` — PASS;
-- 546 tests passed;
-- 82.08% aggregate coverage;
-- strict mypy and Ruff passed across 151 source files;
-- Bandit reported no issues across 13,905 LOC;
+- commit `d012a5ec0581f636b758f613634ef76da773e82d`;
+- post-merge quality run `33999903061` — PASS;
+- 569 tests passed;
+- 82.05% aggregate coverage;
+- strict mypy and Ruff passed across 155 source files;
+- Bandit reported no issues across 14,193 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
 ## Next boundary
 
-Completion of the core 5/5 matrix, multimodal extension and execution-evidence hardening does **not** create a new Phase 14 consumer migration exception.
+Completion of the core 5/5 matrix and the reviewed post-core multimodal, long-context, classification and execution-evidence increments does **not** create a new Phase 14 consumer migration exception.
 
 Issue #18 still defers OpsLens reconciliation and explicitly prevents starting RAGForge in parallel unless the normative integration order is revised.
 
