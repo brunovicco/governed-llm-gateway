@@ -5,13 +5,6 @@ from uuid import UUID
 
 import pytest
 
-from governed_llm_gateway_contracts import (
-    DataClassification,
-    ImageMediaType,
-    MessageRole,
-    RiskLevel,
-)
-
 from benchmarks.contracts import BenchmarkCase
 from benchmarks.fixture_publication import (
     BenchmarkFixturePublication,
@@ -19,6 +12,12 @@ from benchmarks.fixture_publication import (
 )
 from benchmarks.multimodal_execution import build_multimodal_gateway_execution_plan
 from benchmarks.workloads.multimodal_analysis import load_multimodal_analysis_dataset
+from governed_llm_gateway_contracts import (
+    DataClassification,
+    ImageMediaType,
+    MessageRole,
+    RiskLevel,
+)
 
 _REQUEST_ID = UUID("11111111-2222-3333-4444-555555555555")
 _WORKLOAD_IDENTITY = "benchmarks.multimodal-analysis-v1"
