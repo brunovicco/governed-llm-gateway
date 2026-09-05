@@ -29,7 +29,7 @@ def test_checked_in_classification_dataset_covers_reviewed_label_set() -> None:
     assert dataset.benchmark_version == CLASSIFICATION_BENCHMARK_VERSION
     assert len(dataset.cases) == len(CLASSIFICATION_LABELS) * 2
 
-    counts = {label: 0 for label in CLASSIFICATION_LABELS}
+    counts = dict.fromkeys(CLASSIFICATION_LABELS, 0)
     for case in dataset.cases:
         assert case.workload is BenchmarkWorkload.CLASSIFICATION
         assert case.scorer == CLASSIFICATION_SCORER_ID
