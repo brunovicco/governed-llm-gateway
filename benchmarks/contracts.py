@@ -103,9 +103,12 @@ class ProviderCall:
     output_units: int | None = None
     cost_usd: Decimal | None = None
     fallback_count: int = 0
+    provider: str | None = None
+    model: str | None = None
+    deployment: str | None = None
 
     def __post_init__(self) -> None:
-        """Validate non-negative normalized provider-call metrics."""
+        """Validate normalized metrics and optional terminal execution identity."""
         if self.latency_ms < 0:
             raise ValueError("latency_ms must be non-negative")
         if self.ttft_ms is not None and self.ttft_ms < 0:
@@ -118,6 +121,19 @@ class ProviderCall:
             raise ValueError("cost_usd must be non-negative")
         if self.fallback_count < 0:
             raise ValueError("fallback_count must be non-negative")
+
+        identity = (
+            ("provider", self.provider),
+            ("model", self.model),
+            ("deployment", self.deployment),
+        )
+        if all(value is None for _, value in identity):
+            return
+        for name, value in identity:
+            if value is None or not value or value.strip() != value:
+                raise ValueError(
+                    f"provider call {name} must be present and normalized when execution identity is set"
+                )
 
 
 @dataclass(frozen=True, slots=True)
