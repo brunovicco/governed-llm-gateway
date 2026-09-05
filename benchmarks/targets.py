@@ -9,7 +9,7 @@ from pathlib import Path
 from .contracts import BenchmarkTarget
 
 _ALLOWED_ROOT = {"schema_version", "matrix_version", "targets"}
-_ALLOWED_TARGET = {
+_BASE_TARGET_FIELDS = {
     "target_id",
     "provider",
     "model",
@@ -17,37 +17,49 @@ _ALLOWED_TARGET = {
     "configuration",
     "source_date",
 }
+_API_FAMILY_TARGET_FIELDS = _BASE_TARGET_FIELDS | {"api_family"}
+_SUPPORTED_SCHEMA_VERSIONS = {"1.0", "1.1"}
 
 
 def load_targets(path: Path) -> tuple[str, tuple[BenchmarkTarget, ...]]:
-    """Load the Phase 10 target matrix and reject ambiguous/unknown configuration fields."""
+    """Load a versioned target matrix and reject ambiguous/unknown configuration fields."""
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("benchmark target matrix root must be an object")
     _reject_unknown(payload, _ALLOWED_ROOT, "benchmark target matrix")
-    if payload.get("schema_version") != "1.0":
+
+    schema_version = _required_string(payload, "schema_version", "benchmark target matrix")
+    if schema_version not in _SUPPORTED_SCHEMA_VERSIONS:
         raise ValueError("unsupported benchmark target matrix schema_version")
     matrix_version = _required_string(payload, "matrix_version", "benchmark target matrix")
     raw_targets = payload.get("targets")
     if not isinstance(raw_targets, list) or not raw_targets:
         raise ValueError("benchmark target matrix must contain at least one target")
 
+    allowed_target_fields = (
+        _BASE_TARGET_FIELDS if schema_version == "1.0" else _API_FAMILY_TARGET_FIELDS
+    )
     targets: list[BenchmarkTarget] = []
     for index, raw_target in enumerate(raw_targets):
         if not isinstance(raw_target, dict):
             raise ValueError(f"benchmark target {index} must be an object")
-        _reject_unknown(raw_target, _ALLOWED_TARGET, f"benchmark target {index}")
-        source_date = _required_string(raw_target, "source_date", f"benchmark target {index}")
+        label = f"benchmark target {index}"
+        _reject_unknown(raw_target, allowed_target_fields, label)
+        source_date = _required_string(raw_target, "source_date", label)
+        api_family = (
+            None
+            if schema_version == "1.0"
+            else _required_string(raw_target, "api_family", label)
+        )
         targets.append(
             BenchmarkTarget(
-                target_id=_required_string(raw_target, "target_id", f"benchmark target {index}"),
-                provider=_required_string(raw_target, "provider", f"benchmark target {index}"),
-                model=_required_string(raw_target, "model", f"benchmark target {index}"),
-                api=_required_string(raw_target, "api", f"benchmark target {index}"),
-                configuration=_required_string(
-                    raw_target, "configuration", f"benchmark target {index}"
-                ),
+                target_id=_required_string(raw_target, "target_id", label),
+                provider=_required_string(raw_target, "provider", label),
+                model=_required_string(raw_target, "model", label),
+                api=_required_string(raw_target, "api", label),
+                configuration=_required_string(raw_target, "configuration", label),
                 source_date=date.fromisoformat(source_date),
+                api_family=api_family,
             )
         )
 
