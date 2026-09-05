@@ -391,6 +391,7 @@ class ProviderExecution:
     finish_reason: str | None = None
     attempt_number: int = 1
     fallback_index: int = 0
+    api_family: str | None = None
 
     def __post_init__(self) -> None:
         """Validate concrete provider identity and measured execution metadata."""
@@ -401,6 +402,7 @@ class ProviderExecution:
         for name, value in (
             ("provider_request_id", self.provider_request_id),
             ("finish_reason", self.finish_reason),
+            ("api_family", self.api_family),
         ):
             if value is not None and (not value.strip() or value.strip() != value):
                 raise ValueError(f"provider execution {name} must be normalized when present")
