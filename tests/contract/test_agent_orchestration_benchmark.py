@@ -75,9 +75,7 @@ def test_agent_orchestration_dataset_is_public_synthetic_and_non_executing() -> 
     assert dataset.data_classification == "public"
     assert len(dataset.cases) == 6
     assert len({case.case_id for case in dataset.cases}) == 6
-    assert all(
-        case.workload is BenchmarkWorkload.AGENT_ORCHESTRATION for case in dataset.cases
-    )
+    assert all(case.workload is BenchmarkWorkload.AGENT_ORCHESTRATION for case in dataset.cases)
     assert all(case.metadata["synthetic"] is True for case in dataset.cases)
     assert all(case.metadata["execute_steps"] is False for case in dataset.cases)
 
@@ -205,9 +203,7 @@ def test_agent_orchestration_penalizes_missing_and_extra_steps() -> None:
     assert missing.sequence_score == Decimal("0.5")
     assert missing.handoff_score == Decimal("0.5")
     assert missing.score == Decimal("0.5")
-    assert ("missing_step", "/steps/1") in {
-        (issue.code, issue.path) for issue in missing.issues
-    }
+    assert ("missing_step", "/steps/1") in {(issue.code, issue.path) for issue in missing.issues}
 
     extra_step = {
         "agent": "escalation",
@@ -221,9 +217,7 @@ def test_agent_orchestration_penalizes_missing_and_extra_steps() -> None:
     assert extra.sequence_score == Decimal(2) / Decimal(3)
     assert extra.handoff_score == Decimal(2) / Decimal(3)
     assert extra.score == Decimal(2) / Decimal(3)
-    assert ("unexpected_step", "/steps/2") in {
-        (issue.code, issue.path) for issue in extra.issues
-    }
+    assert ("unexpected_step", "/steps/2") in {(issue.code, issue.path) for issue in extra.issues}
 
 
 def test_agent_orchestration_does_not_permissively_parse_json_text() -> None:
@@ -235,9 +229,7 @@ def test_agent_orchestration_does_not_permissively_parse_json_text() -> None:
     )
 
     assert assessment.score == Decimal("0")
-    assert assessment.issues == (
-        assessment.issues[0],
-    )
+    assert assessment.issues == (assessment.issues[0],)
     assert assessment.issues[0].code == "invalid_output_shape"
     assert score_agent_orchestration(case, case.expected) == Decimal("1")
 

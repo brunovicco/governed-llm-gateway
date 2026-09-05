@@ -53,9 +53,7 @@ def load_agent_orchestration_dataset(path: Path) -> BenchmarkDataset:
 
     dataset = load_dataset(path)
     if dataset.benchmark_version != AGENT_ORCHESTRATION_BENCHMARK_VERSION:
-        raise ValueError(
-            "agent orchestration v1 requires benchmark_version agent-orchestration-v1"
-        )
+        raise ValueError("agent orchestration v1 requires benchmark_version agent-orchestration-v1")
     case_ids = [case.case_id for case in dataset.cases]
     if len(case_ids) != len(set(case_ids)):
         raise ValueError("agent orchestration v1 case IDs must be unique")
@@ -69,17 +67,13 @@ def validate_agent_orchestration_case(case: BenchmarkCase) -> None:
     if case.workload is not BenchmarkWorkload.AGENT_ORCHESTRATION:
         raise ValueError("agent orchestration v1 dataset contains a different workload")
     if case.scorer != AGENT_ORCHESTRATION_SCORER_ID:
-        raise ValueError(
-            "agent orchestration v1 requires its versioned deterministic scorer"
-        )
+        raise ValueError("agent orchestration v1 requires its versioned deterministic scorer")
 
     metadata = case.metadata
     unknown_metadata = sorted(set(metadata) - _ALLOWED_METADATA_FIELDS)
     if unknown_metadata:
         fields = ", ".join(unknown_metadata)
-        raise ValueError(
-            f"agent orchestration v1 metadata contains unknown fields: {fields}"
-        )
+        raise ValueError(f"agent orchestration v1 metadata contains unknown fields: {fields}")
     if metadata.get("contract_version") != AGENT_ORCHESTRATION_CONTRACT_VERSION:
         raise ValueError("agent orchestration v1 contract_version must be 1.0")
     if metadata.get("synthetic") is not True:
@@ -131,16 +125,12 @@ def assess_agent_orchestration(
             if output_agent != expected_agent:
                 issues.append(AgentOrchestrationIssue("wrong_agent", f"{step_path}/agent"))
             if output_action != expected_action:
-                issues.append(
-                    AgentOrchestrationIssue("wrong_action", f"{step_path}/action")
-                )
+                issues.append(AgentOrchestrationIssue("wrong_action", f"{step_path}/action"))
 
         if output_handoff == expected_handoff:
             handoff_matches += 1
         else:
-            issues.append(
-                AgentOrchestrationIssue("wrong_handoff", f"{step_path}/handoff_to")
-            )
+            issues.append(AgentOrchestrationIssue("wrong_handoff", f"{step_path}/handoff_to"))
 
     for index in range(common, len(expected_steps)):
         issues.append(AgentOrchestrationIssue("missing_step", f"/steps/{index}"))
@@ -186,9 +176,7 @@ def _validated_allowlist(
 ) -> tuple[tuple[str, ...], dict[str, tuple[str, ...]]]:
     agents_value = case.metadata.get("allowed_agents")
     if not isinstance(agents_value, list) or not agents_value:
-        raise ValueError(
-            "agent orchestration v1 allowed_agents must be a non-empty string list"
-        )
+        raise ValueError("agent orchestration v1 allowed_agents must be a non-empty string list")
 
     allowed_agents: list[str] = []
     for item in agents_value:
@@ -202,16 +190,12 @@ def _validated_allowlist(
 
     actions_value = case.metadata.get("allowed_actions")
     if not isinstance(actions_value, dict):
-        raise ValueError(
-            "agent orchestration v1 allowed_actions must map every agent to actions"
-        )
+        raise ValueError("agent orchestration v1 allowed_actions must map every agent to actions")
 
     actions_by_agent: dict[str, tuple[str, ...]] = {}
     for agent, raw_actions in actions_value.items():
         if agent not in allowed_agents:
-            raise ValueError(
-                "agent orchestration v1 allowed_actions contains an undeclared agent"
-            )
+            raise ValueError("agent orchestration v1 allowed_actions contains an undeclared agent")
         if not isinstance(raw_actions, list) or not raw_actions:
             raise ValueError(
                 "agent orchestration v1 allowed_actions entries must be non-empty lists"
@@ -224,15 +208,11 @@ def _validated_allowlist(
                 )
             actions.append(item)
         if len(actions) != len(set(actions)):
-            raise ValueError(
-                "agent orchestration v1 allowed_actions must not contain duplicates"
-            )
+            raise ValueError("agent orchestration v1 allowed_actions must not contain duplicates")
         actions_by_agent[agent] = tuple(actions)
 
     if set(actions_by_agent) != set(allowed_agents):
-        raise ValueError(
-            "agent orchestration v1 allowed_actions must cover every allowed agent"
-        )
+        raise ValueError("agent orchestration v1 allowed_actions must cover every allowed agent")
     return tuple(allowed_agents), actions_by_agent
 
 
@@ -242,22 +222,16 @@ def _validated_expected_steps(
     actions_by_agent: dict[str, tuple[str, ...]],
 ) -> tuple[_NormalizedStep, ...]:
     if not isinstance(expected, dict) or set(expected) != {"steps"}:
-        raise ValueError(
-            "agent orchestration v1 expected output must contain exactly steps"
-        )
+        raise ValueError("agent orchestration v1 expected output must contain exactly steps")
     raw_steps = expected.get("steps")
     if not isinstance(raw_steps, list) or not raw_steps:
-        raise ValueError(
-            "agent orchestration v1 expected steps must be a non-empty list"
-        )
+        raise ValueError("agent orchestration v1 expected steps must be a non-empty list")
 
     normalized: list[_NormalizedStep] = []
     for index, raw_step in enumerate(raw_steps):
         path = f"/steps/{index}"
         if not isinstance(raw_step, dict) or set(raw_step) != _STEP_FIELDS:
-            raise ValueError(
-                f"agent orchestration v1 expected step {path} has an invalid shape"
-            )
+            raise ValueError(f"agent orchestration v1 expected step {path} has an invalid shape")
         agent = raw_step.get("agent")
         action = raw_step.get("action")
         handoff_to = raw_step.get("handoff_to")
@@ -342,20 +316,14 @@ def _normalized_output_steps(
             valid = False
         elif isinstance(agent, str) and agent in actions_by_agent:
             if action not in actions_by_agent[agent]:
-                issues.append(
-                    AgentOrchestrationIssue("undeclared_action", f"{path}/action")
-                )
+                issues.append(AgentOrchestrationIssue("undeclared_action", f"{path}/action"))
                 valid = False
 
         if handoff_to is not None and not isinstance(handoff_to, str):
-            issues.append(
-                AgentOrchestrationIssue("wrong_handoff_type", f"{path}/handoff_to")
-            )
+            issues.append(AgentOrchestrationIssue("wrong_handoff_type", f"{path}/handoff_to"))
             valid = False
         elif isinstance(handoff_to, str) and handoff_to not in allowed_agents:
-            issues.append(
-                AgentOrchestrationIssue("invalid_handoff_target", f"{path}/handoff_to")
-            )
+            issues.append(AgentOrchestrationIssue("invalid_handoff_target", f"{path}/handoff_to"))
             valid = False
 
         if valid:
