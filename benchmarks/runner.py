@@ -124,6 +124,9 @@ class BenchmarkRunner:
             output_units=call.output_units,
             cost_usd=call.cost_usd,
             fallback_count=call.fallback_count,
+            provider=call.provider,
+            model=call.model,
+            deployment=call.deployment,
         )
 
 

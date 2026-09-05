@@ -139,7 +139,7 @@ class ProviderCall:
 
 @dataclass(frozen=True, slots=True)
 class BenchmarkObservation:
-    """One target/case result with quality and availability kept distinct."""
+    """One target/case result with quality, availability, and execution evidence separated."""
 
     target_id: str
     case_id: str
@@ -154,9 +154,12 @@ class BenchmarkObservation:
     fallback_count: int
     provider_error_code: str | None = None
     provider_error_status: int | None = None
+    provider: str | None = None
+    model: str | None = None
+    deployment: str | None = None
 
     def __post_init__(self) -> None:
-        """Enforce mutually exclusive quality and provider-failure evidence."""
+        """Enforce quality/failure semantics and normalized optional execution identity."""
         if self.status is ObservationStatus.PROVIDER_FAILURE:
             if self.quality_score is not None:
                 raise ValueError("provider failures must not carry a quality score")
@@ -170,6 +173,20 @@ class BenchmarkObservation:
         )
         if not valid_quality:
             raise ValueError("quality_score must be between 0 and 1")
+
+        identity = (
+            ("provider", self.provider),
+            ("model", self.model),
+            ("deployment", self.deployment),
+        )
+        if all(value is None for _, value in identity):
+            return
+        for name, value in identity:
+            if value is None or not value or value.strip() != value:
+                raise ValueError(
+                    f"benchmark observation {name} must be present and normalized "
+                    "when execution identity is set"
+                )
 
 
 @dataclass(frozen=True, slots=True)

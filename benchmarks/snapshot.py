@@ -121,7 +121,7 @@ def _target_payload(target: BenchmarkTarget) -> dict[str, object]:
 
 
 def _observation_payload(item: BenchmarkObservation) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "target_id": item.target_id,
         "case_id": item.case_id,
         "workload": item.workload.value,
@@ -136,6 +136,11 @@ def _observation_payload(item: BenchmarkObservation) -> dict[str, object]:
         "provider_error_code": item.provider_error_code,
         "provider_error_status": item.provider_error_status,
     }
+    if item.provider is not None:
+        payload["provider"] = item.provider
+        payload["model"] = item.model
+        payload["deployment"] = item.deployment
+    return payload
 
 
 def _scorecard_payload(item: Scorecard) -> dict[str, object]:
