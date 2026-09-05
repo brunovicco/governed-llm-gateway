@@ -132,7 +132,8 @@ class ProviderCall:
         for name, value in identity:
             if value is None or not value or value.strip() != value:
                 raise ValueError(
-                    f"provider call {name} must be present and normalized when execution identity is set"
+                    f"provider call {name} must be present and normalized "
+                    "when execution identity is set"
                 )
 
 
