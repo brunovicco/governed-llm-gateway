@@ -14,6 +14,7 @@ type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
 class BenchmarkWorkload(StrEnum):
     """Versioned benchmark workload vocabulary."""
 
+    CLASSIFICATION = "classification"
     STRUCTURED_EXTRACTION = "structured_extraction"
     RAG_PTBR = "rag_ptbr"
     CODE_GENERATION = "code_generation"
