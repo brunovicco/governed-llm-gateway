@@ -28,7 +28,7 @@ from governed_llm_gateway_core.domain.structured import (
     validate_tool_call,
 )
 
-from .gemini import GeminiAdapter
+from .gemini import GeminiAdapter, _google_contents, _require_external_url_image_model_support
 from .http_json import JsonTransport, TransportFailure
 from .http_sse import HttpxSseTransport, SseTransport
 from .provider_common import (
@@ -45,6 +45,7 @@ class GeminiStreamingAdapter(GeminiAdapter):
     feature_support = ProviderFeatureSupport(
         native_structured_output=True,
         native_tool_calling=True,
+        native_image_input=True,
         native_streaming=True,
         streaming_usage=True,
     )
@@ -64,17 +65,11 @@ class GeminiStreamingAdapter(GeminiAdapter):
     async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
         """Yield normalized Gemini stream events and require final usage metadata."""
         require_supported_request_features("google", request, self.feature_support)
+        _require_external_url_image_model_support(request)
         system = "\n\n".join(
             message.content for message in request.messages if message.role is MessageRole.SYSTEM
         )
-        contents = [
-            {
-                "role": "model" if message.role is MessageRole.ASSISTANT else "user",
-                "parts": [{"text": message.content}],
-            }
-            for message in request.messages
-            if message.role is not MessageRole.SYSTEM
-        ]
+        contents = _google_contents(request)
         if not contents:
             raise _invalid_request("google request requires at least one non-system message")
 

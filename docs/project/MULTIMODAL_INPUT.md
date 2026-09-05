@@ -67,7 +67,7 @@ Native and streaming Responses paths share the same translation.
 
 ### Anthropic Messages
 
-Native Anthropic Messages is the second explicitly reviewed image-input API family. The adapter maps the same provider-neutral message to Anthropic content blocks, placing image blocks before the text block:
+Native Anthropic Messages maps the same provider-neutral message to content blocks, placing image blocks before the text block:
 
 ```json
 {
@@ -89,9 +89,34 @@ Non-streaming and streaming Anthropic paths reuse the same translation helper an
 
 Anthropic supports additional image formats in some API configurations, but the provider-neutral gateway contract remains deliberately narrower: JPEG, PNG, and WebP only. Provider capability does not automatically widen the gateway contract.
 
+### Google Gemini generateContent
+
+Native Gemini `generateContent` and `streamGenerateContent` map provider-neutral image references into `fileData` parts and preserve the declared MIME type:
+
+```json
+{
+  "role": "user",
+  "parts": [
+    {
+      "fileData": {
+        "mimeType": "image/png",
+        "fileUri": "https://images.example/image.png"
+      }
+    },
+    {"text": "Describe the image."}
+  ]
+}
+```
+
+Non-streaming and streaming Gemini paths reuse the same `_google_contents()` translation helper and advertise `native_image_input = true` for the API family.
+
+External HTTPS URL support is model-sensitive. Gemini 2.0 models do not support this external-URL file-input method, so the adapter rejects `gemini-2.0*` image requests deterministically before provider I/O. That preflight is an execution compatibility constraint; it does not grant or widen model authorization.
+
+Google may support signed external URLs, but the provider-neutral gateway v1 contract still rejects URL query strings. Provider support does not override the gateway's privacy and credential-handling boundary.
+
 ### Still fail-closed
 
-Gemini `generateContent` and generic OpenAI-compatible adapters intentionally remain `native_image_input = false`. Direct calls fail closed before provider I/O instead of silently dropping image content. Each API family should be enabled in its own reviewed adapter increment.
+Generic OpenAI-compatible adapters intentionally remain `native_image_input = false`. Compatibility labels alone are not enough to infer a reviewed multimodal wire format, so direct image calls fail closed before provider I/O.
 
 ## Privacy and observability
 
@@ -109,5 +134,4 @@ Existing telemetry continues to record bounded metadata such as workload, provid
 - image output/generation;
 - image preprocessing or fetching by the gateway;
 - implicit vision inference from message shape without `requirements.vision`;
-- Gemini native image input until its exact wire contract is separately reviewed;
 - generic OpenAI-compatible image support without endpoint-specific verification.
