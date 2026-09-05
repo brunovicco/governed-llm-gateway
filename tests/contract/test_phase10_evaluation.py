@@ -29,6 +29,13 @@ ROOT = Path(__file__).resolve().parents[2]
 DATASET_PATH = ROOT / "benchmarks/datasets/gateway-eval-v1.json"
 TARGETS_PATH = ROOT / "benchmarks/runners/targets-v1.json"
 TODAY = date(2026, 9, 3)
+_INITIAL_WORKLOADS = {
+    BenchmarkWorkload.STRUCTURED_EXTRACTION,
+    BenchmarkWorkload.RAG_PTBR,
+    BenchmarkWorkload.CODE_GENERATION,
+    BenchmarkWorkload.TOOL_USE,
+    BenchmarkWorkload.AGENT_ORCHESTRATION,
+}
 
 
 class SequenceExecutor:
@@ -74,7 +81,7 @@ def test_initial_dataset_is_public_versioned_and_covers_five_workloads() -> None
     assert dataset.benchmark_version == "gateway-eval-v1"
     assert dataset.data_classification == "public"
     assert len(dataset.cases) == 10
-    assert {case.workload for case in dataset.cases} == set(BenchmarkWorkload)
+    assert {case.workload for case in dataset.cases} == _INITIAL_WORKLOADS
     assert dataset_digest(dataset.cases) == dataset_digest(load_dataset(DATASET_PATH).cases)
 
 
