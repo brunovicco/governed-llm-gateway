@@ -39,8 +39,10 @@ from governed_llm_gateway_core.application.provider import (
     ProviderError,
     ProviderErrorCode,
     ProviderFeatureSupport,
+    ProviderPort,
     ProviderRequest,
     ProviderStreamEvent,
+    ProviderStreamingPort,
 )
 
 REQUEST_ID = UUID("44444444-4444-4444-8444-444444444444")
@@ -413,6 +415,7 @@ def test_other_non_streaming_adapters_fail_closed_before_image_provider_io(
     adapter_name: str,
 ) -> None:
     transport = FakeJsonTransport()
+    adapter: ProviderPort
     if adapter_name == "anthropic":
         adapter = AnthropicMessagesAdapter(api_key="secret", transport=transport)
     elif adapter_name == "gemini":
@@ -436,6 +439,7 @@ def test_other_non_streaming_adapters_fail_closed_before_image_provider_io(
 @pytest.mark.parametrize("adapter_name", ["anthropic", "gemini", "compatible"])
 def test_other_streaming_adapters_fail_closed_before_image_provider_io(adapter_name: str) -> None:
     transport = RejectingSseTransport()
+    adapter: ProviderStreamingPort
     if adapter_name == "anthropic":
         adapter = AnthropicMessagesStreamingAdapter(api_key="secret", sse_transport=transport)
     elif adapter_name == "gemini":
