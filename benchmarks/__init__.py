@@ -12,7 +12,13 @@ from .contracts import (
     Scorecard,
 )
 from .dataset import load_dataset
-from .runner import BenchmarkExecutor, BenchmarkProviderFailure, BenchmarkRunner, build_scorecards
+from .runner import (
+    BenchmarkExecutor,
+    BenchmarkProviderFailure,
+    BenchmarkRunner,
+    BenchmarkTargetMismatchError,
+    build_scorecards,
+)
 from .scoring import DeterministicScorer, build_default_scorers
 from .snapshot import (
     build_snapshot,
@@ -31,6 +37,7 @@ __all__ = [
     "BenchmarkRunner",
     "BenchmarkSnapshot",
     "BenchmarkTarget",
+    "BenchmarkTargetMismatchError",
     "BenchmarkWorkload",
     "DeterministicScorer",
     "ObservationStatus",
