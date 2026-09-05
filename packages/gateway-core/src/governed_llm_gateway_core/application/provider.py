@@ -1,6 +1,6 @@
 """Provider-neutral execution boundary for model inference."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
@@ -252,6 +252,6 @@ class ProviderStreamingPort(Protocol):
 
     feature_support: ProviderFeatureSupport
 
-    def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
+    def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
         """Yield normalized provider events and close upstream resources on cancellation."""
         ...
