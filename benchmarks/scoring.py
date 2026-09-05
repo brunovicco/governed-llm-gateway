@@ -7,6 +7,10 @@ from decimal import Decimal
 from typing import Protocol
 
 from .contracts import BenchmarkCase, JsonValue
+from .workloads.structured_extraction import (
+    STRUCTURED_EXTRACTION_SCORER_ID,
+    score_structured_extraction,
+)
 
 
 class DeterministicScorer(Protocol):
@@ -71,6 +75,7 @@ def build_default_scorers() -> Mapping[str, DeterministicScorer]:
         "contains_all": _contains_all,
         "mapping_fields": _mapping_fields,
         "ordered_sequence": _ordered_sequence,
+        STRUCTURED_EXTRACTION_SCORER_ID: score_structured_extraction,
     }
     return scorers
 

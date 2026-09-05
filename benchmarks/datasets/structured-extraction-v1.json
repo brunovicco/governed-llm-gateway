@@ -1,0 +1,171 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "structured-extraction-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "structured_extraction.invoice_ptbr_001",
+      "workload": "structured_extraction",
+      "scorer": "structured_extraction_v1",
+      "prompt": "Extraia somente JSON. Texto: Fatura INV-104 emitida por Aurora Ltda., total 1250.75 BRL. Campos: invoice_id, supplier, total, currency.",
+      "expected": {
+        "invoice_id": "INV-104",
+        "supplier": "Aurora Ltda.",
+        "total": 1250.75,
+        "currency": "BRL"
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "output_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["invoice_id", "supplier", "total", "currency"],
+          "properties": {
+            "invoice_id": {"type": "string"},
+            "supplier": {"type": "string"},
+            "total": {"type": "number"},
+            "currency": {"type": "string"}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "structured_extraction.contact_en_001",
+      "workload": "structured_extraction",
+      "scorer": "structured_extraction_v1",
+      "prompt": "Return JSON only. Text: Morgan Lee lives in Dublin and no email address was provided. Fields: name, city, email.",
+      "expected": {
+        "name": "Morgan Lee",
+        "city": "Dublin",
+        "email": null
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "language": "en",
+        "synthetic": true,
+        "output_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "city", "email"],
+          "properties": {
+            "name": {"type": "string"},
+            "city": {"type": "string"},
+            "email": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "structured_extraction.ticket_ptbr_001",
+      "workload": "structured_extraction",
+      "scorer": "structured_extraction_v1",
+      "prompt": "Retorne somente JSON. Chamado TCK-77: prioridade alta, impacto em produção, cliente ainda consegue operar parcialmente. Campos: ticket_id, priority, production_impact, fully_blocked.",
+      "expected": {
+        "ticket_id": "TCK-77",
+        "priority": "high",
+        "production_impact": true,
+        "fully_blocked": false
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "output_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ticket_id", "priority", "production_impact", "fully_blocked"],
+          "properties": {
+            "ticket_id": {"type": "string"},
+            "priority": {"type": "string"},
+            "production_impact": {"type": "boolean"},
+            "fully_blocked": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "structured_extraction.product_en_001",
+      "workload": "structured_extraction",
+      "scorer": "structured_extraction_v1",
+      "prompt": "Return JSON only. Product SKU-9 is a blue travel mug tagged reusable and insulated. Fields: sku, color, tags.",
+      "expected": {
+        "sku": "SKU-9",
+        "color": "blue",
+        "tags": ["reusable", "insulated"]
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "language": "en",
+        "synthetic": true,
+        "output_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sku", "color", "tags"],
+          "properties": {
+            "sku": {"type": "string"},
+            "color": {"type": "string"},
+            "tags": {"type": "array"}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "structured_extraction.shipment_ptbr_001",
+      "workload": "structured_extraction",
+      "scorer": "structured_extraction_v1",
+      "prompt": "Retorne somente JSON. Remessa SHP-21 sai de Recife e chega a Salvador em 2026-09-10. Campos: shipment_id, origin, destination, delivery_date.",
+      "expected": {
+        "shipment_id": "SHP-21",
+        "origin": "Recife",
+        "destination": "Salvador",
+        "delivery_date": "2026-09-10"
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "output_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["shipment_id", "origin", "destination", "delivery_date"],
+          "properties": {
+            "shipment_id": {"type": "string"},
+            "origin": {"type": "string"},
+            "destination": {"type": "string"},
+            "delivery_date": {"type": "string"}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "structured_extraction.access_en_001",
+      "workload": "structured_extraction",
+      "scorer": "structured_extraction_v1",
+      "prompt": "Return JSON only. Access request AR-5 is for the analytics workspace, requested role viewer, approved is false. Fields: request_id, resource, role, approved.",
+      "expected": {
+        "request_id": "AR-5",
+        "resource": "analytics workspace",
+        "role": "viewer",
+        "approved": false
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "language": "en",
+        "synthetic": true,
+        "output_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["request_id", "resource", "role", "approved"],
+          "properties": {
+            "request_id": {"type": "string"},
+            "resource": {"type": "string"},
+            "role": {"type": "string"},
+            "approved": {"type": "boolean"}
+          }
+        }
+      }
+    }
+  ]
+}
