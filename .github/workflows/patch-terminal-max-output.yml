@@ -1,0 +1,92 @@
+name: patch-terminal-max-output
+
+on:
+  push:
+    branches:
+      - feat/terminal-max-output-provenance-v1
+    paths:
+      - .github/workflows/patch-terminal-max-output.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/terminal-max-output-provenance-v1
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply bounded terminal max-output provenance patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              if new in text:
+                  return
+              if text.count(old) != 1:
+                  raise SystemExit(f"unexpected replacement count for {path}: {text.count(old)}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          def replace_count(path: str, old: str, new: str, count: int) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              if text.count(new) == count:
+                  return
+              if text.count(old) != count:
+                  raise SystemExit(f"unexpected replacement count for {path}: {text.count(old)}")
+              file.write_text(text.replace(old, new), encoding="utf-8")
+
+          replace_once(
+              "packages/gateway-contracts/src/governed_llm_gateway_contracts/contracts.py",
+              "    fallback_index: int = 0\n    api_family: str | None = None\n\n    def __post_init__(self) -> None:\n",
+              "    fallback_index: int = 0\n    api_family: str | None = None\n    max_output_tokens: int | None = None\n\n    def __post_init__(self) -> None:\n",
+          )
+          replace_once(
+              "packages/gateway-contracts/src/governed_llm_gateway_contracts/contracts.py",
+              "        if self.fallback_index < 0:\n            raise ValueError(\"provider execution fallback_index must be non-negative\")\n\n\n@dataclass(frozen=True, slots=True)\nclass GatewayResponse:\n",
+              "        if self.fallback_index < 0:\n            raise ValueError(\"provider execution fallback_index must be non-negative\")\n        if self.max_output_tokens is not None and self.max_output_tokens <= 0:\n            raise ValueError(\n                \"provider execution max_output_tokens must be positive when present\"\n            )\n\n\n@dataclass(frozen=True, slots=True)\nclass GatewayResponse:\n",
+          )
+          replace_count(
+              "packages/gateway-core/src/governed_llm_gateway_core/application/streaming.py",
+              "                                        api_family=deployment.api_family,\n",
+              "                                        api_family=deployment.api_family,\n                                        max_output_tokens=provider_request.max_output_tokens,\n",
+              2,
+          )
+          replace_once(
+              "apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py",
+              "        if event.execution.api_family is not None:\n            execution[\"api_family\"] = event.execution.api_family\n        if event.execution.provider_request_id is not None:\n",
+              "        if event.execution.api_family is not None:\n            execution[\"api_family\"] = event.execution.api_family\n        if event.execution.max_output_tokens is not None:\n            execution[\"max_output_tokens\"] = event.execution.max_output_tokens\n        if event.execution.provider_request_id is not None:\n",
+          )
+          replace_once(
+              "packages/gateway-client/src/governed_llm_gateway_client/_codec.py",
+              "        \"fallback_index\",\n        \"api_family\",\n",
+              "        \"fallback_index\",\n        \"api_family\",\n        \"max_output_tokens\",\n",
+          )
+          replace_once(
+              "packages/gateway-client/src/governed_llm_gateway_client/_codec.py",
+              "        fallback_index=0 if fallback_index is None else fallback_index,\n        api_family=_optional_str(payload, \"api_family\"),\n    )\n",
+              "        fallback_index=0 if fallback_index is None else fallback_index,\n        api_family=_optional_str(payload, \"api_family\"),\n        max_output_tokens=_optional_int(payload, \"max_output_tokens\"),\n    )\n",
+          )
+          PY
+          uvx --python 3.13 --from ruff==0.12.11 ruff format \
+            packages/gateway-contracts/src/governed_llm_gateway_contracts/contracts.py \
+            packages/gateway-core/src/governed_llm_gateway_core/application/streaming.py \
+            apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py \
+            packages/gateway-client/src/governed_llm_gateway_client/_codec.py
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            packages/gateway-contracts/src/governed_llm_gateway_contracts/contracts.py \
+            packages/gateway-core/src/governed_llm_gateway_core/application/streaming.py \
+            apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py \
+            packages/gateway-client/src/governed_llm_gateway_client/_codec.py
+          git commit -m "feat: preserve terminal max output provenance"
+          git push origin HEAD:feat/terminal-max-output-provenance-v1
