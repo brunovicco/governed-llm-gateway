@@ -1,0 +1,126 @@
+name: structured-v2-mypy-fix
+
+on:
+  push:
+    branches:
+      - feat/benchmark-structured-extraction-v2
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply type-only fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          scorer_path = Path("benchmarks/workloads/structured_extraction_v2.py")
+          text = scorer_path.read_text(encoding="utf-8")
+          replacements = {
+              '''        if len(required) != len(set(required)):
+              raise ValueError(
+                  "structured extraction v2 object schema "
+                  f"{path} required must not contain duplicates"
+              )
+          unknown_required = sorted(set(required) - set(properties))
+          if unknown_required:
+''': '''        required_fields = [item for item in required if isinstance(item, str)]
+          if len(required_fields) != len(set(required_fields)):
+              raise ValueError(
+                  "structured extraction v2 object schema "
+                  f"{path} required must not contain duplicates"
+              )
+          unknown_required = sorted(set(required_fields) - set(properties))
+          if unknown_required:
+''',
+              '''    raw_type = schema.get("type")
+          if isinstance(raw_type, str):
+              types = (raw_type,)
+''': '''    raw_type = schema.get("type")
+          types: tuple[str, ...]
+          if isinstance(raw_type, str):
+              types = (raw_type,)
+''',
+              '''        issues: list[StructuredExtractionIssue] = []
+          for key in sorted(expected):
+''': '''        mapping_issues: list[StructuredExtractionIssue] = []
+          for key in sorted(expected):
+''',
+              '''                issues.append(StructuredExtractionIssue("missing_expected_field", child_path))
+''': '''                mapping_issues.append(StructuredExtractionIssue("missing_expected_field", child_path))
+''',
+              '''            issues.extend(child_issues)
+          for key in sorted(set(actual) - set(expected)):
+''': '''            mapping_issues.extend(child_issues)
+          for key in sorted(set(actual) - set(expected)):
+''',
+              '''            issues.append(StructuredExtractionIssue("unexpected_extracted_field", child_path))
+          return matched, max(total, 1), tuple(issues)
+
+          if isinstance(expected, list):
+''': '''            mapping_issues.append(
+              StructuredExtractionIssue("unexpected_extracted_field", child_path)
+          )
+          return matched, max(total, 1), tuple(mapping_issues)
+
+          if isinstance(expected, list):
+''',
+              '''        issues: list[StructuredExtractionIssue] = []
+          if len(expected) != len(actual):
+              issues.append(StructuredExtractionIssue("array_length_mismatch", path))
+''': '''        array_issues: list[StructuredExtractionIssue] = []
+          if len(expected) != len(actual):
+              array_issues.append(StructuredExtractionIssue("array_length_mismatch", path))
+''',
+              '''            issues.extend(child_issues)
+          return matched, max(total, 1), tuple(issues)
+
+          if _strict_json_equal(expected, actual):
+''': '''            array_issues.extend(child_issues)
+          return matched, max(total, 1), tuple(array_issues)
+
+          if _strict_json_equal(expected, actual):
+''',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f"expected scorer snippet not found:\n{old}")
+              text = text.replace(old, new, 1)
+          scorer_path.write_text(text, encoding="utf-8")
+
+          test_path = Path("tests/contract/test_structured_extraction_v2_benchmark.py")
+          text = test_path.read_text(encoding="utf-8")
+          old = '''    failures = {
+              case.case_id: BenchmarkProviderFailure(code="unavailable", status_code=503)
+              for case in cases
+          }
+'''
+          new = '''    failures: dict[str, JsonValue | BenchmarkProviderFailure] = {
+              case.case_id: BenchmarkProviderFailure(code="unavailable", status_code=503)
+              for case in cases
+          }
+'''
+          if old not in text:
+              raise SystemExit("expected test failures snippet not found")
+          test_path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+      - name: Format changed Python files
+        run: |
+          uvx --python 3.13 --from ruff==0.12.11 ruff format \
+            benchmarks/workloads/structured_extraction_v2.py \
+            tests/contract/test_structured_extraction_v2_benchmark.py
+      - name: Commit fixes
+        run: |
+          if git diff --quiet -- benchmarks/workloads/structured_extraction_v2.py tests/contract/test_structured_extraction_v2_benchmark.py; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add benchmarks/workloads/structured_extraction_v2.py tests/contract/test_structured_extraction_v2_benchmark.py
+          git commit -m "fix: satisfy structured extraction v2 typing"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
