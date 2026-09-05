@@ -158,8 +158,8 @@ def _message(*, images: tuple[ImageInput, ...] = ()) -> Message:
     return Message(role=MessageRole.USER, content="Describe the image.", images=images)
 
 
-def _provider_request() -> ProviderRequest:
-    return ProviderRequest(model="vision-model", messages=(_message(images=(_image(),)),))
+def _provider_request(*, model: str = "vision-model") -> ProviderRequest:
+    return ProviderRequest(model=model, messages=(_message(images=(_image(),)),))
 
 
 async def _collect(stream: AsyncIterator[ProviderStreamEvent]) -> list[ProviderStreamEvent]:
@@ -515,21 +515,127 @@ def test_anthropic_streaming_uses_same_native_image_translation() -> None:
     assert upstream.closed is True
 
 
-@pytest.mark.parametrize("adapter_name", ["gemini", "compatible"])
-def test_other_non_streaming_adapters_fail_closed_before_image_provider_io(
-    adapter_name: str,
-) -> None:
-    transport = FakeJsonTransport()
-    adapter: ProviderPort
-    if adapter_name == "gemini":
-        adapter = GeminiAdapter(api_key="secret", transport=transport)
-    else:
-        adapter = OpenAICompatibleAdapter(
-            provider="compatible",
-            api_key="secret",
-            endpoint="https://api.example.test/v1/chat/completions",
-            transport=transport,
+def test_gemini_translates_url_image_to_native_file_data() -> None:
+    transport = FakeJsonTransport(
+        JsonHttpResponse(
+            status_code=200,
+            headers={},
+            payload={
+                "responseId": "gemini-image",
+                "candidates": [
+                    {
+                        "finishReason": "STOP",
+                        "content": {"parts": [{"text": "a diagram"}]},
+                    }
+                ],
+                "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 2},
+            },
         )
+    )
+    adapter = GeminiAdapter(api_key="secret", transport=transport)
+
+    response = asyncio.run(adapter.generate(_provider_request(model="gemini-2.5-flash")))
+
+    assert response.text == "a diagram"
+    assert adapter.feature_support.native_image_input is True
+    payload = transport.calls[0]["payload"]
+    assert isinstance(payload, dict)
+    assert payload["contents"] == [
+        {
+            "role": "user",
+            "parts": [
+                {
+                    "fileData": {
+                        "mimeType": "image/png",
+                        "fileUri": IMAGE_URL,
+                    }
+                },
+                {"text": "Describe the image."},
+            ],
+        }
+    ]
+
+
+def test_gemini_streaming_uses_same_native_image_translation() -> None:
+    upstream = FakeSseStream(
+        [
+            SseEvent(
+                event=None,
+                data=json.dumps(
+                    {
+                        "responseId": "gemini-image",
+                        "candidates": [
+                            {
+                                "finishReason": "STOP",
+                                "content": {"parts": [{"text": "diagram"}]},
+                            }
+                        ],
+                        "usageMetadata": {
+                            "promptTokenCount": 10,
+                            "candidatesTokenCount": 2,
+                        },
+                    }
+                ),
+            )
+        ]
+    )
+    transport = FakeSseTransport(upstream)
+    adapter = GeminiStreamingAdapter(api_key="secret", sse_transport=transport)
+
+    events = asyncio.run(_collect(adapter.stream(_provider_request(model="gemini-2.5-flash"))))
+
+    assert events
+    assert adapter.feature_support.native_image_input is True
+    payload = transport.calls[0]["payload"]
+    assert isinstance(payload, dict)
+    assert payload["contents"] == [
+        {
+            "role": "user",
+            "parts": [
+                {
+                    "fileData": {
+                        "mimeType": "image/png",
+                        "fileUri": IMAGE_URL,
+                    }
+                },
+                {"text": "Describe the image."},
+            ],
+        }
+    ]
+    assert upstream.closed is True
+
+
+def test_gemini_2_0_rejects_external_url_image_before_provider_io() -> None:
+    transport = FakeJsonTransport()
+    adapter = GeminiAdapter(api_key="secret", transport=transport)
+
+    with pytest.raises(ProviderError) as caught:
+        asyncio.run(adapter.generate(_provider_request(model="gemini-2.0-flash")))
+
+    assert caught.value.code is ProviderErrorCode.INVALID_REQUEST
+    assert caught.value.retryable is False
+    assert transport.calls == []
+
+
+def test_gemini_2_0_streaming_rejects_external_url_image_before_provider_io() -> None:
+    transport = RejectingSseTransport()
+    adapter = GeminiStreamingAdapter(api_key="secret", sse_transport=transport)
+
+    with pytest.raises(ProviderError) as caught:
+        asyncio.run(_collect(adapter.stream(_provider_request(model="models/gemini-2.0-flash"))))
+
+    assert caught.value.code is ProviderErrorCode.INVALID_REQUEST
+    assert caught.value.retryable is False
+
+
+def test_openai_compatible_fails_closed_before_image_provider_io() -> None:
+    transport = FakeJsonTransport()
+    adapter: ProviderPort = OpenAICompatibleAdapter(
+        provider="compatible",
+        api_key="secret",
+        endpoint="https://api.example.test/v1/chat/completions",
+        transport=transport,
+    )
 
     with pytest.raises(ProviderError) as caught:
         asyncio.run(adapter.generate(_provider_request()))
@@ -539,21 +645,16 @@ def test_other_non_streaming_adapters_fail_closed_before_image_provider_io(
     assert transport.calls == []
 
 
-@pytest.mark.parametrize("adapter_name", ["gemini", "compatible"])
-def test_other_streaming_adapters_fail_closed_before_image_provider_io(adapter_name: str) -> None:
+def test_openai_compatible_streaming_fails_closed_before_image_provider_io() -> None:
     transport = RejectingSseTransport()
-    adapter: ProviderStreamingPort
-    if adapter_name == "gemini":
-        adapter = GeminiStreamingAdapter(api_key="secret", sse_transport=transport)
-    else:
-        adapter = OpenAICompatibleStreamingAdapter(
-            provider="compatible",
-            api_key="secret",
-            endpoint="https://api.example.test/v1/chat/completions",
-            supports_streaming=True,
-            supports_stream_usage=True,
-            sse_transport=transport,
-        )
+    adapter: ProviderStreamingPort = OpenAICompatibleStreamingAdapter(
+        provider="compatible",
+        api_key="secret",
+        endpoint="https://api.example.test/v1/chat/completions",
+        supports_streaming=True,
+        supports_stream_usage=True,
+        sse_transport=transport,
+    )
 
     with pytest.raises(ProviderError) as caught:
         asyncio.run(_collect(adapter.stream(_provider_request())))
