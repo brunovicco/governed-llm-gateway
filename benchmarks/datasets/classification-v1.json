@@ -1,0 +1,104 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "classification-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "classification.account-access.001",
+      "workload": "classification",
+      "scorer": "classification_v1",
+      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: I changed phones and can no longer complete the sign-in verification step.",
+      "expected": {"label": "account_access"},
+      "metadata": {"contract_version": "1.0", "label_set": "support-intents-v1", "response_format": "classification_label_v1", "synthetic": true}
+    },
+    {
+      "case_id": "classification.account-access.002",
+      "workload": "classification",
+      "scorer": "classification_v1",
+      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: My password reset succeeds, but the account remains locked when I try to log in.",
+      "expected": {"label": "account_access"},
+      "metadata": {"contract_version": "1.0", "label_set": "support-intents-v1", "response_format": "classification_label_v1", "synthetic": true}
+    },
+    {
+      "case_id": "classification.billing.001",
+      "workload": "classification",
+      "scorer": "classification_v1",
+      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: Our latest invoice contains the same subscription charge twice.",
+      "expected": {"label": "billing"},
+      "metadata": {"contract_version": "1.0", "label_set": "support-intents-v1", "response_format": "classification_label_v1", "synthetic": true}
+    },
+    {
+      "case_id": "classification.billing.002",
+      "workload": "classification",
+      "scorer": "classification_v1",
+      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: Please send a receipt for last month's subscription payment.",
+      "expected": {"label": "billing"},
+      "metadata": {"contract_version": "1.0", "label_set": "support-intents-v1", "response_format": "classification_label_v1", "synthetic": true}
+    },
+    {
+      "case_id": "classification.general-information.001",
+      "workload": "classification",
+      "scorer": "classification_v1",
+      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: Where can I find the public documentation for the service status page?
+",
+      "expected": {"label": "general_information"},
+      "metadata": {"contract_version": "1.0", "label_set": "support-intents-v1", "response_format": "classification_label_v1", "synthetic": true}
+    },
+    {
+      "case_id": "classification.general-information.002",
+      "workload": "classification",
+      "scorer": "classification_v1",
+      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: What are the published support hours for standard accounts?",
+      "expected": {"label": "general_information"},
+      "metadata": {"contract_version": "1.0", "label_set": "support-intents-v1", "response_format": "classification_label_v1", "synthetic": true}
+    },
+    {
+      "case_id": "classification.sales.001",
+      "workload": "classification",
+      "scorer": "classification_v1",
+      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: We need pricing for roughly two hundred user seats and an annual contract.",
+      "expected": {"label": "sales"},
+      "metadata": {"contract_version": "1.0", "label_set": "support-intents-v1", "response_format": "classification_label_v1", "synthetic": true}
+    },
+    {
+      "case_id": "classification.sales.002",
+      "workload": "classification",
+      "scorer": "classification_v1",
+      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: Can someone arrange a product demonstration for our engineering team?",
+      "expected": {"label": "sales"},
+      "metadata": {"contract_version": "1.0", "label_set": "support-intents-v1", "response_format": "classification_label_v1", "synthetic": true}
+    },
+    {
+      "case_id": "classification.security.001",
+      "workload": "classification",
+      "scorer": "classification_v1",
+      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: I received an email pretending to be your company and asking me to enter my password on another site.",
+      "expected": {"label": "security"},
+      "metadata": {"contract_version": "1.0", "label_set": "support-intents-v1", "response_format": "classification_label_v1", "synthetic": true}
+    },
+    {
+      "case_id": "classification.security.002",
+      "workload": "classification",
+      "scorer": "classification_v1",
+      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: The audit log shows a login from a location none of our administrators recognize.",
+      "expected": {"label": "security"},
+      "metadata": {"contract_version": "1.0", "label_set": "support-intents-v1", "response_format": "classification_label_v1", "synthetic": true}
+    },
+    {
+      "case_id": "classification.technical-support.001",
+      "workload": "classification",
+      "scorer": "classification_v1",
+      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: The API returns HTTP 503 for every request even though the status page is green.",
+      "expected": {"label": "technical_support"},
+      "metadata": {"contract_version": "1.0", "label_set": "support-intents-v1", "response_format": "classification_label_v1", "synthetic": true}
+    },
+    {
+      "case_id": "classification.technical-support.002",
+      "workload": "classification",
+      "scorer": "classification_v1",
+      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: The Python SDK installation fails with a dependency-resolution error in a clean virtual environment.",
+      "expected": {"label": "technical_support"},
+      "metadata": {"contract_version": "1.0", "label_set": "support-intents-v1", "response_format": "classification_label_v1", "synthetic": true}
+    }
+  ]
+}
