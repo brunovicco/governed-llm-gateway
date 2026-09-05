@@ -115,7 +115,11 @@ def validate_multimodal_fixture_binding(
     fixture_id = case.metadata.get("fixture_id")
     media_type = case.metadata.get("fixture_media_type")
     digest = case.metadata.get("fixture_digest")
-    if not isinstance(fixture_id, str) or not isinstance(media_type, str) or not isinstance(digest, str):
+    if (
+        not isinstance(fixture_id, str)
+        or not isinstance(media_type, str)
+        or not isinstance(digest, str)
+    ):
         raise ValueError("multimodal analysis v1 fixture metadata is invalid")
 
     fixture = fixtures.require(fixture_id)
@@ -167,13 +171,23 @@ def score_multimodal_analysis(case: BenchmarkCase, output: JsonValue) -> Decimal
 
 def _validated_expected(expected: JsonValue) -> dict[str, str]:
     if not isinstance(expected, dict) or set(expected) != set(_QUADRANTS):
-        raise ValueError("multimodal analysis v1 expected output must contain exactly four quadrants")
+        raise ValueError(
+            "multimodal analysis v1 expected output must contain exactly four quadrants"
+        )
 
     normalized: dict[str, str] = {}
     for quadrant in _QUADRANTS:
         value = expected.get(quadrant)
-        if not isinstance(value, str) or not value or value.strip() != value or value.casefold() != value:
-            raise ValueError("multimodal analysis v1 expected colors must be lowercase normalized strings")
+        valid = (
+            isinstance(value, str)
+            and bool(value)
+            and value.strip() == value
+            and value.casefold() == value
+        )
+        if not valid:
+            raise ValueError(
+                "multimodal analysis v1 expected colors must be lowercase normalized strings"
+            )
         normalized[quadrant] = value
     return normalized
 
