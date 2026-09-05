@@ -22,6 +22,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           def replace_once(path: str, old: str, new: str) -> None:
               file = Path(path)
@@ -42,16 +43,26 @@ jobs:
               "        if self.fallback_index < 0:\n            raise ValueError(\"provider execution fallback_index must be non-negative\")\n\n\n@dataclass(frozen=True, slots=True)\nclass GatewayResponse:\n",
               "        if self.fallback_index < 0:\n            raise ValueError(\"provider execution fallback_index must be non-negative\")\n        if self.max_output_tokens is not None and self.max_output_tokens <= 0:\n            raise ValueError(\n                \"provider execution max_output_tokens must be positive when present\"\n            )\n\n\n@dataclass(frozen=True, slots=True)\nclass GatewayResponse:\n",
           )
-          replace_once(
-              "packages/gateway-core/src/governed_llm_gateway_core/application/streaming.py",
-              "                                        api_family=deployment.api_family,\n",
-              "                                        api_family=deployment.api_family,\n                                        max_output_tokens=provider_request.max_output_tokens,\n",
+
+          streaming_path = Path(
+              "packages/gateway-core/src/governed_llm_gateway_core/application/streaming.py"
           )
-          replace_once(
-              "packages/gateway-core/src/governed_llm_gateway_core/application/streaming.py",
-              "                            api_family=deployment.api_family,\n",
-              "                            api_family=deployment.api_family,\n                            max_output_tokens=provider_request.max_output_tokens,\n",
-          )
+          streaming_text = streaming_path.read_text(encoding="utf-8")
+          if "max_output_tokens=provider_request.max_output_tokens" not in streaming_text:
+              streaming_text, count = re.subn(
+                  r"(?m)^(?P<indent>\s*)api_family=deployment\.api_family,$",
+                  lambda match: (
+                      f"{match.group('indent')}api_family=deployment.api_family,\n"
+                      f"{match.group('indent')}max_output_tokens=provider_request.max_output_tokens,"
+                  ),
+                  streaming_text,
+              )
+              if count != 2:
+                  raise SystemExit(
+                      f"unexpected api_family replacement count for streaming.py: {count}"
+                  )
+              streaming_path.write_text(streaming_text, encoding="utf-8")
+
           replace_once(
               "apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py",
               "        if event.execution.api_family is not None:\n            execution[\"api_family\"] = event.execution.api_family\n        if event.execution.provider_request_id is not None:\n",
