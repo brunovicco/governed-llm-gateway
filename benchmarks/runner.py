@@ -132,14 +132,31 @@ class BenchmarkRunner:
 
 
 def _require_observed_target_identity(call: ProviderCall, target: BenchmarkTarget) -> None:
-    """Reject completed calls whose observed provider/model contradict the benchmark target."""
+    """Fail closed when terminal identity contradicts an explicitly attested target."""
     if call.provider is None:
+        if target.api_family is not None:
+            raise BenchmarkTargetMismatchError(
+                "declared benchmark target api_family requires terminal execution evidence"
+            )
         return
+
     if (call.provider, call.model) != (target.provider, target.model):
         raise BenchmarkTargetMismatchError(
             "observed benchmark execution identity does not match declared target: "
             f"observed={call.provider}/{call.model}; "
             f"target={target.provider}/{target.model}"
+        )
+
+    if target.api_family is None:
+        return
+    if call.api_family is None:
+        raise BenchmarkTargetMismatchError(
+            "declared benchmark target api_family requires observed terminal api_family evidence"
+        )
+    if call.api_family != target.api_family:
+        raise BenchmarkTargetMismatchError(
+            "observed benchmark api_family does not match declared target: "
+            f"observed={call.api_family}; target={target.api_family}"
         )
 
 
