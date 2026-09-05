@@ -41,6 +41,7 @@ class BenchmarkTarget:
     configuration: str
     source_date: date
     api_family: str | None = None
+    max_output_tokens: int | None = None
 
     def __post_init__(self) -> None:
         """Validate normalized target provenance fields."""
@@ -52,6 +53,8 @@ class BenchmarkTarget:
             not self.api_family or self.api_family.strip() != self.api_family
         ):
             raise ValueError("api_family must be normalized when present")
+        if self.max_output_tokens is not None and self.max_output_tokens <= 0:
+            raise ValueError("max_output_tokens must be positive when present")
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +115,7 @@ class ProviderCall:
     model: str | None = None
     deployment: str | None = None
     api_family: str | None = None
+    max_output_tokens: int | None = None
 
     def __post_init__(self) -> None:
         """Validate normalized metrics and optional terminal execution identity."""
@@ -145,6 +149,11 @@ class ProviderCall:
                 raise ValueError("provider call api_family requires execution identity")
             if not self.api_family or self.api_family.strip() != self.api_family:
                 raise ValueError("provider call api_family must be normalized when present")
+        if self.max_output_tokens is not None:
+            if self.provider is None:
+                raise ValueError("provider call max_output_tokens requires execution identity")
+            if self.max_output_tokens <= 0:
+                raise ValueError("provider call max_output_tokens must be positive when present")
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,6 +177,7 @@ class BenchmarkObservation:
     model: str | None = None
     deployment: str | None = None
     api_family: str | None = None
+    max_output_tokens: int | None = None
 
     def __post_init__(self) -> None:
         """Enforce quality/failure semantics and normalized optional execution identity."""
@@ -202,6 +212,15 @@ class BenchmarkObservation:
                 raise ValueError("benchmark observation api_family requires execution identity")
             if not self.api_family or self.api_family.strip() != self.api_family:
                 raise ValueError("benchmark observation api_family must be normalized when present")
+        if self.max_output_tokens is not None:
+            if self.provider is None:
+                raise ValueError(
+                    "benchmark observation max_output_tokens requires execution identity"
+                )
+            if self.max_output_tokens <= 0:
+                raise ValueError(
+                    "benchmark observation max_output_tokens must be positive when present"
+                )
 
 
 @dataclass(frozen=True, slots=True)

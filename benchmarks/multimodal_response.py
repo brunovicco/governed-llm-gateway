@@ -38,6 +38,7 @@ def normalize_multimodal_gateway_response(response: GatewayResponse) -> Provider
         model=execution.model,
         deployment=execution.deployment,
         api_family=execution.api_family,
+        max_output_tokens=execution.max_output_tokens,
     )
 
 
