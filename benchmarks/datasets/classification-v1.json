@@ -39,8 +39,7 @@
       "case_id": "classification.general-information.001",
       "workload": "classification",
       "scorer": "classification_v1",
-      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: Where can I find the public documentation for the service status page?
-",
+      "prompt": "Classify this synthetic support request into exactly one reviewed label and return only JSON with the key label. Request: Where can I find the public documentation for the service status page?",
       "expected": {"label": "general_information"},
       "metadata": {"contract_version": "1.0", "label_set": "support-intents-v1", "response_format": "classification_label_v1", "synthetic": true}
     },
