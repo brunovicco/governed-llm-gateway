@@ -3,7 +3,6 @@
 from decimal import Decimal
 from uuid import UUID
 
-from benchmarks.multimodal_response import normalize_multimodal_gateway_response
 from governed_llm_gateway_contracts import (
     ExecutionStatus,
     GatewayResponse,
@@ -12,6 +11,8 @@ from governed_llm_gateway_contracts import (
     RoutingProvenance,
     Usage,
 )
+
+from benchmarks.multimodal_response import normalize_multimodal_gateway_response
 
 
 def _routing() -> RoutingProvenance:
