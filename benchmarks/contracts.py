@@ -40,6 +40,7 @@ class BenchmarkTarget:
     api: str
     configuration: str
     source_date: date
+    api_family: str | None = None
 
     def __post_init__(self) -> None:
         """Validate normalized target provenance fields."""
@@ -47,6 +48,10 @@ class BenchmarkTarget:
             value = getattr(self, field_name)
             if not value or value.strip() != value:
                 raise ValueError(f"{field_name} must be non-empty and normalized")
+        if self.api_family is not None and (
+            not self.api_family or self.api_family.strip() != self.api_family
+        ):
+            raise ValueError("api_family must be normalized when present")
 
 
 @dataclass(frozen=True, slots=True)
