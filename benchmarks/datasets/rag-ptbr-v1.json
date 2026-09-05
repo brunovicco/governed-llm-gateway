@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "rag-ptbr-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "rag_ptbr.policy_001",
+      "workload": "rag_ptbr",
+      "scorer": "rag_ptbr_v1",
+      "prompt": "Com base apenas no contexto, qual é o prazo e quem aprova solicitações de acesso temporário?",
+      "expected": ["24 horas", "gestor responsável"],
+      "metadata": {
+        "contract_version": "1.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "context": "Política interna sintética: acessos temporários expiram após 24 horas. Toda solicitação precisa de aprovação do gestor responsável antes da ativação.",
+        "forbidden_claims": ["48 horas", "aprovação automática"]
+      }
+    },
+    {
+      "case_id": "rag_ptbr.product_001",
+      "workload": "rag_ptbr",
+      "scorer": "rag_ptbr_v1",
+      "prompt": "Com base apenas no contexto, informe a garantia e o canal de suporte do produto Atlas.",
+      "expected": ["12 meses", "portal do cliente"],
+      "metadata": {
+        "contract_version": "1.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "context": "Ficha sintética do Atlas: garantia padrão de 12 meses. O suporte é solicitado exclusivamente pelo portal do cliente.",
+        "forbidden_claims": ["24 meses", "telefone"]
+      }
+    },
+    {
+      "case_id": "rag_ptbr.operations_001",
+      "workload": "rag_ptbr",
+      "scorer": "rag_ptbr_v1",
+      "prompt": "Com base apenas no contexto, quando ocorre a janela de manutenção e qual serviço permanece disponível?",
+      "expected": ["domingo das 02:00 às 03:00", "consulta de saldo"],
+      "metadata": {
+        "contract_version": "1.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "context": "Aviso operacional sintético: a manutenção ocorre domingo das 02:00 às 03:00. Durante a janela, a consulta de saldo permanece disponível.",
+        "forbidden_claims": ["sábado", "todos os serviços ficam indisponíveis"]
+      }
+    },
+    {
+      "case_id": "rag_ptbr.security_001",
+      "workload": "rag_ptbr",
+      "scorer": "rag_ptbr_v1",
+      "prompt": "Com base apenas no contexto, qual autenticação é exigida para administradores e por quanto tempo a sessão pode ficar inativa?",
+      "expected": ["MFA", "15 minutos"],
+      "metadata": {
+        "contract_version": "1.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "context": "Padrão sintético de segurança: contas administrativas exigem MFA. Sessões administrativas são encerradas após 15 minutos de inatividade.",
+        "forbidden_claims": ["30 minutos", "senha sem MFA"]
+      }
+    },
+    {
+      "case_id": "rag_ptbr.billing_001",
+      "workload": "rag_ptbr",
+      "scorer": "rag_ptbr_v1",
+      "prompt": "Com base apenas no contexto, em que dia a fatura fecha e quando o pagamento vence?",
+      "expected": ["dia 20", "dia 28"],
+      "metadata": {
+        "contract_version": "1.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "context": "Regra sintética de faturamento: o ciclo fecha no dia 20 de cada mês e o vencimento ocorre no dia 28 do mesmo mês.",
+        "forbidden_claims": ["dia 25", "dia 30"]
+      }
+    },
+    {
+      "case_id": "rag_ptbr.incident_001",
+      "workload": "rag_ptbr",
+      "scorer": "rag_ptbr_v1",
+      "prompt": "Com base apenas no contexto, qual equipe recebe incidentes críticos e qual é o tempo máximo para início do atendimento?",
+      "expected": ["equipe SRE", "10 minutos"],
+      "metadata": {
+        "contract_version": "1.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "context": "Procedimento sintético: incidentes críticos são encaminhados para a equipe SRE. O atendimento deve começar em até 10 minutos após o alerta.",
+        "forbidden_claims": ["30 minutos", "equipe comercial"]
+      }
+    }
+  ]
+}
