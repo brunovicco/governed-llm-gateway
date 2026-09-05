@@ -1,0 +1,1132 @@
+name: multimodal-contract-patch
+
+on:
+  push:
+    branches:
+      - feat/multimodal-input-contract-v1
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply reviewed multimodal foundation patch
+        shell: bash
+        run: |
+          if grep -q 'class ImageInput' packages/gateway-contracts/src/governed_llm_gateway_contracts/contracts.py; then
+            exit 0
+          fi
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              if text.count(old) != 1:
+                  raise SystemExit(f"expected exactly one match in {path}: {old[:80]!r}")
+              file.write_text(text.replace(old, new, 1))
+
+          # Provider-neutral vocabularies and contracts.
+          replace_once(
+              "packages/gateway-contracts/src/governed_llm_gateway_contracts/enums.py",
+              '''class Modality(StrEnum):
+              """Provider-neutral input modalities relevant to model eligibility."""
+
+              TEXT = "text"
+              IMAGE = "image"
+''',
+              '''class Modality(StrEnum):
+              """Provider-neutral input modalities relevant to model eligibility."""
+
+              TEXT = "text"
+              IMAGE = "image"
+
+
+          class ImageMediaType(StrEnum):
+              """Initial provider-neutral image media types supported by URL input."""
+
+              JPEG = "image/jpeg"
+              PNG = "image/png"
+              WEBP = "image/webp"
+''',
+          )
+
+          contracts = "packages/gateway-contracts/src/governed_llm_gateway_contracts/contracts.py"
+          replace_once(
+              contracts,
+              "from re import fullmatch\nfrom uuid import UUID\n",
+              "from re import fullmatch\nfrom urllib.parse import urlsplit\nfrom uuid import UUID\n",
+          )
+          replace_once(
+              contracts,
+              '''    ExecutionStatus,
+              MessageRole,
+              RejectionReason,
+''',
+              '''    ExecutionStatus,
+              ImageMediaType,
+              MessageRole,
+              RejectionReason,
+''',
+          )
+          replace_once(
+              contracts,
+              '''_TOOL_NAME_PATTERN = r"[A-Za-z_][A-Za-z0-9_-]{0,127}"
+          _SCHEMA_NAME_PATTERN = r"[A-Za-z_][A-Za-z0-9_-]{0,63}"
+
+
+          @dataclass(frozen=True, slots=True)
+          class Message:
+              """Provider-neutral message."""
+
+              role: MessageRole
+              content: str
+''',
+              '''_TOOL_NAME_PATTERN = r"[A-Za-z_][A-Za-z0-9_-]{0,127}"
+          _SCHEMA_NAME_PATTERN = r"[A-Za-z_][A-Za-z0-9_-]{0,63}"
+          _MAX_IMAGE_URL_LENGTH = 2048
+          _MAX_IMAGES_PER_MESSAGE = 8
+          _MAX_IMAGES_PER_REQUEST = 16
+
+
+          @dataclass(frozen=True, slots=True)
+          class ImageInput:
+              """Provider-neutral public HTTPS image reference forwarded without gateway fetching."""
+
+              media_type: ImageMediaType
+              url: str
+
+              def __post_init__(self) -> None:
+                  """Reject ambiguous or credential-bearing image references before provider I/O."""
+                  if not isinstance(self.media_type, ImageMediaType):
+                      raise ValueError("image media_type must use the provider-neutral vocabulary")
+                  if not self.url or self.url.strip() != self.url:
+                      raise ValueError("image URL must be a normalized non-empty string")
+                  if len(self.url) > _MAX_IMAGE_URL_LENGTH:
+                      raise ValueError("image URL exceeds the maximum supported length")
+                  try:
+                      parsed = urlsplit(self.url)
+                      _ = parsed.port
+                  except ValueError as exc:
+                      raise ValueError("image URL is invalid") from exc
+                  if parsed.scheme != "https" or not parsed.hostname:
+                      raise ValueError("image URL must be an absolute HTTPS URL")
+                  if parsed.username is not None or parsed.password is not None:
+                      raise ValueError("image URL must not contain userinfo")
+                  if parsed.query or parsed.fragment:
+                      raise ValueError("image URL must not contain query or fragment")
+
+
+          @dataclass(frozen=True, slots=True)
+          class Message:
+              """Provider-neutral message with bounded optional image-understanding input."""
+
+              role: MessageRole
+              content: str
+              images: tuple[ImageInput, ...] = ()
+
+              def __post_init__(self) -> None:
+                  """Keep the first multimodal contract bounded to user-supplied URL images."""
+                  if len(self.images) > _MAX_IMAGES_PER_MESSAGE:
+                      raise ValueError("message exceeds the maximum image count")
+                  if any(not isinstance(image, ImageInput) for image in self.images):
+                      raise ValueError("message images must use the provider-neutral ImageInput contract")
+                  if self.images and self.role is not MessageRole.USER:
+                      raise ValueError("image input is supported only on user messages")
+''',
+          )
+          replace_once(
+              contracts,
+              '''        if self.structured_output is not None and not self.requirements.structured_output:
+              raise ValueError("structured output schema requires structured_output capability")
+''',
+              '''        if self.structured_output is not None and not self.requirements.structured_output:
+              raise ValueError("structured output schema requires structured_output capability")
+              image_count = sum(len(message.images) for message in self.messages)
+              if image_count > _MAX_IMAGES_PER_REQUEST:
+                  raise ValueError("request exceeds the maximum image count")
+              if image_count and not self.requirements.vision:
+                  raise ValueError("image input requires vision capability")
+''',
+          )
+
+          init_path = "packages/gateway-contracts/src/governed_llm_gateway_contracts/__init__.py"
+          replace_once(
+              init_path,
+              '''    GatewayResponse,
+              GatewayStreamEvent,
+              Message,
+''',
+              '''    GatewayResponse,
+              GatewayStreamEvent,
+              ImageInput,
+              Message,
+''',
+          )
+          replace_once(
+              init_path,
+              '''    ExecutionStatus,
+              MessageRole,
+              Modality,
+''',
+              '''    ExecutionStatus,
+              ImageMediaType,
+              MessageRole,
+              Modality,
+''',
+          )
+          replace_once(
+              init_path,
+              '''    "GatewayStreamEvent",
+              "Message",
+''',
+              '''    "GatewayStreamEvent",
+              "ImageInput",
+              "ImageMediaType",
+              "Message",
+''',
+          )
+
+          # HTTP API input model.
+          api = "apps/gateway-api/src/governed_llm_gateway_api/stream_generate.py"
+          replace_once(
+              api,
+              '''    GatewayRequest,
+              GatewayStreamEvent,
+              Message,
+''',
+              '''    GatewayRequest,
+              GatewayStreamEvent,
+              ImageInput,
+              ImageMediaType,
+              Message,
+''',
+          )
+          replace_once(
+              api,
+              '''class GenerateMessageModel(BaseModel):
+              """One provider-neutral message accepted by the streaming API."""
+
+              model_config = ConfigDict(extra="forbid", frozen=True)
+
+              role: MessageRole
+              content: str = Field(min_length=1)
+''',
+              '''class GenerateImageModel(BaseModel):
+              """Bounded public HTTPS image reference accepted by the streaming API."""
+
+              model_config = ConfigDict(extra="forbid", frozen=True)
+
+              media_type: ImageMediaType
+              url: str = Field(min_length=1, max_length=2048)
+
+              def to_contract(self) -> ImageInput:
+                  """Build the immutable provider-neutral image input contract."""
+                  return ImageInput(media_type=self.media_type, url=self.url)
+
+
+          class GenerateMessageModel(BaseModel):
+              """One provider-neutral message accepted by the streaming API."""
+
+              model_config = ConfigDict(extra="forbid", frozen=True)
+
+              role: MessageRole
+              content: str = Field(min_length=1)
+              images: tuple[GenerateImageModel, ...] = Field(default=(), max_length=8)
+''',
+          )
+          replace_once(
+              api,
+              '''        messages = tuple(Message(role=item.role, content=item.content) for item in self.messages)
+''',
+              '''        messages = tuple(
+              Message(
+                  role=item.role,
+                  content=item.content,
+                  images=tuple(image.to_contract() for image in item.images),
+              )
+              for item in self.messages
+          )
+''',
+          )
+
+          # Thin SDK serialization remains backward compatible for text-only requests.
+          client = "packages/gateway-client/src/governed_llm_gateway_client/client.py"
+          replace_once(
+              client,
+              '''        "messages": [
+              {"role": message.role.value, "content": message.content} for message in request.messages
+          ],
+''',
+              '''        "messages": [_serialize_message(message) for message in request.messages],
+''',
+          )
+          replace_once(
+              client,
+              '''def _validate_identity_response(response: httpx.Response) -> None:
+''',
+              '''def _serialize_message(message: Message) -> dict[str, object]:
+              payload: dict[str, object] = {
+                  "role": message.role.value,
+                  "content": message.content,
+              }
+              if message.images:
+                  payload["images"] = [
+                      {"media_type": image.media_type.value, "url": image.url}
+                      for image in message.images
+                  ]
+              return payload
+
+
+          def _validate_identity_response(response: httpx.Response) -> None:
+''',
+          )
+
+          # Provider wire-capability contract and fail-closed helper.
+          provider = "packages/gateway-core/src/governed_llm_gateway_core/application/provider.py"
+          replace_once(
+              provider,
+              '''    native_structured_output: bool = False
+              native_tool_calling: bool = False
+              native_streaming: bool = False
+''',
+              '''    native_structured_output: bool = False
+              native_tool_calling: bool = False
+              native_image_input: bool = False
+              native_streaming: bool = False
+''',
+          )
+          replace_once(
+              provider,
+              '''        if self.tools:
+              validate_tool_definitions(self.tools)
+
+
+          @dataclass(frozen=True, slots=True)
+          class ProviderResponse:
+''',
+              '''        if self.tools:
+              validate_tool_definitions(self.tools)
+
+              @property
+              def has_image_input(self) -> bool:
+                  """Return whether the request contains provider-neutral image input."""
+                  return any(message.images for message in self.messages)
+
+
+          @dataclass(frozen=True, slots=True)
+          class ProviderResponse:
+''',
+          )
+
+          common = "packages/gateway-core/src/governed_llm_gateway_core/adapters/provider_common.py"
+          replace_once(
+              common,
+              '''from governed_llm_gateway_core.application.provider import ProviderError, ProviderErrorCode
+''',
+              '''from governed_llm_gateway_core.application.provider import (
+              ProviderError,
+              ProviderErrorCode,
+              ProviderFeatureSupport,
+              ProviderRequest,
+          )
+''',
+          )
+          replace_once(
+              common,
+              '''from .http_json import JsonHttpResponse, TransportFailure, TransportFailureKind
+
+
+          def require_success_payload''',
+              '''from .http_json import JsonHttpResponse, TransportFailure, TransportFailureKind
+
+
+          def require_supported_request_features(
+              provider: str,
+              request: ProviderRequest,
+              support: ProviderFeatureSupport,
+          ) -> None:
+              """Reject provider-neutral features this API family cannot translate safely."""
+              if request.has_image_input and not support.native_image_input:
+                  raise ProviderError(
+                      provider=provider,
+                      code=ProviderErrorCode.INVALID_REQUEST,
+                      message=f"{provider} API family does not support provider-neutral image input",
+                      retryable=False,
+                  )
+
+
+          def require_success_payload''',
+          )
+
+          # Native OpenAI Responses URL image translation.
+          openai = "packages/gateway-core/src/governed_llm_gateway_core/adapters/openai_responses.py"
+          replace_once(
+              openai,
+              '''    normalize_transport_failure,
+              require_non_negative_int,
+              require_success_payload,
+''',
+              '''    normalize_transport_failure,
+              require_non_negative_int,
+              require_success_payload,
+              require_supported_request_features,
+''',
+          )
+          replace_once(
+              openai,
+              '''    feature_support = ProviderFeatureSupport(
+              native_structured_output=True,
+              native_tool_calling=True,
+          )
+''',
+              '''    feature_support = ProviderFeatureSupport(
+              native_structured_output=True,
+              native_tool_calling=True,
+              native_image_input=True,
+          )
+''',
+          )
+          replace_once(
+              openai,
+              '''    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+              """Generate text, structured output, or client-side tool calls."""
+              instructions = "\\n\\n".join(
+''',
+              '''    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+              """Generate text, structured output, image analysis, or client-side tool calls."""
+              require_supported_request_features("openai", request, self.feature_support)
+              instructions = "\\n\\n".join(
+''',
+          )
+          replace_once(
+              openai,
+              '''        input_messages = [
+              {"role": message.role.value, "content": message.content}
+              for message in request.messages
+              if message.role is not MessageRole.SYSTEM
+          ]
+''',
+              '''        input_messages = _openai_input_messages(request)
+''',
+          )
+          replace_once(
+              openai,
+              '''def _extract_text(data: Mapping[str, object]) -> str:
+''',
+              '''def _openai_input_messages(request: ProviderRequest) -> list[dict[str, object]]:
+              messages: list[dict[str, object]] = []
+              for message in request.messages:
+                  if message.role is MessageRole.SYSTEM:
+                      continue
+                  if not message.images:
+                      messages.append({"role": message.role.value, "content": message.content})
+                      continue
+                  content: list[dict[str, object]] = [
+                      {"type": "input_text", "text": message.content}
+                  ]
+                  content.extend(
+                      {"type": "input_image", "image_url": image.url} for image in message.images
+                  )
+                  messages.append({"role": message.role.value, "content": content})
+              return messages
+
+
+          def _extract_text(data: Mapping[str, object]) -> str:
+''',
+          )
+
+          openai_stream = "packages/gateway-core/src/governed_llm_gateway_core/adapters/openai_responses_streaming.py"
+          replace_once(
+              openai_stream,
+              '''from .openai_responses import OpenAIResponsesAdapter, _require_openai_strict_schema
+          from .provider_common import normalize_transport_failure
+''',
+              '''from .openai_responses import (
+              OpenAIResponsesAdapter,
+              _openai_input_messages,
+              _require_openai_strict_schema,
+          )
+          from .provider_common import normalize_transport_failure, require_supported_request_features
+''',
+          )
+          replace_once(
+              openai_stream,
+              '''        native_structured_output=True,
+              native_tool_calling=True,
+              native_streaming=True,
+''',
+              '''        native_structured_output=True,
+              native_tool_calling=True,
+              native_image_input=True,
+              native_streaming=True,
+''',
+          )
+          replace_once(
+              openai_stream,
+              '''    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
+              """Yield provider-neutral Responses events and close the upstream stream on cancellation."""
+              instructions = "\\n\\n".join(
+''',
+              '''    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
+              """Yield provider-neutral Responses events and close the upstream stream on cancellation."""
+              require_supported_request_features("openai", request, self.feature_support)
+              instructions = "\\n\\n".join(
+''',
+          )
+          replace_once(
+              openai_stream,
+              '''        input_messages = [
+              {"role": message.role.value, "content": message.content}
+              for message in request.messages
+              if message.role is not MessageRole.SYSTEM
+          ]
+''',
+              '''        input_messages = _openai_input_messages(request)
+''',
+          )
+
+          # Other adapters explicitly fail closed until their own native image translation is reviewed.
+          adapter_patches = [
+              (
+                  "packages/gateway-core/src/governed_llm_gateway_core/adapters/anthropic.py",
+                  '''    normalize_transport_failure,
+              require_non_negative_int,
+              require_success_payload,
+''',
+                  '''    normalize_transport_failure,
+              require_non_negative_int,
+              require_success_payload,
+              require_supported_request_features,
+''',
+                  '''    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+              """Generate text, structured output, or client-side tool calls."""
+''',
+                  '''    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+              """Generate text, structured output, or client-side tool calls."""
+              require_supported_request_features("anthropic", request, self.feature_support)
+''',
+              ),
+              (
+                  "packages/gateway-core/src/governed_llm_gateway_core/adapters/gemini.py",
+                  '''    normalize_transport_failure,
+              require_non_negative_int,
+              require_success_payload,
+''',
+                  '''    normalize_transport_failure,
+              require_non_negative_int,
+              require_success_payload,
+              require_supported_request_features,
+''',
+                  '''    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+              """Generate text, structured output, or client-side function calls."""
+''',
+                  '''    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+              """Generate text, structured output, or client-side function calls."""
+              require_supported_request_features("google", request, self.feature_support)
+''',
+              ),
+              (
+                  "packages/gateway-core/src/governed_llm_gateway_core/adapters/openai_compatible.py",
+                  '''    normalize_transport_failure,
+              require_non_negative_int,
+              require_success_payload,
+''',
+                  '''    normalize_transport_failure,
+              require_non_negative_int,
+              require_success_payload,
+              require_supported_request_features,
+''',
+                  '''    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+              """Generate through an endpoint whose optional features were explicitly verified."""
+''',
+                  '''    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+              """Generate through an endpoint whose optional features were explicitly verified."""
+              require_supported_request_features(self._provider, request, self.feature_support)
+''',
+              ),
+          ]
+          for path, old_import, new_import, old_method, new_method in adapter_patches:
+              replace_once(path, old_import, new_import)
+              replace_once(path, old_method, new_method)
+
+          stream_patches = [
+              (
+                  "packages/gateway-core/src/governed_llm_gateway_core/adapters/anthropic_streaming.py",
+                  '''from .provider_common import normalize_transport_failure, require_non_negative_int
+''',
+                  '''from .provider_common import (
+              normalize_transport_failure,
+              require_non_negative_int,
+              require_supported_request_features,
+          )
+''',
+                  '''    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+              """Yield normalized Messages events and close upstream resources on cancellation."""
+''',
+                  '''    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+              """Yield normalized Messages events and close upstream resources on cancellation."""
+              require_supported_request_features("anthropic", request, self.feature_support)
+''',
+              ),
+              (
+                  "packages/gateway-core/src/governed_llm_gateway_core/adapters/gemini_streaming.py",
+                  '''from .provider_common import normalize_transport_failure, require_non_negative_int
+''',
+                  '''from .provider_common import (
+              normalize_transport_failure,
+              require_non_negative_int,
+              require_supported_request_features,
+          )
+''',
+                  '''    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+              """Yield normalized Gemini stream events and require final usage metadata."""
+''',
+                  '''    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+              """Yield normalized Gemini stream events and require final usage metadata."""
+              require_supported_request_features("google", request, self.feature_support)
+''',
+              ),
+              (
+                  "packages/gateway-core/src/governed_llm_gateway_core/adapters/openai_compatible_streaming.py",
+                  '''from .provider_common import normalize_transport_failure, require_non_negative_int
+''',
+                  '''from .provider_common import (
+              normalize_transport_failure,
+              require_non_negative_int,
+              require_supported_request_features,
+          )
+''',
+                  '''    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+              """Yield normalized chat-completion chunks for an explicitly verified endpoint."""
+''',
+                  '''    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+              """Yield normalized chat-completion chunks for an explicitly verified endpoint."""
+              require_supported_request_features(self._provider, request, self.feature_support)
+''',
+              ),
+          ]
+          for path, old_import, new_import, old_method, new_method in stream_patches:
+              replace_once(path, old_import, new_import)
+              replace_once(path, old_method, new_method)
+
+          # Contract, API, SDK, and provider-wire tests.
+          Path("tests/contract/test_multimodal_input_foundation.py").write_text(r'''import asyncio
+          from collections.abc import AsyncIterator, Mapping
+          from dataclasses import dataclass, field
+          from uuid import UUID
+
+          import httpx
+          import pytest
+          from governed_llm_gateway_api import GenerateRequestModel
+          from governed_llm_gateway_client.client import _build_generate_payload
+          from governed_llm_gateway_contracts import (
+              DataClassification,
+              GatewayRequest,
+              ImageInput,
+              ImageMediaType,
+              Message,
+              MessageRole,
+              RiskLevel,
+              WorkloadRequirements,
+          )
+          from governed_llm_gateway_core.adapters import (
+              AnthropicMessagesAdapter,
+              GeminiAdapter,
+              OpenAICompatibleAdapter,
+              OpenAIResponsesAdapter,
+          )
+          from governed_llm_gateway_core.adapters.anthropic_streaming import (
+              AnthropicMessagesStreamingAdapter,
+          )
+          from governed_llm_gateway_core.adapters.gemini_streaming import GeminiStreamingAdapter
+          from governed_llm_gateway_core.adapters.http_json import JsonHttpResponse
+          from governed_llm_gateway_core.adapters.http_sse import SseEvent, SseStream
+          from governed_llm_gateway_core.adapters.openai_compatible_streaming import (
+              OpenAICompatibleStreamingAdapter,
+          )
+          from governed_llm_gateway_core.adapters.openai_responses_streaming import (
+              OpenAIResponsesStreamingAdapter,
+          )
+          from governed_llm_gateway_core.application.provider import (
+              ProviderError,
+              ProviderErrorCode,
+              ProviderFeatureSupport,
+              ProviderRequest,
+              ProviderStreamEvent,
+          )
+
+          REQUEST_ID = UUID("44444444-4444-4444-8444-444444444444")
+          IMAGE_URL = "https://images.example.test/public/sample.png"
+
+
+          class FakeJsonTransport:
+              def __init__(self) -> None:
+                  self.calls: list[Mapping[str, object]] = []
+
+              async def post_json(
+                  self,
+                  *,
+                  url: str,
+                  headers: Mapping[str, str],
+                  payload: Mapping[str, object],
+                  timeout_seconds: float,
+              ) -> JsonHttpResponse:
+                  self.calls.append(
+                      {
+                          "url": url,
+                          "headers": dict(headers),
+                          "payload": dict(payload),
+                          "timeout_seconds": timeout_seconds,
+                      }
+                  )
+                  return JsonHttpResponse(
+                      status_code=200,
+                      headers={},
+                      payload={
+                          "id": "resp-image",
+                          "status": "completed",
+                          "output": [
+                              {
+                                  "type": "message",
+                                  "content": [{"type": "output_text", "text": "a diagram"}],
+                              }
+                          ],
+                          "usage": {"input_tokens": 10, "output_tokens": 2},
+                      },
+                  )
+
+
+          @dataclass
+          class FakeSseStream:
+              events: list[SseEvent]
+              status_code: int = 200
+              headers: Mapping[str, str] = field(
+                  default_factory=lambda: {"content-type": "text/event-stream"}
+              )
+              closed: bool = False
+
+              def __post_init__(self) -> None:
+                  self._index = 0
+
+              def __aiter__(self) -> AsyncIterator[SseEvent]:
+                  return self
+
+              async def __anext__(self) -> SseEvent:
+                  if self._index >= len(self.events):
+                      raise StopAsyncIteration
+                  event = self.events[self._index]
+                  self._index += 1
+                  return event
+
+              async def aclose(self) -> None:
+                  self.closed = True
+
+
+          class FakeSseTransport:
+              def __init__(self, stream: FakeSseStream) -> None:
+                  self.stream = stream
+                  self.calls: list[Mapping[str, object]] = []
+
+              async def open_sse(
+                  self,
+                  *,
+                  url: str,
+                  headers: Mapping[str, str],
+                  payload: Mapping[str, object],
+                  timeout_seconds: float,
+              ) -> SseStream:
+                  self.calls.append(
+                      {
+                          "url": url,
+                          "headers": dict(headers),
+                          "payload": dict(payload),
+                          "timeout_seconds": timeout_seconds,
+                      }
+                  )
+                  return self.stream
+
+
+          class RejectingSseTransport:
+              async def open_sse(
+                  self,
+                  *,
+                  url: str,
+                  headers: Mapping[str, str],
+                  payload: Mapping[str, object],
+                  timeout_seconds: float,
+              ) -> SseStream:
+                  del url, headers, payload, timeout_seconds
+                  raise AssertionError("unsupported image input must fail before provider I/O")
+
+
+          def _image(media_type: ImageMediaType = ImageMediaType.PNG) -> ImageInput:
+              return ImageInput(media_type=media_type, url=IMAGE_URL)
+
+
+          def _message(*, images: tuple[ImageInput, ...] = ()) -> Message:
+              return Message(role=MessageRole.USER, content="Describe the image.", images=images)
+
+
+          def _provider_request() -> ProviderRequest:
+              return ProviderRequest(model="vision-model", messages=(_message(images=(_image(),)),))
+
+
+          async def _collect(stream: AsyncIterator[ProviderStreamEvent]) -> list[ProviderStreamEvent]:
+              return [event async for event in stream]
+
+
+          @pytest.mark.parametrize(
+              "media_type",
+              [ImageMediaType.JPEG, ImageMediaType.PNG, ImageMediaType.WEBP],
+          )
+          def test_image_input_accepts_reviewed_media_types(media_type: ImageMediaType) -> None:
+              image = _image(media_type)
+              assert image.media_type is media_type
+              assert image.url == IMAGE_URL
+
+
+          @pytest.mark.parametrize(
+              "url",
+              [
+                  "http://images.example.test/sample.png",
+                  "https://user:pass@images.example.test/sample.png",
+                  "https://images.example.test/sample.png?token=secret",
+                  "https://images.example.test/sample.png#fragment",
+                  " https://images.example.test/sample.png",
+                  "https://images.example.test/" + "a" * 2048,
+              ],
+          )
+          def test_image_input_rejects_unsafe_or_unbounded_urls(url: str) -> None:
+              with pytest.raises(ValueError):
+                  ImageInput(media_type=ImageMediaType.PNG, url=url)
+
+
+          def test_image_input_is_bounded_to_user_messages_and_counts() -> None:
+              with pytest.raises(ValueError, match="only on user messages"):
+                  Message(
+                      role=MessageRole.SYSTEM,
+                      content="system",
+                      images=(_image(),),
+                  )
+              with pytest.raises(ValueError, match="maximum image count"):
+                  _message(images=tuple(_image() for _ in range(9)))
+
+
+          def test_gateway_request_requires_vision_and_enforces_request_image_limit() -> None:
+              with pytest.raises(ValueError, match="requires vision capability"):
+                  GatewayRequest(
+                      schema_version="1.0",
+                      request_id=REQUEST_ID,
+                      workload="multimodal.analysis",
+                      risk_level=RiskLevel.LOW,
+                      data_classification=DataClassification.PUBLIC,
+                      messages=(_message(images=(_image(),)),),
+                  )
+
+              messages = tuple(_message(images=tuple(_image() for _ in range(8))) for _ in range(3))
+              with pytest.raises(ValueError, match="maximum image count"):
+                  GatewayRequest(
+                      schema_version="1.0",
+                      request_id=REQUEST_ID,
+                      workload="multimodal.analysis",
+                      risk_level=RiskLevel.LOW,
+                      data_classification=DataClassification.PUBLIC,
+                      requirements=WorkloadRequirements(vision=True),
+                      messages=messages,
+                  )
+
+
+          def test_streaming_api_projects_image_contract_without_provider_fields() -> None:
+              payload = GenerateRequestModel.model_validate(
+                  {
+                      "schema_version": "1.0",
+                      "request_id": str(REQUEST_ID),
+                      "workload": "multimodal.analysis",
+                      "risk_level": "low",
+                      "data_classification": "public",
+                      "requirements": {"vision": True},
+                      "messages": [
+                          {
+                              "role": "user",
+                              "content": "Describe the image.",
+                              "images": [{"media_type": "image/png", "url": IMAGE_URL}],
+                          }
+                      ],
+                      "context_tokens_estimated": 64,
+                      "max_output_tokens": 128,
+                  }
+              )
+
+              request = payload.to_gateway_request()
+              assert request.requirements.vision is True
+              assert request.messages[0].images == (_image(),)
+
+
+          def test_thin_sdk_serializes_images_provider_neutrally() -> None:
+              payload = _build_generate_payload(
+                  workload="multimodal.analysis",
+                  messages=(_message(images=(_image(),)),),
+                  risk_level=RiskLevel.LOW,
+                  data_classification=DataClassification.PUBLIC,
+                  requirements=WorkloadRequirements(vision=True),
+                  limits=None,
+                  agent_identity=None,
+                  tools=(),
+                  structured_output=None,
+                  context_tokens_estimated=64,
+                  max_output_tokens=128,
+                  provider_timeout_seconds=30.0,
+                  request_id=REQUEST_ID,
+              )
+
+              assert payload["requirements"] == {
+                  "tool_calling": False,
+                  "structured_output": False,
+                  "vision": True,
+                  "min_context_tokens": 0,
+              }
+              messages = payload["messages"]
+              assert isinstance(messages, list)
+              assert messages == [
+                  {
+                      "role": "user",
+                      "content": "Describe the image.",
+                      "images": [{"media_type": "image/png", "url": IMAGE_URL}],
+                  }
+              ]
+              assert "provider" not in payload
+              assert "model" not in payload
+
+
+          def test_provider_feature_support_defaults_image_input_to_false() -> None:
+              assert ProviderFeatureSupport().native_image_input is False
+
+
+          @pytest.mark.asyncio
+          async def test_openai_responses_translates_url_image_to_native_content_parts() -> None:
+              transport = FakeJsonTransport()
+              adapter = OpenAIResponsesAdapter(api_key="secret", transport=transport)
+
+              response = await adapter.generate(_provider_request())
+
+              assert response.text == "a diagram"
+              assert adapter.feature_support.native_image_input is True
+              assert len(transport.calls) == 1
+              payload = transport.calls[0]["payload"]
+              assert isinstance(payload, dict)
+              assert payload["input"] == [
+                  {
+                      "role": "user",
+                      "content": [
+                          {"type": "input_text", "text": "Describe the image."},
+                          {"type": "input_image", "image_url": IMAGE_URL},
+                      ],
+                  }
+              ]
+
+
+          @pytest.mark.asyncio
+          async def test_openai_responses_streaming_uses_same_native_image_translation() -> None:
+              upstream = FakeSseStream(
+                  [
+                      SseEvent(
+                          event=None,
+                          data='{"type":"response.created","response":{"id":"resp-image"}}',
+                      ),
+                      SseEvent(
+                          event=None,
+                          data='{"type":"response.output_text.delta","delta":"diagram"}',
+                      ),
+                      SseEvent(
+                          event=None,
+                          data=(
+                              '{"type":"response.completed","response":'
+                              '{"id":"resp-image","status":"completed",'
+                              '"usage":{"input_tokens":10,"output_tokens":2}}}'
+                          ),
+                      ),
+                  ]
+              )
+              transport = FakeSseTransport(upstream)
+              adapter = OpenAIResponsesStreamingAdapter(
+                  api_key="secret",
+                  sse_transport=transport,
+              )
+
+              events = await _collect(adapter.stream(_provider_request()))
+
+              assert events
+              assert adapter.feature_support.native_image_input is True
+              payload = transport.calls[0]["payload"]
+              assert isinstance(payload, dict)
+              assert payload["input"] == [
+                  {
+                      "role": "user",
+                      "content": [
+                          {"type": "input_text", "text": "Describe the image."},
+                          {"type": "input_image", "image_url": IMAGE_URL},
+                      ],
+                  }
+              ]
+              assert upstream.closed is True
+
+
+          @pytest.mark.asyncio
+          @pytest.mark.parametrize(
+              "adapter",
+              [
+                  AnthropicMessagesAdapter(api_key="secret", transport=FakeJsonTransport()),
+                  GeminiAdapter(api_key="secret", transport=FakeJsonTransport()),
+                  OpenAICompatibleAdapter(
+                      provider="compatible",
+                      api_key="secret",
+                      endpoint="https://api.example.test/v1/chat/completions",
+                      transport=FakeJsonTransport(),
+                  ),
+              ],
+          )
+          async def test_non_openai_native_adapters_fail_closed_before_image_provider_io(
+              adapter: AnthropicMessagesAdapter | GeminiAdapter | OpenAICompatibleAdapter,
+          ) -> None:
+              with pytest.raises(ProviderError) as caught:
+                  await adapter.generate(_provider_request())
+              assert caught.value.code is ProviderErrorCode.INVALID_REQUEST
+              assert caught.value.retryable is False
+
+
+          @pytest.mark.asyncio
+          @pytest.mark.parametrize(
+              "adapter",
+              [
+                  AnthropicMessagesStreamingAdapter(
+                      api_key="secret",
+                      sse_transport=RejectingSseTransport(),
+                  ),
+                  GeminiStreamingAdapter(
+                      api_key="secret",
+                      sse_transport=RejectingSseTransport(),
+                  ),
+                  OpenAICompatibleStreamingAdapter(
+                      provider="compatible",
+                      api_key="secret",
+                      endpoint="https://api.example.test/v1/chat/completions",
+                      supports_streaming=True,
+                      supports_stream_usage=True,
+                      sse_transport=RejectingSseTransport(),
+                  ),
+              ],
+          )
+          async def test_non_openai_native_streaming_adapters_fail_closed_before_image_provider_io(
+              adapter: (
+                  AnthropicMessagesStreamingAdapter
+                  | GeminiStreamingAdapter
+                  | OpenAICompatibleStreamingAdapter
+              ),
+          ) -> None:
+              with pytest.raises(ProviderError) as caught:
+                  await _collect(adapter.stream(_provider_request()))
+              assert caught.value.code is ProviderErrorCode.INVALID_REQUEST
+              assert caught.value.retryable is False
+          ''').replace("\n          ", "\n").lstrip()
+
+          Path("docs/project/MULTIMODAL_INPUT.md").write_text(r'''# Multimodal Input Foundation
+
+          Status: initial image-input contract implemented after the core execution baseline stabilized.
+
+          ## Scope
+
+          The first multimodal increment adds **image understanding input only**. It does not add image generation or a general file transport.
+
+          Provider-neutral messages may carry bounded image references alongside text:
+
+          ```text
+          Message
+            ├─ role = user
+            ├─ content = non-empty text at the API/SDK boundary
+            └─ images[]
+                 ├─ media_type = image/jpeg | image/png | image/webp
+                 └─ url = public absolute HTTPS URL
+          ```
+
+          Limits:
+
+          - at most 8 images per message;
+          - at most 16 images per gateway request;
+          - images are accepted only on `user` messages in v1;
+          - any request containing images must declare `WorkloadRequirements.vision = true`;
+          - image URLs are limited to 2048 characters;
+          - URL userinfo, query strings and fragments are rejected;
+          - the gateway does **not** resolve or fetch the image URL.
+
+          Keeping URL retrieval outside the gateway avoids adding a downloader, base64 body amplification, file persistence or an SSRF-capable HTTP client to the gateway process. Provider-native URL retrieval rules still apply downstream.
+
+          Signed URLs are deliberately outside v1 because their query strings commonly carry credentials. Base64, provider file IDs, PDFs, audio, video and image-only messages require separate reviewed contracts.
+
+          ## Capability and authority boundaries
+
+          Model/deployment eligibility already requires both `Capability.VISION` and `Modality.IMAGE` for image-capable registry entries. A request with `requirements.vision = true` therefore narrows the already-authorized candidate set to deployments advertising vision.
+
+          The provider wire contract is a separate concern. `ProviderFeatureSupport.native_image_input` defaults to `false`; an adapter must opt in only when its exact API family has a reviewed native translation. Registry capability never implies wire-format support automatically.
+
+          The permanent authorization invariant remains:
+
+          ```text
+          Gateway allowed set ⊆ Policy Router authorized set
+          ```
+
+          Image input cannot add model groups or deployments. It only creates another gateway-side eligibility/execution constraint.
+
+          Policy Model Router API 1.0 does not currently receive a dedicated vision flag. The gateway can still narrow PDP authorization through registry capability checks without violating monotonic authorization. Expanding the PDP request vocabulary is a separate cross-repository contract change and must not be inferred from this increment.
+
+          ## Initial adapter support
+
+          Native OpenAI Responses is the first explicitly enabled image-input API family. The adapter maps a provider-neutral user message to Responses content parts:
+
+          ```json
+          {
+            "role": "user",
+            "content": [
+              {"type": "input_text", "text": "Describe the image."},
+              {"type": "input_image", "image_url": "https://images.example/image.png"}
+            ]
+          }
+          ```
+
+          Native and streaming Responses paths share the same translation.
+
+          Anthropic Messages, Gemini `generateContent`, and generic OpenAI-compatible adapters intentionally remain `native_image_input = false` in this increment. Direct calls fail closed before provider I/O instead of silently dropping image content. Each API family should be enabled in its own reviewed adapter increment.
+
+          ## Privacy and observability
+
+          Image URLs are request content. They must not be added to metadata-only OpenTelemetry attributes, routing evidence, benchmark evidence or logs by default.
+
+          Existing telemetry continues to record bounded metadata such as workload, provider/model/deployment identity, latency, retries/fallbacks and normalized usage. The gateway does not capture the referenced image bytes.
+
+          ## Deferred
+
+          - base64/inline image data;
+          - signed/query-bearing URLs;
+          - provider-hosted file IDs;
+          - PDFs and arbitrary file inputs;
+          - audio/video input;
+          - image output/generation;
+          - image preprocessing or fetching by the gateway;
+          - implicit vision inference from message shape without `requirements.vision`;
+          - generic OpenAI-compatible image support without endpoint-specific verification.
+          ''').replace("\n          ", "\n").lstrip()
+          PY
+      - name: Commit reviewed patch
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages apps tests docs
+          git commit -m "feat: add bounded multimodal image input foundation"
+          git push origin HEAD:feat/multimodal-input-contract-v1
