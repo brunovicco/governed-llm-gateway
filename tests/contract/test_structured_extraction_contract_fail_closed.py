@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from benchmarks.contracts import BenchmarkWorkload
+from benchmarks.contracts import BenchmarkCase, BenchmarkWorkload
 from benchmarks.workloads.structured_extraction import (
     load_structured_extraction_dataset,
     validate_structured_extraction_case,
@@ -16,7 +16,7 @@ from benchmarks.workloads.structured_extraction import (
 _DATASET = Path("benchmarks/datasets/structured-extraction-v1.json")
 
 
-def _first_case():
+def _first_case() -> BenchmarkCase:
     return load_structured_extraction_dataset(_DATASET).cases[0]
 
 
