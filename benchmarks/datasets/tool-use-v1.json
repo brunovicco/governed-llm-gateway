@@ -8,48 +8,132 @@
       "workload": "tool_use",
       "scorer": "tool_use_v1",
       "prompt": "Selecione a ferramenta para consultar a previsão de São Paulo para 2026-09-06.",
-      "expected": {"name": "get_weather", "arguments": {"city": "São Paulo", "date": "2026-09-06"}},
-      "metadata": {"contract_version": "1.0", "synthetic": true, "execute_tool": false, "allowed_tools": ["get_weather", "search_docs"]}
+      "expected": {
+        "name": "get_weather",
+        "arguments": {
+          "city": "São Paulo",
+          "date": "2026-09-06"
+        }
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "synthetic": true,
+        "execute_tool": false,
+        "allowed_tools": [
+          "get_weather",
+          "search_docs"
+        ]
+      }
     },
     {
       "case_id": "tool_use.order_001",
       "workload": "tool_use",
       "scorer": "tool_use_v1",
       "prompt": "Selecione a ferramenta para consultar o pedido ORD-42.",
-      "expected": {"name": "get_order", "arguments": {"order_id": "ORD-42"}},
-      "metadata": {"contract_version": "1.0", "synthetic": true, "execute_tool": false, "allowed_tools": ["get_order", "cancel_order"]}
+      "expected": {
+        "name": "get_order",
+        "arguments": {
+          "order_id": "ORD-42"
+        }
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "synthetic": true,
+        "execute_tool": false,
+        "allowed_tools": [
+          "get_order",
+          "cancel_order"
+        ]
+      }
     },
     {
       "case_id": "tool_use.docs_001",
       "workload": "tool_use",
       "scorer": "tool_use_v1",
-      "prompt": "Selecione a ferramenta para buscar documentos sobre política de retenção.",
-      "expected": {"name": "search_docs", "arguments": {"query": "política de retenção", "limit": 5}},
-      "metadata": {"contract_version": "1.0", "synthetic": true, "execute_tool": false, "allowed_tools": ["search_docs", "get_weather"]}
-    },
-    {
-      "case_id": "tool_use.inventory_001",
-      "workload": "tool_use",
-      "scorer": "tool_use_v1",
-      "prompt": "Selecione a ferramenta para verificar o estoque do SKU-9 no depósito SP-1.",
-      "expected": {"name": "get_inventory", "arguments": {"sku": "SKU-9", "warehouse": "SP-1"}},
-      "metadata": {"contract_version": "1.0", "synthetic": true, "execute_tool": false, "allowed_tools": ["get_inventory", "reserve_inventory"]}
-    },
-    {
-      "case_id": "tool_use.ticket_001",
-      "workload": "tool_use",
-      "scorer": "tool_use_v1",
-      "prompt": "Selecione a ferramenta para abrir um chamado com prioridade alta e resumo 'API indisponível'.",
-      "expected": {"name": "create_ticket", "arguments": {"priority": "high", "summary": "API indisponível"}},
-      "metadata": {"contract_version": "1.0", "synthetic": true, "execute_tool": false, "allowed_tools": ["create_ticket", "get_ticket"]}
+      "prompt": "Selecione a ferramenta para buscar documentos sobre política de retenção, limitando a 5 resultados.",
+      "expected": {
+        "name": "search_docs",
+        "arguments": {
+          "query": "política de retenção",
+          "limit": 5
+        }
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "synthetic": true,
+        "execute_tool": false,
+        "allowed_tools": [
+          "search_docs",
+          "get_weather"
+        ]
+      }
     },
     {
       "case_id": "tool_use.customer_001",
       "workload": "tool_use",
       "scorer": "tool_use_v1",
       "prompt": "Selecione a ferramenta para consultar o cliente C-100 incluindo contatos.",
-      "expected": {"name": "get_customer", "arguments": {"customer_id": "C-100", "include_contacts": true}},
-      "metadata": {"contract_version": "1.0", "synthetic": true, "execute_tool": false, "allowed_tools": ["get_customer", "update_customer"]}
+      "expected": {
+        "name": "get_customer",
+        "arguments": {
+          "customer_id": "C-100",
+          "include_contacts": true
+        }
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "synthetic": true,
+        "execute_tool": false,
+        "allowed_tools": [
+          "get_customer",
+          "update_customer"
+        ]
+      }
+    },
+    {
+      "case_id": "tool_use.ticket_001",
+      "workload": "tool_use",
+      "scorer": "tool_use_v1",
+      "prompt": "Selecione a ferramenta para abrir um chamado crítico da equipe payments no Brasil, com as tags api e incident.",
+      "expected": {
+        "name": "create_ticket",
+        "arguments": {
+          "priority": "critical",
+          "requester": {
+            "team": "payments",
+            "region": "BR"
+          },
+          "tags": [
+            "api",
+            "incident"
+          ]
+        }
+      },
+      "metadata": {
+        "contract_version": "1.0",
+        "synthetic": true,
+        "execute_tool": false,
+        "allowed_tools": [
+          "create_ticket",
+          "get_ticket"
+        ]
+      }
+    },
+    {
+      "case_id": "tool_use.abstain_001",
+      "workload": "tool_use",
+      "scorer": "tool_use_v1",
+      "prompt": "O usuário apenas agradeceu pelo atendimento. Não é necessário consultar nem alterar sistemas.",
+      "expected": null,
+      "metadata": {
+        "contract_version": "1.0",
+        "synthetic": true,
+        "execute_tool": false,
+        "allowed_tools": [
+          "get_customer",
+          "create_ticket"
+        ]
+      }
     }
   ]
 }
