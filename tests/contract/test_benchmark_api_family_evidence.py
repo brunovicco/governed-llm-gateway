@@ -15,10 +15,12 @@ from governed_llm_gateway_contracts import (
 
 from benchmarks import (
     BenchmarkCase,
+    BenchmarkObservation,
     BenchmarkRunner,
     BenchmarkTarget,
     BenchmarkWorkload,
     ProviderCall,
+    Scorecard,
     build_default_scorers,
     build_snapshot,
     canonical_snapshot_json,
@@ -78,7 +80,9 @@ def _target() -> BenchmarkTarget:
     )
 
 
-def _run(call: ProviderCall):
+def _run(
+    call: ProviderCall,
+) -> tuple[tuple[BenchmarkObservation, ...], tuple[Scorecard, ...]]:
     return asyncio.run(
         BenchmarkRunner(_StaticExecutor(call), build_default_scorers()).run(
             (_case(),),
