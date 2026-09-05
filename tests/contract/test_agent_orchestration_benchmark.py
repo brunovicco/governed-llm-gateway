@@ -217,7 +217,7 @@ def test_agent_orchestration_penalizes_missing_and_extra_steps() -> None:
     )
     assert extra.sequence_score == Decimal(2) / Decimal(3)
     assert extra.handoff_score == Decimal(2) / Decimal(3)
-    assert extra.score == Decimal(2) / Decimal(3)
+    assert extra.score == (extra.sequence_score + extra.handoff_score) / Decimal("2")
     assert ("unexpected_step", "/steps/2") in {(issue.code, issue.path) for issue in extra.issues}
 
 
