@@ -31,6 +31,10 @@ _ALLOWED_METADATA_FIELDS = {
     "synthetic",
 }
 _EXPECTED_CASES_PER_LABEL = 2
+_PROMPT_PREFIX = (
+    "Classify this synthetic support request into exactly one reviewed label and return only "
+    "JSON with the key label. Request: "
+)
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -83,6 +87,12 @@ def validate_classification_case(case: BenchmarkCase) -> None:
         raise ValueError("classification v1 dataset contains a different workload")
     if case.scorer != CLASSIFICATION_SCORER_ID:
         raise ValueError("classification v1 requires its versioned deterministic scorer")
+    if (
+        not case.prompt.startswith(_PROMPT_PREFIX)
+        or case.prompt.strip() != case.prompt
+        or len(case.prompt) == len(_PROMPT_PREFIX)
+    ):
+        raise ValueError("classification v1 prompt must use the reviewed normalized instruction")
 
     metadata = case.metadata
     unknown_metadata = sorted(set(metadata) - _ALLOWED_METADATA_FIELDS)
