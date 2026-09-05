@@ -1,0 +1,29 @@
+name: fix-multimodal-response-format
+
+on:
+  push:
+    branches:
+      - feat/multimodal-gateway-response-normalization-v1
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply authoritative Ruff formatting
+        run: |
+          uvx --python 3.13 --from ruff==0.12.11 ruff format tests/contract/test_multimodal_gateway_response_normalization.py
+      - name: Commit formatting when needed
+        run: |
+          if git diff --quiet -- tests/contract/test_multimodal_gateway_response_normalization.py; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/contract/test_multimodal_gateway_response_normalization.py
+          git commit -m "style: format multimodal response normalization tests"
+          git push
