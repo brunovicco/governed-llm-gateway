@@ -149,8 +149,8 @@ packages/gateway-client/   thin typed consumer SDK
 config/                    model/ranking/provider configuration
 benchmarks/                offline datasets, scorers, runner, snapshots and promotion
 examples/                  bounded examples
- tests/                    contract/integration/e2e suites
- docs/                     durable project sources, evaluation docs and ADRs
+tests/                     contract/integration/e2e suites
+docs/                      durable project sources, evaluation docs and ADRs
 ```
 
 ## Validate

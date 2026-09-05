@@ -149,8 +149,8 @@ packages/gateway-client/   SDK cliente fino e tipado
 config/                    configuração de modelos/ranking/provedores
 benchmarks/                datasets, scorers, runner, snapshots e promoção offline
 examples/                  exemplos limitados
- tests/                    suítes contract/integration/e2e
- docs/                     fontes duráveis, avaliação e ADRs
+tests/                     suítes contract/integration/e2e
+docs/                      fontes duráveis, avaliação e ADRs
 ```
 
 ## Validação
