@@ -70,7 +70,7 @@ def load_classification_dataset(path: Path) -> BenchmarkDataset:
     if len(case_ids) != len(set(case_ids)):
         raise ValueError("classification v1 case IDs must be unique")
 
-    label_counts = {label: 0 for label in CLASSIFICATION_LABELS}
+    label_counts = dict.fromkeys(CLASSIFICATION_LABELS, 0)
     for case in dataset.cases:
         validate_classification_case(case)
         label = _validated_expected_label(case.expected)
