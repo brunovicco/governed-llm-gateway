@@ -64,9 +64,12 @@ def test_code_generation_scorer_compares_ast_without_execution() -> None:
 def test_code_generation_scorer_rejects_dangerous_candidate_primitives() -> None:
     case = load_code_generation_dataset(_DATASET).cases[0]
 
-    assert score_code_generation(case, "import subprocess\ndef double(value):\n    return value * 2\n") == Decimal("0")
-    assert score_code_generation(case, "def double(value):\n    return eval('value * 2')\n") == Decimal("0")
-    assert score_code_generation(case, "def double(value):\n    return open('x')\n") == Decimal("0")
+    subprocess_candidate = "import subprocess\ndef double(value):\n    return value * 2\n"
+    eval_candidate = "def double(value):\n    return eval('value * 2')\n"
+    open_candidate = "def double(value):\n    return open('x')\n"
+    assert score_code_generation(case, subprocess_candidate) == Decimal("0")
+    assert score_code_generation(case, eval_candidate) == Decimal("0")
+    assert score_code_generation(case, open_candidate) == Decimal("0")
 
 
 def test_code_generation_pipeline_reaches_explicit_promotion() -> None:
