@@ -110,7 +110,7 @@ def _case_payload(case: BenchmarkCase) -> dict[str, object]:
 
 
 def _target_payload(target: BenchmarkTarget) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "target_id": target.target_id,
         "provider": target.provider,
         "model": target.model,
@@ -118,6 +118,9 @@ def _target_payload(target: BenchmarkTarget) -> dict[str, object]:
         "configuration": target.configuration,
         "source_date": target.source_date.isoformat(),
     }
+    if target.api_family is not None:
+        payload["api_family"] = target.api_family
+    return payload
 
 
 def _observation_payload(item: BenchmarkObservation) -> dict[str, object]:
