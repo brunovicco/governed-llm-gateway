@@ -1,6 +1,6 @@
 # Initial Benchmark Workload Matrix
 
-Status: **COMPLETE — 5/5 roadmap workloads implemented**
+Status: **COMPLETE — 5/5 initial roadmap workloads implemented**
 
 The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority.
 
@@ -80,6 +80,24 @@ The v1 contract scores an observable proposed trajectory:
 
 It evaluates sequence and handoffs without hidden reasoning. `execute_steps=false` is mandatory. It does not execute agents, tools, human escalations or side effects and it is not a multi-agent runtime.
 
+## Post-core multimodal extension
+
+The roadmap also names `multimodal analysis` as a future benchmark class after core execution is stable. The gateway now has a reviewed provider-neutral image-input contract plus native translations for OpenAI Responses, Anthropic Messages and Google Gemini.
+
+A multimodal benchmark must still evaluate **actual visual input**. Text-only prompts describing an imagined image are not accepted as a multimodal benchmark substitute.
+
+The first post-core benchmark increment therefore establishes a credential-free local fixture boundary before defining `multimodal_analysis-v1`:
+
+```text
+strict public fixture manifest
+  -> normalized relative path + media type + SHA-256
+  -> root-containment / size / digest validation
+  -> verified fixture bytes
+  -> future multimodal BenchmarkExecutor
+```
+
+This foundation does not add a new `BenchmarkWorkload`, scorer, scorecard semantics, snapshot promotion, or ranking evidence. A later reviewed increment must bind cases to verified fixture IDs and define deterministic visual-task scoring.
+
 ## Authority boundary
 
 The permanent project invariant remains:
@@ -112,18 +130,18 @@ Default CI remains credential-free and deterministic:
 - snapshot/digest behavior is replayable;
 - architecture/security/secret gates cover benchmark code.
 
-After PR #24 the validated `main` baseline is:
+Before the multimodal benchmark-fixture foundation branch, the validated `main` baseline after PR #28 is:
 
-- 421 tests passed;
-- 81.32% aggregate coverage;
-- mypy and Ruff passed across 132 source/files;
-- Bandit 0 issues across 12,883 LOC;
-- pip-audit no known vulnerabilities;
+- 448 tests passed;
+- 81.64% aggregate coverage;
+- mypy and Ruff passed across 133 source files;
+- Bandit reported no issues;
+- pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed;
-- `main` quality run `33968458431` — PASS.
+- `main` commit `3428d7776cda5ab9374f1c5cae1ee4b66f27525c` passed the post-merge quality workflow.
 
 ## Next boundary
 
-Completing 5/5 does **not** create a new Phase 14 consumer migration exception.
+Completing the initial 5/5 matrix and adding consumer-agnostic multimodal foundations do **not** create a new Phase 14 consumer migration exception.
 
-Issue #18 still defers OpsLens reconciliation and explicitly prevents starting RAGForge in parallel unless the normative integration order is revised. Until that changes, additional gateway work should be consumer-agnostic and independently justified.
+Issue #18 still defers OpsLens reconciliation and explicitly prevents starting RAGForge in parallel unless the normative integration order is revised. Until that changes, additional gateway work should remain consumer-agnostic and independently justified.
