@@ -178,13 +178,11 @@ def _validated_expected(expected: JsonValue) -> dict[str, str]:
     normalized: dict[str, str] = {}
     for quadrant in _QUADRANTS:
         value = expected.get(quadrant)
-        valid = (
-            isinstance(value, str)
-            and bool(value)
-            and value.strip() == value
-            and value.casefold() == value
-        )
-        if not valid:
+        if not isinstance(value, str):
+            raise ValueError(
+                "multimodal analysis v1 expected colors must be lowercase normalized strings"
+            )
+        if not value or value.strip() != value or value.casefold() != value:
             raise ValueError(
                 "multimodal analysis v1 expected colors must be lowercase normalized strings"
             )
