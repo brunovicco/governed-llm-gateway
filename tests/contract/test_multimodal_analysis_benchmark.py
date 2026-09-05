@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from benchmarks.contracts import BenchmarkCase, BenchmarkWorkload
+from benchmarks.contracts import BenchmarkCase, BenchmarkWorkload, JsonValue
 from benchmarks.fixture_publication import load_fixture_publication_manifest
 from benchmarks.fixtures import load_fixture_manifest
 from benchmarks.scoring import build_default_scorers
@@ -18,7 +18,7 @@ from benchmarks.workloads.multimodal_analysis import (
 
 _FIXTURE_ID = "multimodal.quadrants_rgb_001"
 _DIGEST = "sha256:c016362530bd9a02aff8d3bf0b7114b38d7499b03e2acacb566f657f94bb5f76"
-_EXPECTED = {
+_EXPECTED: dict[str, JsonValue] = {
     "top_left": "red",
     "top_right": "green",
     "bottom_left": "blue",
@@ -96,10 +96,8 @@ def test_multimodal_analysis_scores_each_quadrant_independently() -> None:
 
 
 def test_multimodal_analysis_rejects_wrong_shape_without_partial_credit() -> None:
-    assessment = assess_multimodal_analysis(
-        _case(),
-        {"top_left": "red", "top_right": "green"},
-    )
+    output: JsonValue = {"top_left": "red", "top_right": "green"}
+    assessment = assess_multimodal_analysis(_case(), output)
 
     assert assessment.score == Decimal("0")
     assert assessment.matched_quadrants == 0
