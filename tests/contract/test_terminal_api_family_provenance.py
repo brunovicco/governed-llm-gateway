@@ -130,7 +130,7 @@ def _decision(deployment: ModelDeployment) -> RankingDecision:
                 availability=Decimal("0"),
                 total=Decimal("1"),
             ),
-            estimated_cost_usd=None,
+            estimated_cost_usd=Decimal("0"),
         ),
         alternatives=(),
         rejected_candidates=(),
