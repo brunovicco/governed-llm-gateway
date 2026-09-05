@@ -65,8 +65,7 @@ def test_successful_json_content_becomes_provider_call_evidence() -> None:
         request_id=_REQUEST_ID,
         status=ExecutionStatus.SUCCEEDED,
         content=(
-            '{"top_left":"red","top_right":"green",'
-            '"bottom_left":"blue","bottom_right":"yellow"}'
+            '{"top_left":"red","top_right":"green","bottom_left":"blue","bottom_right":"yellow"}'
         ),
         routing=_routing(),
         execution=_execution(),
