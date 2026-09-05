@@ -346,6 +346,7 @@ class StreamingExecutionService:
                                         attempt_number=attempt_number,
                                         fallback_index=len(fallback_sequence) - 1,
                                         api_family=deployment.api_family,
+                                        max_output_tokens=provider_request.max_output_tokens,
                                     )
                                     sequence += 1
                                     yield GatewayStreamEvent(
@@ -386,6 +387,7 @@ class StreamingExecutionService:
                             attempt_number=attempt_number,
                             fallback_index=len(fallback_sequence) - 1,
                             api_family=deployment.api_family,
+                            max_output_tokens=provider_request.max_output_tokens,
                         )
                         if span is not None:
                             failure_attributes: dict[str, object] = {

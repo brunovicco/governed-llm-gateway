@@ -573,6 +573,8 @@ def _event_payload(event: GatewayStreamEvent) -> dict[str, object]:
         execution["fallback_index"] = event.execution.fallback_index
         if event.execution.api_family is not None:
             execution["api_family"] = event.execution.api_family
+        if event.execution.max_output_tokens is not None:
+            execution["max_output_tokens"] = event.execution.max_output_tokens
         if event.execution.provider_request_id is not None:
             execution["provider_request_id"] = event.execution.provider_request_id
         if event.execution.finish_reason is not None:

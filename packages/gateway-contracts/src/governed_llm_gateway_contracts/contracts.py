@@ -392,6 +392,7 @@ class ProviderExecution:
     attempt_number: int = 1
     fallback_index: int = 0
     api_family: str | None = None
+    max_output_tokens: int | None = None
 
     def __post_init__(self) -> None:
         """Validate concrete provider identity and measured execution metadata."""
@@ -410,6 +411,8 @@ class ProviderExecution:
             raise ValueError("provider execution attempt_number must be positive")
         if self.fallback_index < 0:
             raise ValueError("provider execution fallback_index must be non-negative")
+        if self.max_output_tokens is not None and self.max_output_tokens <= 0:
+            raise ValueError("provider execution max_output_tokens must be positive when present")
 
 
 @dataclass(frozen=True, slots=True)
