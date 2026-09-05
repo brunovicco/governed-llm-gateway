@@ -137,7 +137,8 @@ def _require_observed_target_identity(call: ProviderCall, target: BenchmarkTarge
     if call.provider is None:
         if target.api_family is not None or target.max_output_tokens is not None:
             raise BenchmarkTargetMismatchError(
-                "declared benchmark target execution attestation requires terminal execution evidence"
+                "declared benchmark target execution attestation requires "
+                "terminal execution evidence"
             )
         return
 
@@ -151,7 +152,8 @@ def _require_observed_target_identity(call: ProviderCall, target: BenchmarkTarge
     if target.api_family is not None:
         if call.api_family is None:
             raise BenchmarkTargetMismatchError(
-                "declared benchmark target api_family requires observed terminal api_family evidence"
+                "declared benchmark target api_family requires observed "
+                "terminal api_family evidence"
             )
         if call.api_family != target.api_family:
             raise BenchmarkTargetMismatchError(
