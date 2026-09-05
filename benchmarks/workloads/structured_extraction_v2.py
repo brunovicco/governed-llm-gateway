@@ -209,9 +209,7 @@ def _schema_types(schema: Mapping[str, JsonValue], *, path: str) -> tuple[str, .
     if isinstance(raw_type, str):
         types = (raw_type,)
     elif (
-        isinstance(raw_type, list)
-        and raw_type
-        and all(isinstance(item, str) for item in raw_type)
+        isinstance(raw_type, list) and raw_type and all(isinstance(item, str) for item in raw_type)
     ):
         types = tuple(item for item in raw_type if isinstance(item, str))
     else:

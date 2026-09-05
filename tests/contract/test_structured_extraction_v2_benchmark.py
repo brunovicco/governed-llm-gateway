@@ -179,9 +179,7 @@ def test_extra_field_is_rejected_without_permissive_parsing() -> None:
     assert ("unexpected_field", "/internal_note") in {
         (issue.code, issue.path) for issue in assessment.issues
     }
-    assert score_structured_extraction_v2(invoice, "{\"invoice_id\":\"INV-204\"}") == Decimal(
-        "0"
-    )
+    assert score_structured_extraction_v2(invoice, '{"invoice_id":"INV-204"}') == Decimal("0")
 
 
 def test_wrong_integer_type_is_schema_and_value_failure() -> None:
