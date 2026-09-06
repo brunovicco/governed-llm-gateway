@@ -235,7 +235,9 @@ def _validate_source_window(
             )
 
 
-def _sample_sort_key(sample: OperationalAttemptSample) -> tuple[datetime, str, str, str, int, int]:
+def _sample_sort_key(
+    sample: OperationalAttemptSample,
+) -> tuple[datetime, str, str, str, int, int]:
     return (
         sample.observed_at,
         str(sample.gateway_request_id),
