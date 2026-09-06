@@ -260,14 +260,14 @@ Default CI remains credential-free and deterministic:
 - snapshot/digest behavior is replayable;
 - architecture/security/secret gates cover benchmark code.
 
-Latest validated `main` baseline after PR #73:
+Latest validated `main` baseline after PR #76:
 
-- commit `09adba564cd996f03f8363f44dce7f2b6fd5c303`;
-- post-merge quality run `34060829312` — PASS;
-- 756 tests passed;
-- 82.46% aggregate coverage;
-- strict mypy and Ruff passed across 180 source files;
-- Bandit reported no issues across 16,925 LOC;
+- commit `455c11a24e09adddcfff9fc8c9578d74ec6c6606`;
+- post-merge quality run `34062983396` — PASS;
+- 767 tests passed;
+- 82.47% aggregate coverage;
+- strict mypy and Ruff passed across 182 source files;
+- Bandit reported no issues across 17,133 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
@@ -277,4 +277,4 @@ All roadmap-listed benchmark classes now have reviewed versioned contracts. That
 
 Issue #18 still defers OpsLens reconciliation and explicitly prevents starting RAGForge in parallel unless the normative integration order is revised.
 
-Until that changes, further gateway work should be consumer-agnostic and independently justified. The Roadmap measurement audit preserves every currently reviewed deterministic quality dimension, including bounded `pt_br_quality`. PR #70 preserves versioned recent operational evidence separately from immediate runtime health and ranking, and PR #73 adds bounded deterministic materialization without ranking authority. A future recorder/shared-source increment must preserve metadata-only completeness semantics and must not make evidence collection part of inference availability; online score normalization remains a separate future versioned policy decision. A future live benchmark executor must use normal gateway authorization and must not introduce a benchmark-only provider/model forcing path.
+Until that changes, further gateway work should be consumer-agnostic and independently justified. The Roadmap measurement audit preserves every currently reviewed deterministic quality dimension, including bounded `pt_br_quality`. PR #70 preserves versioned recent operational evidence separately from immediate runtime health and ranking, PR #73 adds bounded deterministic materialization, and PR #76 adds optional best-effort local runtime recording with conservative completeness invalidation. A future shared-source/export increment must remain decoupled from provider execution and preserve metadata-only completeness semantics; online score normalization remains a separate future versioned policy decision. A future live benchmark executor must use normal gateway authorization and must not introduce a benchmark-only provider/model forcing path.

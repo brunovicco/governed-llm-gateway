@@ -1,6 +1,6 @@
 # Recent Operational Evidence
 
-Status: **Schema `1.0` and bounded process-local materialization are COMPLETE through PR #73. Issue #75 adds optional best-effort runtime attempt recording for both bounded executors. Production/shared sources and online ranking policy remain pending.**
+Status: **COMPLETE through PR #76 for schema `1.0`, bounded process-local materialization and optional best-effort runtime attempt recording in both bounded executors. Production/shared sources and online ranking policy remain pending.**
 
 ## Purpose
 
@@ -90,7 +90,7 @@ The materializer sorts source samples deterministically, rejects samples outside
 
 ## Best-effort runtime recording
 
-Issue #75 adds the `OperationalAttemptRecorder` application port and optional recorder dependencies to both `ResilientExecutionService` and `StreamingExecutionService`.
+PR #76 adds the `OperationalAttemptRecorder` application port and optional recorder dependencies to both `ResilientExecutionService` and `StreamingExecutionService`.
 
 The recorder boundary is deliberately **process-local, synchronous, non-networked and best-effort**. It is not a remote delivery interface. When no recorder is configured, the existing execution path remains semantically unchanged.
 
@@ -194,7 +194,7 @@ recent operational evidence snapshot
 
 A future combination step must be explicit, versioned, deterministic, reversible, auditable, and subordinate to authorization and eligibility.
 
-## Explicitly not implemented by issue #75
+## Explicitly not implemented by PR #76
 
 - no remote/networked recorder sink in provider execution;
 - no production/shared operational-evidence source;
@@ -209,6 +209,6 @@ A future combination step must be explicit, versioned, deterministic, reversible
 
 ## Next reviewed step
 
-After issue #75 is merged and validated, a later consumer-agnostic increment may define a production/shared metadata-only source or exporter that is decoupled from provider execution and has explicit completeness semantics. Remote delivery must not become a required provider-execution dependency. Only after a complete reviewed evidence-production path exists should a separate versioned policy define how recent operational measurements may influence score dimensions.
+After PR #76, a later consumer-agnostic increment may define a production/shared metadata-only source or exporter that is decoupled from provider execution and has explicit completeness semantics. Remote delivery must not become a required provider-execution dependency. Only after a complete reviewed evidence-production path exists should a separate versioned policy define how recent operational measurements may influence score dimensions.
 
 Issue #18 remains authoritative for Phase 14 sequencing: OpsLens stays deferred, and RAGForge must not start in parallel unless the normative order is explicitly revised.
