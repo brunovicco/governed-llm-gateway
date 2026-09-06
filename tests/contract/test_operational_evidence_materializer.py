@@ -98,7 +98,10 @@ def test_attempt_sample_is_immutable_and_rejects_invalid_semantics() -> None:
             error_kind=None,
             latency_ms=1,
         )
-    with pytest.raises(OperationalEvidenceMaterializationError, match="runtime_workload must be dotted"):
+    with pytest.raises(
+        OperationalEvidenceMaterializationError,
+        match="runtime_workload must be dotted",
+    ):
         _sample(seconds=1, workload="raganswer")
     with pytest.raises(OperationalEvidenceMaterializationError, match="attempt_number"):
         _sample(seconds=1, attempt=0)
@@ -132,18 +135,28 @@ def test_in_memory_source_requires_complete_recent_coverage() -> None:
     store.record(_sample(seconds=5))
 
     assert store.coverage_start == BASE
-    assert asyncio.run(store.read_window(window_start=BASE, window_end=BASE + timedelta(seconds=10))) == (
-        _sample(seconds=5),
+    result = asyncio.run(
+        store.read_window(
+            window_start=BASE,
+            window_end=BASE + timedelta(seconds=10),
+        )
     )
+    assert result == (_sample(seconds=5),)
 
-    with pytest.raises(OperationalEvidenceMaterializationError, match="before process-local source coverage"):
+    with pytest.raises(
+        OperationalEvidenceMaterializationError,
+        match="before process-local source coverage",
+    ):
         asyncio.run(
             store.read_window(
                 window_start=BASE - timedelta(seconds=1),
                 window_end=BASE + timedelta(seconds=1),
             )
         )
-    with pytest.raises(OperationalEvidenceMaterializationError, match="window_end cannot be in the future"):
+    with pytest.raises(
+        OperationalEvidenceMaterializationError,
+        match="window_end cannot be in the future",
+    ):
         asyncio.run(
             store.read_window(
                 window_start=BASE,
@@ -327,7 +340,10 @@ def test_materializer_rejects_empty_window_and_future_capture_boundary() -> None
         collector_version="collector-v1",
         clock=clock,
     )
-    with pytest.raises(OperationalEvidenceMaterializationError, match="contains no provider-attempt"):
+    with pytest.raises(
+        OperationalEvidenceMaterializationError,
+        match="contains no provider-attempt",
+    ):
         asyncio.run(
             empty.materialize(
                 snapshot_version="window-v1",
