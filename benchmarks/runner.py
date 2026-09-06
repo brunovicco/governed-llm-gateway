@@ -11,13 +11,19 @@ from typing import Protocol
 from .contracts import (
     BenchmarkCase,
     BenchmarkObservation,
+    BenchmarkQualityMetric,
     BenchmarkTarget,
     BenchmarkWorkload,
     ObservationStatus,
     ProviderCall,
     Scorecard,
 )
-from .scoring import DeterministicScorer, ensure_supported_scorers, require_scorer
+from .scoring import (
+    DeterministicScorer,
+    ensure_supported_scorers,
+    evaluate_scorer,
+    require_scorer,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,10 +112,11 @@ class BenchmarkRunner:
             )
 
         _require_observed_target_identity(call, target)
-        score = require_scorer(self._scorers, case.scorer)(case, call.output)
+        scorer = require_scorer(self._scorers, case.scorer)
+        measurement = evaluate_scorer(scorer, case, call.output)
         status = (
             ObservationStatus.SUCCEEDED
-            if score >= self._quality_success_threshold
+            if measurement.score >= self._quality_success_threshold
             else ObservationStatus.QUALITY_FAILURE
         )
         return BenchmarkObservation(
@@ -117,7 +124,7 @@ class BenchmarkRunner:
             case_id=case.case_id,
             workload=case.workload,
             status=status,
-            quality_score=score,
+            quality_score=measurement.score,
             latency_ms=call.latency_ms,
             ttft_ms=call.ttft_ms,
             input_units=call.input_units,
@@ -129,6 +136,7 @@ class BenchmarkRunner:
             deployment=call.deployment,
             api_family=call.api_family,
             max_output_tokens=call.max_output_tokens,
+            quality_metrics=measurement.metrics,
         )
 
 
@@ -252,7 +260,32 @@ def _build_scorecard(
             else Decimal("0")
         ),
         provider_error_counts=dict(sorted(provider_error_counts.items())),
+        mean_quality_metrics=_mean_quality_metrics(completed),
     )
+
+
+def _mean_quality_metrics(
+    completed: Sequence[BenchmarkObservation],
+) -> dict[BenchmarkQualityMetric, Decimal]:
+    if not completed:
+        return {}
+    metric_sets = {frozenset(item.quality_metrics) for item in completed}
+    if len(metric_sets) > 1:
+        raise ValueError(
+            "completed observations in one target/workload must expose consistent quality metrics"
+        )
+    metric_keys = next(iter(metric_sets))
+    if not metric_keys:
+        return {}
+    denominator = Decimal(len(completed))
+    return {
+        metric: sum(
+            (item.quality_metrics[metric] for item in completed),
+            start=Decimal("0"),
+        )
+        / denominator
+        for metric in sorted(metric_keys, key=lambda item: item.value)
+    }
 
 
 def _ratio(numerator: int, denominator: int) -> Decimal:
