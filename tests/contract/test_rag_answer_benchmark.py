@@ -124,9 +124,7 @@ def test_rag_answer_scorer_fails_closed_on_forbidden_claim() -> None:
     assessment = assess_rag_answer(case, output)
 
     assert assessment.score == Decimal("0")
-    assert assessment.issues == (
-        RagAnswerIssue("unsupported_claim", "/answer/forbidden_claims/0"),
-    )
+    assert assessment.issues == (RagAnswerIssue("unsupported_claim", "/answer/forbidden_claims/0"),)
 
 
 def test_rag_answer_scorer_rejects_invalid_top_level_shape() -> None:
