@@ -191,7 +191,7 @@ Final consumer validation:
 - 194 tests passed;
 - coverage 86.19%;
 - strict mypy and Ruff passed;
-- Bandit 0 issues;
+- Bandit 0 findings;
 - architecture dependency check passed.
 
 ### Case 2 — getnet-multi-agent-support-v2 — COMPLETE
