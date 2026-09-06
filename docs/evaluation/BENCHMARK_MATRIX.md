@@ -143,7 +143,7 @@ PRs #26–#28 established HTTPS URL image input for user messages with explicit 
 
 ### Fixture and workload evidence
 
-PRs #29–#31 added a credential-free content-addressed multimodal fixture foundation. PR #32 added `multimodal-analysis-v1`, backed by the real deterministic `multimodal.quadrants_rgb_001` PNG.
+PRs #29–#31 added a credential-free fixture integrity/publication path. PR #32 added `multimodal-analysis-v1`, backed by the real deterministic `multimodal.quadrants_rgb_001` PNG.
 
 Default CI does not fetch the published fixture or call a provider.
 
