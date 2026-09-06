@@ -125,6 +125,9 @@ Additional roadmap-listed post-core evaluation classes were then added without c
 - PR #50 — `security-analysis-v1`, a defensive structured-findings benchmark over synthetic Python with six reviewed security rules, two clean cases, deterministic set-F1 scoring, and no candidate execution or exploitation path.
 - PR #51 — `tool-selection-v1`, an exact reviewed tool-or-no-tool benchmark over immutable `support-tools-v1`, with no argument generation or tool execution.
 - PR #52 — `tool-argument-generation-v1`, a fixed-reviewed-tool benchmark with recursive exact, type-sensitive argument scoring and no tool selection or execution.
+- PR #50 — `security-analysis-v1`, a defensive structured-findings benchmark over synthetic Python with six reviewed security rules, two clean cases, deterministic set-F1 scoring, and no candidate execution or exploitation path.
+- PR #51 — `tool-selection-v1`, an exact reviewed tool-or-no-tool benchmark over immutable `support-tools-v1`, with no argument generation or tool execution.
+- PR #52 — `tool-argument-generation-v1`, a fixed-reviewed-tool benchmark with recursive exact, type-sensitive argument scoring and no tool selection or execution.
 
 The benchmark target catalog is intentionally versioned rather than rewritten:
 

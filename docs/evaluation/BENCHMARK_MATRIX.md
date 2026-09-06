@@ -21,6 +21,9 @@ The Phase 10 framework originally established a generic provider-neutral benchma
 | `security_analysis` | `security-analysis-v1` | defensive structured security findings with deterministic set-F1 scoring; candidate code is never executed and exploitation is out of scope | #50 |
 | `tool_selection` | `tool-selection-v1` | exact reviewed tool-or-no-tool selection from immutable `support-tools-v1`; arguments and execution are out of scope | #51 |
 | `tool_argument_generation` | `tool-argument-generation-v1` | fixed reviewed tool plus recursive exact, type-sensitive argument matching; selection and execution are out of scope | #52 |
+| `security_analysis` | `security-analysis-v1` | defensive structured security findings with deterministic set-F1 scoring; candidate code is never executed and exploitation is out of scope | #50 |
+| `tool_selection` | `tool-selection-v1` | exact reviewed tool-or-no-tool selection from immutable `support-tools-v1`; arguments and execution are out of scope | #51 |
+| `tool_argument_generation` | `tool-argument-generation-v1` | fixed reviewed tool plus recursive exact, type-sensitive argument matching; selection and execution are out of scope | #52 |
 
 `structured-extraction-v1` is preserved as historical benchmark semantics. The v2 contract is the current hardened structured-extraction reference; v1 evidence must not be silently rewritten.
 
@@ -107,6 +110,18 @@ The contract deliberately does not infer an exact token count or provider contex
 `classification-v1` evaluates exact closed-set classification over six reviewed synthetic support-intent labels in `support-intents-v1`, with exactly two cases per label.
 
 The scorer requires exactly `{"label": "<reviewed-label>"}`. Unknown labels, wrong types, extra/missing fields or the wrong reviewed label score zero. No embeddings, external data or model-as-judge path is used.
+
+### security_analysis
+
+`security-analysis-v1` evaluates defensive structured findings over checked-in synthetic Python. Its reviewed security vocabulary is separate from `code-review-v1`; exact finding validity and set-F1 scoring are deterministic, candidate code is never executed, and exploitation instructions are outside the contract.
+
+### tool_selection
+
+`tool-selection-v1` measures only exact reviewed tool choice or explicit no-tool choice from immutable `support-tools-v1`. Argument generation and tool execution are intentionally excluded so selection failures remain attributable.
+
+### tool_argument_generation
+
+`tool-argument-generation-v1` fixes the reviewed tool identity in the case and scores only the generated `arguments` object with recursive exact, type-sensitive comparison. Tool selection and execution remain separate boundaries; `selected_tool` is benchmark ground truth, not runtime authorization.
 
 ### security_analysis
 
