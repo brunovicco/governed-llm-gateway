@@ -161,6 +161,16 @@ def test_rag_answer_contract_rejects_unknown_expected_source() -> None:
         validate_rag_answer_case(drifted)
 
 
+def test_rag_answer_contract_rejects_reference_citations_without_fact_support() -> None:
+    case = load_dataset(_DATASET_PATH).cases[0]
+    expected = _expected_output(0)
+    expected["citations"] = ["billing-faq"]
+    drifted = replace(case, expected=expected)
+
+    with pytest.raises(ValueError, match="must support every required fact"):
+        validate_rag_answer_case(drifted)
+
+
 def test_rag_answer_contract_rejects_duplicate_source_ids() -> None:
     case = load_dataset(_DATASET_PATH).cases[0]
     sources = deepcopy(case.metadata["sources"])
