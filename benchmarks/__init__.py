@@ -4,6 +4,7 @@ from .contracts import (
     BenchmarkCase,
     BenchmarkDataset,
     BenchmarkObservation,
+    BenchmarkQualityMetric,
     BenchmarkSnapshot,
     BenchmarkTarget,
     BenchmarkWorkload,
@@ -19,7 +20,12 @@ from .runner import (
     BenchmarkTargetMismatchError,
     build_scorecards,
 )
-from .scoring import DeterministicScorer, build_default_scorers
+from .scoring import (
+    DeterministicScorer,
+    QualityMeasurement,
+    build_default_scorers,
+    evaluate_scorer,
+)
 from .snapshot import (
     build_snapshot,
     canonical_snapshot_json,
@@ -35,6 +41,7 @@ __all__ = [
     "BenchmarkExecutor",
     "BenchmarkObservation",
     "BenchmarkProviderFailure",
+    "BenchmarkQualityMetric",
     "BenchmarkRunner",
     "BenchmarkSnapshot",
     "BenchmarkTarget",
@@ -43,12 +50,14 @@ __all__ = [
     "DeterministicScorer",
     "ObservationStatus",
     "ProviderCall",
+    "QualityMeasurement",
     "Scorecard",
     "build_default_scorers",
     "build_scorecards",
     "build_snapshot",
     "canonical_snapshot_json",
     "dataset_digest",
+    "evaluate_scorer",
     "load_dataset",
     "load_targets",
     "persist_snapshot",
