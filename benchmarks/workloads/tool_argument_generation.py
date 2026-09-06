@@ -152,7 +152,9 @@ def score_tool_argument_generation(case: BenchmarkCase, output: JsonValue) -> De
 
 def _validated_expected_arguments(expected: JsonValue) -> dict[str, JsonValue]:
     if not isinstance(expected, dict) or set(expected) != {"arguments"}:
-        raise ValueError("tool argument generation v1 expected output must contain exactly arguments")
+        raise ValueError(
+            "tool argument generation v1 expected output must contain exactly arguments"
+        )
     arguments = expected.get("arguments")
     if not isinstance(arguments, dict):
         raise ValueError("tool argument generation v1 expected arguments must be an object")
