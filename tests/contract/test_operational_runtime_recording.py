@@ -376,7 +376,9 @@ def test_nonstream_fallback_records_actual_fallback_index() -> None:
         utc_clock=utc,
     )
 
-    result = asyncio.run(service.execute(_request(), _decision(primary, fallback), max_output_tokens=64))
+    result = asyncio.run(
+        service.execute(_request(), _decision(primary, fallback), max_output_tokens=64)
+    )
     samples = asyncio.run(_samples(store, utc))
 
     assert result.deployment.deployment_id == "deployment-b"
@@ -453,7 +455,9 @@ def test_circuit_open_and_resolution_failure_do_not_create_provider_attempt_samp
     assert asyncio.run(healthy_store.read_window(window_start=START, window_end=utc())) == ()
 
 
-def test_nonstream_cancellation_and_unexpected_exception_invalidate_without_fabricated_error() -> None:
+def test_nonstream_cancellation_and_unexpected_exception_invalidate_without_fabricated_error() -> (
+    None
+):
     for raised in (asyncio.CancelledError(), RuntimeError("unexpected adapter failure")):
         monotonic = MonotonicClock()
         utc = UtcClock()
@@ -473,7 +477,9 @@ def test_nonstream_cancellation_and_unexpected_exception_invalidate_without_fabr
 
         assert store.incomplete_through == START
         utc.advance(timedelta(seconds=1))
-        with pytest.raises(OperationalEvidenceMaterializationError, match="incomplete runtime history"):
+        with pytest.raises(
+            OperationalEvidenceMaterializationError, match="incomplete runtime history"
+        ):
             asyncio.run(store.read_window(window_start=START, window_end=utc()))
 
 
