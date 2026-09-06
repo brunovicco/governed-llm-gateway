@@ -125,6 +125,7 @@ Additional roadmap-listed post-core evaluation classes were then added without c
 - PR #50 — `security-analysis-v1`, a defensive structured-findings benchmark over synthetic Python with six reviewed security rules, two clean cases, deterministic set-F1 scoring, and no candidate execution or exploitation path.
 - PR #51 — `tool-selection-v1`, an exact reviewed tool-or-no-tool benchmark over immutable `support-tools-v1`, with no argument generation or tool execution.
 - PR #52 — `tool-argument-generation-v1`, a fixed-reviewed-tool benchmark with recursive exact, type-sensitive argument scoring and no tool selection or execution.
+- PR #55 — `multi-step-tool-use-v1`, a deterministic non-executing benchmark for reviewed two-to-three-step tool-call proposals using immutable synthetic intermediate-result context and separate positional selection/argument evidence.
 
 The benchmark target catalog is intentionally versioned rather than rewritten:
 
@@ -146,21 +147,21 @@ Shared benchmark properties remain:
 - no LLM-as-judge dependency in the default path;
 - benchmark/runtime evidence can affect ranking only inside the already-authorized and eligible set.
 
-Latest validated gateway baseline after PR #52:
+Latest validated gateway baseline after PR #55:
 
-`b12bda2a3ffdace9c8c75fe5d38e7a5e1fa673e7`
+`eadb4e7b0f87136a54c443051892181ce81617a8`
 
 Post-merge quality run:
 
-`34036693888` — PASS.
+`34038814451` — PASS.
 
 Validation:
 
-- 645 tests passed;
-- aggregate coverage 81.96%;
-- strict mypy passed across 165 source files;
-- Ruff lint/format passed across 165 files;
-- Bandit reported no issues across 15,059 LOC;
+- 661 tests passed;
+- aggregate coverage 82.00%;
+- strict mypy passed across 167 source files;
+- Ruff lint/format passed across 167 files;
+- Bandit reported no issues across 15,316 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
