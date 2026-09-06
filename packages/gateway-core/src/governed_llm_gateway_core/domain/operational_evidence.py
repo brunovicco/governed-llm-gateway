@@ -156,6 +156,42 @@ def build_operational_evidence_snapshot(
     )
 
 
+def create_operational_evidence_snapshot(
+    *,
+    snapshot_version: str,
+    collector_id: str,
+    collector_version: str,
+    window_start: datetime,
+    window_end: datetime,
+    captured_at: datetime,
+    records: tuple[OperationalEvidenceRecord, ...],
+) -> OperationalEvidenceSnapshot:
+    """Create canonical schema-1.0 evidence with a derived content identity."""
+    ordered = tuple(sorted(records, key=lambda item: (item.runtime_workload, item.deployment_id)))
+    payload = _snapshot_content_payload(
+        schema_version="1.0",
+        snapshot_version=snapshot_version,
+        collector_id=collector_id,
+        collector_version=collector_version,
+        window_start=window_start,
+        window_end=window_end,
+        captured_at=captured_at,
+        records=ordered,
+    )
+    evidence_id = _sha256_payload(payload)
+    return OperationalEvidenceSnapshot(
+        schema_version="1.0",
+        snapshot_version=snapshot_version,
+        collector_id=collector_id,
+        collector_version=collector_version,
+        window_start=window_start,
+        window_end=window_end,
+        captured_at=captured_at,
+        evidence_id=evidence_id,
+        records=ordered,
+    )
+
+
 def canonical_operational_evidence_json(snapshot: OperationalEvidenceSnapshot) -> str:
     """Return canonical JSON including the verified content-derived evidence ID."""
     payload = {
@@ -274,15 +310,38 @@ def _validate_record(record: OperationalEvidenceRecord) -> None:
 
 
 def _snapshot_payload_without_id(snapshot: OperationalEvidenceSnapshot) -> dict[str, object]:
+    return _snapshot_content_payload(
+        schema_version=snapshot.schema_version,
+        snapshot_version=snapshot.snapshot_version,
+        collector_id=snapshot.collector_id,
+        collector_version=snapshot.collector_version,
+        window_start=snapshot.window_start,
+        window_end=snapshot.window_end,
+        captured_at=snapshot.captured_at,
+        records=snapshot.records,
+    )
+
+
+def _snapshot_content_payload(
+    *,
+    schema_version: str,
+    snapshot_version: str,
+    collector_id: str,
+    collector_version: str,
+    window_start: datetime,
+    window_end: datetime,
+    captured_at: datetime,
+    records: tuple[OperationalEvidenceRecord, ...],
+) -> dict[str, object]:
     return {
-        "schema_version": snapshot.schema_version,
-        "snapshot_version": snapshot.snapshot_version,
-        "collector_id": snapshot.collector_id,
-        "collector_version": snapshot.collector_version,
-        "window_start": _datetime_text(snapshot.window_start),
-        "window_end": _datetime_text(snapshot.window_end),
-        "captured_at": _datetime_text(snapshot.captured_at),
-        "records": [_record_payload(record) for record in snapshot.records],
+        "schema_version": schema_version,
+        "snapshot_version": snapshot_version,
+        "collector_id": collector_id,
+        "collector_version": collector_version,
+        "window_start": _datetime_text(window_start),
+        "window_end": _datetime_text(window_end),
+        "captured_at": _datetime_text(captured_at),
+        "records": [_record_payload(record) for record in records],
     }
 
 
