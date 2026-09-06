@@ -18,6 +18,7 @@ from governed_llm_gateway_core.application.operational_evidence import (
     OperationalSampleOutcome,
 )
 from governed_llm_gateway_core.application.operational_sample_batch import (
+    OperationalSampleBatch,
     OperationalSampleBatchError,
     OperationalSampleBatchExporter,
     build_operational_sample_batch,
@@ -83,7 +84,7 @@ def _samples() -> tuple[OperationalAttemptSample, ...]:
     )
 
 
-def _batch():
+def _batch() -> OperationalSampleBatch:
     return create_operational_sample_batch(
         batch_version="runtime-samples-v1",
         source_instance_id="gateway-replica-a",
