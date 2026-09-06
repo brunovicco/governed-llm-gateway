@@ -4,7 +4,7 @@
 
 Gateway reutilizável e neutro em relação a provedores de LLM para **resolução e execução governada de modelos**.
 
-Status: **Phases 0–13 concluídas; Phase 14 em andamento — Cases 1/2 concluídos, Case 3 deferido. Todas as classes de benchmark listadas no roadmap estão representadas por contratos determinísticos revisados. Evidência offline de qualidade, saúde imediata de runtime e evidência operacional recente versionada com materialização process-local limitada permanecem fronteiras explícitas e separadas; nenhuma policy de ranking por telemetria online está ativa.**
+Status: **Phases 0–13 concluídas; Phase 14 em andamento — Cases 1/2 concluídos, Case 3 deferido. Todas as classes de benchmark listadas no roadmap estão representadas por contratos determinísticos revisados. Evidência offline de qualidade, saúde imediata de runtime e evidência operacional recente versionada com materialização process-local limitada e gravação best-effort de tentativas de runtime permanecem fronteiras explícitas e separadas; nenhuma policy de ranking por telemetria online está ativa.**
 
 O gateway funciona como Policy Enforcement Point (PEP) operacional entre o workload declarado pela aplicação e o deployment concreto de LLM escolhido para execução.
 
@@ -58,7 +58,7 @@ As Phases 0–13 estão concluídas e estabelecem:
 - integração opcional com Verifiable AI Governance e evidência de runtime;
 - proveniência terminal de execução provider-neutral preservada por SSE/API/SDK;
 - evidência revisada de componentes de qualidade de benchmark preservada em snapshots imutáveis sem promoção implícita ou autoridade de roteamento;
-- schema `1.0` estrito e content-addressed para evidência operacional recente com materialização process-local limitada e fail-closed, separado da saúde e não consumido pelo ranking.
+- schema `1.0` estrito e content-addressed para evidência operacional recente, materialização process-local limitada/fail-closed e gravação opcional best-effort de tentativas de runtime, separados da saúde e não consumidos pelo ranking.
 
 A Phase 14 migra consumidores reais incrementalmente na ordem normativa:
 
@@ -169,9 +169,9 @@ Evidência opcional desconhecida permanece ausente em vez de ser sintetizada. Ev
 
 ## Evidência operacional recente
 
-O PR #70 adiciona um artefato schema `1.0` estrito, imutável e content-addressed para janelas operacionais recentes limitadas. O PR #73 adiciona um materializer determinístico sobre samples explícitos, timestamped e metadata-only de tentativas reais do provider, além de uma fonte process-local limitada que falha de forma fechada quando não consegue provar a completude da janela solicitada.
+O PR #70 adiciona um artefato schema `1.0` estrito, imutável e content-addressed para janelas operacionais recentes limitadas. O PR #73 adiciona materialização determinística de samples explícitos, timestamped e metadata-only de tentativas reais do provider, e o PR #76 adiciona gravação opcional best-effort e process-local nos dois executores limitados, com invalidação conservadora de completude.
 
-Isso permanece separado de `InMemoryHealthTracker` / `DeploymentHealthSnapshot`, que continuam como estado imediato e process-local de resiliência/elegibilidade. Wiring do recorder de runtime, fonte de samples compartilhada/de produção e adapters de consulta a backend de métricas continuam pendentes. Essa evidência não altera `StaticDeploymentScore`, pesos de ranking, elegibilidade ou autorização; qualquer scoring online futuro ainda exige uma policy versionada explícita e separada.
+Isso permanece separado de `InMemoryHealthTracker` / `DeploymentHealthSnapshot`, que continuam como estado imediato e process-local de resiliência/elegibilidade. Falha do recorder, cancelamento do caller ou uma falha pós-call não representável não podem fabricar provider-error evidence nem se tornar dependência de disponibilidade da inferência. Fonte de samples compartilhada/de produção e adapters de consulta a backend de métricas continuam pendentes. Essa evidência não altera `StaticDeploymentScore`, pesos de ranking, elegibilidade ou autorização; qualquer scoring online futuro ainda exige uma policy versionada explícita e separada.
 
 Veja `docs/evaluation/OPERATIONAL_EVIDENCE.md`.
 
@@ -196,16 +196,16 @@ uv sync --frozen
 uv run python scripts/quality_gate.py
 ```
 
-Baseline validado atual do `main` após o PR #73 (`09adba564cd996f03f8363f44dce7f2b6fd5c303`):
+Baseline validado atual do `main` após o PR #76 (`455c11a24e09adddcfff9fc8c9578d74ec6c6606`):
 
-- **756 testes passaram**;
-- **82,46% de cobertura agregada** (threshold 80%);
-- mypy passou em **180 arquivos fonte**;
-- Ruff lint/format passou em **180 arquivos**;
-- Bandit reportou **0 issues** em 16.925 LOC;
+- **767 testes passaram**;
+- **82,47% de cobertura agregada** (threshold 80%);
+- mypy passou em **182 arquivos fonte**;
+- Ruff lint/format passou em **182 arquivos**;
+- Bandit reportou **0 issues** em 17.133 LOC;
 - pip-audit reportou **nenhuma vulnerabilidade conhecida**;
 - architecture check, secret scan e Phase 0 gate passaram;
-- quality run pós-merge no `main` `34060829312` — **PASS**.
+- quality run pós-merge no `main` `34062983396` — **PASS**.
 
 O warning conhecido do Starlette TestClient sobre `httpx`/`httpx2` continua não bloqueante.
 

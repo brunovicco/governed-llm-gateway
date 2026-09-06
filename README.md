@@ -4,7 +4,7 @@
 
 Reusable provider-neutral LLM execution gateway for **governed model resolution and execution**.
 
-Status: **Phases 0–13 complete; Phase 14 in progress — Cases 1/2 complete, Case 3 deferred. All roadmap-listed benchmark classes are represented by reviewed deterministic contracts. Offline quality evidence, immediate runtime health and versioned recent operational evidence with bounded process-local materialization remain explicit separate boundaries; no online-telemetry ranking policy is active.**
+Status: **Phases 0–13 complete; Phase 14 in progress — Cases 1/2 complete, Case 3 deferred. All roadmap-listed benchmark classes are represented by reviewed deterministic contracts. Offline quality evidence, immediate runtime health and versioned recent operational evidence with bounded process-local materialization and best-effort runtime recording remain explicit separate boundaries; no online-telemetry ranking policy is active.**
 
 The gateway is the operational Policy Enforcement Point (PEP) between an application's declared workload and the concrete LLM deployment selected for execution.
 
@@ -58,7 +58,7 @@ Phases 0–13 are complete and establish:
 - optional Verifiable AI Governance authorization and runtime evidence;
 - provider-neutral terminal execution provenance preserved through SSE/API/SDK;
 - reviewed benchmark quality-component evidence preserved in immutable snapshots without implicit promotion or routing authority;
-- strict content-addressed recent operational evidence schema `1.0` plus bounded fail-closed process-local materialization, preserved separately from health and not consumed by ranking.
+- strict content-addressed recent operational evidence schema `1.0`, bounded fail-closed process-local materialization and optional best-effort runtime attempt recording, preserved separately from health and not consumed by ranking.
 
 Phase 14 is migrating real consumers incrementally in the normative order:
 
@@ -169,9 +169,9 @@ Unknown optional evidence remains absent instead of being synthesized. Runtime e
 
 ## Recent operational evidence
 
-PR #70 adds a strict, immutable, content-addressed schema `1.0` artifact for bounded recent operational windows. PR #73 adds a deterministic materializer over explicit timestamped metadata-only provider-attempt samples plus a bounded process-local source that fails closed when requested-window completeness cannot be proven.
+PR #70 adds a strict, immutable, content-addressed schema `1.0` artifact for bounded recent operational windows. PR #73 adds deterministic materialization from explicit timestamped metadata-only provider-attempt samples, and PR #76 adds optional process-local best-effort recording in both bounded runtime executors with conservative completeness invalidation.
 
-This remains separate from `InMemoryHealthTracker` / `DeploymentHealthSnapshot`, which are immediate process-local resilience and eligibility state. Runtime recorder wiring, a production/shared sample source and metrics-backend query adapters remain pending. Operational evidence does not modify `StaticDeploymentScore`, ranking weights, eligibility or authorization; any future online scoring still requires a separate explicit versioned policy.
+This remains separate from `InMemoryHealthTracker` / `DeploymentHealthSnapshot`, which are immediate process-local resilience and eligibility state. Recorder failure, caller cancellation or an unrepresentable post-call failure cannot fabricate provider-error evidence or become an inference-availability dependency. A production/shared sample source and metrics-backend query adapters remain pending. Operational evidence does not modify `StaticDeploymentScore`, ranking weights, eligibility or authorization; any future online scoring still requires a separate explicit versioned policy.
 
 See `docs/evaluation/OPERATIONAL_EVIDENCE.md`.
 
@@ -196,16 +196,16 @@ uv sync --frozen
 uv run python scripts/quality_gate.py
 ```
 
-Current validated `main` baseline after PR #73 (`09adba564cd996f03f8363f44dce7f2b6fd5c303`):
+Current validated `main` baseline after PR #76 (`455c11a24e09adddcfff9fc8c9578d74ec6c6606`):
 
-- **756 tests passed**;
-- **82.46% aggregate coverage** (threshold 80%);
-- mypy passed across **180 source files**;
-- Ruff lint/format passed across **180 files**;
-- Bandit reported **0 issues** across 16,925 LOC;
+- **767 tests passed**;
+- **82.47% aggregate coverage** (threshold 80%);
+- mypy passed across **182 source files**;
+- Ruff lint/format passed across **182 files**;
+- Bandit reported **0 issues** across 17,133 LOC;
 - pip-audit reported **no known vulnerabilities**;
 - architecture check, secret scan and Phase 0 gate passed;
-- post-merge `main` quality run `34060829312` — **PASS**.
+- post-merge `main` quality run `34062983396` — **PASS**.
 
 The known Starlette TestClient `httpx`/`httpx2` deprecation warning remains non-blocking.
 
