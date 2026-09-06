@@ -1,0 +1,91 @@
+name: temp-docs-reconcile
+
+on:
+  push:
+    branches:
+      - docs/reconcile-reasoning-code-review
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply exact documentation reconciliation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          reasoning = Path("docs/evaluation/REASONING_V1.md")
+          text = reasoning.read_text(encoding="utf-8")
+          old = "Status: IMPLEMENTED — pending branch/PR validation."
+          new = "Status: COMPLETE — merged in PR #47."
+          assert text.count(old) == 1
+          reasoning.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          code_review = Path("docs/evaluation/CODE_REVIEW_V1.md")
+          text = code_review.read_text(encoding="utf-8")
+          old = "Status: IMPLEMENTED — pending branch/PR validation."
+          new = "Status: COMPLETE — merged in PR #48."
+          assert text.count(old) == 1
+          code_review.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          current = Path("docs/project/CURRENT_STATE.md")
+          text = current.read_text(encoding="utf-8")
+          assert "Last updated: 2026-09-05" in text
+          text = text.replace("Last updated: 2026-09-05", "Last updated: 2026-09-06", 1)
+
+          old = """- PR #44 — `long-context-v1`, a tokenizer-neutral deterministic needle-retrieval benchmark over exactly 8,192 generated records, covering early/middle/late positions without fabricating provider token counts or context-window evidence;\n- PR #45 — `classification-v1`, a deterministic closed-set public/synthetic classification benchmark over immutable `support-intents-v1`, with exact JSON scoring and no model-as-judge path.\n"""
+          new = """- PR #44 — `long-context-v1`, a tokenizer-neutral deterministic needle-retrieval benchmark over exactly 8,192 generated records, covering early/middle/late positions without fabricating provider token counts or context-window evidence;\n- PR #45 — `classification-v1`, a deterministic closed-set public/synthetic classification benchmark over immutable `support-intents-v1`, with exact JSON scoring and no model-as-judge path;\n- PR #47 — `reasoning-v1`, an answer-only deterministic reasoning benchmark over arithmetic, boolean logic, constraints and sequences without requesting or preserving chain-of-thought;\n- PR #48 — `code-review-v1`, a non-executing structured-findings benchmark with six reviewed non-security rules, two clean cases and deterministic set-F1 scoring.\n"""
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = """Latest validated gateway baseline after PR #45:\n\n`d012a5ec0581f636b758f613634ef76da773e82d`\n\nPost-merge quality run:\n\n`33999903061` — PASS.\n\nValidation:\n\n- 569 tests passed;\n- aggregate coverage 82.05%;\n- strict mypy passed across 155 source files;\n- Ruff lint/format passed across 155 files;\n- Bandit reported no issues across 14,193 LOC;\n"""
+          new = """Latest validated gateway baseline after PR #48:\n\n`7ce6e84f6014c5c219dbf013143d13f9817006fe`\n\nPost-merge quality run:\n\n`34010433153` — PASS.\n\nValidation:\n\n- 600 tests passed;\n- aggregate coverage 82.14%;\n- strict mypy passed across 159 source files;\n- Ruff lint/format passed across 159 files;\n- Bandit reported no issues across 14,524 LOC;\n"""
+          assert old in text
+          current.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          matrix = Path("docs/evaluation/BENCHMARK_MATRIX.md")
+          text = matrix.read_text(encoding="utf-8")
+          old = "Status: **COMPLETE — 5/5 core roadmap workloads plus reviewed post-core multimodal, long-context and classification extensions implemented**"
+          new = "Status: **COMPLETE — 5/5 core roadmap workloads plus reviewed post-core multimodal, long-context, classification, reasoning and code-review extensions implemented**"
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = "After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension, PR #44 added `long_context`, and PR #45 added `classification`."
+          new = "After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension, PR #44 added `long_context`, PR #45 added `classification`, PR #47 added `reasoning`, and PR #48 added `code_review`."
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = "| `classification` | `classification-v1` | exact closed-set support-intent label from immutable `support-intents-v1`; no model-as-judge | #45 |\n"
+          new = old + "| `reasoning` | `reasoning-v1` | exact type-sensitive final-answer scoring across four reviewed reasoning families; no chain-of-thought collection | #47 |\n| `code_review` | `code-review-v1` | structured non-security findings with deterministic set-F1 scoring; candidate code is never executed | #48 |\n"
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = "PR #44 added `long-context-v1` without a provider tokenizer dependency or a fabricated token-count claim. PR #45 added `classification-v1` as an exact closed-set workload with immutable label vocabulary and strict dataset drift checks.\n\nBoth are consumer-agnostic benchmark extensions. Neither adds a live executor, changes provider selection, or creates a benchmark-only authorization/routing path."
+          new = "PR #44 added `long-context-v1` without a provider tokenizer dependency or a fabricated token-count claim. PR #45 added `classification-v1` as an exact closed-set workload with immutable label vocabulary and strict dataset drift checks. PR #47 added `reasoning-v1` with answer-only, type-sensitive scoring and no chain-of-thought collection. PR #48 added `code-review-v1` with structured reviewed non-security findings, clean-case false-positive coverage and no candidate execution.\n\nThese are consumer-agnostic benchmark extensions. None adds a live executor, changes provider selection, or creates a benchmark-only authorization/routing path."
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = """Latest validated `main` baseline after PR #45:\n\n- commit `d012a5ec0581f636b758f613634ef76da773e82d`;\n- post-merge quality run `33999903061` — PASS;\n- 569 tests passed;\n- 82.05% aggregate coverage;\n- strict mypy and Ruff passed across 155 source files;\n- Bandit reported no issues across 14,193 LOC;\n"""
+          new = """Latest validated `main` baseline after PR #48:\n\n- commit `7ce6e84f6014c5c219dbf013143d13f9817006fe`;\n- post-merge quality run `34010433153` — PASS;\n- 600 tests passed;\n- 82.14% aggregate coverage;\n- strict mypy and Ruff passed across 159 source files;\n- Bandit reported no issues across 14,524 LOC;\n"""
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = "Completion of the core 5/5 matrix and the reviewed post-core multimodal, long-context, classification and execution-evidence increments does **not** create a new Phase 14 consumer migration exception."
+          new = "Completion of the core 5/5 matrix and the reviewed post-core multimodal, long-context, classification, reasoning, code-review and execution-evidence increments does **not** create a new Phase 14 consumer migration exception."
+          assert old in text
+          matrix.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+      - name: Commit reconciliation
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/evaluation/REASONING_V1.md docs/evaluation/CODE_REVIEW_V1.md docs/evaluation/BENCHMARK_MATRIX.md docs/project/CURRENT_STATE.md
+          git commit -m "docs: reconcile reasoning and code review benchmarks" || exit 0
+          git push
