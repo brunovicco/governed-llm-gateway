@@ -1,6 +1,6 @@
 # Tool Argument Generation Benchmark v1
 
-Status: IMPLEMENTED — pending branch/PR validation.
+Status: COMPLETE — merged in PR #52.
 
 ## Purpose
 

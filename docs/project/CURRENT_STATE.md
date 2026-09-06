@@ -122,6 +122,9 @@ Additional roadmap-listed post-core evaluation classes were then added without c
 - PR #45 — `classification-v1`, a deterministic closed-set public/synthetic classification benchmark over immutable `support-intents-v1`, with exact JSON scoring and no model-as-judge path;
 - PR #47 — `reasoning-v1`, an answer-only deterministic reasoning benchmark over arithmetic, boolean logic, constraints and sequences without requesting or preserving chain-of-thought;
 - PR #48 — `code-review-v1`, a non-executing structured-findings benchmark with six reviewed non-security rules, two clean cases and deterministic set-F1 scoring.
+- PR #50 — `security-analysis-v1`, a defensive structured-findings benchmark over synthetic Python with six reviewed security rules, two clean cases, deterministic set-F1 scoring, and no candidate execution or exploitation path.
+- PR #51 — `tool-selection-v1`, an exact reviewed tool-or-no-tool benchmark over immutable `support-tools-v1`, with no argument generation or tool execution.
+- PR #52 — `tool-argument-generation-v1`, a fixed-reviewed-tool benchmark with recursive exact, type-sensitive argument scoring and no tool selection or execution.
 
 The benchmark target catalog is intentionally versioned rather than rewritten:
 
@@ -143,21 +146,21 @@ Shared benchmark properties remain:
 - no LLM-as-judge dependency in the default path;
 - benchmark/runtime evidence can affect ranking only inside the already-authorized and eligible set.
 
-Latest validated gateway baseline after PR #48:
+Latest validated gateway baseline after PR #52:
 
-`7ce6e84f6014c5c219dbf013143d13f9817006fe`
+`b12bda2a3ffdace9c8c75fe5d38e7a5e1fa673e7`
 
 Post-merge quality run:
 
-`34010433153` — PASS.
+`34036693888` — PASS.
 
 Validation:
 
-- 600 tests passed;
-- aggregate coverage 82.14%;
-- strict mypy passed across 159 source files;
-- Ruff lint/format passed across 159 files;
-- Bandit reported no issues across 14,524 LOC;
+- 645 tests passed;
+- aggregate coverage 81.96%;
+- strict mypy passed across 165 source files;
+- Ruff lint/format passed across 165 files;
+- Bandit reported no issues across 15,059 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 

@@ -1,8 +1,8 @@
 # Benchmark Workload Matrix
 
-Status: **COMPLETE — 5/5 core roadmap workloads plus reviewed post-core multimodal, long-context, classification, reasoning and code-review extensions implemented**
+Status: **COMPLETE — 5/5 core roadmap workloads plus reviewed post-core multimodal, long-context, classification, reasoning, code-review, security-analysis, tool-selection and tool-argument-generation extensions implemented**
 
-The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority. After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension, PR #44 added `long_context`, PR #45 added `classification`, PR #47 added `reasoning`, and PR #48 added `code_review`.
+The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority. After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension, PR #44 added `long_context`, PR #45 added `classification`, PR #47 added `reasoning`, PR #48 added `code_review`, PR #50 added `security_analysis`, PR #51 added `tool_selection`, and PR #52 added `tool_argument_generation`.
 
 ## Matrix
 
@@ -18,6 +18,9 @@ The Phase 10 framework originally established a generic provider-neutral benchma
 | `classification` | `classification-v1` | exact closed-set support-intent label from immutable `support-intents-v1`; no model-as-judge | #45 |
 | `reasoning` | `reasoning-v1` | exact type-sensitive final-answer scoring across four reviewed reasoning families; no chain-of-thought collection | #47 |
 | `code_review` | `code-review-v1` | structured non-security findings with deterministic set-F1 scoring; candidate code is never executed | #48 |
+| `security_analysis` | `security-analysis-v1` | defensive structured security findings with deterministic set-F1 scoring; candidate code is never executed and exploitation is out of scope | #50 |
+| `tool_selection` | `tool-selection-v1` | exact reviewed tool-or-no-tool selection from immutable `support-tools-v1`; arguments and execution are out of scope | #51 |
+| `tool_argument_generation` | `tool-argument-generation-v1` | fixed reviewed tool plus recursive exact, type-sensitive argument matching; selection and execution are out of scope | #52 |
 
 `structured-extraction-v1` is preserved as historical benchmark semantics. The v2 contract is the current hardened structured-extraction reference; v1 evidence must not be silently rewritten.
 
@@ -105,6 +108,18 @@ The contract deliberately does not infer an exact token count or provider contex
 
 The scorer requires exactly `{"label": "<reviewed-label>"}`. Unknown labels, wrong types, extra/missing fields or the wrong reviewed label score zero. No embeddings, external data or model-as-judge path is used.
 
+### security_analysis
+
+`security-analysis-v1` evaluates defensive structured findings over checked-in synthetic Python. Its reviewed security vocabulary is separate from `code-review-v1`; exact finding validity and set-F1 scoring are deterministic, candidate code is never executed, and exploitation instructions are outside the contract.
+
+### tool_selection
+
+`tool-selection-v1` measures only exact reviewed tool choice or explicit no-tool choice from immutable `support-tools-v1`. Argument generation and tool execution are intentionally excluded so selection failures remain attributable.
+
+### tool_argument_generation
+
+`tool-argument-generation-v1` fixes the reviewed tool identity in the case and scores only the generated `arguments` object with recursive exact, type-sensitive comparison. Tool selection and execution remain separate boundaries; `selected_tool` is benchmark ground truth, not runtime authorization.
+
 ## Post-core multimodal and evidence hardening
 
 The roadmap allows multimodal only after core execution is stable. The completed sequence is:
@@ -154,7 +169,7 @@ Opaque configuration strings are still declarative. The benchmark does not infer
 
 ## Additional post-core deterministic workloads
 
-PR #44 added `long-context-v1` without a provider tokenizer dependency or a fabricated token-count claim. PR #45 added `classification-v1` as an exact closed-set workload with immutable label vocabulary and strict dataset drift checks. PR #47 added `reasoning-v1` with answer-only, type-sensitive scoring and no chain-of-thought collection. PR #48 added `code-review-v1` with structured reviewed non-security findings, clean-case false-positive coverage and no candidate execution.
+PR #44 added `long-context-v1` without a provider tokenizer dependency or a fabricated token-count claim. PR #45 added `classification-v1` as an exact closed-set workload with immutable label vocabulary and strict dataset drift checks. PR #47 added `reasoning-v1` with answer-only, type-sensitive scoring and no chain-of-thought collection. PR #48 added `code-review-v1` with structured reviewed non-security findings, clean-case false-positive coverage and no candidate execution. PR #50 added `security-analysis-v1` with a separate defensive security vocabulary and no exploitation path. PR #51 added `tool-selection-v1` to isolate exact tool-choice quality. PR #52 added `tool-argument-generation-v1` to isolate argument quality after the reviewed tool identity is fixed.
 
 These are consumer-agnostic benchmark extensions. None adds a live executor, changes provider selection, or creates a benchmark-only authorization/routing path.
 
@@ -209,20 +224,20 @@ Default CI remains credential-free and deterministic:
 - snapshot/digest behavior is replayable;
 - architecture/security/secret gates cover benchmark code.
 
-Latest validated `main` baseline after PR #48:
+Latest validated `main` baseline after PR #52:
 
-- commit `7ce6e84f6014c5c219dbf013143d13f9817006fe`;
-- post-merge quality run `34010433153` — PASS;
-- 600 tests passed;
-- 82.14% aggregate coverage;
-- strict mypy and Ruff passed across 159 source files;
-- Bandit reported no issues across 14,524 LOC;
+- commit `b12bda2a3ffdace9c8c75fe5d38e7a5e1fa673e7`;
+- post-merge quality run `34036693888` — PASS;
+- 645 tests passed;
+- 81.96% aggregate coverage;
+- strict mypy and Ruff passed across 165 source files;
+- Bandit reported no issues across 15,059 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
 ## Next boundary
 
-Completion of the core 5/5 matrix and the reviewed post-core multimodal, long-context, classification, reasoning, code-review and execution-evidence increments does **not** create a new Phase 14 consumer migration exception.
+Completion of the core 5/5 matrix and the reviewed post-core multimodal, long-context, classification, reasoning, code-review, security-analysis, tool-selection, tool-argument-generation and execution-evidence increments does **not** create a new Phase 14 consumer migration exception.
 
 Issue #18 still defers OpsLens reconciliation and explicitly prevents starting RAGForge in parallel unless the normative integration order is revised.
 
