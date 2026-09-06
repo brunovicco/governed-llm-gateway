@@ -17,6 +17,18 @@ jobs:
         with:
           ref: docs/reconcile-operational-sample-batch-pr79
       - uses: astral-sh/setup-uv@v6
+      - name: Align the known Benchmark Matrix marker
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/reconcile_pr79_docs.py")
+          text = path.read_text(encoding="utf-8")
+          old = 'replace_once("docs/evaluation/BENCHMARK_MATRIX.md", "- strict mypy passed across 182 source files;", "- strict mypy passed across 186 source files;")'
+          new = 'replace_once("docs/evaluation/BENCHMARK_MATRIX.md", "- strict mypy and Ruff passed across 182 source files;", "- strict mypy and Ruff passed across 186 source files;")'
+          if text.count(old) != 1:
+              raise SystemExit("expected exactly one Benchmark Matrix mypy/Ruff reconciler marker")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
       - name: Apply fail-closed documentation reconciliation
         run: uv run --python 3.13 python scripts/reconcile_pr79_docs.py
       - name: Remove temporary reconciler
