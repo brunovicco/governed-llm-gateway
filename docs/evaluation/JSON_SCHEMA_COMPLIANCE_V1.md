@@ -1,7 +1,6 @@
 # JSON Schema Compliance Benchmark v1
 
-Lifecycle status is tracked separately in the benchmark/project ledgers after branch,
-pull-request, and post-merge validation.
+Status: **COMPLETE — merged in PR #61.**
 
 ## Purpose
 

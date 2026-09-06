@@ -1,14 +1,15 @@
 # Benchmark Workload Matrix
 
-Status: **COMPLETE — 5/5 core roadmap workloads plus reviewed post-core multimodal, long-context, classification, reasoning, code-review, security-analysis, tool-selection, tool-argument-generation, multi-step-tool-use and rag-answer extensions implemented**
+Status: **COMPLETE — all roadmap-listed benchmark classes are represented by reviewed deterministic contracts; the core 5/5 baseline and historical versions remain preserved**
 
-The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority. After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension, PR #44 added `long_context`, PR #45 added `classification`, PR #47 added `reasoning`, PR #48 added `code_review`, PR #50 added `security_analysis`, PR #51 added `tool_selection`, PR #52 added `tool_argument_generation`, PR #55 added `multi_step_tool_use`, and PR #58 added `rag_answer`.
+The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority. After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension, PR #44 added `long_context`, PR #45 added `classification`, PR #47 added `reasoning`, PR #48 added `code_review`, PR #50 added `security_analysis`, PR #51 added `tool_selection`, PR #52 added `tool_argument_generation`, PR #55 added `multi_step_tool_use`, PR #58 added `rag_answer`, and PR #61 added the distinct `json_schema_compliance` class.
 
 ## Matrix
 
 | Workload | Reviewed benchmark version | Scorer / semantics | PR |
 |---|---|---|---|
 | `structured_extraction` | `structured-extraction-v2` | bounded recursive schema validation + exact type-sensitive leaf-value accuracy | #19 established v1; #22 added v2 hardening |
+| `json_schema_compliance` | `json-schema-compliance-v1` | binary Draft 2020-12 compliance over normalized `JsonValue`; schemas reuse the bounded Phase 7 acceptance boundary and exact extraction values are out of scope | #61 |
 | `rag_ptbr` | `rag-ptbr-v1` | reviewed required-fact coverage with explicit forbidden-claim regression checks | #20 |
 | `rag_answer` | `rag-answer-v1` | reviewed required-fact coverage plus citation set-F1 against checked-in synthetic source IDs; unknown citations and inconsistent reference grounding fail closed | #58 |
 | `code_generation` | `code-generation-v1` | normalized Python AST exactness; candidate code is never executed | #21 |
@@ -58,6 +59,12 @@ A provider outage therefore does not become a false zero-quality result.
 The hardened v2 contract evaluates schema validity separately from exact extracted values. Validation is bounded and fail-closed, with explicit object/array/scalar semantics and stable issue paths/codes.
 
 It does not use permissive JSON-text repair and it does not convert benchmark evidence into runtime structured-output authorization.
+
+### json_schema_compliance
+
+`json-schema-compliance-v1` isolates the roadmap-listed schema-compliance dimension from extraction correctness. It accepts any normalized provider-neutral `JsonValue` that satisfies the reviewed schema and returns binary quality evidence: valid is `1.0`, any schema violation is `0.0`.
+
+Benchmark schema acceptance reuses the existing Phase 7 bounded Draft 2020-12 structured-output validator, including its depth/size controls and rejection of remote references and unsupported validation keywords. The checked-in `expected` value is only a satisfiable reference witness, not an exact-value target. Because `ProviderCall.output` is already normalized `JsonValue`, malformed raw JSON text, markdown fences, transport truncation and provider-native structured-output enforcement remain separate provider/execution/normalization facts rather than being fabricated by this scorer.
 
 ### rag_ptbr
 
@@ -181,7 +188,7 @@ Opaque configuration strings are still declarative. The benchmark does not infer
 
 ## Additional post-core deterministic workloads
 
-PR #44 added `long-context-v1` without a provider tokenizer dependency or a fabricated token-count claim. PR #45 added `classification-v1` as an exact closed-set workload with immutable label vocabulary and strict dataset drift checks. PR #47 added `reasoning-v1` with answer-only, type-sensitive scoring and no chain-of-thought collection. PR #48 added `code-review-v1` with structured reviewed non-security findings, clean-case false-positive coverage and no candidate execution. PR #50 added `security-analysis-v1` with a separate defensive security vocabulary and no exploitation path. PR #51 added `tool-selection-v1` to isolate exact tool-choice quality. PR #52 added `tool-argument-generation-v1` to isolate argument quality after the reviewed tool identity is fixed. PR #55 added `multi-step-tool-use-v1` to measure short ordered tool-call proposals against immutable synthetic intermediate context without executing tools. PR #58 added `rag-answer-v1` to measure reviewed fact grounding plus explicit source-ID citation quality without performing retrieval.
+PR #44 added `long-context-v1` without a provider tokenizer dependency or a fabricated token-count claim. PR #45 added `classification-v1` as an exact closed-set workload with immutable label vocabulary and strict dataset drift checks. PR #47 added `reasoning-v1` with answer-only, type-sensitive scoring and no chain-of-thought collection. PR #48 added `code-review-v1` with structured reviewed non-security findings, clean-case false-positive coverage and no candidate execution. PR #50 added `security-analysis-v1` with a separate defensive security vocabulary and no exploitation path. PR #51 added `tool-selection-v1` to isolate exact tool-choice quality. PR #52 added `tool-argument-generation-v1` to isolate argument quality after the reviewed tool identity is fixed. PR #55 added `multi-step-tool-use-v1` to measure short ordered tool-call proposals against immutable synthetic intermediate context without executing tools. PR #58 added `rag-answer-v1` to measure reviewed fact grounding plus explicit source-ID citation quality without performing retrieval. PR #61 added `json-schema-compliance-v1` to isolate normalized JSON Schema validity from extraction-value correctness while reusing the existing bounded Phase 7 schema acceptance boundary.
 
 These are consumer-agnostic benchmark extensions. None adds a live executor, changes provider selection, or creates a benchmark-only authorization/routing path.
 
@@ -236,21 +243,21 @@ Default CI remains credential-free and deterministic:
 - snapshot/digest behavior is replayable;
 - architecture/security/secret gates cover benchmark code.
 
-Latest validated `main` baseline after PR #58:
+Latest validated `main` baseline after PR #61:
 
-- commit `7913d85a624fa4da2eaab1b106b1438712a36bcc`;
-- post-merge quality run `34046044578` — PASS;
-- 679 tests passed;
-- 82.02% aggregate coverage;
-- strict mypy and Ruff passed across 169 source files;
-- Bandit reported no issues across 15,608 LOC;
+- commit `caaf5fbb2e8b901e2f39d452166ce03f4717af28`;
+- post-merge quality run `34046873713` — PASS;
+- 696 tests passed;
+- 82.07% aggregate coverage;
+- strict mypy and Ruff passed across 171 source files;
+- Bandit reported no issues across 15,752 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
 ## Next boundary
 
-Completion of the core 5/5 matrix and the reviewed post-core multimodal, long-context, classification, reasoning, code-review, security-analysis, tool-selection, tool-argument-generation, multi-step-tool-use, rag-answer and execution-evidence increments does **not** create a new Phase 14 consumer migration exception.
+All roadmap-listed benchmark classes now have reviewed versioned contracts. That completion does **not** create a new Phase 14 consumer migration exception.
 
 Issue #18 still defers OpsLens reconciliation and explicitly prevents starting RAGForge in parallel unless the normative integration order is revised.
 
-Until that changes, further gateway work should be consumer-agnostic and independently justified. A future live benchmark executor must use normal gateway authorization and must not introduce a benchmark-only provider/model forcing path.
+Until that changes, further gateway work should be consumer-agnostic and independently justified. The next benchmark-oriented review should audit the roadmap's required measurement set against the current scorecard/evidence contracts before adding any new metric or class. A future live benchmark executor must use normal gateway authorization and must not introduce a benchmark-only provider/model forcing path.

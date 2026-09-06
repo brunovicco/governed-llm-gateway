@@ -90,7 +90,7 @@ Later provider-neutral hardening extends the same terminal evidence with:
 
 Unknown optional evidence remains absent rather than being synthesized. Contradictory or malformed provenance fails closed. Runtime evidence remains descriptive only and is never authorization.
 
-## Benchmark and multimodal program — CORE 5/5 COMPLETE; REVIEWED POST-CORE EXTENSIONS COMPLETE
+## Benchmark and multimodal program — ALL ROADMAP-LISTED BENCHMARK CLASSES REPRESENTED
 
 The five initial roadmap workloads remain complete and historically versioned:
 
@@ -127,6 +127,9 @@ Additional roadmap-listed post-core evaluation classes were then added without c
 - PR #52 — `tool-argument-generation-v1`, a fixed-reviewed-tool benchmark with recursive exact, type-sensitive argument scoring and no tool selection or execution.
 - PR #55 — `multi-step-tool-use-v1`, a deterministic non-executing benchmark for reviewed two-to-three-step tool-call proposals using immutable synthetic intermediate-result context and separate positional selection/argument evidence.
 - PR #58 — `rag-answer-v1`, a deterministic grounded-answer benchmark over checked-in public/synthetic source records with required-fact coverage, citation set-F1, fail-closed unknown citations and reference-source grounding validation, without retrieval or an LLM-as-judge.
+- PR #61 — `json-schema-compliance-v1`, a binary normalized-JSON schema-compliance benchmark that reuses the bounded Phase 7 Draft 2020-12 schema acceptance boundary while keeping extraction-value correctness out of scope.
+
+All roadmap-listed benchmark classes now have reviewed versioned contracts. This does not imply that every future metric, target matrix, provider-specific execution fact or live benchmark path is complete; those remain independently justified boundaries.
 
 The benchmark target catalog is intentionally versioned rather than rewritten:
 
@@ -148,21 +151,21 @@ Shared benchmark properties remain:
 - no LLM-as-judge dependency in the default path;
 - benchmark/runtime evidence can affect ranking only inside the already-authorized and eligible set.
 
-Latest validated gateway baseline after PR #58:
+Latest validated gateway baseline after PR #61:
 
-`7913d85a624fa4da2eaab1b106b1438712a36bcc`
+`caaf5fbb2e8b901e2f39d452166ce03f4717af28`
 
 Post-merge quality run:
 
-`34046044578` — PASS.
+`34046873713` — PASS.
 
 Validation:
 
-- 679 tests passed;
-- aggregate coverage 82.02%;
-- strict mypy passed across 169 source files;
-- Ruff lint/format passed across 169 files;
-- Bandit reported no issues across 15,608 LOC;
+- 696 tests passed;
+- aggregate coverage 82.07%;
+- strict mypy passed across 171 source files;
+- Ruff lint/format passed across 171 files;
+- Bandit reported no issues across 15,752 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
@@ -248,8 +251,9 @@ Remains after the preceding integration cases.
 3. Do not begin RAGForge in parallel unless the roadmap order is explicitly revised.
 4. Accept further upstream gateway changes only when they are consumer-agnostic, independently justified and preserve the permanent authorization invariant.
 5. Do not create a model-forcing benchmark bypass: benchmark target identity must never become an authorization or routing override.
-6. A future live gateway-backed benchmark executor must use an already-authorized gateway path, preserve target/effective-execution integrity checks, and remain outside credential-free default CI.
-7. When OpsLens is resumed, reconcile against the then-current gateway commit and rerun the full OpsLens Python and Terraform gates before merge.
+6. Audit the Roadmap-required benchmark measurement set against current `Scorecard` and workload evidence before adding any new metric or benchmark class.
+7. A future live gateway-backed benchmark executor must use an already-authorized gateway path, preserve target/effective-execution integrity checks, and remain outside credential-free default CI.
+8. When OpsLens is resumed, reconcile against the then-current gateway commit and rerun the full OpsLens Python and Terraform gates before merge.
 
 ## Explicitly deferred
 
