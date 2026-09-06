@@ -40,6 +40,7 @@ class BenchmarkQualityMetric(StrEnum):
     TOOL_ARGUMENT_ACCURACY = "tool_argument_accuracy"
     TRAJECTORY_SUCCESS = "trajectory_success"
     GROUNDING = "grounding"
+    PT_BR_QUALITY = "pt_br_quality"
 
 
 class ObservationStatus(StrEnum):

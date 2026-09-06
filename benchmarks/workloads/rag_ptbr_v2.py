@@ -114,9 +114,13 @@ def validate_rag_ptbr_v2_case(case: BenchmarkCase) -> None:
             raise ValueError("rag ptbr v2 quality terms must not be reused across rules")
         seen_terms.update(preferred | rejected)
         if not any(_contains_phrase(context, term) for term in rule.preferred):
-            raise ValueError("rag ptbr v2 each quality rule must be supported by the reviewed context")
+            raise ValueError(
+                "rag ptbr v2 each quality rule must be supported by the reviewed context"
+            )
         if any(_contains_phrase(context, term) for term in rule.rejected):
-            raise ValueError("rag ptbr v2 rejected locale terms must not appear in reviewed context")
+            raise ValueError(
+                "rag ptbr v2 rejected locale terms must not appear in reviewed context"
+            )
 
 
 def assess_rag_ptbr_v2(case: BenchmarkCase, output: JsonValue) -> RagPtBrV2Assessment:
@@ -186,7 +190,9 @@ def _validated_string_list(
     allow_empty: bool = False,
 ) -> tuple[str, ...]:
     if not isinstance(value, list) or (not value and not allow_empty):
-        raise ValueError(f"{label} must be a {'normalized ' if allow_empty else 'non-empty normalized '}string list")
+        raise ValueError(
+            f"{label} must be a {'normalized ' if allow_empty else 'non-empty normalized '}string list"
+        )
     items: list[str] = []
     normalized_items: set[str] = set()
     for item in value:
