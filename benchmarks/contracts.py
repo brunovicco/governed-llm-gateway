@@ -15,6 +15,7 @@ class BenchmarkWorkload(StrEnum):
     """Versioned benchmark workload vocabulary."""
 
     CLASSIFICATION = "classification"
+    REASONING = "reasoning"
     STRUCTURED_EXTRACTION = "structured_extraction"
     RAG_PTBR = "rag_ptbr"
     CODE_GENERATION = "code_generation"
