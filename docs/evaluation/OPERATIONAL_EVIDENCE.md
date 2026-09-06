@@ -1,6 +1,6 @@
 # Recent Operational Evidence
 
-Status: **CONTRACT COMPLETE — merged in PR #70; materializer and online ranking policy remain pending.**
+Status: **COMPLETE — contract merged in PR #70; materializer and online ranking policy remain pending.**
 
 ## Purpose
 
