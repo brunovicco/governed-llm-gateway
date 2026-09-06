@@ -90,9 +90,7 @@ def validate_tool_argument_generation_case(case: BenchmarkCase) -> None:
     if case.workload is not BenchmarkWorkload.TOOL_ARGUMENT_GENERATION:
         raise ValueError("tool argument generation v1 dataset contains a different workload")
     if case.scorer != TOOL_ARGUMENT_GENERATION_SCORER_ID:
-        raise ValueError(
-            "tool argument generation v1 requires its versioned deterministic scorer"
-        )
+        raise ValueError("tool argument generation v1 requires its versioned deterministic scorer")
 
     metadata = case.metadata
     unknown_metadata = sorted(set(metadata) - _ALLOWED_METADATA_FIELDS)
