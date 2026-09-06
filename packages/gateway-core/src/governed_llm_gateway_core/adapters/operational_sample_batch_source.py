@@ -41,9 +41,7 @@ class OperationalSampleBatchSource:
         _validate_utc(window_start, "window_start")
         _validate_utc(window_end, "window_end")
         if window_start >= window_end:
-            raise OperationalEvidenceMaterializationError(
-                "window_start must precede window_end"
-            )
+            raise OperationalEvidenceMaterializationError("window_start must precede window_end")
         if window_start < self._batch.window_start or window_end > self._batch.window_end:
             raise OperationalEvidenceMaterializationError(
                 "operational sample batch source cannot prove requested window coverage"

@@ -4,7 +4,6 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
-
 from governed_llm_gateway_core.adapters.operational_sample_batch_json import (
     load_operational_sample_batch_text,
 )
@@ -145,9 +144,7 @@ def test_factory_canonicalizes_samples_and_derives_stable_identity() -> None:
 def test_canonical_json_round_trip_preserves_identity() -> None:
     batch = _batch()
 
-    loaded = load_operational_sample_batch_text(
-        canonical_operational_sample_batch_json(batch)
-    )
+    loaded = load_operational_sample_batch_text(canonical_operational_sample_batch_json(batch))
 
     assert loaded == batch
 
@@ -168,7 +165,9 @@ def test_builder_rejects_unknown_fields() -> None:
     payload = json.loads(canonical_operational_sample_batch_json(_batch()))
     payload["unexpected"] = True
 
-    with pytest.raises(OperationalSampleBatchError, match="unknown operational sample batch fields"):
+    with pytest.raises(
+        OperationalSampleBatchError, match="unknown operational sample batch fields"
+    ):
         build_operational_sample_batch(payload)
 
 
@@ -191,8 +190,8 @@ def test_builder_rejects_duplicate_attempt_identity() -> None:
 
 def test_builder_rejects_sample_outside_declared_window() -> None:
     payload = json.loads(canonical_operational_sample_batch_json(_batch()))
-    payload["samples"][0]["observed_at"] = (START - timedelta(seconds=1)).isoformat().replace(
-        "+00:00", "Z"
+    payload["samples"][0]["observed_at"] = (
+        (START - timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
     )
 
     with pytest.raises(OperationalSampleBatchError, match="outside declared window"):
@@ -278,9 +277,7 @@ def test_batch_source_returns_complete_subwindow_and_exposes_scope() -> None:
     sub_start = START + timedelta(seconds=15)
     sub_end = START + timedelta(seconds=31)
 
-    samples = asyncio.run(
-        source.read_window(window_start=sub_start, window_end=sub_end)
-    )
+    samples = asyncio.run(source.read_window(window_start=sub_start, window_end=sub_end))
 
     assert source.source_instance_id == "gateway-replica-a"
     assert source.window_start == START
@@ -311,9 +308,7 @@ def test_batch_source_rejects_window_outside_declared_coverage() -> None:
 
 
 def test_loaded_batch_source_is_compatible_with_existing_materializer() -> None:
-    loaded = load_operational_sample_batch_text(
-        canonical_operational_sample_batch_json(_batch())
-    )
+    loaded = load_operational_sample_batch_text(canonical_operational_sample_batch_json(_batch()))
     materializer = OperationalEvidenceMaterializer(
         OperationalSampleBatchSource(loaded),
         collector_id="batch-materializer",

@@ -45,7 +45,9 @@ class OperationalSampleBatch:
     def __post_init__(self) -> None:
         """Require canonical ordering, bounded scope, and content-derived identity."""
         if self.schema_version != "1.0":
-            raise OperationalSampleBatchError("operational sample batch schema_version must be '1.0'")
+            raise OperationalSampleBatchError(
+                "operational sample batch schema_version must be '1.0'"
+            )
         _validate_identifier(self.batch_version, "batch_version")
         _validate_identifier(self.source_instance_id, "source_instance_id")
         _validate_identifier(self.exporter_id, "exporter_id")
@@ -205,13 +207,9 @@ def build_operational_sample_batch(payload: Mapping[str, object]) -> Operational
     return OperationalSampleBatch(
         schema_version=_require_string(payload["schema_version"], "schema_version"),
         batch_version=_require_identifier(payload["batch_version"], "batch_version"),
-        source_instance_id=_require_identifier(
-            payload["source_instance_id"], "source_instance_id"
-        ),
+        source_instance_id=_require_identifier(payload["source_instance_id"], "source_instance_id"),
         exporter_id=_require_identifier(payload["exporter_id"], "exporter_id"),
-        exporter_version=_require_identifier(
-            payload["exporter_version"], "exporter_version"
-        ),
+        exporter_version=_require_identifier(payload["exporter_version"], "exporter_version"),
         window_start=_require_utc_datetime(payload["window_start"], "window_start"),
         window_end=_require_utc_datetime(payload["window_end"], "window_end"),
         exported_at=_require_utc_datetime(payload["exported_at"], "exported_at"),
@@ -268,27 +266,17 @@ def _build_sample(payload: Mapping[object, object], index: int) -> OperationalAt
     try:
         request_id = UUID(request_id_text)
     except ValueError as exc:
-        raise OperationalSampleBatchError(
-            f"{location}.gateway_request_id must be a UUID"
-        ) from exc
+        raise OperationalSampleBatchError(f"{location}.gateway_request_id must be a UUID") from exc
     try:
         return OperationalAttemptSample(
-            observed_at=_require_utc_datetime(
-                payload["observed_at"], f"{location}.observed_at"
-            ),
+            observed_at=_require_utc_datetime(payload["observed_at"], f"{location}.observed_at"),
             gateway_request_id=request_id,
             runtime_workload=_require_string(
                 payload["runtime_workload"], f"{location}.runtime_workload"
             ),
-            deployment_id=_require_string(
-                payload["deployment_id"], f"{location}.deployment_id"
-            ),
-            attempt_number=_require_int(
-                payload["attempt_number"], f"{location}.attempt_number"
-            ),
-            fallback_index=_require_int(
-                payload["fallback_index"], f"{location}.fallback_index"
-            ),
+            deployment_id=_require_string(payload["deployment_id"], f"{location}.deployment_id"),
+            attempt_number=_require_int(payload["attempt_number"], f"{location}.attempt_number"),
+            fallback_index=_require_int(payload["fallback_index"], f"{location}.fallback_index"),
             outcome=outcome,
             error_kind=error_kind,
             latency_ms=_require_int(payload["latency_ms"], f"{location}.latency_ms"),

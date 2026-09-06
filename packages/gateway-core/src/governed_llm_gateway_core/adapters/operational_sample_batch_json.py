@@ -24,13 +24,9 @@ def load_operational_sample_batch_text(text: str) -> OperationalSampleBatch:
     except OperationalSampleBatchError:
         raise
     except json.JSONDecodeError as exc:
-        raise OperationalSampleBatchError(
-            "operational sample batch is not valid JSON"
-        ) from exc
+        raise OperationalSampleBatchError("operational sample batch is not valid JSON") from exc
     if not isinstance(payload, Mapping):
-        raise OperationalSampleBatchError(
-            "operational sample batch root must be a mapping"
-        )
+        raise OperationalSampleBatchError("operational sample batch root must be a mapping")
     return build_operational_sample_batch(cast(Mapping[str, object], payload))
 
 
@@ -38,8 +34,6 @@ def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     payload: dict[str, object] = {}
     for key, value in pairs:
         if key in payload:
-            raise OperationalSampleBatchError(
-                f"duplicate operational sample batch key: {key!r}"
-            )
+            raise OperationalSampleBatchError(f"duplicate operational sample batch key: {key!r}")
         payload[key] = value
     return payload
