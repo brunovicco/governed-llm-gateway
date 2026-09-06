@@ -322,16 +322,6 @@ class StreamingExecutionService:
                                             "provider completed before semantic output/final usage",
                                         )
                                     latency_ms = _latency_ms(started_at, self._clock())
-                                    record_operational_attempt_best_effort(
-                                        self._operational_recorder,
-                                        utc_clock=self._utc_clock,
-                                        request=request,
-                                        deployment_id=deployment_id,
-                                        attempt_number=attempt_number,
-                                        fallback_index=len(fallback_sequence) - 1,
-                                        latency_ms=latency_ms,
-                                    )
-                                    attempt_terminal_recorded = True
                                     self._health.record_success(
                                         deployment_id,
                                         latency_ms=latency_ms,
@@ -356,6 +346,16 @@ class StreamingExecutionService:
                                             deployment.provider,
                                             "provider response id changed during the stream",
                                         )
+                                    record_operational_attempt_best_effort(
+                                        self._operational_recorder,
+                                        utc_clock=self._utc_clock,
+                                        request=request,
+                                        deployment_id=deployment_id,
+                                        attempt_number=attempt_number,
+                                        fallback_index=len(fallback_sequence) - 1,
+                                        latency_ms=latency_ms,
+                                    )
+                                    attempt_terminal_recorded = True
                                     execution = ProviderExecution(
                                         provider=deployment.provider,
                                         model=deployment.model_id,
