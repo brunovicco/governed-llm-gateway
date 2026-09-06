@@ -167,11 +167,11 @@ def assess_rag_answer(case: BenchmarkCase, output: JsonValue) -> RagAnswerAssess
         if claim.casefold() in normalized_answer
     ]
     if forbidden_matches:
-        issues = tuple(
+        forbidden_issues = tuple(
             RagAnswerIssue("unsupported_claim", f"/answer/forbidden_claims/{index}")
             for index in forbidden_matches
         )
-        return _zero_assessment(issues)
+        return _zero_assessment(forbidden_issues)
 
     fact_matches = 0
     issues: list[RagAnswerIssue] = []
