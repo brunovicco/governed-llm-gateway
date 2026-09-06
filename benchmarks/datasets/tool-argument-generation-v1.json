@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "tool-argument-generation-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "tool-argument-generation.account-lookup.001",
+      "workload": "tool_argument_generation",
+      "scorer": "tool_argument_generation_v1",
+      "prompt": "The reviewed tool is already selected. Generate only the arguments for that tool; do not select another tool and do not execute anything. Return only JSON with the key arguments. Selected tool: account_lookup. Request: Read synthetic account A-104 without transaction history.",
+      "expected": {"arguments": {"account_id": "A-104", "include_history": false}},
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "tool_arguments_v1", "selected_tool": "account_lookup", "synthetic": true, "execute_tool": false}
+    },
+    {
+      "case_id": "tool-argument-generation.knowledge-search.001",
+      "workload": "tool_argument_generation",
+      "scorer": "tool_argument_generation_v1",
+      "prompt": "The reviewed tool is already selected. Generate only the arguments for that tool; do not select another tool and do not execute anything. Return only JSON with the key arguments. Selected tool: knowledge_search. Request: Search for the synthetic export feature and return at most five results.",
+      "expected": {"arguments": {"query": "synthetic export feature", "limit": 5}},
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "tool_arguments_v1", "selected_tool": "knowledge_search", "synthetic": true, "execute_tool": false}
+    },
+    {
+      "case_id": "tool-argument-generation.send-notification.001",
+      "workload": "tool_argument_generation",
+      "scorer": "tool_argument_generation_v1",
+      "prompt": "The reviewed tool is already selected. Generate only the arguments for that tool; do not select another tool and do not execute anything. Return only JSON with the key arguments. Selected tool: send_notification. Request: Notify synthetic user U-7 that maintenance moved, using email and in-app channels.",
+      "expected": {"arguments": {"user_id": "U-7", "message": "Maintenance moved", "channels": ["email", "in_app"]}},
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "tool_arguments_v1", "selected_tool": "send_notification", "synthetic": true, "execute_tool": false}
+    },
+    {
+      "case_id": "tool-argument-generation.weather-forecast.001",
+      "workload": "tool_argument_generation",
+      "scorer": "tool_argument_generation_v1",
+      "prompt": "The reviewed tool is already selected. Generate only the arguments for that tool; do not select another tool and do not execute anything. Return only JSON with the key arguments. Selected tool: weather_forecast. Request: Read a one-day synthetic forecast for Example City using metric units.",
+      "expected": {"arguments": {"city": "Example City", "days": 1, "units": "metric"}},
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "tool_arguments_v1", "selected_tool": "weather_forecast", "synthetic": true, "execute_tool": false}
+    }
+  ]
+}
