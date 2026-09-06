@@ -1,6 +1,6 @@
 # Recent Operational Evidence
 
-Status: **COMPLETE through PR #76 for schema `1.0`, bounded process-local materialization and optional best-effort runtime attempt recording in both bounded executors. Production/shared sources and online ranking policy remain pending.**
+Status: **COMPLETE through PR #79 for schema `1.0`, bounded process-local materialization, optional best-effort runtime attempt recording and content-addressed source-instance batch handoff. Shared/fleet ingestion-completeness and online ranking policy remain pending.**
 
 ## Purpose
 
@@ -8,7 +8,7 @@ The Roadmap separates offline benchmark quality from online operational health a
 
 The gateway already has per-process `DeploymentHealthSnapshot` state for circuit breaking and coarse eligibility. That state is intentionally not treated as a reviewed ranking snapshot: it is cumulative process-local state, has no explicit observation window, and currently affects ranking only through health/circuit eligibility.
 
-PR #70 introduced the strict, immutable, content-addressed contract for preserving recent operational measurements. PR #73 completed issue #72 by adding a deterministic materialization path from explicit metadata-only provider-attempt samples. Issue #75 adds an optional process-local recorder boundary for the existing non-streaming and streaming executors. **None of these increments changes ranking or authorization.**
+PR #70 introduced the strict, immutable, content-addressed contract for preserving recent operational measurements. PR #73 completed issue #72 by adding a deterministic materialization path from explicit metadata-only provider-attempt samples. PR #76 added the optional process-local recorder boundary for the existing non-streaming and streaming executors. PR #79 adds a content-addressed source-instance batch handoff that can be exported and loaded outside provider execution. **None of these increments changes ranking or authorization.**
 
 ## Snapshot provenance
 
@@ -194,10 +194,10 @@ recent operational evidence snapshot
 
 A future combination step must be explicit, versioned, deterministic, reversible, auditable, and subordinate to authorization and eligibility.
 
-## Explicitly not implemented by PR #76
+## Explicitly not implemented through PR #79
 
 - no remote/networked recorder sink in provider execution;
-- no production/shared operational-evidence source;
+- no fleet/shared operational-evidence aggregator or source-membership contract;
 - no OpenTelemetry/metrics backend query adapter for materialization;
 - no Redis/shared health or sample store;
 - no online-score normalization policy;
@@ -209,6 +209,6 @@ A future combination step must be explicit, versioned, deterministic, reversible
 
 ## Next reviewed step
 
-After PR #76, a later consumer-agnostic increment may define a production/shared metadata-only source or exporter that is decoupled from provider execution and has explicit completeness semantics. Remote delivery must not become a required provider-execution dependency. Only after a complete reviewed evidence-production path exists should a separate versioned policy define how recent operational measurements may influence score dimensions.
+After PR #79, the next consumer-agnostic boundary is shared ingestion plus explicit fleet/source-membership completeness over validated source-instance batches. Remote delivery must not become a required provider-execution dependency. Only after a complete reviewed fleet evidence-production path exists should a separate versioned policy define how recent operational measurements may influence score dimensions.
 
 Issue #18 remains authoritative for Phase 14 sequencing: OpsLens stays deferred, and RAGForge must not start in parallel unless the normative order is explicitly revised.

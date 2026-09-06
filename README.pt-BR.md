@@ -4,7 +4,7 @@
 
 Gateway reutilizável e neutro em relação a provedores de LLM para **resolução e execução governada de modelos**.
 
-Status: **Phases 0–13 concluídas; Phase 14 em andamento — Cases 1/2 concluídos, Case 3 deferido. Todas as classes de benchmark listadas no roadmap estão representadas por contratos determinísticos revisados. Evidência offline de qualidade, saúde imediata de runtime e evidência operacional recente versionada com materialização process-local limitada e gravação best-effort de tentativas de runtime permanecem fronteiras explícitas e separadas; nenhuma policy de ranking por telemetria online está ativa.**
+Status: **Phases 0–13 concluídas; Phase 14 em andamento — Cases 1/2 concluídos, Case 3 deferido. Todas as classes de benchmark listadas no roadmap estão representadas por contratos determinísticos revisados. Evidência offline de qualidade, saúde imediata de runtime e evidência operacional recente versionada com materialização process-local limitada, gravação best-effort de tentativas de runtime e handoff content-addressed por instância de origem permanecem fronteiras explícitas e separadas; nenhuma completude de frota ou policy de ranking por telemetria online está ativa.**
 
 O gateway funciona como Policy Enforcement Point (PEP) operacional entre o workload declarado pela aplicação e o deployment concreto de LLM escolhido para execução.
 
@@ -58,7 +58,7 @@ As Phases 0–13 estão concluídas e estabelecem:
 - integração opcional com Verifiable AI Governance e evidência de runtime;
 - proveniência terminal de execução provider-neutral preservada por SSE/API/SDK;
 - evidência revisada de componentes de qualidade de benchmark preservada em snapshots imutáveis sem promoção implícita ou autoridade de roteamento;
-- schema `1.0` estrito e content-addressed para evidência operacional recente, materialização process-local limitada/fail-closed e gravação opcional best-effort de tentativas de runtime, separados da saúde e não consumidos pelo ranking.
+- schema `1.0` estrito e content-addressed para evidência operacional recente, materialização process-local limitada/fail-closed, gravação opcional best-effort de tentativas de runtime e handoff content-addressed limitado por instância de origem, separados da saúde e não consumidos pelo ranking.
 
 A Phase 14 migra consumidores reais incrementalmente na ordem normativa:
 
@@ -169,11 +169,11 @@ Evidência opcional desconhecida permanece ausente em vez de ser sintetizada. Ev
 
 ## Evidência operacional recente
 
-O PR #70 adiciona um artefato schema `1.0` estrito, imutável e content-addressed para janelas operacionais recentes limitadas. O PR #73 adiciona materialização determinística de samples explícitos, timestamped e metadata-only de tentativas reais do provider, e o PR #76 adiciona gravação opcional best-effort e process-local nos dois executores limitados, com invalidação conservadora de completude.
+O PR #70 adiciona um artefato schema `1.0` estrito, imutável e content-addressed para janelas operacionais recentes limitadas. O PR #73 adiciona materialização determinística de samples explícitos, timestamped e metadata-only de tentativas reais do provider, o PR #76 adiciona gravação opcional best-effort e process-local nos dois executores limitados, com invalidação conservadora de completude, e o PR #79 adiciona export/load de batches content-addressed por instância de origem fora da execução do provider.
 
-Isso permanece separado de `InMemoryHealthTracker` / `DeploymentHealthSnapshot`, que continuam como estado imediato e process-local de resiliência/elegibilidade. Falha do recorder, cancelamento do caller ou uma falha pós-call não representável não podem fabricar provider-error evidence nem se tornar dependência de disponibilidade da inferência. Fonte de samples compartilhada/de produção e adapters de consulta a backend de métricas continuam pendentes. Essa evidência não altera `StaticDeploymentScore`, pesos de ranking, elegibilidade ou autorização; qualquer scoring online futuro ainda exige uma policy versionada explícita e separada.
+Isso permanece separado de `InMemoryHealthTracker` / `DeploymentHealthSnapshot`, que continuam como estado imediato e process-local de resiliência/elegibilidade. Falha do recorder, cancelamento do caller ou uma falha pós-call não representável não podem fabricar provider-error evidence nem se tornar dependência de disponibilidade da inferência. Ingestão compartilhada, completude de frota/membership de instâncias e adapters de backend de produção continuam pendentes. Essa evidência não altera `StaticDeploymentScore`, pesos de ranking, elegibilidade ou autorização; qualquer scoring online futuro ainda exige uma policy versionada explícita e separada.
 
-Veja `docs/evaluation/OPERATIONAL_EVIDENCE.md`.
+Veja `docs/evaluation/OPERATIONAL_EVIDENCE.md` e `docs/evaluation/OPERATIONAL_SAMPLE_BATCH.md`.
 
 ## Estrutura do repositório
 
@@ -196,16 +196,16 @@ uv sync --frozen
 uv run python scripts/quality_gate.py
 ```
 
-Baseline validado atual do `main` após o PR #76 (`455c11a24e09adddcfff9fc8c9578d74ec6c6606`):
+Baseline validado atual do `main` após o PR #79 (`51a9196f066a7ae4035322ccda7aefb147003b0c`):
 
-- **767 testes passaram**;
-- **82,47% de cobertura agregada** (threshold 80%);
-- mypy passou em **182 arquivos fonte**;
-- Ruff lint/format passou em **182 arquivos**;
-- Bandit reportou **0 issues** em 17.133 LOC;
+- **782 testes passaram**;
+- **82,52% de cobertura agregada** (threshold 80%);
+- mypy passou em **186 arquivos fonte**;
+- Ruff lint/format passou em **186 arquivos**;
+- Bandit reportou **0 issues** em 17.632 LOC;
 - pip-audit reportou **nenhuma vulnerabilidade conhecida**;
 - architecture check, secret scan e Phase 0 gate passaram;
-- quality run pós-merge no `main` `34062983396` — **PASS**.
+- quality run pós-merge no `main` `34064435787` — **PASS**.
 
 O warning conhecido do Starlette TestClient sobre `httpx`/`httpx2` continua não bloqueante.
 
@@ -219,6 +219,7 @@ Comece por:
 - `docs/evaluation/BENCHMARK_MATRIX.md` — matriz completa de workloads do roadmap e fronteira de evidência;
 - `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` — componentes revisados, snapshot schema 1.2 e evidência limitada de `pt_br_quality`;
 - `docs/evaluation/OPERATIONAL_EVIDENCE.md` — schema de evidência operacional recente versionada e fronteira sem autoridade de autorização/ranking;
+- `docs/evaluation/OPERATIONAL_SAMPLE_BATCH.md` — handoff content-addressed por instância de origem e fronteira de completude de frota;
 - `docs/project/PHASE14_PROVIDER_NEUTRAL_EXECUTION_PROVENANCE.md` — evidência terminal de runtime;
 - `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` — fronteira de capacidade/autoridade da Phase 7;
 - `docs/project/STREAMING.md` — lifecycle de streaming da Phase 8;

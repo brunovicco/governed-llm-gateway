@@ -4,7 +4,7 @@
 
 Reusable provider-neutral LLM execution gateway for **governed model resolution and execution**.
 
-Status: **Phases 0–13 complete; Phase 14 in progress — Cases 1/2 complete, Case 3 deferred. All roadmap-listed benchmark classes are represented by reviewed deterministic contracts. Offline quality evidence, immediate runtime health and versioned recent operational evidence with bounded process-local materialization and best-effort runtime recording remain explicit separate boundaries; no online-telemetry ranking policy is active.**
+Status: **Phases 0–13 complete; Phase 14 in progress — Cases 1/2 complete, Case 3 deferred. All roadmap-listed benchmark classes are represented by reviewed deterministic contracts. Offline quality evidence, immediate runtime health and versioned recent operational evidence with bounded process-local materialization, best-effort runtime recording and content-addressed source-instance batch handoff remain explicit separate boundaries; no fleet-completeness or online-telemetry ranking policy is active.**
 
 The gateway is the operational Policy Enforcement Point (PEP) between an application's declared workload and the concrete LLM deployment selected for execution.
 
@@ -58,7 +58,7 @@ Phases 0–13 are complete and establish:
 - optional Verifiable AI Governance authorization and runtime evidence;
 - provider-neutral terminal execution provenance preserved through SSE/API/SDK;
 - reviewed benchmark quality-component evidence preserved in immutable snapshots without implicit promotion or routing authority;
-- strict content-addressed recent operational evidence schema `1.0`, bounded fail-closed process-local materialization and optional best-effort runtime attempt recording, preserved separately from health and not consumed by ranking.
+- strict content-addressed recent operational evidence schema `1.0`, bounded fail-closed process-local materialization, optional best-effort runtime attempt recording and source-instance-scoped content-addressed batch handoff, preserved separately from health and not consumed by ranking.
 
 Phase 14 is migrating real consumers incrementally in the normative order:
 
@@ -169,11 +169,11 @@ Unknown optional evidence remains absent instead of being synthesized. Runtime e
 
 ## Recent operational evidence
 
-PR #70 adds a strict, immutable, content-addressed schema `1.0` artifact for bounded recent operational windows. PR #73 adds deterministic materialization from explicit timestamped metadata-only provider-attempt samples, and PR #76 adds optional process-local best-effort recording in both bounded runtime executors with conservative completeness invalidation.
+PR #70 adds a strict, immutable, content-addressed schema `1.0` artifact for bounded recent operational windows. PR #73 adds deterministic materialization from explicit timestamped metadata-only provider-attempt samples, PR #76 adds optional process-local best-effort recording in both bounded runtime executors with conservative completeness invalidation, and PR #79 adds content-addressed source-instance batch export/load outside provider execution.
 
-This remains separate from `InMemoryHealthTracker` / `DeploymentHealthSnapshot`, which are immediate process-local resilience and eligibility state. Recorder failure, caller cancellation or an unrepresentable post-call failure cannot fabricate provider-error evidence or become an inference-availability dependency. A production/shared sample source and metrics-backend query adapters remain pending. Operational evidence does not modify `StaticDeploymentScore`, ranking weights, eligibility or authorization; any future online scoring still requires a separate explicit versioned policy.
+This remains separate from `InMemoryHealthTracker` / `DeploymentHealthSnapshot`, which are immediate process-local resilience and eligibility state. Recorder failure, caller cancellation or an unrepresentable post-call failure cannot fabricate provider-error evidence or become an inference-availability dependency. Shared ingestion, fleet/source-membership completeness and production backend adapters remain pending. Operational evidence does not modify `StaticDeploymentScore`, ranking weights, eligibility or authorization; any future online scoring still requires a separate explicit versioned policy.
 
-See `docs/evaluation/OPERATIONAL_EVIDENCE.md`.
+See `docs/evaluation/OPERATIONAL_EVIDENCE.md` and `docs/evaluation/OPERATIONAL_SAMPLE_BATCH.md`.
 
 ## Repository layout
 
@@ -196,16 +196,16 @@ uv sync --frozen
 uv run python scripts/quality_gate.py
 ```
 
-Current validated `main` baseline after PR #76 (`455c11a24e09adddcfff9fc8c9578d74ec6c6606`):
+Current validated `main` baseline after PR #79 (`51a9196f066a7ae4035322ccda7aefb147003b0c`):
 
-- **767 tests passed**;
-- **82.47% aggregate coverage** (threshold 80%);
-- mypy passed across **182 source files**;
-- Ruff lint/format passed across **182 files**;
-- Bandit reported **0 issues** across 17,133 LOC;
+- **782 tests passed**;
+- **82.52% aggregate coverage** (threshold 80%);
+- mypy passed across **186 source files**;
+- Ruff lint/format passed across **186 files**;
+- Bandit reported **0 issues** across 17,632 LOC;
 - pip-audit reported **no known vulnerabilities**;
 - architecture check, secret scan and Phase 0 gate passed;
-- post-merge `main` quality run `34062983396` — **PASS**.
+- post-merge `main` quality run `34064435787` — **PASS**.
 
 The known Starlette TestClient `httpx`/`httpx2` deprecation warning remains non-blocking.
 
@@ -219,6 +219,7 @@ Start with:
 - `docs/evaluation/BENCHMARK_MATRIX.md` — complete roadmap workload matrix and evidence boundary;
 - `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` — reviewed component metrics, snapshot schema 1.2 and bounded `pt_br_quality` evidence;
 - `docs/evaluation/OPERATIONAL_EVIDENCE.md` — versioned recent operational evidence schema and non-authorizing/non-ranking boundary;
+- `docs/evaluation/OPERATIONAL_SAMPLE_BATCH.md` — source-instance-scoped content-addressed sample handoff and fleet-completeness boundary;
 - `docs/project/PHASE14_PROVIDER_NEUTRAL_EXECUTION_PROVENANCE.md` — terminal runtime evidence;
 - `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` — Phase 7 capability/authority boundary;
 - `docs/project/STREAMING.md` — Phase 8 streaming lifecycle;
