@@ -33,6 +33,10 @@ from .workloads.structured_extraction_v2 import (
     STRUCTURED_EXTRACTION_V2_SCORER_ID,
     score_structured_extraction_v2,
 )
+from .workloads.tool_selection import (
+    TOOL_SELECTION_SCORER_ID,
+    score_tool_selection,
+)
 from .workloads.tool_use import TOOL_USE_SCORER_ID, score_tool_use
 
 
@@ -104,6 +108,7 @@ def build_default_scorers() -> Mapping[str, DeterministicScorer]:
         CODE_GENERATION_SCORER_ID: score_code_generation,
         CODE_REVIEW_SCORER_ID: score_code_review,
         SECURITY_ANALYSIS_SCORER_ID: score_security_analysis,
+        TOOL_SELECTION_SCORER_ID: score_tool_selection,
         TOOL_USE_SCORER_ID: score_tool_use,
         AGENT_ORCHESTRATION_SCORER_ID: score_agent_orchestration,
         MULTIMODAL_ANALYSIS_SCORER_ID: score_multimodal_analysis,

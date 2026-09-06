@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "tool-selection-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "tool-selection.account-lookup.001",
+      "workload": "tool_selection",
+      "scorer": "tool_selection_v1",
+      "prompt": "Select exactly one tool from the reviewed catalog when a tool is required; otherwise select no tool. Do not generate arguments and do not execute any tool. Return only JSON with the key tool. Catalog: account_lookup=read synthetic account profile; knowledge_search=search synthetic product documentation; send_notification=send a synthetic user notification; weather_forecast=read a synthetic weather forecast. Request: Show the current synthetic account profile for customer A-104.",
+      "expected": {"tool": "account_lookup"},
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "tool_selection_v1", "synthetic": true, "execute_tool": false}
+    },
+    {
+      "case_id": "tool-selection.knowledge-search.001",
+      "workload": "tool_selection",
+      "scorer": "tool_selection_v1",
+      "prompt": "Select exactly one tool from the reviewed catalog when a tool is required; otherwise select no tool. Do not generate arguments and do not execute any tool. Return only JSON with the key tool. Catalog: account_lookup=read synthetic account profile; knowledge_search=search synthetic product documentation; send_notification=send a synthetic user notification; weather_forecast=read a synthetic weather forecast. Request: Find the product documentation that explains the synthetic export feature.",
+      "expected": {"tool": "knowledge_search"},
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "tool_selection_v1", "synthetic": true, "execute_tool": false}
+    },
+    {
+      "case_id": "tool-selection.send-notification.001",
+      "workload": "tool_selection",
+      "scorer": "tool_selection_v1",
+      "prompt": "Select exactly one tool from the reviewed catalog when a tool is required; otherwise select no tool. Do not generate arguments and do not execute any tool. Return only JSON with the key tool. Catalog: account_lookup=read synthetic account profile; knowledge_search=search synthetic product documentation; send_notification=send a synthetic user notification; weather_forecast=read a synthetic weather forecast. Request: Notify the synthetic user that the maintenance window has been rescheduled.",
+      "expected": {"tool": "send_notification"},
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "tool_selection_v1", "synthetic": true, "execute_tool": false}
+    },
+    {
+      "case_id": "tool-selection.weather-forecast.001",
+      "workload": "tool_selection",
+      "scorer": "tool_selection_v1",
+      "prompt": "Select exactly one tool from the reviewed catalog when a tool is required; otherwise select no tool. Do not generate arguments and do not execute any tool. Return only JSON with the key tool. Catalog: account_lookup=read synthetic account profile; knowledge_search=search synthetic product documentation; send_notification=send a synthetic user notification; weather_forecast=read a synthetic weather forecast. Request: Read the synthetic weather forecast for tomorrow in Example City.",
+      "expected": {"tool": "weather_forecast"},
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "tool_selection_v1", "synthetic": true, "execute_tool": false}
+    },
+    {
+      "case_id": "tool-selection.none.001",
+      "workload": "tool_selection",
+      "scorer": "tool_selection_v1",
+      "prompt": "Select exactly one tool from the reviewed catalog when a tool is required; otherwise select no tool. Do not generate arguments and do not execute any tool. Return only JSON with the key tool. Catalog: account_lookup=read synthetic account profile; knowledge_search=search synthetic product documentation; send_notification=send a synthetic user notification; weather_forecast=read a synthetic weather forecast. Request: Reply with a short greeting to the synthetic user.",
+      "expected": {"tool": null},
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "tool_selection_v1", "synthetic": true, "execute_tool": false}
+    },
+    {
+      "case_id": "tool-selection.none.002",
+      "workload": "tool_selection",
+      "scorer": "tool_selection_v1",
+      "prompt": "Select exactly one tool from the reviewed catalog when a tool is required; otherwise select no tool. Do not generate arguments and do not execute any tool. Return only JSON with the key tool. Catalog: account_lookup=read synthetic account profile; knowledge_search=search synthetic product documentation; send_notification=send a synthetic user notification; weather_forecast=read a synthetic weather forecast. Request: State whether five is greater than three.",
+      "expected": {"tool": null},
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "tool_selection_v1", "synthetic": true, "execute_tool": false}
+    }
+  ]
+}
