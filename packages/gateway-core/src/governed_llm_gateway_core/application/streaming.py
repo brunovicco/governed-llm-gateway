@@ -22,6 +22,12 @@ from governed_llm_gateway_contracts import (
 
 from governed_llm_gateway_core.domain.resilience import RetryPolicy
 
+from .operational_evidence import OperationalAttemptRecorder, UtcClock
+from .operational_recording import (
+    invalidate_operational_completeness_best_effort,
+    record_operational_attempt_best_effort,
+    utc_now,
+)
 from .provider import (
     ProviderContentDelta,
     ProviderError,
@@ -61,14 +67,18 @@ class StreamingExecutionService:
         clock: Clock = time.monotonic,
         sleeper: Sleeper = asyncio.sleep,
         observability: Observability | None = None,
+        operational_recorder: OperationalAttemptRecorder | None = None,
+        utc_clock: UtcClock = utc_now,
     ) -> None:
-        """Bind runtime health, provider resolution, retry controls, and optional telemetry."""
+        """Bind resilience controls plus optional local telemetry/evidence recording."""
         self._health = health
         self._resolver = resolver
         self._retry_policy = retry_policy or RetryPolicy()
         self._clock = clock
         self._sleeper = sleeper
         self._observability = observability
+        self._operational_recorder = operational_recorder
+        self._utc_clock = utc_clock
 
     async def stream(
         self,
@@ -181,6 +191,8 @@ class StreamingExecutionService:
                 final_usage: Usage | None = None
                 sequence = 0
                 started_at = self._clock()
+                provider_attempt_started = False
+                attempt_terminal_recorded = False
                 span_context = (
                     self._observability.start_span(
                         "provider.inference",
@@ -217,6 +229,7 @@ class StreamingExecutionService:
                             },
                         )
                     try:
+                        provider_attempt_started = True
                         provider_stream = resolved.stream(provider_request)
                         async with aclosing(provider_stream) as events:
                             async for event in events:
@@ -309,6 +322,16 @@ class StreamingExecutionService:
                                             "provider completed before semantic output/final usage",
                                         )
                                     latency_ms = _latency_ms(started_at, self._clock())
+                                    record_operational_attempt_best_effort(
+                                        self._operational_recorder,
+                                        utc_clock=self._utc_clock,
+                                        request=request,
+                                        deployment_id=deployment_id,
+                                        attempt_number=attempt_number,
+                                        fallback_index=len(fallback_sequence) - 1,
+                                        latency_ms=latency_ms,
+                                    )
+                                    attempt_terminal_recorded = True
                                     self._health.record_success(
                                         deployment_id,
                                         latency_ms=latency_ms,
@@ -369,11 +392,34 @@ class StreamingExecutionService:
                             "provider stream ended without normalized completion",
                         )
                     except asyncio.CancelledError:
+                        if provider_attempt_started and not attempt_terminal_recorded:
+                            invalidate_operational_completeness_best_effort(
+                                self._operational_recorder,
+                                utc_clock=self._utc_clock,
+                            )
                         if span is not None:
                             mark_span_cancelled(span)
                         raise
+                    except GeneratorExit:
+                        if provider_attempt_started and not attempt_terminal_recorded:
+                            invalidate_operational_completeness_best_effort(
+                                self._operational_recorder,
+                                utc_clock=self._utc_clock,
+                            )
+                        raise
                     except ProviderError as exc:
                         latency_ms = _latency_ms(started_at, self._clock())
+                        record_operational_attempt_best_effort(
+                            self._operational_recorder,
+                            utc_clock=self._utc_clock,
+                            request=request,
+                            deployment_id=deployment_id,
+                            attempt_number=attempt_number,
+                            fallback_index=len(fallback_sequence) - 1,
+                            latency_ms=latency_ms,
+                            provider_error=exc,
+                        )
+                        attempt_terminal_recorded = True
                         self._health.record_failure(deployment_id, exc, latency_ms=latency_ms)
                         last_error = exc
                         last_execution = ProviderExecution(
@@ -461,6 +507,13 @@ class StreamingExecutionService:
                                 execution=last_execution,
                             )
                             return
+                    except Exception:
+                        if provider_attempt_started and not attempt_terminal_recorded:
+                            invalidate_operational_completeness_best_effort(
+                                self._operational_recorder,
+                                utc_clock=self._utc_clock,
+                            )
+                        raise
 
                 if retry_delay_after_span is not None:
                     await self._sleeper(retry_delay_after_span)

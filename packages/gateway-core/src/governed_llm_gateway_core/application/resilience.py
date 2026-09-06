@@ -22,6 +22,12 @@ from governed_llm_gateway_core.domain.resilience import (
     RetryPolicy,
 )
 
+from .operational_evidence import OperationalAttemptRecorder, UtcClock
+from .operational_recording import (
+    invalidate_operational_completeness_best_effort,
+    record_operational_attempt_best_effort,
+    utc_now,
+)
 from .provider import (
     ProviderError,
     ProviderErrorCode,
@@ -231,14 +237,18 @@ class ResilientExecutionService:
         clock: Clock = time.monotonic,
         sleeper: Sleeper = asyncio.sleep,
         observability: Observability | None = None,
+        operational_recorder: OperationalAttemptRecorder | None = None,
+        utc_clock: UtcClock = utc_now,
     ) -> None:
-        """Bind health, resolver, retry controls, and optional Phase 9 telemetry."""
+        """Bind resilience controls plus optional local telemetry/evidence recording."""
         self._health = health
         self._resolver = resolver
         self._retry_policy = retry_policy or RetryPolicy()
         self._clock = clock
         self._sleeper = sleeper
         self._observability = observability
+        self._operational_recorder = operational_recorder
+        self._utc_clock = utc_clock
 
     async def execute(
         self,
@@ -348,8 +358,24 @@ class ResilientExecutionService:
                         )
                     try:
                         response = await provider.generate(provider_request)
+                    except asyncio.CancelledError:
+                        invalidate_operational_completeness_best_effort(
+                            self._operational_recorder,
+                            utc_clock=self._utc_clock,
+                        )
+                        raise
                     except ProviderError as exc:
                         latency_ms = _latency_ms(started, self._clock())
+                        record_operational_attempt_best_effort(
+                            self._operational_recorder,
+                            utc_clock=self._utc_clock,
+                            request=request,
+                            deployment_id=deployment_id,
+                            attempt_number=attempt_number,
+                            fallback_index=len(fallback_sequence) - 1,
+                            latency_ms=latency_ms,
+                            provider_error=exc,
+                        )
                         self._health.record_failure(deployment_id, exc, latency_ms=latency_ms)
                         transient = _is_transient(exc)
                         retry_delay: float | None = None
@@ -420,8 +446,23 @@ class ResilientExecutionService:
                             retry_delay_after_span = retry_delay
                         else:
                             break
+                    except Exception:
+                        invalidate_operational_completeness_best_effort(
+                            self._operational_recorder,
+                            utc_clock=self._utc_clock,
+                        )
+                        raise
                     else:
                         latency_ms = _latency_ms(started, self._clock())
+                        record_operational_attempt_best_effort(
+                            self._operational_recorder,
+                            utc_clock=self._utc_clock,
+                            request=request,
+                            deployment_id=deployment_id,
+                            attempt_number=attempt_number,
+                            fallback_index=len(fallback_sequence) - 1,
+                            latency_ms=latency_ms,
+                        )
                         self._health.record_success(deployment_id, latency_ms=latency_ms)
                         if span is not None:
                             set_gateway_span_attributes(
