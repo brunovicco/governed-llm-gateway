@@ -137,14 +137,20 @@ def _validated_expected_answer(expected: JsonValue) -> str | int | bool:
     if isinstance(answer, int):
         return answer
     if isinstance(answer, str):
+        valid_characters = all(
+            character.isascii() and (character.isalnum() or character in "_-")
+            for character in answer
+        )
         if (
             not answer
             or len(answer) > 64
             or answer.strip() != answer
             or answer.casefold() != answer
-            or not all(character.isascii() and (character.isalnum() or character in "_-") for character in answer)
+            or not valid_characters
         ):
-            raise ValueError("reasoning v1 string answers must be normalized lowercase ASCII tokens")
+            raise ValueError(
+                "reasoning v1 string answers must be normalized lowercase ASCII tokens"
+            )
         return answer
     raise ValueError("reasoning v1 answer must be a string, integer, or boolean")
 
