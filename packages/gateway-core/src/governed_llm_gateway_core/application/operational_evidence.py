@@ -167,9 +167,7 @@ def _aggregate_records(
         fallback_request_ids = {
             sample.gateway_request_id for sample in group if sample.fallback_index > 0
         }
-        successes = sum(
-            sample.outcome is OperationalSampleOutcome.SUCCEEDED for sample in group
-        )
+        successes = sum(sample.outcome is OperationalSampleOutcome.SUCCEEDED for sample in group)
         provider_errors = len(group) - successes
         rate_limits = sum(
             sample.error_kind is OperationalProviderErrorKind.RATE_LIMIT for sample in group
@@ -278,6 +276,4 @@ def _validate_positive_int(value: int, field: str) -> None:
 
 def _validate_nonnegative_int(value: int, field: str) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise OperationalEvidenceMaterializationError(
-            f"{field} must be a non-negative integer"
-        )
+        raise OperationalEvidenceMaterializationError(f"{field} must be a non-negative integer")

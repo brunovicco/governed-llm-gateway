@@ -16,11 +16,7 @@ class InMemoryOperationalSampleStore:
 
     def __init__(self, *, max_samples: int, clock: UtcClock) -> None:
         """Start process-local coverage at construction time."""
-        if (
-            isinstance(max_samples, bool)
-            or not isinstance(max_samples, int)
-            or max_samples <= 0
-        ):
+        if isinstance(max_samples, bool) or not isinstance(max_samples, int) or max_samples <= 0:
             raise OperationalEvidenceMaterializationError("max_samples must be a positive integer")
         coverage_start = clock()
         _validate_utc(coverage_start, "coverage_start")
@@ -53,10 +49,7 @@ class InMemoryOperationalSampleStore:
             raise OperationalEvidenceMaterializationError(
                 "operational sample cannot be recorded from the future"
             )
-        if (
-            self._latest_observed_at is not None
-            and sample.observed_at < self._latest_observed_at
-        ):
+        if self._latest_observed_at is not None and sample.observed_at < self._latest_observed_at:
             raise OperationalEvidenceMaterializationError(
                 "operational samples must be recorded in non-decreasing timestamp order"
             )
@@ -77,9 +70,7 @@ class InMemoryOperationalSampleStore:
         _validate_utc(window_start, "window_start")
         _validate_utc(window_end, "window_end")
         if window_start >= window_end:
-            raise OperationalEvidenceMaterializationError(
-                "window_start must precede window_end"
-            )
+            raise OperationalEvidenceMaterializationError("window_start must precede window_end")
         now = self._clock()
         _validate_utc(now, "source clock")
         if window_end > now:
@@ -95,9 +86,7 @@ class InMemoryOperationalSampleStore:
                 "operational sample window may intersect capacity-evicted history"
             )
         return tuple(
-            sample
-            for sample in self._samples
-            if window_start <= sample.observed_at < window_end
+            sample for sample in self._samples if window_start <= sample.observed_at < window_end
         )
 
 
