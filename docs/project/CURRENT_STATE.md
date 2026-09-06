@@ -134,6 +134,7 @@ Additional roadmap-listed post-core evaluation classes were then added without c
 - PR #70 — strict schema `1.0` recent operational evidence with collector/time-window provenance, content-derived identity and explicit request/error/fallback/latency measurements; no collector, ranking-score normalization or routing-policy change.
 - PR #73 — deterministic materialization from bounded timestamped metadata-only provider-attempt samples, including fail-closed process-local coverage/eviction semantics and canonical schema `1.0` snapshot creation; no executor recorder wiring, ranking or authorization change.
 - PR #76 — optional process-local best-effort provider-attempt recording in non-streaming and streaming executors, with separate monotonic/UTC clocks and conservative completeness invalidation for cancellation, unrepresentable post-call failures or recorder failure; no ranking or authorization change.
+- PR #79 — immutable content-addressed operational sample batch handoff with explicit `source_instance_id`, strict JSON/tamper validation, out-of-band export and batch-backed source coverage; no fleet-completeness, ranking or authorization change.
 
 All roadmap-listed benchmark classes now have reviewed versioned contracts. The Roadmap measurement audit preserves every currently reviewed deterministic quality component separately from operational health, including bounded `pt_br_quality` from `rag-ptbr-v2`. Historical `rag-ptbr-v1` remains unchanged, and broader fluency/grammar/style/cultural-quality claims remain explicitly out of scope.
 
@@ -157,33 +158,33 @@ Shared benchmark properties remain:
 - no LLM-as-judge dependency in the default path;
 - benchmark/runtime evidence can affect ranking only inside the already-authorized and eligible set.
 
-Latest validated gateway baseline after PR #76:
+Latest validated gateway baseline after PR #79:
 
-`455c11a24e09adddcfff9fc8c9578d74ec6c6606`
+`51a9196f066a7ae4035322ccda7aefb147003b0c`
 
 Post-merge quality run:
 
-`34062983396` — PASS.
+`34064435787` — PASS.
 
 Validation:
 
-- 767 tests passed;
-- aggregate coverage 82.47%;
-- strict mypy passed across 182 source files;
-- Ruff lint/format passed across 182 files;
-- Bandit reported no issues across 17,133 LOC;
+- 782 tests passed;
+- aggregate coverage 82.52%;
+- strict mypy passed across 186 source files;
+- Ruff lint/format passed across 186 files;
+- Bandit reported no issues across 17,632 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
 The detailed benchmark ledger is documented in `docs/evaluation/BENCHMARK_MATRIX.md`.
 
-## Recent operational evidence — CONTRACT + MATERIALIZER + LOCAL RECORDER COMPLETE, SHARED SOURCE PENDING
+## Recent operational evidence — CONTRACT + MATERIALIZER + LOCAL RECORDER + BATCH HANDOFF COMPLETE, FLEET COMPLETENESS PENDING
 
-PR #70 establishes schema `1.0` `OperationalEvidenceSnapshot` as immutable recent-window evidence. PR #73 adds deterministic materialization from explicit timestamped metadata-only actual provider-attempt samples, a canonical snapshot factory and a bounded process-local source with fail-closed coverage/eviction semantics. PR #76 adds optional process-local best-effort recording to both bounded executors.
+PR #70 establishes schema `1.0` `OperationalEvidenceSnapshot` as immutable recent-window evidence. PR #73 adds deterministic materialization from explicit timestamped metadata-only actual provider-attempt samples, a canonical snapshot factory and a bounded process-local source with fail-closed coverage/eviction semantics. PR #76 adds optional process-local best-effort recording to both bounded executors. PR #79 adds a content-addressed batch handoff that preserves explicit source-instance/exporter/window provenance and can be loaded as an `OperationalSampleSource` outside provider execution.
 
 This does not reinterpret `InMemoryHealthTracker` / `DeploymentHealthSnapshot` as historical evidence. Those objects remain immediate process-local resilience/eligibility state. The recorder/source is intentionally local to one process and does not claim distributed completeness. Cancellation, generator close, unrepresentable post-call failures and recorder failures conservatively invalidate completeness rather than fabricate provider errors or fail inference.
 
-A production/shared sample source, metrics-backend query adapters, online-score normalization and ranking-policy changes remain pending. Operational evidence cannot authorize or restore an otherwise ineligible candidate, and any future use in scoring requires a separate explicit versioned policy.
+Shared ingestion, fleet/source-membership completeness, production backend adapters, online-score normalization and ranking-policy changes remain pending. Operational evidence cannot authorize or restore an otherwise ineligible candidate, and any future use in scoring requires a separate explicit versioned policy.
 
 See `docs/evaluation/OPERATIONAL_EVIDENCE.md`.
 
@@ -262,14 +263,14 @@ Remains after the preceding integration cases.
 
 ## Current working boundary
 
-1. Keep `governed-llm-gateway/main` stable at the validated post-PR #76 operational-evidence runtime-recording baseline.
+1. Keep `governed-llm-gateway/main` stable at the validated post-PR #79 operational-evidence source-instance batch-handoff baseline.
 2. Do not modify OpsLens until its independent development state is ready for reconciliation.
 3. Do not begin RAGForge in parallel unless the roadmap order is explicitly revised.
 4. Accept further upstream gateway changes only when they are consumer-agnostic, independently justified and preserve the permanent authorization invariant.
 5. Do not create a model-forcing benchmark bypass: benchmark target identity must never become an authorization or routing override.
 6. Treat `rag-ptbr-v2` `pt_br_quality` strictly as bounded reviewer-authored Brazilian Portuguese locale/terminology evidence; do not generalize it into arbitrary fluency, grammar, style or cultural-quality claims.
 7. Keep benchmark quality components and recent operational evidence outside new ranking semantics until separate explicit versioned contracts review such use.
-8. A future operational-evidence increment may add a production/shared metadata-only sample source or exporter decoupled from provider execution with explicit completeness semantics; it must not make remote evidence delivery part of inference availability or invent online score normalization/adaptive policy.
+8. A future operational-evidence increment may add shared ingestion and an explicit fleet/source-membership completeness model over validated source-instance batches; it must not make remote evidence delivery part of inference availability or invent online score normalization/adaptive policy.
 9. A future live gateway-backed benchmark executor must use an already-authorized gateway path, preserve target/effective-execution integrity checks, and remain outside credential-free default CI.
 10. When OpsLens is resumed, reconcile against the then-current gateway commit and rerun the full OpsLens Python and Terraform gates before merge.
 

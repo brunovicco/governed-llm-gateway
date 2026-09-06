@@ -1,12 +1,12 @@
 # Operational Sample Batch Handoff
 
-Status: **IN DEVELOPMENT through issue #78.**
+Status: **COMPLETE through PR #79 for immutable schema `1.0` source-instance-scoped batch handoff. Shared/fleet ingestion and completeness remain pending.**
 
 ## Purpose
 
 PR #76 records metadata-only provider-attempt samples into an optional process-local recorder without making evidence collection an inference-availability dependency. The next boundary is moving a complete local sample window out of that process without putting remote I/O back into `ResilientExecutionService` or `StreamingExecutionService`.
 
-Issue #78 defines a durable handoff artifact for that purpose.
+PR #79 completed issue #78 by adding the durable handoff artifact, strict JSON loader and batch-backed sample source for that purpose.
 
 ## Artifact scope
 
@@ -95,7 +95,7 @@ Operational sample batches cannot:
 
 They are evidence-transport artifacts only.
 
-## Explicitly not implemented by issue #78
+## Explicitly not implemented through PR #79
 
 - no remote/network exporter in provider execution;
 - no production/shared backend;
@@ -108,6 +108,6 @@ They are evidence-transport artifacts only.
 
 ## Next boundary
 
-After a validated batch handoff exists, a later consumer-agnostic increment may define a shared ingestion/source contract or fleet-level completeness model. Remote transport must remain decoupled from inference availability, and any operational-score use still requires a separate explicit versioned ranking policy.
+After PR #79, a later consumer-agnostic increment may define shared ingestion plus a fleet/source-membership completeness model over validated source-instance batches. Remote transport must remain decoupled from inference availability, and any operational-score use still requires a separate explicit versioned ranking policy.
 
 Issue #18 remains OPEN and authoritative for Phase 14 sequencing.
