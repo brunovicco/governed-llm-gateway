@@ -17,6 +17,7 @@ class BenchmarkWorkload(StrEnum):
     CLASSIFICATION = "classification"
     REASONING = "reasoning"
     STRUCTURED_EXTRACTION = "structured_extraction"
+    JSON_SCHEMA_COMPLIANCE = "json_schema_compliance"
     RAG_PTBR = "rag_ptbr"
     RAG_ANSWER = "rag_answer"
     CODE_GENERATION = "code_generation"
