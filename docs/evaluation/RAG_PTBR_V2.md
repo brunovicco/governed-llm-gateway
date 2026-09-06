@@ -1,6 +1,6 @@
 # RAG PT-BR v2 Benchmark
 
-Status: **IN DEVELOPMENT — tracked by issue #66.**
+Status: **COMPLETE — merged in PR #67; issue #66 closed after validated post-merge CI.**
 
 ## Purpose
 

@@ -4,7 +4,7 @@
 
 Reusable provider-neutral LLM execution gateway for **governed model resolution and execution**.
 
-Status: **Phases 0–13 complete; Phase 14 in progress — Cases 1/2 complete, Case 3 deferred. All roadmap-listed benchmark classes are represented by reviewed deterministic contracts. Reviewed quality-component evidence is preserved separately from operational health; independent PT-BR language quality remains an explicit measurement gap.**
+Status: **Phases 0–13 complete; Phase 14 in progress — Cases 1/2 complete, Case 3 deferred. All roadmap-listed benchmark classes are represented by reviewed deterministic contracts. Reviewed quality-component evidence is preserved separately from operational health, including bounded PT-BR locale/terminology quality in `rag-ptbr-v2`; no universal fluency or grammar claim is made.**
 
 The gateway is the operational Policy Enforcement Point (PEP) between an application's declared workload and the concrete LLM deployment selected for execution.
 
@@ -79,7 +79,7 @@ The roadmap-listed workload classes are represented by reviewed, versioned deter
 | `structured_extraction` | `structured-extraction-v2` (v1 preserved historically) | PRs #19 and #22 |
 | `json_schema_compliance` | `json-schema-compliance-v1` | PR #61 |
 | `rag_answer` | `rag-answer-v1` | PR #58 |
-| `rag_ptbr` | `rag-ptbr-v1` | PR #20 |
+| `rag_ptbr` | `rag-ptbr-v2` (v1 preserved historically) | PRs #20 and #67 |
 | `reasoning` | `reasoning-v1` | PR #47 |
 | `code_generation` | `code-generation-v1` | PR #21 |
 | `code_review` | `code-review-v1` | PR #48 |
@@ -110,11 +110,12 @@ Where current reviewed scorers genuinely support them, PR #64 preserves these of
 - `tool_selection_accuracy`;
 - `tool_argument_accuracy`;
 - `trajectory_success`;
-- `grounding`.
+- `grounding`;
+- `pt_br_quality` (bounded reviewed Brazilian Portuguese locale/terminology conformance).
 
 Provider failures remain availability evidence and do not become zero model-quality evidence. Component-bearing snapshots use schema `1.2`; historical snapshot schemas `1.0` and `1.1` remain canonical and unchanged.
 
-Independent PT-BR language quality is intentionally **not** claimed yet. `rag-ptbr-v1` measures reviewed required-fact coverage with forbidden-claim checks in PT-BR, not separate Portuguese fluency, grammar, terminology, localization or style quality.
+PR #67 adds `rag-ptbr-v2`, which preserves `grounding` separately from a bounded `pt_br_quality` component based only on reviewer-authored Brazilian Portuguese locale/terminology rules. Historical `rag-ptbr-v1` remains unchanged and component-free for language quality. This does not claim arbitrary Portuguese fluency, complete grammar correctness, unrestricted semantic equivalence, style/tone or cultural appropriateness.
 
 The evidence path remains:
 
@@ -186,16 +187,16 @@ uv sync --frozen
 uv run python scripts/quality_gate.py
 ```
 
-Current validated `main` baseline after PR #64 (`ef1d83c8c82a63a3f5abc533d7dc75db51144690`):
+Current validated `main` baseline after PR #67 (`a92e7961ae2de6d3ec40aaa0dda3a955b4e92660`):
 
-- **714 tests passed**;
-- **82.21% aggregate coverage** (threshold 80%);
-- mypy passed across **172 source files**;
-- Ruff lint/format passed across **172 files**;
-- Bandit reported **0 issues** across 15,972 LOC;
+- **725 tests passed**;
+- **82.16% aggregate coverage** (threshold 80%);
+- mypy passed across **174 source files**;
+- Ruff lint/format passed across **174 files**;
+- Bandit reported **0 issues** across 16,170 LOC;
 - pip-audit reported **no known vulnerabilities**;
 - architecture check, secret scan and Phase 0 gate passed;
-- post-merge `main` quality run `34048733993` — **PASS**.
+- post-merge `main` quality run `34050920267` — **PASS**.
 
 The known Starlette TestClient `httpx`/`httpx2` deprecation warning remains non-blocking.
 
@@ -207,7 +208,7 @@ Start with:
 - `docs/project/ROADMAP.md` and `docs/project/SOURCE_ROADMAP.txt` — execution ledger and normative source;
 - `docs/project/EVALUATION.md` — benchmark/evidence architecture;
 - `docs/evaluation/BENCHMARK_MATRIX.md` — complete roadmap workload matrix and evidence boundary;
-- `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` — reviewed component metrics, snapshot schema 1.2 and the explicit PT-BR-quality gap;
+- `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` — reviewed component metrics, snapshot schema 1.2 and bounded `pt_br_quality` evidence;
 - `docs/project/PHASE14_PROVIDER_NEUTRAL_EXECUTION_PROVENANCE.md` — terminal runtime evidence;
 - `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` — Phase 7 capability/authority boundary;
 - `docs/project/STREAMING.md` — Phase 8 streaming lifecycle;

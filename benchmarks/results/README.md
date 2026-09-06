@@ -42,10 +42,13 @@ existing deterministic workload semantics:
 - `tool_selection_accuracy`;
 - `tool_argument_accuracy`;
 - `trajectory_success`;
-- `grounding`.
+- `grounding`;
+- `pt_br_quality`.
 
-Independent PT-BR language quality is not inferred from `rag-ptbr-v1`; it remains a separate explicit
-measurement gap.
+`pt_br_quality` is emitted only by the reviewed `rag-ptbr-v2` contract and means bounded Brazilian
+Portuguese locale/terminology conformance for case-local reviewer-authored rules. Historical
+`rag-ptbr-v1` remains component-free for language quality, and no snapshot should reinterpret v1 as
+fluency, grammar, style or unrestricted localization evidence.
 
 ## Privacy and environment rules
 

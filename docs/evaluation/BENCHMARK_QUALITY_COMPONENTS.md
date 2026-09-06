@@ -25,7 +25,8 @@ reviewed scorers can actually demonstrate:
 | `tool_selection_accuracy` | `tool-use-v1`, `tool-selection-v1`, `multi-step-tool-use-v1` |
 | `tool_argument_accuracy` | `tool-use-v1`, `tool-argument-generation-v1`, `multi-step-tool-use-v1` |
 | `trajectory_success` | `multi-step-tool-use-v1`, `agent-orchestration-v1` |
-| `grounding` | `rag-answer-v1` |
+| `grounding` | `rag-answer-v1`, `rag-ptbr-v2` |
+| `pt_br_quality` | `rag-ptbr-v2` |
 
 The historical scalar scorer callable contract remains unchanged. Existing code can still
 call a scorer and receive one `Decimal` from 0 through 1. Component-aware scorers expose an
@@ -41,7 +42,7 @@ additional deterministic measurement used by `BenchmarkRunner`.
 | tool-argument accuracy | preserved as `tool_argument_accuracy` component evidence |
 | trajectory success | preserved as `trajectory_success` component evidence |
 | grounding | preserved as `grounding` component evidence from `rag-answer-v1` |
-| PT-BR quality | **GAP — not claimed by the current scorer contract** |
+| PT-BR quality | bounded reviewer-authored locale/terminology conformance preserved as `pt_br_quality` by `rag-ptbr-v2`; not a universal fluency/grammar claim |
 | latency p50 / p95 | existing scorecard evidence |
 | TTFT | existing scorecard evidence |
 | input / output tokens or normalized units | existing scorecard evidence |
@@ -50,16 +51,17 @@ additional deterministic measurement used by `BenchmarkRunner`.
 | rate-limit errors | existing scorecard evidence |
 | fallback frequency | existing scorecard evidence |
 
-### PT-BR quality remains an explicit gap
+### PT-BR quality is bounded and explicit
 
-`rag-ptbr-v1` evaluates deterministic required-fact coverage and rejects reviewed forbidden
-claims in a PT-BR case. That is useful grounded-answer evidence, but it is not an independent
-measurement of Portuguese fluency, grammar, style, terminology, localization quality or
-other language-quality dimensions.
+`rag-ptbr-v1` remains the historical required-fact/forbidden-claim contract and still exposes no
+language-quality component. PR #67 adds `rag-ptbr-v2`, which keeps `grounding` separate from
+`pt_br_quality`. The new component measures only conformance to case-local reviewer-authored
+Brazilian Portuguese locale/terminology rules using explicit preferred and rejected terms.
 
-The framework therefore does not alias `rag-ptbr-v1` to a fabricated `pt_br_quality`
-metric. A future PT-BR quality measure requires its own reviewed deterministic contract or
-another explicitly governed evaluation method.
+This closes the Roadmap measurement gap only at that bounded level. It does not claim arbitrary
+Portuguese fluency, complete grammar correctness, unrestricted semantic equivalence, style/tone,
+cultural appropriateness or quality across every Portuguese variety. Those would require separate
+reviewed contracts.
 
 ## Observation and aggregation semantics
 
