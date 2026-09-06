@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "code-review-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "code-review.mutable-default.001",
+      "workload": "code_review",
+      "scorer": "code_review_findings_v1",
+      "prompt": "Review this synthetic Python snippet using only the reviewed non-security code-review rules. Do not execute the code. Return only JSON with the key findings. Code:\n```python\ndef append_item(item, items=[]):\n    items.append(item)\n    return items\n```",
+      "expected": {"findings": [{"rule_id": "mutable_default_argument", "severity": "medium", "line": 1}]},
+      "metadata": {"contract_version": "1.0", "execute_candidate": false, "language": "python", "response_format": "code_review_findings_v1", "synthetic": true}
+    },
+    {
+      "case_id": "code-review.missing-return.001",
+      "workload": "code_review",
+      "scorer": "code_review_findings_v1",
+      "prompt": "Review this synthetic Python snippet using only the reviewed non-security code-review rules. Do not execute the code. Return only JSON with the key findings. Code:\n```python\ndef classify_sign(value):\n    \"\"\"Return negative, zero, or positive.\"\"\"\n    if value > 0:\n        return \"positive\"\n    if value == 0:\n        return \"zero\"\n```",
+      "expected": {"findings": [{"rule_id": "missing_return_path", "severity": "high", "line": 1}]},
+      "metadata": {"contract_version": "1.0", "execute_candidate": false, "language": "python", "response_format": "code_review_findings_v1", "synthetic": true}
+    },
+    {
+      "case_id": "code-review.off-by-one.001",
+      "workload": "code_review",
+      "scorer": "code_review_findings_v1",
+      "prompt": "Review this synthetic Python snippet using only the reviewed non-security code-review rules. Do not execute the code. Return only JSON with the key findings. Code:\n```python\ndef total_values(values):\n    \"\"\"Return the sum of every value.\"\"\"\n    total = 0\n    for index in range(len(values) - 1):\n        total += values[index]\n    return total\n```",
+      "expected": {"findings": [{"rule_id": "off_by_one_range", "severity": "medium", "line": 4}]},
+      "metadata": {"contract_version": "1.0", "execute_candidate": false, "language": "python", "response_format": "code_review_findings_v1", "synthetic": true}
+    },
+    {
+      "case_id": "code-review.repeated-membership.001",
+      "workload": "code_review",
+      "scorer": "code_review_findings_v1",
+      "prompt": "Review this synthetic Python snippet using only the reviewed non-security code-review rules. Do not execute the code. Return only JSON with the key findings. Code:\n```python\ndef common_values(left, right):\n    result = []\n    for item in left:\n        if item in right:\n            result.append(item)\n    return result\n```",
+      "expected": {"findings": [{"rule_id": "repeated_membership_scan", "severity": "low", "line": 4}]},
+      "metadata": {"contract_version": "1.0", "execute_candidate": false, "language": "python", "response_format": "code_review_findings_v1", "synthetic": true}
+    },
+    {
+      "case_id": "code-review.duplicate-branch.001",
+      "workload": "code_review",
+      "scorer": "code_review_findings_v1",
+      "prompt": "Review this synthetic Python snippet using only the reviewed non-security code-review rules. Do not execute the code. Return only JSON with the key findings. Code:\n```python\ndef support_fee(level):\n    if level == \"basic\":\n        return 10\n    if level == \"standard\":\n        return 10\n    return 20\n```",
+      "expected": {"findings": [{"rule_id": "duplicate_branch_logic", "severity": "low", "line": 2}]},
+      "metadata": {"contract_version": "1.0", "execute_candidate": false, "language": "python", "response_format": "code_review_findings_v1", "synthetic": true}
+    },
+    {
+      "case_id": "code-review.broad-exception.001",
+      "workload": "code_review",
+      "scorer": "code_review_findings_v1",
+      "prompt": "Review this synthetic Python snippet using only the reviewed non-security code-review rules. Do not execute the code. Return only JSON with the key findings. Code:\n```python\ndef parse_count(raw):\n    try:\n        return int(raw)\n    except Exception:\n        return 0\n```",
+      "expected": {"findings": [{"rule_id": "broad_exception_catch", "severity": "medium", "line": 4}]},
+      "metadata": {"contract_version": "1.0", "execute_candidate": false, "language": "python", "response_format": "code_review_findings_v1", "synthetic": true}
+    },
+    {
+      "case_id": "code-review.clean-normalize.001",
+      "workload": "code_review",
+      "scorer": "code_review_findings_v1",
+      "prompt": "Review this synthetic Python snippet using only the reviewed non-security code-review rules. Do not execute the code. Return only JSON with the key findings. Code:\n```python\ndef normalize_name(name):\n    return name.strip().casefold()\n```",
+      "expected": {"findings": []},
+      "metadata": {"contract_version": "1.0", "execute_candidate": false, "language": "python", "response_format": "code_review_findings_v1", "synthetic": true}
+    },
+    {
+      "case_id": "code-review.clean-total.001",
+      "workload": "code_review",
+      "scorer": "code_review_findings_v1",
+      "prompt": "Review this synthetic Python snippet using only the reviewed non-security code-review rules. Do not execute the code. Return only JSON with the key findings. Code:\n```python\ndef positive_total(values):\n    return sum(value for value in values if value > 0)\n```",
+      "expected": {"findings": []},
+      "metadata": {"contract_version": "1.0", "execute_candidate": false, "language": "python", "response_format": "code_review_findings_v1", "synthetic": true}
+    }
+  ]
+}
