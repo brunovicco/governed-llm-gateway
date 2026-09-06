@@ -104,7 +104,7 @@ As suítes específicas continuam:
 - incapazes de executar business tools, código gerado, agentes ou side effects;
 - incapazes de se autopromover ou alterar o roteamento ativo.
 
-Onde os scorers atuais realmente sustentam a medida, o PR #64 preserva estes componentes de qualidade offline separadamente do score escalar histórico:
+Onde os scorers atuais realmente sustentam a medida, o PR #64 estabeleceu evidência offline com componentes preservados e o PR #67 estendeu o vocabulário revisado com qualidade PT-BR limitada:
 
 - `schema_validity`;
 - `tool_selection_accuracy`;

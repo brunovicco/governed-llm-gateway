@@ -104,7 +104,7 @@ The workload-specific suites remain:
 - unable to execute business tools, generated code, agents or side effects;
 - unable to self-promote or mutate active runtime routing.
 
-Where current reviewed scorers genuinely support them, PR #64 preserves these offline quality components separately from the historical scalar score:
+Where current reviewed scorers genuinely support them, PR #64 established component-preserving offline quality evidence and PR #67 extended the reviewed vocabulary with bounded PT-BR quality:
 
 - `schema_validity`;
 - `tool_selection_accuracy`;

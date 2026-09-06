@@ -1,6 +1,6 @@
 # Benchmark Quality Component Evidence
 
-Status: **COMPLETE — merged in PR #64.**
+Status: **COMPLETE — component evidence framework merged in PR #64; bounded `pt_br_quality` vocabulary extended in PR #67.**
 
 ## Purpose
 
