@@ -51,7 +51,7 @@ The runtime evidence chain is:
 
 Runtime evidence is descriptive only. It cannot authorize a retry, fallback, model/provider choice, tool execution, SQL execution or business action.
 
-## Benchmark program — CORE 5/5 COMPLETE; POST-CORE MULTIMODAL/EVIDENCE HARDENING COMPLETE
+## Benchmark program — CORE 5/5 COMPLETE; REVIEWED POST-CORE EXTENSIONS COMPLETE
 
 The roadmap says to start with five workloads. The generic Phase 10/11 framework is exercised by all five through separate semantic increments:
 
@@ -71,6 +71,11 @@ The roadmap also says to add multimodal only after core execution is stable. Tha
 - PRs #37–#39 added terminal API-family provenance and explicit benchmark target API-family attestation;
 - PRs #40–#41 added terminal max-output provenance and explicit benchmark target max-output attestation;
 - PR #42 added optional target-matrix version/digest provenance to immutable benchmark snapshots.
+
+The same roadmap benchmark vocabulary also includes later evaluation classes. Two additional consumer-agnostic deterministic extensions are complete:
+
+- PR #44 — `long-context-v1`: exactly 8,192 deterministic generated records with reviewed early/middle/late needle positions; tokenizer-neutral by design, with no fabricated token-count or context-window attestation;
+- PR #45 — `classification-v1`: exact closed-set classification over immutable `support-intents-v1`, with two public/synthetic cases per label and no LLM-as-judge dependency.
 
 The completed benchmark path remains public/synthetic, deterministic and credential-free by default. Provider failures remain availability evidence rather than false quality-zero results. Promotion remains explicit and non-authoritative.
 
@@ -175,19 +180,19 @@ Remains after the preceding consumer cases.
 
 Latest merged and validated baseline:
 
-`cb0fbac9c278df3e20bf9b26b20cb06f697f4d71` (PR #42)
+`d012a5ec0581f636b758f613634ef76da773e82d` (PR #45)
 
 Post-merge `main` quality run:
 
-`33993826048` — PASS.
+`33999903061` — PASS.
 
 Validation:
 
-- 546 tests passed;
-- aggregate coverage 82.08%;
-- strict mypy passed across 151 source files;
-- Ruff lint/format passed across 151 files;
-- Bandit reported no issues across 13,905 LOC;
+- 569 tests passed;
+- aggregate coverage 82.05%;
+- strict mypy passed across 155 source files;
+- Ruff lint/format passed across 155 files;
+- Bandit reported no issues across 14,193 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
@@ -197,10 +202,11 @@ Until OpsLens is ready for reconciliation:
 
 1. keep the gateway `main` baseline stable;
 2. do not start a second consumer migration in parallel;
-3. perform only upstream gateway hardening that is independently justified and consumer-agnostic;
+3. perform only upstream gateway hardening or evaluation work that is independently justified and consumer-agnostic;
 4. do not create benchmark-only routing/model-selection bypasses to force a nominal target;
 5. keep live-provider benchmark execution explicitly separated from credential-free default CI and normal authorization semantics;
 6. do not treat benchmark completion or runtime provenance as permission to bypass the Phase 14 order;
-7. when OpsLens stabilizes, rebase/reconcile its integration against the then-current gateway commit and rerun its full native Python and Terraform CI before merge.
+7. add further roadmap evaluation classes only through separately reviewed deterministic contracts rather than silently expanding existing workload semantics;
+8. when OpsLens stabilizes, rebase/reconcile its integration against the then-current gateway commit and rerun its full native Python and Terraform CI before merge.
 
 Do not pull work forward when doing so weakens an authority boundary, creates parallel consumer migrations or depends on an unstable consumer contract.

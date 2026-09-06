@@ -1,5 +1,7 @@
 # Long Context Benchmark v1
 
+Status: **COMPLETE** — merged in PR #44 at `c0e55e41ffb6b8af49cde6fdaaf947fc57eea874`; post-merge quality run `33999217087` passed.
+
 ## Purpose
 
 `long-context-v1` adds the roadmap-listed `long context` evaluation class after the core benchmark and multimodal foundations stabilized.

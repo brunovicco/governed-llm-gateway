@@ -41,11 +41,11 @@ The framework provides:
 - `mapping_fields`;
 - `ordered_sequence`.
 
-That dataset is preserved as the initial framework evidence. It is not silently rewritten when workload-specific contracts evolve or when post-core multimodal evaluation is added.
+That dataset is preserved as the initial framework evidence. It is not silently rewritten when workload-specific contracts evolve or when post-core evaluation classes are added.
 
-## Workload-specific matrix — CORE 5/5 COMPLETE; MULTIMODAL EXTENSION COMPLETE
+## Workload-specific matrix — CORE 5/5 COMPLETE; REVIEWED POST-CORE EXTENSIONS COMPLETE
 
-PRs #19–#24 added the initial five explicit versioned workload contracts on top of the Phase 10/11 foundation. PR #32 later added the roadmap-authorized multimodal extension after core execution and image-input foundations stabilized.
+PRs #19–#24 added the initial five explicit versioned workload contracts on top of the Phase 10/11 foundation. PR #32 later added the roadmap-authorized multimodal extension after core execution and image-input foundations stabilized. PR #44 added tokenizer-neutral long-context retrieval, and PR #45 added deterministic closed-set classification.
 
 | Workload | Current reviewed contract | Core deterministic semantics |
 |---|---|---|
@@ -55,8 +55,10 @@ PRs #19–#24 added the initial five explicit versioned workload contracts on to
 | `tool_use` | `tool-use-v1` | tool selection + exact recursive type-sensitive arguments; tool execution disabled |
 | `agent_orchestration` | `agent-orchestration-v1` | observable agent/action sequence + handoff accuracy; step execution disabled |
 | `multimodal_analysis` | `multimodal-analysis-v1` | actual fixture-bound image inspection with deterministic quadrant/color scoring |
+| `long_context` | `long-context-v1` | exact needle retrieval across early/middle/late positions in 8,192 deterministic generated records; no fabricated token count |
+| `classification` | `classification-v1` | exact closed-set support-intent classification over immutable reviewed labels |
 
-`structured-extraction-v1` from PR #19 remains a historical contract. PR #22 added v2 rather than rewriting already-versioned semantics. The original `gateway-eval-v1` dataset also remains the historical five-workload generic baseline; multimodal was added as a new workload contract instead of mutating that dataset.
+`structured-extraction-v1` from PR #19 remains a historical contract. PR #22 added v2 rather than rewriting already-versioned semantics. The original `gateway-eval-v1` dataset also remains the historical five-workload generic baseline; post-core workloads were added as new contracts instead of mutating that dataset.
 
 All workload contracts reuse the same non-authoritative evidence path:
 
@@ -83,7 +85,9 @@ Workload-specific scorers are intentionally bounded and auditable. They do not c
 - tool-use v1 scores proposed calls/arguments and never executes business tools;
 - agent-orchestration v1 scores an observable trajectory and never executes agents or inspects hidden reasoning;
 - structured-extraction v2 separates schema validity from exact reviewed value accuracy;
-- multimodal-analysis v1 scores four exact visual quadrant labels against a deterministic real image fixture.
+- multimodal-analysis v1 scores four exact visual quadrant labels against a deterministic real image fixture;
+- long-context v1 scores an exact reviewed needle from deterministic generated records and deliberately does not infer provider token counts;
+- classification v1 scores exactly one reviewed closed-set label and rejects unknown labels or response-shape drift.
 
 More permissive, behavioral or execution-based evaluators require separately reviewed contracts and security boundaries.
 
@@ -173,15 +177,17 @@ Persistence is immutable/idempotent: an existing snapshot ID with different cont
 
 ## CI and live-provider boundary
 
-Default CI is credential-free and deterministic. It validates loaders, workload contracts, multimodal fixture integrity/publication metadata, scorers, aggregation, response normalization, attestation, reproducibility, failure classification, privacy-oriented result structure and architecture rules without live PDP/provider calls.
+Default CI is credential-free and deterministic. It validates loaders, workload contracts, multimodal fixture integrity/publication metadata, long-context materialization, closed-set classification, scorers, aggregation, response normalization, attestation, reproducibility, failure classification, privacy-oriented result structure and architecture rules without live PDP/provider calls.
 
-The repository now has provider-neutral building blocks for a future gateway-backed multimodal execution path:
+The repository has provider-neutral building blocks for a future gateway-backed execution path where a workload can be represented by the existing request contract. The reviewed multimodal path is the most explicit example:
 
 1. validated `multimodal-analysis-v1` case + immutable fixture publication;
 2. provider-neutral `GatewayRequest` materialization with `requirements.vision = true`;
 3. ordinary gateway authorization/routing/resilience/provider execution;
 4. terminal `GatewayResponse` normalization into `ProviderCall`;
 5. execution-identity/API-family/max-output integrity checks before deterministic scoring.
+
+`long-context-v1` and `classification-v1` currently add deterministic workload contracts only; they do not add a live-provider executor or benchmark-only route.
 
 There is still no benchmark-side model-forcing bypass and no required live-provider executor in default CI. A future live execution adapter must call an already-authorized gateway composition and fail closed if observed terminal execution does not match the reviewed benchmark target requirements.
 

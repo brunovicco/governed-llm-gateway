@@ -1,6 +1,6 @@
 # Classification Benchmark v1
 
-Status: IMPLEMENTED — pending branch/PR validation.
+Status: **COMPLETE** — merged in PR #45 at `d012a5ec0581f636b758f613634ef76da773e82d`; post-merge quality run `33999903061` passed.
 
 ## Purpose
 

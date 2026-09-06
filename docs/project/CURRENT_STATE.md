@@ -90,7 +90,7 @@ Later provider-neutral hardening extends the same terminal evidence with:
 
 Unknown optional evidence remains absent rather than being synthesized. Contradictory or malformed provenance fails closed. Runtime evidence remains descriptive only and is never authorization.
 
-## Benchmark and multimodal program — CORE 5/5 COMPLETE; POST-CORE EXTENSION COMPLETE
+## Benchmark and multimodal program — CORE 5/5 COMPLETE; REVIEWED POST-CORE EXTENSIONS COMPLETE
 
 The five initial roadmap workloads remain complete and historically versioned:
 
@@ -116,6 +116,11 @@ After the core execution and five-workload baseline stabilized, the roadmap-auth
 - PRs #40–#41 — terminal `max_output_tokens` provenance plus explicit schema-1.2 benchmark target attestation;
 - PR #42 — opt-in snapshot schema 1.1 with canonical target-matrix version/digest provenance.
 
+Additional roadmap-listed post-core evaluation classes were then added without changing the historical five-workload baseline:
+
+- PR #44 — `long-context-v1`, a tokenizer-neutral deterministic needle-retrieval benchmark over exactly 8,192 generated records, covering early/middle/late positions without fabricating provider token counts or context-window evidence;
+- PR #45 — `classification-v1`, a deterministic closed-set public/synthetic classification benchmark over immutable `support-intents-v1`, with exact JSON scoring and no model-as-judge path.
+
 The benchmark target catalog is intentionally versioned rather than rewritten:
 
 - `targets-v1.json` / schema `1.0` — historical provider/model/API/configuration identity;
@@ -136,21 +141,21 @@ Shared benchmark properties remain:
 - no LLM-as-judge dependency in the default path;
 - benchmark/runtime evidence can affect ranking only inside the already-authorized and eligible set.
 
-Latest validated gateway baseline after PR #42:
+Latest validated gateway baseline after PR #45:
 
-`cb0fbac9c278df3e20bf9b26b20cb06f697f4d71`
+`d012a5ec0581f636b758f613634ef76da773e82d`
 
 Post-merge quality run:
 
-`33993826048` — PASS.
+`33999903061` — PASS.
 
 Validation:
 
-- 546 tests passed;
-- aggregate coverage 82.08%;
-- strict mypy passed across 151 source files;
-- Ruff lint/format passed across 151 files;
-- Bandit reported no issues across 13,905 LOC;
+- 569 tests passed;
+- aggregate coverage 82.05%;
+- strict mypy passed across 155 source files;
+- Ruff lint/format passed across 155 files;
+- Bandit reported no issues across 14,193 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
