@@ -135,7 +135,9 @@ def validate_rag_answer_case(case: BenchmarkCase) -> None:
     cited_source_text = "\n".join(
         text for source_id, text in sources if source_id in cited_source_ids
     ).casefold()
-    unsupported_facts = [fact for fact in required_facts if fact.casefold() not in cited_source_text]
+    unsupported_facts = [
+        fact for fact in required_facts if fact.casefold() not in cited_source_text
+    ]
     if unsupported_facts:
         raise ValueError("rag answer v1 expected citations must support every required fact")
 
