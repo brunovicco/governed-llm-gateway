@@ -15,13 +15,13 @@ from .workloads.classification import CLASSIFICATION_SCORER_ID, score_classifica
 from .workloads.code_generation import CODE_GENERATION_SCORER_ID, score_code_generation
 from .workloads.code_review import CODE_REVIEW_SCORER_ID, score_code_review
 from .workloads.long_context import LONG_CONTEXT_SCORER_ID, score_long_context
-from .workloads.multimodal_analysis import (
-    MULTIMODAL_ANALYSIS_SCORER_ID,
-    score_multimodal_analysis,
-)
 from .workloads.multi_step_tool_use import (
     MULTI_STEP_TOOL_USE_SCORER_ID,
     score_multi_step_tool_use,
+)
+from .workloads.multimodal_analysis import (
+    MULTIMODAL_ANALYSIS_SCORER_ID,
+    score_multimodal_analysis,
 )
 from .workloads.rag_ptbr import RAG_PTBR_SCORER_ID, score_rag_ptbr
 from .workloads.reasoning import REASONING_SCORER_ID, score_reasoning

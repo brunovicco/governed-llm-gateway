@@ -89,7 +89,9 @@ def load_multi_step_tool_use_dataset(path: Path) -> BenchmarkDataset:
     if observed_tools != set(MULTI_STEP_TOOL_USE_CATALOG):
         raise ValueError("multi-step tool use v1 must cover every reviewed tool")
     if observed_lengths != {_MIN_EXPECTED_STEPS, _MAX_EXPECTED_STEPS}:
-        raise ValueError("multi-step tool use v1 must include reviewed two-step and three-step cases")
+        raise ValueError(
+            "multi-step tool use v1 must include reviewed two-step and three-step cases"
+        )
     return dataset
 
 
@@ -104,7 +106,9 @@ def validate_multi_step_tool_use_case(case: BenchmarkCase) -> None:
         or len(case.prompt) <= len(_PROMPT_PREFIX)
         or case.prompt.strip() != case.prompt
     ):
-        raise ValueError("multi-step tool use v1 prompt must use the reviewed non-executing instruction")
+        raise ValueError(
+            "multi-step tool use v1 prompt must use the reviewed non-executing instruction"
+        )
 
     metadata = case.metadata
     unknown_metadata = sorted(set(metadata) - _ALLOWED_METADATA_FIELDS)
@@ -193,7 +197,9 @@ def _validated_expected_steps(expected: JsonValue) -> tuple[_NormalizedStep, ...
     if not isinstance(raw_steps, list) or not (
         _MIN_EXPECTED_STEPS <= len(raw_steps) <= _MAX_EXPECTED_STEPS
     ):
-        raise ValueError("multi-step tool use v1 expected trajectory must contain two or three steps")
+        raise ValueError(
+            "multi-step tool use v1 expected trajectory must contain two or three steps"
+        )
 
     normalized: list[_NormalizedStep] = []
     for index, raw_step in enumerate(raw_steps):
@@ -205,7 +211,9 @@ def _validated_expected_steps(expected: JsonValue) -> tuple[_NormalizedStep, ...
         if not isinstance(tool, str) or tool not in MULTI_STEP_TOOL_USE_CATALOG:
             raise ValueError(f"multi-step tool use v1 expected step {path} uses an unknown tool")
         if not isinstance(arguments, dict):
-            raise ValueError(f"multi-step tool use v1 expected step {path} arguments must be an object")
+            raise ValueError(
+                f"multi-step tool use v1 expected step {path} arguments must be an object"
+            )
         normalized.append((tool, arguments))
     return tuple(normalized)
 
