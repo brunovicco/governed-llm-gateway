@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-09-05
+Last updated: 2026-09-06
 
 ## Phase status
 
@@ -119,7 +119,9 @@ After the core execution and five-workload baseline stabilized, the roadmap-auth
 Additional roadmap-listed post-core evaluation classes were then added without changing the historical five-workload baseline:
 
 - PR #44 — `long-context-v1`, a tokenizer-neutral deterministic needle-retrieval benchmark over exactly 8,192 generated records, covering early/middle/late positions without fabricating provider token counts or context-window evidence;
-- PR #45 — `classification-v1`, a deterministic closed-set public/synthetic classification benchmark over immutable `support-intents-v1`, with exact JSON scoring and no model-as-judge path.
+- PR #45 — `classification-v1`, a deterministic closed-set public/synthetic classification benchmark over immutable `support-intents-v1`, with exact JSON scoring and no model-as-judge path;
+- PR #47 — `reasoning-v1`, an answer-only deterministic reasoning benchmark over arithmetic, boolean logic, constraints and sequences without requesting or preserving chain-of-thought;
+- PR #48 — `code-review-v1`, a non-executing structured-findings benchmark with six reviewed non-security rules, two clean cases and deterministic set-F1 scoring.
 
 The benchmark target catalog is intentionally versioned rather than rewritten:
 
@@ -141,21 +143,21 @@ Shared benchmark properties remain:
 - no LLM-as-judge dependency in the default path;
 - benchmark/runtime evidence can affect ranking only inside the already-authorized and eligible set.
 
-Latest validated gateway baseline after PR #45:
+Latest validated gateway baseline after PR #48:
 
-`d012a5ec0581f636b758f613634ef76da773e82d`
+`7ce6e84f6014c5c219dbf013143d13f9817006fe`
 
 Post-merge quality run:
 
-`33999903061` — PASS.
+`34010433153` — PASS.
 
 Validation:
 
-- 569 tests passed;
-- aggregate coverage 82.05%;
-- strict mypy passed across 155 source files;
-- Ruff lint/format passed across 155 files;
-- Bandit reported no issues across 14,193 LOC;
+- 600 tests passed;
+- aggregate coverage 82.14%;
+- strict mypy passed across 159 source files;
+- Ruff lint/format passed across 159 files;
+- Bandit reported no issues across 14,524 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 

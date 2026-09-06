@@ -1,8 +1,8 @@
 # Benchmark Workload Matrix
 
-Status: **COMPLETE — 5/5 core roadmap workloads plus reviewed post-core multimodal, long-context and classification extensions implemented**
+Status: **COMPLETE — 5/5 core roadmap workloads plus reviewed post-core multimodal, long-context, classification, reasoning and code-review extensions implemented**
 
-The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority. After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension, PR #44 added `long_context`, and PR #45 added `classification`.
+The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority. After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension, PR #44 added `long_context`, PR #45 added `classification`, PR #47 added `reasoning`, and PR #48 added `code_review`.
 
 ## Matrix
 
@@ -16,6 +16,8 @@ The Phase 10 framework originally established a generic provider-neutral benchma
 | `multimodal_analysis` | `multimodal-analysis-v1` | actual fixture-bound image inspection + deterministic quadrant/color scoring | #32 |
 | `long_context` | `long-context-v1` | tokenizer-neutral retrieval of one reviewed synthetic needle across early/middle/late positions in 8,192 generated records | #44 |
 | `classification` | `classification-v1` | exact closed-set support-intent label from immutable `support-intents-v1`; no model-as-judge | #45 |
+| `reasoning` | `reasoning-v1` | exact type-sensitive final-answer scoring across four reviewed reasoning families; no chain-of-thought collection | #47 |
+| `code_review` | `code-review-v1` | structured non-security findings with deterministic set-F1 scoring; candidate code is never executed | #48 |
 
 `structured-extraction-v1` is preserved as historical benchmark semantics. The v2 contract is the current hardened structured-extraction reference; v1 evidence must not be silently rewritten.
 
@@ -152,9 +154,9 @@ Opaque configuration strings are still declarative. The benchmark does not infer
 
 ## Additional post-core deterministic workloads
 
-PR #44 added `long-context-v1` without a provider tokenizer dependency or a fabricated token-count claim. PR #45 added `classification-v1` as an exact closed-set workload with immutable label vocabulary and strict dataset drift checks.
+PR #44 added `long-context-v1` without a provider tokenizer dependency or a fabricated token-count claim. PR #45 added `classification-v1` as an exact closed-set workload with immutable label vocabulary and strict dataset drift checks. PR #47 added `reasoning-v1` with answer-only, type-sensitive scoring and no chain-of-thought collection. PR #48 added `code-review-v1` with structured reviewed non-security findings, clean-case false-positive coverage and no candidate execution.
 
-Both are consumer-agnostic benchmark extensions. Neither adds a live executor, changes provider selection, or creates a benchmark-only authorization/routing path.
+These are consumer-agnostic benchmark extensions. None adds a live executor, changes provider selection, or creates a benchmark-only authorization/routing path.
 
 ## Target matrices
 
@@ -207,20 +209,20 @@ Default CI remains credential-free and deterministic:
 - snapshot/digest behavior is replayable;
 - architecture/security/secret gates cover benchmark code.
 
-Latest validated `main` baseline after PR #45:
+Latest validated `main` baseline after PR #48:
 
-- commit `d012a5ec0581f636b758f613634ef76da773e82d`;
-- post-merge quality run `33999903061` — PASS;
-- 569 tests passed;
-- 82.05% aggregate coverage;
-- strict mypy and Ruff passed across 155 source files;
-- Bandit reported no issues across 14,193 LOC;
+- commit `7ce6e84f6014c5c219dbf013143d13f9817006fe`;
+- post-merge quality run `34010433153` — PASS;
+- 600 tests passed;
+- 82.14% aggregate coverage;
+- strict mypy and Ruff passed across 159 source files;
+- Bandit reported no issues across 14,524 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
 ## Next boundary
 
-Completion of the core 5/5 matrix and the reviewed post-core multimodal, long-context, classification and execution-evidence increments does **not** create a new Phase 14 consumer migration exception.
+Completion of the core 5/5 matrix and the reviewed post-core multimodal, long-context, classification, reasoning, code-review and execution-evidence increments does **not** create a new Phase 14 consumer migration exception.
 
 Issue #18 still defers OpsLens reconciliation and explicitly prevents starting RAGForge in parallel unless the normative integration order is revised.
 
