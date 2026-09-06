@@ -1,0 +1,34 @@
+name: apply-pr76-docs-reconciliation
+
+on:
+  push:
+    branches:
+      - docs/reconcile-runtime-recording-pr76
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: docs/reconcile-runtime-recording-pr76
+          fetch-depth: 0
+      - name: Apply fail-closed documentation reconciliation
+        run: python scripts/reconcile_pr76_docs.py
+      - name: Remove temporary reconciliation artifacts
+        run: |
+          rm scripts/reconcile_pr76_docs.py
+          rm .github/workflows/apply-pr76-docs-reconciliation.yml
+      - name: Commit reconciled documentation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md README.pt-BR.md docs/project/CURRENT_STATE.md docs/project/EVALUATION.md docs/evaluation/BENCHMARK_MATRIX.md docs/evaluation/OPERATIONAL_EVIDENCE.md scripts/reconcile_pr76_docs.py .github/workflows/apply-pr76-docs-reconciliation.yml
+          git diff --cached --check
+          git diff --cached --quiet && { echo "no reconciliation changes"; exit 1; }
+          git commit -m "docs: reconcile runtime recording through PR 76"
+          git push origin HEAD:docs/reconcile-runtime-recording-pr76
