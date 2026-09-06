@@ -6,12 +6,13 @@ from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from typing import cast
+from typing import Protocol, cast
 
 import pytest
 
 from benchmarks import (
     BenchmarkCase,
+    BenchmarkDataset,
     BenchmarkObservation,
     BenchmarkProviderFailure,
     BenchmarkQualityMetric,
@@ -51,6 +52,14 @@ _TARGET = BenchmarkTarget(
     configuration="temperature=0",
     source_date=date(2026, 9, 6),
 )
+
+
+class _DatasetLoader(Protocol):
+    """Load one reviewed benchmark dataset from a path."""
+
+    def __call__(self, path: Path) -> BenchmarkDataset:
+        """Return the validated dataset."""
+        ...
 
 
 class _ExpectedExecutor:
@@ -176,13 +185,10 @@ def _component_snapshot(*, matrix: bool = False) -> BenchmarkSnapshot:
 )
 def test_reviewed_component_scorers_preserve_scalar_api_and_metrics(
     path: str,
-    loader: object,
+    loader: _DatasetLoader,
     expected_metrics: set[BenchmarkQualityMetric],
 ) -> None:
-    typed_loader = cast(object, loader)
-    if not callable(typed_loader):
-        raise AssertionError("parameterized dataset loader must be callable")
-    dataset = typed_loader(Path(path))
+    dataset = loader(Path(path))
     case = dataset.cases[0]
     scorer = require_scorer(build_default_scorers(), case.scorer)
 
@@ -314,8 +320,15 @@ def test_component_snapshot_uses_schema_1_2_and_is_content_addressed() -> None:
     assert first.schema_version == "1.2"
     assert first.snapshot_id == second.snapshot_id
     canonical = canonical_snapshot_json(first)
-    assert '"quality_metrics":{"tool_argument_accuracy":"1","tool_selection_accuracy":"1"}' in canonical
-    assert '"mean_quality_metrics":{"tool_argument_accuracy":"1","tool_selection_accuracy":"1"}' in canonical
+    observation_fragment = (
+        '"quality_metrics":{"tool_argument_accuracy":"1","tool_selection_accuracy":"1"}'
+    )
+    scorecard_fragment = (
+        '"mean_quality_metrics":{"tool_argument_accuracy":"1",'
+        '"tool_selection_accuracy":"1"}'
+    )
+    assert observation_fragment in canonical
+    assert scorecard_fragment in canonical
 
 
 def test_component_snapshot_can_retain_target_matrix_provenance() -> None:
