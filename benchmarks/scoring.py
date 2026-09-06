@@ -251,12 +251,8 @@ def build_default_scorers() -> Mapping[str, DeterministicScorer]:
         "mapping_fields": _mapping_fields,
         "ordered_sequence": _ordered_sequence,
         STRUCTURED_EXTRACTION_SCORER_ID: score_structured_extraction,
-        STRUCTURED_EXTRACTION_V2_SCORER_ID: ComponentScorer(
-            _structured_extraction_v2_measurement
-        ),
-        JSON_SCHEMA_COMPLIANCE_SCORER_ID: ComponentScorer(
-            _json_schema_compliance_measurement
-        ),
+        STRUCTURED_EXTRACTION_V2_SCORER_ID: ComponentScorer(_structured_extraction_v2_measurement),
+        JSON_SCHEMA_COMPLIANCE_SCORER_ID: ComponentScorer(_json_schema_compliance_measurement),
         RAG_PTBR_SCORER_ID: score_rag_ptbr,
         RAG_ANSWER_SCORER_ID: ComponentScorer(_rag_answer_measurement),
         CODE_GENERATION_SCORER_ID: score_code_generation,
@@ -266,9 +262,7 @@ def build_default_scorers() -> Mapping[str, DeterministicScorer]:
         TOOL_SELECTION_SCORER_ID: ComponentScorer(_tool_selection_measurement),
         TOOL_USE_SCORER_ID: ComponentScorer(_tool_use_measurement),
         MULTI_STEP_TOOL_USE_SCORER_ID: ComponentScorer(_multi_step_tool_measurement),
-        AGENT_ORCHESTRATION_SCORER_ID: ComponentScorer(
-            _agent_orchestration_measurement
-        ),
+        AGENT_ORCHESTRATION_SCORER_ID: ComponentScorer(_agent_orchestration_measurement),
         MULTIMODAL_ANALYSIS_SCORER_ID: score_multimodal_analysis,
         LONG_CONTEXT_SCORER_ID: score_long_context,
         CLASSIFICATION_SCORER_ID: score_classification,

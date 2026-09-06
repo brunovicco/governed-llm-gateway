@@ -324,8 +324,7 @@ def test_component_snapshot_uses_schema_1_2_and_is_content_addressed() -> None:
         '"quality_metrics":{"tool_argument_accuracy":"1","tool_selection_accuracy":"1"}'
     )
     scorecard_fragment = (
-        '"mean_quality_metrics":{"tool_argument_accuracy":"1",'
-        '"tool_selection_accuracy":"1"}'
+        '"mean_quality_metrics":{"tool_argument_accuracy":"1","tool_selection_accuracy":"1"}'
     )
     assert observation_fragment in canonical
     assert scorecard_fragment in canonical
