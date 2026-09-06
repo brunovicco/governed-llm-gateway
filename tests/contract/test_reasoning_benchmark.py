@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from benchmarks.contracts import BenchmarkWorkload
+from benchmarks.contracts import BenchmarkWorkload, JsonValue
 from benchmarks.dataset import load_dataset
 from benchmarks.scoring import build_default_scorers
 from benchmarks.snapshot import dataset_digest
@@ -60,7 +60,7 @@ def test_reasoning_dataset_digest_is_deterministic() -> None:
 )
 def test_reasoning_scorer_accepts_exact_type_sensitive_answer(
     case_index: int,
-    output: dict[str, str | int | bool],
+    output: JsonValue,
 ) -> None:
     case = load_reasoning_dataset(_DATASET_PATH).cases[case_index]
     assessment = assess_reasoning(case, output)
