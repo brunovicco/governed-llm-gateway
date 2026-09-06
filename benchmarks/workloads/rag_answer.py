@@ -131,6 +131,14 @@ def validate_rag_answer_case(case: BenchmarkCase) -> None:
     if any(claim.casefold() in normalized_expected_answer for claim in forbidden_claims):
         raise ValueError("rag answer v1 reference answer must not contain forbidden claims")
 
+    cited_source_ids = set(expected_citations)
+    cited_source_text = "\n".join(
+        text for source_id, text in sources if source_id in cited_source_ids
+    ).casefold()
+    unsupported_facts = [fact for fact in required_facts if fact.casefold() not in cited_source_text]
+    if unsupported_facts:
+        raise ValueError("rag answer v1 expected citations must support every required fact")
+
     expected_prompt = _build_prompt(question, sources)
     if case.prompt != expected_prompt:
         raise ValueError("rag answer v1 prompt must exactly materialize reviewed sources")
@@ -232,8 +240,6 @@ def _validated_expected(
         label="expected.citations",
         require_nonempty=True,
     )
-    if len(citations) != len(set(citations)):
-        raise ValueError("rag answer v1 expected citations must be unique")
     known_source_ids = {source_id for source_id, _ in sources}
     if not set(citations) <= known_source_ids:
         raise ValueError("rag answer v1 expected citations must reference reviewed sources")
