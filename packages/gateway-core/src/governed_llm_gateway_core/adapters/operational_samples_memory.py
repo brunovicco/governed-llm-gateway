@@ -16,7 +16,11 @@ class InMemoryOperationalSampleStore:
 
     def __init__(self, *, max_samples: int, clock: UtcClock) -> None:
         """Start process-local coverage at construction time."""
-        if isinstance(max_samples, bool) or not isinstance(max_samples, int) or max_samples <= 0:
+        if (
+            isinstance(max_samples, bool)
+            or not isinstance(max_samples, int)
+            or max_samples <= 0
+        ):
             raise OperationalEvidenceMaterializationError("max_samples must be a positive integer")
         coverage_start = clock()
         _validate_utc(coverage_start, "coverage_start")
@@ -49,7 +53,10 @@ class InMemoryOperationalSampleStore:
             raise OperationalEvidenceMaterializationError(
                 "operational sample cannot be recorded from the future"
             )
-        if self._latest_observed_at is not None and sample.observed_at < self._latest_observed_at:
+        if (
+            self._latest_observed_at is not None
+            and sample.observed_at < self._latest_observed_at
+        ):
             raise OperationalEvidenceMaterializationError(
                 "operational samples must be recorded in non-decreasing timestamp order"
             )
