@@ -1,0 +1,33 @@
+name: fix-issue75-stream-success-recording
+
+on:
+  push:
+    branches:
+      - feat/runtime-operational-attempt-recording
+    paths:
+      - .github/workflows/fix-issue75-stream-success-recording.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/runtime-operational-attempt-recording
+      - name: Apply terminal recording fix
+        run: python scripts/fix_issue75_stream_success_recording.py
+      - name: Remove temporary patcher
+        run: |
+          rm scripts/fix_issue75_stream_success_recording.py
+          rm .github/workflows/fix-issue75-stream-success-recording.yml
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --exit-code && exit 1 || true
+          git commit -m 'fix: record stream success after terminal validation'
+          git push origin HEAD:feat/runtime-operational-attempt-recording
