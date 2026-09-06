@@ -190,9 +190,8 @@ def _validated_string_list(
     allow_empty: bool = False,
 ) -> tuple[str, ...]:
     if not isinstance(value, list) or (not value and not allow_empty):
-        raise ValueError(
-            f"{label} must be a {'normalized ' if allow_empty else 'non-empty normalized '}string list"
-        )
+        requirement = "normalized" if allow_empty else "non-empty normalized"
+        raise ValueError(f"{label} must be a {requirement} string list")
     items: list[str] = []
     normalized_items: set[str] = set()
     for item in value:
