@@ -1,8 +1,8 @@
 # Benchmark Workload Matrix
 
-Status: **COMPLETE — 5/5 core roadmap workloads plus reviewed post-core multimodal, long-context, classification, reasoning, code-review, security-analysis, tool-selection, tool-argument-generation and multi-step-tool-use extensions implemented**
+Status: **COMPLETE — 5/5 core roadmap workloads plus reviewed post-core multimodal, long-context, classification, reasoning, code-review, security-analysis, tool-selection, tool-argument-generation, multi-step-tool-use and rag-answer extensions implemented**
 
-The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority. After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension, PR #44 added `long_context`, PR #45 added `classification`, PR #47 added `reasoning`, PR #48 added `code_review`, PR #50 added `security_analysis`, PR #51 added `tool_selection`, PR #52 added `tool_argument_generation`, and PR #55 added `multi_step_tool_use`.
+The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority. After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension, PR #44 added `long_context`, PR #45 added `classification`, PR #47 added `reasoning`, PR #48 added `code_review`, PR #50 added `security_analysis`, PR #51 added `tool_selection`, PR #52 added `tool_argument_generation`, PR #55 added `multi_step_tool_use`, and PR #58 added `rag_answer`.
 
 ## Matrix
 
@@ -10,6 +10,7 @@ The Phase 10 framework originally established a generic provider-neutral benchma
 |---|---|---|---|
 | `structured_extraction` | `structured-extraction-v2` | bounded recursive schema validation + exact type-sensitive leaf-value accuracy | #19 established v1; #22 added v2 hardening |
 | `rag_ptbr` | `rag-ptbr-v1` | reviewed required-fact coverage with explicit forbidden-claim regression checks | #20 |
+| `rag_answer` | `rag-answer-v1` | reviewed required-fact coverage plus citation set-F1 against checked-in synthetic source IDs; unknown citations and inconsistent reference grounding fail closed | #58 |
 | `code_generation` | `code-generation-v1` | normalized Python AST exactness; candidate code is never executed | #21 |
 | `tool_use` | `tool-use-v1` | tool-selection score + exact recursive type-sensitive argument score; tool execution disabled | #23 |
 | `agent_orchestration` | `agent-orchestration-v1` | observable agent/action sequence + handoff accuracy; agent execution disabled | #24 |
@@ -63,6 +64,12 @@ It does not use permissive JSON-text repair and it does not convert benchmark ev
 The v1 scorer checks reviewed required facts inside a synthetic/public PT-BR context and forces a zero score when a reviewed conflicting/unsupported `forbidden_claim` appears.
 
 It intentionally does not claim arbitrary factuality evaluation and does not call another model as judge.
+
+### rag_answer
+
+`rag-answer-v1` evaluates a model answer against checked-in public/synthetic source records whose reviewed source IDs are materialized into the prompt. It scores required-fact coverage and citation set-F1 separately, then combines them deterministically.
+
+Unknown/invented citations fail closed. Reference ground truth also fails closed if its reviewed citations do not contain every required fact, so benchmark truth cannot silently drift into an unsupported answer/source pairing. The workload performs no retrieval, embedding, reranking, URL fetch, provider-specific grounding call or LLM-as-judge step; source records are evaluation ground truth only and never data-access authorization.
 
 ### code_generation
 
@@ -174,7 +181,7 @@ Opaque configuration strings are still declarative. The benchmark does not infer
 
 ## Additional post-core deterministic workloads
 
-PR #44 added `long-context-v1` without a provider tokenizer dependency or a fabricated token-count claim. PR #45 added `classification-v1` as an exact closed-set workload with immutable label vocabulary and strict dataset drift checks. PR #47 added `reasoning-v1` with answer-only, type-sensitive scoring and no chain-of-thought collection. PR #48 added `code-review-v1` with structured reviewed non-security findings, clean-case false-positive coverage and no candidate execution. PR #50 added `security-analysis-v1` with a separate defensive security vocabulary and no exploitation path. PR #51 added `tool-selection-v1` to isolate exact tool-choice quality. PR #52 added `tool-argument-generation-v1` to isolate argument quality after the reviewed tool identity is fixed. PR #55 added `multi-step-tool-use-v1` to measure short ordered tool-call proposals against immutable synthetic intermediate context without executing tools.
+PR #44 added `long-context-v1` without a provider tokenizer dependency or a fabricated token-count claim. PR #45 added `classification-v1` as an exact closed-set workload with immutable label vocabulary and strict dataset drift checks. PR #47 added `reasoning-v1` with answer-only, type-sensitive scoring and no chain-of-thought collection. PR #48 added `code-review-v1` with structured reviewed non-security findings, clean-case false-positive coverage and no candidate execution. PR #50 added `security-analysis-v1` with a separate defensive security vocabulary and no exploitation path. PR #51 added `tool-selection-v1` to isolate exact tool-choice quality. PR #52 added `tool-argument-generation-v1` to isolate argument quality after the reviewed tool identity is fixed. PR #55 added `multi-step-tool-use-v1` to measure short ordered tool-call proposals against immutable synthetic intermediate context without executing tools. PR #58 added `rag-answer-v1` to measure reviewed fact grounding plus explicit source-ID citation quality without performing retrieval.
 
 These are consumer-agnostic benchmark extensions. None adds a live executor, changes provider selection, or creates a benchmark-only authorization/routing path.
 
@@ -229,20 +236,20 @@ Default CI remains credential-free and deterministic:
 - snapshot/digest behavior is replayable;
 - architecture/security/secret gates cover benchmark code.
 
-Latest validated `main` baseline after PR #55:
+Latest validated `main` baseline after PR #58:
 
-- commit `eadb4e7b0f87136a54c443051892181ce81617a8`;
-- post-merge quality run `34038814451` — PASS;
-- 661 tests passed;
-- 82.00% aggregate coverage;
-- strict mypy and Ruff passed across 167 source files;
-- Bandit reported no issues across 15,316 LOC;
+- commit `7913d85a624fa4da2eaab1b106b1438712a36bcc`;
+- post-merge quality run `34046044578` — PASS;
+- 679 tests passed;
+- 82.02% aggregate coverage;
+- strict mypy and Ruff passed across 169 source files;
+- Bandit reported no issues across 15,608 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
 ## Next boundary
 
-Completion of the core 5/5 matrix and the reviewed post-core multimodal, long-context, classification, reasoning, code-review, security-analysis, tool-selection, tool-argument-generation, multi-step-tool-use and execution-evidence increments does **not** create a new Phase 14 consumer migration exception.
+Completion of the core 5/5 matrix and the reviewed post-core multimodal, long-context, classification, reasoning, code-review, security-analysis, tool-selection, tool-argument-generation, multi-step-tool-use, rag-answer and execution-evidence increments does **not** create a new Phase 14 consumer migration exception.
 
 Issue #18 still defers OpsLens reconciliation and explicitly prevents starting RAGForge in parallel unless the normative integration order is revised.
 
