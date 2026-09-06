@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "security-analysis-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "security-analysis.hardcoded-credential.001",
+      "workload": "security_analysis",
+      "scorer": "security_analysis_findings_v1",
+      "prompt": "Analyze this synthetic Python snippet using only the reviewed defensive security rules. Do not execute the code and do not provide exploitation instructions. Return only JSON with the key findings. Code:\n```python\ncredential = \"static-example-value\"\nheaders = {\"Authorization\": credential}\n```",
+      "expected": {"findings": [{"rule_id": "hardcoded_credential", "severity": "high", "line": 1}]},
+      "metadata": {"contract_version": "1.0", "language": "python", "response_format": "security_analysis_findings_v1", "synthetic": true, "execute_candidate": false}
+    },
+    {
+      "case_id": "security-analysis.path-traversal-join.001",
+      "workload": "security_analysis",
+      "scorer": "security_analysis_findings_v1",
+      "prompt": "Analyze this synthetic Python snippet using only the reviewed defensive security rules. Do not execute the code and do not provide exploitation instructions. Return only JSON with the key findings. Code:\n```python\nimport os\ndef report_path(user_path):\n    return os.path.join(\"/srv/reports\", user_path)\n```",
+      "expected": {"findings": [{"rule_id": "path_traversal_join", "severity": "high", "line": 3}]},
+      "metadata": {"contract_version": "1.0", "language": "python", "response_format": "security_analysis_findings_v1", "synthetic": true, "execute_candidate": false}
+    },
+    {
+      "case_id": "security-analysis.tls-verification-disabled.001",
+      "workload": "security_analysis",
+      "scorer": "security_analysis_findings_v1",
+      "prompt": "Analyze this synthetic Python snippet using only the reviewed defensive security rules. Do not execute the code and do not provide exploitation instructions. Return only JSON with the key findings. Code:\n```python\nimport requests\ndef fetch_status(url):\n    return requests.get(url, verify=False, timeout=5)\n```",
+      "expected": {"findings": [{"rule_id": "tls_verification_disabled", "severity": "high", "line": 3}]},
+      "metadata": {"contract_version": "1.0", "language": "python", "response_format": "security_analysis_findings_v1", "synthetic": true, "execute_candidate": false}
+    },
+    {
+      "case_id": "security-analysis.unsafe-pickle-load.001",
+      "workload": "security_analysis",
+      "scorer": "security_analysis_findings_v1",
+      "prompt": "Analyze this synthetic Python snippet using only the reviewed defensive security rules. Do not execute the code and do not provide exploitation instructions. Return only JSON with the key findings. Code:\n```python\nimport pickle\ndef decode_payload(payload):\n    return pickle.loads(payload)\n```",
+      "expected": {"findings": [{"rule_id": "unsafe_pickle_load", "severity": "high", "line": 3}]},
+      "metadata": {"contract_version": "1.0", "language": "python", "response_format": "security_analysis_findings_v1", "synthetic": true, "execute_candidate": false}
+    },
+    {
+      "case_id": "security-analysis.unsafe-shell-construction.001",
+      "workload": "security_analysis",
+      "scorer": "security_analysis_findings_v1",
+      "prompt": "Analyze this synthetic Python snippet using only the reviewed defensive security rules. Do not execute the code and do not provide exploitation instructions. Return only JSON with the key findings. Code:\n```python\nimport subprocess\ndef show_status(user_value):\n    return subprocess.run(\"status \" + user_value, shell=True, check=False)\n```",
+      "expected": {"findings": [{"rule_id": "unsafe_shell_construction", "severity": "high", "line": 3}]},
+      "metadata": {"contract_version": "1.0", "language": "python", "response_format": "security_analysis_findings_v1", "synthetic": true, "execute_candidate": false}
+    },
+    {
+      "case_id": "security-analysis.weak-password-hash.001",
+      "workload": "security_analysis",
+      "scorer": "security_analysis_findings_v1",
+      "prompt": "Analyze this synthetic Python snippet using only the reviewed defensive security rules. Do not execute the code and do not provide exploitation instructions. Return only JSON with the key findings. Code:\n```python\nimport hashlib\ndef password_digest(password):\n    return hashlib.md5(password.encode()).hexdigest()\n```",
+      "expected": {"findings": [{"rule_id": "weak_password_hash", "severity": "medium", "line": 3}]},
+      "metadata": {"contract_version": "1.0", "language": "python", "response_format": "security_analysis_findings_v1", "synthetic": true, "execute_candidate": false}
+    },
+    {
+      "case_id": "security-analysis.clean.001",
+      "workload": "security_analysis",
+      "scorer": "security_analysis_findings_v1",
+      "prompt": "Analyze this synthetic Python snippet using only the reviewed defensive security rules. Do not execute the code and do not provide exploitation instructions. Return only JSON with the key findings. Code:\n```python\nfrom secrets import token_urlsafe\ndef new_session_token():\n    return token_urlsafe(32)\n```",
+      "expected": {"findings": []},
+      "metadata": {"contract_version": "1.0", "language": "python", "response_format": "security_analysis_findings_v1", "synthetic": true, "execute_candidate": false}
+    },
+    {
+      "case_id": "security-analysis.clean.002",
+      "workload": "security_analysis",
+      "scorer": "security_analysis_findings_v1",
+      "prompt": "Analyze this synthetic Python snippet using only the reviewed defensive security rules. Do not execute the code and do not provide exploitation instructions. Return only JSON with the key findings. Code:\n```python\nfrom pathlib import Path\ndef fixed_report_path():\n    return Path(\"/srv/reports/daily.json\")\n```",
+      "expected": {"findings": []},
+      "metadata": {"contract_version": "1.0", "language": "python", "response_format": "security_analysis_findings_v1", "synthetic": true, "execute_candidate": false}
+    }
+  ]
+}
