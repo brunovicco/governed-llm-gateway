@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from benchmarks.contracts import BenchmarkWorkload
+from benchmarks.contracts import BenchmarkWorkload, JsonValue
 from benchmarks.dataset import load_dataset
 from benchmarks.scoring import build_default_scorers
 from benchmarks.snapshot import dataset_digest
@@ -23,7 +23,7 @@ from benchmarks.workloads.code_review import (
 _DATASET_PATH = Path("benchmarks/datasets/code-review-v1.json")
 
 
-def _finding(rule_id: str, line: int) -> dict[str, object]:
+def _finding(rule_id: str, line: int) -> dict[str, JsonValue]:
     return {
         "rule_id": rule_id,
         "severity": CODE_REVIEW_RULE_SEVERITIES[rule_id],
