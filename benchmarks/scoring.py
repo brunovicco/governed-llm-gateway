@@ -14,6 +14,10 @@ from .workloads.agent_orchestration import (
 from .workloads.classification import CLASSIFICATION_SCORER_ID, score_classification
 from .workloads.code_generation import CODE_GENERATION_SCORER_ID, score_code_generation
 from .workloads.code_review import CODE_REVIEW_SCORER_ID, score_code_review
+from .workloads.json_schema_compliance import (
+    JSON_SCHEMA_COMPLIANCE_SCORER_ID,
+    score_json_schema_compliance,
+)
 from .workloads.long_context import LONG_CONTEXT_SCORER_ID, score_long_context
 from .workloads.multi_step_tool_use import (
     MULTI_STEP_TOOL_USE_SCORER_ID,
@@ -113,6 +117,7 @@ def build_default_scorers() -> Mapping[str, DeterministicScorer]:
         "ordered_sequence": _ordered_sequence,
         STRUCTURED_EXTRACTION_SCORER_ID: score_structured_extraction,
         STRUCTURED_EXTRACTION_V2_SCORER_ID: score_structured_extraction_v2,
+        JSON_SCHEMA_COMPLIANCE_SCORER_ID: score_json_schema_compliance,
         RAG_PTBR_SCORER_ID: score_rag_ptbr,
         RAG_ANSWER_SCORER_ID: score_rag_answer,
         CODE_GENERATION_SCORER_ID: score_code_generation,
