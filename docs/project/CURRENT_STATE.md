@@ -126,6 +126,7 @@ Additional roadmap-listed post-core evaluation classes were then added without c
 - PR #51 — `tool-selection-v1`, an exact reviewed tool-or-no-tool benchmark over immutable `support-tools-v1`, with no argument generation or tool execution.
 - PR #52 — `tool-argument-generation-v1`, a fixed-reviewed-tool benchmark with recursive exact, type-sensitive argument scoring and no tool selection or execution.
 - PR #55 — `multi-step-tool-use-v1`, a deterministic non-executing benchmark for reviewed two-to-three-step tool-call proposals using immutable synthetic intermediate-result context and separate positional selection/argument evidence.
+- PR #58 — `rag-answer-v1`, a deterministic grounded-answer benchmark over checked-in public/synthetic source records with required-fact coverage, citation set-F1, fail-closed unknown citations and reference-source grounding validation, without retrieval or an LLM-as-judge.
 
 The benchmark target catalog is intentionally versioned rather than rewritten:
 
@@ -147,21 +148,21 @@ Shared benchmark properties remain:
 - no LLM-as-judge dependency in the default path;
 - benchmark/runtime evidence can affect ranking only inside the already-authorized and eligible set.
 
-Latest validated gateway baseline after PR #55:
+Latest validated gateway baseline after PR #58:
 
-`eadb4e7b0f87136a54c443051892181ce81617a8`
+`7913d85a624fa4da2eaab1b106b1438712a36bcc`
 
 Post-merge quality run:
 
-`34038814451` — PASS.
+`34046044578` — PASS.
 
 Validation:
 
-- 661 tests passed;
-- aggregate coverage 82.00%;
-- strict mypy passed across 167 source files;
-- Ruff lint/format passed across 167 files;
-- Bandit reported no issues across 15,316 LOC;
+- 679 tests passed;
+- aggregate coverage 82.02%;
+- strict mypy passed across 169 source files;
+- Ruff lint/format passed across 169 files;
+- Bandit reported no issues across 15,608 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
