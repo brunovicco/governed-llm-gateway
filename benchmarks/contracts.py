@@ -32,6 +32,16 @@ class BenchmarkWorkload(StrEnum):
     LONG_CONTEXT = "long_context"
 
 
+class BenchmarkQualityMetric(StrEnum):
+    """Bounded reviewed offline-quality metric vocabulary."""
+
+    SCHEMA_VALIDITY = "schema_validity"
+    TOOL_SELECTION_ACCURACY = "tool_selection_accuracy"
+    TOOL_ARGUMENT_ACCURACY = "tool_argument_accuracy"
+    TRAJECTORY_SUCCESS = "trajectory_success"
+    GROUNDING = "grounding"
+
+
 class ObservationStatus(StrEnum):
     """Separate model-quality evidence from provider-availability evidence."""
 
@@ -188,12 +198,18 @@ class BenchmarkObservation:
     deployment: str | None = None
     api_family: str | None = None
     max_output_tokens: int | None = None
+    quality_metrics: Mapping[BenchmarkQualityMetric, Decimal] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Enforce quality/failure semantics and normalized optional execution identity."""
+        quality_metrics = _validated_quality_metrics(self.quality_metrics)
+        object.__setattr__(self, "quality_metrics", MappingProxyType(quality_metrics))
+
         if self.status is ObservationStatus.PROVIDER_FAILURE:
             if self.quality_score is not None:
                 raise ValueError("provider failures must not carry a quality score")
+            if quality_metrics:
+                raise ValueError("provider failures must not carry quality component metrics")
             if not self.provider_error_code:
                 raise ValueError("provider failures require a stable provider_error_code")
         elif self.provider_error_code is not None or self.provider_error_status is not None:
@@ -257,14 +273,17 @@ class Scorecard:
     rate_limit_errors: int
     fallback_frequency: Decimal
     provider_error_counts: Mapping[str, int]
+    mean_quality_metrics: Mapping[BenchmarkQualityMetric, Decimal] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        """Freeze provider error counts to keep scorecards immutable."""
+        """Freeze mappings to keep aggregated benchmark evidence immutable."""
         object.__setattr__(
             self,
             "provider_error_counts",
             MappingProxyType(dict(self.provider_error_counts)),
         )
+        metrics = _validated_quality_metrics(self.mean_quality_metrics)
+        object.__setattr__(self, "mean_quality_metrics", MappingProxyType(metrics))
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,22 +303,55 @@ class BenchmarkSnapshot:
     target_matrix_digest: str | None = None
 
     def __post_init__(self) -> None:
-        """Require matrix provenance only for the versioned snapshot extension."""
+        """Validate historical and component-evidence snapshot schema boundaries."""
+        has_components = any(item.quality_metrics for item in self.observations) or any(
+            item.mean_quality_metrics for item in self.scorecards
+        )
         if self.schema_version == "1.0":
             if self.target_matrix_version is not None or self.target_matrix_digest is not None:
                 raise ValueError("snapshot schema 1.0 must not carry target matrix provenance")
+            if has_components:
+                raise ValueError("snapshot schema 1.0 must not carry quality component metrics")
             return
-        if self.schema_version != "1.1":
+        if self.schema_version == "1.1":
+            if has_components:
+                raise ValueError("snapshot schema 1.1 must not carry quality component metrics")
+            _require_target_matrix_provenance(self.target_matrix_version, self.target_matrix_digest)
+            return
+        if self.schema_version != "1.2":
             raise ValueError("unsupported benchmark snapshot schema_version")
-        if (
-            self.target_matrix_version is None
-            or not self.target_matrix_version
-            or self.target_matrix_version.strip() != self.target_matrix_version
-        ):
-            raise ValueError("snapshot schema 1.1 requires normalized target_matrix_version")
-        digest = self.target_matrix_digest
-        if digest is None or not _is_sha256_digest(digest):
-            raise ValueError("snapshot schema 1.1 requires canonical target_matrix_digest")
+        if not has_components:
+            raise ValueError("snapshot schema 1.2 requires quality component metrics")
+        if (self.target_matrix_version is None) != (self.target_matrix_digest is None):
+            raise ValueError("snapshot schema 1.2 target matrix provenance must be complete")
+        if self.target_matrix_version is not None:
+            _require_target_matrix_provenance(
+                self.target_matrix_version,
+                self.target_matrix_digest,
+            )
+
+
+def _validated_quality_metrics(
+    value: Mapping[BenchmarkQualityMetric, Decimal],
+) -> dict[BenchmarkQualityMetric, Decimal]:
+    metrics: dict[BenchmarkQualityMetric, Decimal] = {}
+    for metric, score in value.items():
+        if not isinstance(metric, BenchmarkQualityMetric):
+            raise ValueError("benchmark quality metric keys must use BenchmarkQualityMetric")
+        if not isinstance(score, Decimal) or not Decimal("0") <= score <= Decimal("1"):
+            raise ValueError("benchmark quality metric values must be Decimal values from 0 to 1")
+        metrics[metric] = score
+    return metrics
+
+
+def _require_target_matrix_provenance(
+    version: str | None,
+    digest: str | None,
+) -> None:
+    if version is None or not version or version.strip() != version:
+        raise ValueError("snapshot target matrix provenance requires normalized version")
+    if digest is None or not _is_sha256_digest(digest):
+        raise ValueError("snapshot target matrix provenance requires canonical digest")
 
 
 def _is_sha256_digest(value: str) -> bool:
