@@ -18,6 +18,7 @@ class BenchmarkWorkload(StrEnum):
     REASONING = "reasoning"
     STRUCTURED_EXTRACTION = "structured_extraction"
     RAG_PTBR = "rag_ptbr"
+    RAG_ANSWER = "rag_answer"
     CODE_GENERATION = "code_generation"
     CODE_REVIEW = "code_review"
     SECURITY_ANALYSIS = "security_analysis"
