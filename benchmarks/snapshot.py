@@ -12,6 +12,7 @@ from pathlib import Path
 from .contracts import (
     BenchmarkCase,
     BenchmarkObservation,
+    BenchmarkQualityMetric,
     BenchmarkSnapshot,
     BenchmarkTarget,
     JsonValue,
@@ -60,10 +61,18 @@ def build_snapshot(
 
     dataset_sha = dataset_digest(cases)
     matrix_sha: str | None = None
-    schema_version = "1.0"
     if target_matrix_version is not None:
         matrix_sha = target_matrix_digest(target_matrix_version, targets)
+
+    has_components = any(item.quality_metrics for item in observations) or any(
+        item.mean_quality_metrics for item in scorecards
+    )
+    if has_components:
+        schema_version = "1.2"
+    elif target_matrix_version is not None:
         schema_version = "1.1"
+    else:
+        schema_version = "1.0"
 
     base_payload: dict[str, object] = {
         "schema_version": schema_version,
@@ -171,6 +180,8 @@ def _observation_payload(item: BenchmarkObservation) -> dict[str, object]:
         "provider_error_code": item.provider_error_code,
         "provider_error_status": item.provider_error_status,
     }
+    if item.quality_metrics:
+        payload["quality_metrics"] = _quality_metric_payload(item.quality_metrics)
     if item.provider is not None:
         payload["provider"] = item.provider
         payload["model"] = item.model
@@ -183,7 +194,7 @@ def _observation_payload(item: BenchmarkObservation) -> dict[str, object]:
 
 
 def _scorecard_payload(item: Scorecard) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "target_id": item.target_id,
         "workload": item.workload.value,
         "total_cases": item.total_cases,
@@ -204,6 +215,18 @@ def _scorecard_payload(item: Scorecard) -> dict[str, object]:
         "rate_limit_errors": item.rate_limit_errors,
         "fallback_frequency": _decimal(item.fallback_frequency),
         "provider_error_counts": dict(sorted(item.provider_error_counts.items())),
+    }
+    if item.mean_quality_metrics:
+        payload["mean_quality_metrics"] = _quality_metric_payload(item.mean_quality_metrics)
+    return payload
+
+
+def _quality_metric_payload(
+    value: Mapping[BenchmarkQualityMetric, Decimal],
+) -> dict[str, str]:
+    return {
+        metric.value: format(score, "f")
+        for metric, score in sorted(value.items(), key=lambda item: item[0].value)
     }
 
 
