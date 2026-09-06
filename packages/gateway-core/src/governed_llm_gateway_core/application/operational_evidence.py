@@ -58,6 +58,8 @@ class OperationalAttemptSample:
     def __post_init__(self) -> None:
         """Reject ambiguous identities, timestamps, counters, and outcome drift."""
         _validate_utc(self.observed_at, "observed_at")
+        if not isinstance(self.gateway_request_id, UUID):
+            raise OperationalEvidenceMaterializationError("gateway_request_id must be a UUID")
         _validate_identifier(self.runtime_workload, "runtime_workload")
         if "." not in self.runtime_workload:
             raise OperationalEvidenceMaterializationError("runtime_workload must be dotted")
