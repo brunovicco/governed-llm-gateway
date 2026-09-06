@@ -7,7 +7,6 @@ from dataclasses import FrozenInstanceError
 from typing import cast
 
 import pytest
-
 from governed_llm_gateway_core.adapters.operational_evidence_json import (
     load_operational_evidence_text,
 )
@@ -174,7 +173,10 @@ def test_operational_evidence_rejects_invalid_time_provenance(
         ),
         (_record(errors=2, rate_limits=3), "rate_limit_error_count cannot exceed"),
         (_record(errors=2, timeouts=3), "timeout_count cannot exceed"),
-        (_record(gateway_requests=10, fallback_requests=11), "fallback_request_count cannot exceed"),
+        (
+            _record(gateway_requests=10, fallback_requests=11),
+            "fallback_request_count cannot exceed",
+        ),
         (_record(p50_ms=800, p95_ms=700), "provider_latency_p95_ms cannot be less than p50"),
     ],
 )
@@ -199,7 +201,7 @@ def test_operational_evidence_record_is_immutable() -> None:
     record = snapshot.records[0]
 
     with pytest.raises(FrozenInstanceError):
-        setattr(record, "provider_error_count", 0)
+        delattr(record, "provider_error_count")
 
 
 def test_direct_record_construction_preserves_fail_closed_invariants() -> None:

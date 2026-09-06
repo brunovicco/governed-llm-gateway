@@ -12,7 +12,7 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 _IDENTIFIER_RE = re.compile(r"^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$")
 
@@ -67,16 +67,22 @@ class OperationalEvidenceSnapshot:
         _validate_utc_datetime(self.window_end, "window_end")
         _validate_utc_datetime(self.captured_at, "captured_at")
         if self.window_start >= self.window_end:
-            raise OperationalEvidenceError("operational evidence window_start must precede window_end")
+            raise OperationalEvidenceError(
+                "operational evidence window_start must precede window_end"
+            )
         if self.captured_at < self.window_end:
-            raise OperationalEvidenceError("operational evidence captured_at cannot precede window_end")
+            raise OperationalEvidenceError(
+                "operational evidence captured_at cannot precede window_end"
+            )
         if not isinstance(self.records, tuple) or not self.records:
             raise OperationalEvidenceError("operational evidence records must be a non-empty tuple")
         ordered = tuple(
             sorted(self.records, key=lambda item: (item.runtime_workload, item.deployment_id))
         )
         if self.records != ordered:
-            raise OperationalEvidenceError("operational evidence records must use canonical ordering")
+            raise OperationalEvidenceError(
+                "operational evidence records must use canonical ordering"
+            )
         keys = [(item.runtime_workload, item.deployment_id) for item in self.records]
         if len(keys) != len(set(keys)):
             raise OperationalEvidenceError(
@@ -175,7 +181,9 @@ def _build_record(payload: Mapping[object, object], index: int) -> OperationalEv
     }
     location = f"records[{index}]"
     _require_exact_object_fields(payload, allowed, location)
-    runtime_workload = _require_identifier(payload["runtime_workload"], f"{location}.runtime_workload")
+    runtime_workload = _require_identifier(
+        payload["runtime_workload"], f"{location}.runtime_workload"
+    )
     if "." not in runtime_workload:
         raise OperationalEvidenceError(f"{location}.runtime_workload must be dotted")
     return OperationalEvidenceRecord(
@@ -233,9 +241,13 @@ def _validate_record(record: OperationalEvidenceRecord) -> None:
     for name, value in counters.items():
         if value < 0:
             raise OperationalEvidenceError(f"{name} must be non-negative")
-    if record.successful_provider_attempt_count + record.provider_error_count != record.provider_attempt_count:
+    if (
+        record.successful_provider_attempt_count + record.provider_error_count
+        != record.provider_attempt_count
+    ):
         raise OperationalEvidenceError(
-            "successful_provider_attempt_count + provider_error_count must equal provider_attempt_count"
+            "successful_provider_attempt_count + provider_error_count "
+            "must equal provider_attempt_count"
         )
     if record.rate_limit_error_count > record.provider_error_count:
         raise OperationalEvidenceError("rate_limit_error_count cannot exceed provider_error_count")
@@ -345,7 +357,7 @@ def _require_utc_datetime(value: object, field: str) -> datetime:
     except ValueError as exc:
         raise OperationalEvidenceError(f"{field} must be an ISO-8601 timestamp") from exc
     _validate_utc_datetime(parsed, field)
-    return parsed.astimezone(timezone.utc)
+    return parsed.astimezone(UTC)
 
 
 def _require_sha256(value: object, field: str) -> str:
@@ -362,12 +374,14 @@ def _validate_sha256(value: str, field: str) -> None:
     try:
         int(digest, 16)
     except ValueError as exc:
-        raise OperationalEvidenceError(f"{field} must contain a hexadecimal SHA-256 digest") from exc
+        raise OperationalEvidenceError(
+            f"{field} must contain a hexadecimal SHA-256 digest"
+        ) from exc
 
 
 def _datetime_text(value: datetime) -> str:
     _validate_utc_datetime(value, "timestamp")
-    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _sha256_payload(payload: object) -> str:
