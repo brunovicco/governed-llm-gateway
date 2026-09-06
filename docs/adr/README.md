@@ -12,8 +12,15 @@ Accepted after Phase 0 when implementation evidence became available:
 
 - ADR-0006 — Deterministic candidate ranking (Phase 5)
 - ADR-0007 — Fallback safety semantics (Phase 6)
+- ADR-0008 — Metadata-only telemetry (Phase 9)
+- ADR-0009 — Benchmark-derived routing scores (Phase 11)
+- ADR-0010 — Client SDK boundary (Phase 12)
+- ADR-0011 — Streaming normalization (Phase 8)
+- ADR-0012 — Governance authorization integration (Phase 13)
 - ADR-0013 — Structured output and tool normalization (Phase 7)
 
-The original roadmap backlog still reserves ADR-0008 through ADR-0012 for later telemetry,
-benchmark-derived routing, client SDK, streaming, and governance-integration decisions. ADR-0013 is an
-additional implementation-evidence decision and does not renumber those reserved records.
+The ADR numbers preserve the original roadmap reservations. Acceptance order follows implementation
+evidence rather than numeric order; later decisions do not rewrite earlier accepted records.
+
+See `ADR-BACKLOG.md` for any decision topics that remain intentionally unpromoted from backlog to an
+accepted ADR.
