@@ -31,6 +31,10 @@ from .workloads.multimodal_analysis import (
 )
 from .workloads.rag_answer import RAG_ANSWER_SCORER_ID, assess_rag_answer
 from .workloads.rag_ptbr import RAG_PTBR_SCORER_ID, score_rag_ptbr
+from .workloads.rag_ptbr_v2 import (
+    RAG_PTBR_V2_SCORER_ID,
+    assess_rag_ptbr_v2,
+)
 from .workloads.reasoning import REASONING_SCORER_ID, score_reasoning
 from .workloads.security_analysis import (
     SECURITY_ANALYSIS_SCORER_ID,
@@ -243,6 +247,17 @@ def _rag_answer_measurement(case: BenchmarkCase, output: JsonValue) -> QualityMe
     )
 
 
+def _rag_ptbr_v2_measurement(case: BenchmarkCase, output: JsonValue) -> QualityMeasurement:
+    assessment = assess_rag_ptbr_v2(case, output)
+    return QualityMeasurement(
+        score=assessment.score,
+        metrics={
+            BenchmarkQualityMetric.GROUNDING: assessment.grounding_score,
+            BenchmarkQualityMetric.PT_BR_QUALITY: assessment.pt_br_quality_score,
+        },
+    )
+
+
 def build_default_scorers() -> Mapping[str, DeterministicScorer]:
     """Return the bounded credential-free scorer registry used by benchmark datasets."""
     scorers: dict[str, DeterministicScorer] = {
@@ -254,6 +269,7 @@ def build_default_scorers() -> Mapping[str, DeterministicScorer]:
         STRUCTURED_EXTRACTION_V2_SCORER_ID: ComponentScorer(_structured_extraction_v2_measurement),
         JSON_SCHEMA_COMPLIANCE_SCORER_ID: ComponentScorer(_json_schema_compliance_measurement),
         RAG_PTBR_SCORER_ID: score_rag_ptbr,
+        RAG_PTBR_V2_SCORER_ID: ComponentScorer(_rag_ptbr_v2_measurement),
         RAG_ANSWER_SCORER_ID: ComponentScorer(_rag_answer_measurement),
         CODE_GENERATION_SCORER_ID: score_code_generation,
         CODE_REVIEW_SCORER_ID: score_code_review,

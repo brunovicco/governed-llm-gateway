@@ -1,0 +1,115 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "rag-ptbr-v2",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "rag_ptbr_v2.security_001",
+      "workload": "rag_ptbr",
+      "scorer": "rag_ptbr_v2",
+      "prompt": "Contexto: Padrão sintético: cada usuário administrador deve trocar a senha a cada 90 dias. Incidentes de acesso são encaminhados para a equipe de segurança.\n\nPergunta: Com base apenas no contexto, informe o prazo de troca e quem recebe os incidentes. Responda em português do Brasil e preserve a terminologia do contexto.",
+      "expected": ["90 dias", "equipe de segurança"],
+      "metadata": {
+        "contract_version": "2.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "context": "Padrão sintético: cada usuário administrador deve trocar a senha a cada 90 dias. Incidentes de acesso são encaminhados para a equipe de segurança.",
+        "forbidden_claims": ["180 dias", "equipe comercial"],
+        "pt_br_quality_rules": [
+          {"preferred": ["usuário"], "rejected": ["utilizador"]},
+          {"preferred": ["senha"], "rejected": ["palavra-passe"]}
+        ]
+      }
+    },
+    {
+      "case_id": "rag_ptbr_v2.data_001",
+      "workload": "rag_ptbr",
+      "scorer": "rag_ptbr_v2",
+      "prompt": "Contexto: Procedimento sintético: o usuário envia o arquivo CSV pelo portal. O arquivo pode ter até 5 MB e fica disponível por 30 dias.\n\nPergunta: Com base apenas no contexto, informe o limite e o período de disponibilidade. Responda em português do Brasil e preserve a terminologia do contexto.",
+      "expected": ["5 MB", "30 dias"],
+      "metadata": {
+        "contract_version": "2.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "context": "Procedimento sintético: o usuário envia o arquivo CSV pelo portal. O arquivo pode ter até 5 MB e fica disponível por 30 dias.",
+        "forbidden_claims": ["10 MB", "60 dias"],
+        "pt_br_quality_rules": [
+          {"preferred": ["usuário"], "rejected": ["utilizador"]},
+          {"preferred": ["arquivo"], "rejected": ["ficheiro"]}
+        ]
+      }
+    },
+    {
+      "case_id": "rag_ptbr_v2.incident_001",
+      "workload": "rag_ptbr",
+      "scorer": "rag_ptbr_v2",
+      "prompt": "Contexto: Procedimento sintético: a equipe SRE registra o incidente no sistema. O registro deve ocorrer em até 10 minutos e o retorno inicial sai em 20 minutos.\n\nPergunta: Com base apenas no contexto, informe os dois prazos. Responda em português do Brasil e preserve a terminologia do contexto.",
+      "expected": ["10 minutos", "20 minutos"],
+      "metadata": {
+        "contract_version": "2.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "context": "Procedimento sintético: a equipe SRE registra o incidente no sistema. O registro deve ocorrer em até 10 minutos e o retorno inicial sai em 20 minutos.",
+        "forbidden_claims": ["30 minutos", "40 minutos"],
+        "pt_br_quality_rules": [
+          {"preferred": ["equipe"], "rejected": ["equipa"]},
+          {"preferred": ["registro"], "rejected": ["registo"]}
+        ]
+      }
+    },
+    {
+      "case_id": "rag_ptbr_v2.mobile_001",
+      "workload": "rag_ptbr",
+      "scorer": "rag_ptbr_v2",
+      "prompt": "Contexto: Orientação sintética: o usuário instala a atualização no celular. A instalação deve ocorrer após 22:00 e exige pelo menos 40% de bateria.\n\nPergunta: Com base apenas no contexto, informe o horário e a carga mínima. Responda em português do Brasil e preserve a terminologia do contexto.",
+      "expected": ["22:00", "40%"],
+      "metadata": {
+        "contract_version": "2.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "context": "Orientação sintética: o usuário instala a atualização no celular. A instalação deve ocorrer após 22:00 e exige pelo menos 40% de bateria.",
+        "forbidden_claims": ["20:00", "80%"],
+        "pt_br_quality_rules": [
+          {"preferred": ["usuário"], "rejected": ["utilizador"]},
+          {"preferred": ["celular"], "rejected": ["telemóvel"]}
+        ]
+      }
+    },
+    {
+      "case_id": "rag_ptbr_v2.transport_001",
+      "workload": "rag_ptbr",
+      "scorer": "rag_ptbr_v2",
+      "prompt": "Contexto: Plano sintético: o ônibus de contingência sai às 06:30 e passa por um pedágio antes de chegar ao centro de dados às 07:15.\n\nPergunta: Com base apenas no contexto, informe os horários de saída e chegada. Responda em português do Brasil e preserve a terminologia do contexto.",
+      "expected": ["06:30", "07:15"],
+      "metadata": {
+        "contract_version": "2.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "context": "Plano sintético: o ônibus de contingência sai às 06:30 e passa por um pedágio antes de chegar ao centro de dados às 07:15.",
+        "forbidden_claims": ["05:30", "08:15"],
+        "pt_br_quality_rules": [
+          {"preferred": ["ônibus"], "rejected": ["autocarro"]},
+          {"preferred": ["pedágio"], "rejected": ["portagem"]}
+        ]
+      }
+    },
+    {
+      "case_id": "rag_ptbr_v2.logistics_001",
+      "workload": "rag_ptbr",
+      "scorer": "rag_ptbr_v2",
+      "prompt": "Contexto: Rotina sintética: o caminhão de suporte leva um arquivo de recuperação ao site remoto. A entrega acontece às 14:00 e o arquivo deve ser conferido por duas pessoas.\n\nPergunta: Com base apenas no contexto, informe o horário e quantas pessoas fazem a conferência. Responda em português do Brasil e preserve a terminologia do contexto.",
+      "expected": ["14:00", "duas pessoas"],
+      "metadata": {
+        "contract_version": "2.0",
+        "language": "pt-BR",
+        "synthetic": true,
+        "context": "Rotina sintética: o caminhão de suporte leva um arquivo de recuperação ao site remoto. A entrega acontece às 14:00 e o arquivo deve ser conferido por duas pessoas.",
+        "forbidden_claims": ["16:00", "três pessoas"],
+        "pt_br_quality_rules": [
+          {"preferred": ["caminhão"], "rejected": ["camião"]},
+          {"preferred": ["arquivo"], "rejected": ["ficheiro"]}
+        ]
+      }
+    }
+  ]
+}
