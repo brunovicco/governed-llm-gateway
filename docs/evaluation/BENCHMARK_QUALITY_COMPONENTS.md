@@ -1,6 +1,6 @@
 # Benchmark Quality Component Evidence
 
-Lifecycle status is tracked after branch, pull-request and post-merge validation.
+Status: **COMPLETE — merged in PR #64.**
 
 ## Purpose
 
