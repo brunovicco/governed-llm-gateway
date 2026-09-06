@@ -1,0 +1,39 @@
+name: run-pr70-docs-reconciler
+
+on:
+  push:
+    branches:
+      - docs/reconcile-operational-evidence-pr70
+    paths:
+      - .github/workflows/run-pr70-docs-reconciler.yml
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: docs/reconcile-operational-evidence-pr70
+      - name: Reconcile documentation
+        run: python scripts/tmp_reconcile_pr70_docs.py
+      - name: Remove temporary reconciler
+        run: |
+          rm scripts/tmp_reconcile_pr70_docs.py
+          rm .github/workflows/run-pr70-docs-reconciler.yml
+      - name: Commit reconciliation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md README.pt-BR.md \
+            docs/project/CURRENT_STATE.md \
+            docs/project/EVALUATION.md \
+            docs/evaluation/BENCHMARK_MATRIX.md \
+            docs/evaluation/OPERATIONAL_EVIDENCE.md \
+            scripts/tmp_reconcile_pr70_docs.py \
+            .github/workflows/run-pr70-docs-reconciler.yml
+          git diff --cached --check
+          git commit -m "docs: reconcile operational evidence through PR 70"
+          git push origin HEAD:docs/reconcile-operational-evidence-pr70
