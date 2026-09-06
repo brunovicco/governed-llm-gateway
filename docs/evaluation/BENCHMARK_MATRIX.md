@@ -2,7 +2,7 @@
 
 Status: **COMPLETE — all roadmap-listed benchmark classes are represented by reviewed deterministic contracts; the core 5/5 baseline and historical versions remain preserved**
 
-The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority. After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension, PR #44 added `long_context`, PR #45 added `classification`, PR #47 added `reasoning`, PR #48 added `code_review`, PR #50 added `security_analysis`, PR #51 added `tool_selection`, PR #52 added `tool_argument_generation`, PR #55 added `multi_step_tool_use`, PR #58 added `rag_answer`, and PR #61 added the distinct `json_schema_compliance` class.
+The Phase 10 framework originally established a generic provider-neutral benchmark pipeline. PRs #19–#24 then added workload-specific deterministic contracts on top of that foundation without turning the benchmark layer into runtime authority. After core execution stabilized, PR #32 added the roadmap-authorized `multimodal_analysis` extension, PR #44 added `long_context`, PR #45 added `classification`, PR #47 added `reasoning`, PR #48 added `code_review`, PR #50 added `security_analysis`, PR #51 added `tool_selection`, PR #52 added `tool_argument_generation`, PR #55 added `multi_step_tool_use`, PR #58 added `rag_answer`, and PR #61 added the distinct `json_schema_compliance` class, and PR #67 added bounded `pt_br_quality` evidence through `rag-ptbr-v2` while preserving v1 historically.
 
 ## Matrix
 
@@ -10,7 +10,7 @@ The Phase 10 framework originally established a generic provider-neutral benchma
 |---|---|---|---|
 | `structured_extraction` | `structured-extraction-v2` | bounded recursive schema validation + exact type-sensitive leaf-value accuracy | #19 established v1; #22 added v2 hardening |
 | `json_schema_compliance` | `json-schema-compliance-v1` | binary Draft 2020-12 compliance over normalized `JsonValue`; schemas reuse the bounded Phase 7 acceptance boundary and exact extraction values are out of scope | #61 |
-| `rag_ptbr` | `rag-ptbr-v1` | reviewed required-fact coverage with explicit forbidden-claim regression checks | #20 |
+| `rag_ptbr` | `rag-ptbr-v2` | required-fact grounding plus bounded reviewer-authored Brazilian Portuguese locale/terminology conformance; v1 preserved historically | #20 established v1; #67 added v2 |
 | `rag_answer` | `rag-answer-v1` | reviewed required-fact coverage plus citation set-F1 against checked-in synthetic source IDs; unknown citations and inconsistent reference grounding fail closed | #58 |
 | `code_generation` | `code-generation-v1` | normalized Python AST exactness; candidate code is never executed | #21 |
 | `tool_use` | `tool-use-v1` | tool-selection score + exact recursive type-sensitive argument score; tool execution disabled | #23 |
@@ -68,9 +68,9 @@ Benchmark schema acceptance reuses the existing Phase 7 bounded Draft 2020-12 st
 
 ### rag_ptbr
 
-The v1 scorer checks reviewed required facts inside a synthetic/public PT-BR context and forces a zero score when a reviewed conflicting/unsupported `forbidden_claim` appears.
+`rag-ptbr-v1` remains the historical scorer for reviewed required-fact coverage with explicit forbidden-claim regression. PR #67 adds `rag-ptbr-v2` without rewriting v1: each v2 completed call exposes separate `grounding` and `pt_br_quality` components.
 
-It intentionally does not claim arbitrary factuality evaluation and does not call another model as judge.
+`pt_br_quality` is intentionally narrow: it scores only reviewer-authored case-local Brazilian Portuguese locale/terminology rules using explicit preferred and rejected terms. Unsupported reviewed claims still fail overall RAG quality closed. The benchmark does not use another model as judge and does not claim arbitrary fluency, complete grammar correctness, style/tone, cultural appropriateness or every Portuguese variety.
 
 ### rag_answer
 
@@ -188,7 +188,7 @@ Opaque configuration strings are still declarative. The benchmark does not infer
 
 ## Additional post-core deterministic workloads
 
-PR #44 added `long-context-v1` without a provider tokenizer dependency or a fabricated token-count claim. PR #45 added `classification-v1` as an exact closed-set workload with immutable label vocabulary and strict dataset drift checks. PR #47 added `reasoning-v1` with answer-only, type-sensitive scoring and no chain-of-thought collection. PR #48 added `code-review-v1` with structured reviewed non-security findings, clean-case false-positive coverage and no candidate execution. PR #50 added `security-analysis-v1` with a separate defensive security vocabulary and no exploitation path. PR #51 added `tool-selection-v1` to isolate exact tool-choice quality. PR #52 added `tool-argument-generation-v1` to isolate argument quality after the reviewed tool identity is fixed. PR #55 added `multi-step-tool-use-v1` to measure short ordered tool-call proposals against immutable synthetic intermediate context without executing tools. PR #58 added `rag-answer-v1` to measure reviewed fact grounding plus explicit source-ID citation quality without performing retrieval. PR #61 added `json-schema-compliance-v1` to isolate normalized JSON Schema validity from extraction-value correctness while reusing the existing bounded Phase 7 schema acceptance boundary. PR #64 preserved reviewed offline quality components in observations, scorecards and snapshot schema 1.2 without changing promotion or ranking.
+PR #44 added `long-context-v1` without a provider tokenizer dependency or a fabricated token-count claim. PR #45 added `classification-v1` as an exact closed-set workload with immutable label vocabulary and strict dataset drift checks. PR #47 added `reasoning-v1` with answer-only, type-sensitive scoring and no chain-of-thought collection. PR #48 added `code-review-v1` with structured reviewed non-security findings, clean-case false-positive coverage and no candidate execution. PR #50 added `security-analysis-v1` with a separate defensive security vocabulary and no exploitation path. PR #51 added `tool-selection-v1` to isolate exact tool-choice quality. PR #52 added `tool-argument-generation-v1` to isolate argument quality after the reviewed tool identity is fixed. PR #55 added `multi-step-tool-use-v1` to measure short ordered tool-call proposals against immutable synthetic intermediate context without executing tools. PR #58 added `rag-answer-v1` to measure reviewed fact grounding plus explicit source-ID citation quality without performing retrieval. PR #61 added `json-schema-compliance-v1` to isolate normalized JSON Schema validity from extraction-value correctness while reusing the existing bounded Phase 7 schema acceptance boundary. PR #64 preserved reviewed offline quality components in observations, scorecards and snapshot schema 1.2 without changing promotion or ranking. PR #67 then added bounded `pt_br_quality` plus independent `grounding` evidence for `rag-ptbr-v2`, preserving `rag-ptbr-v1` unchanged.
 
 These are consumer-agnostic benchmark extensions. None adds a live executor, changes provider selection, or creates a benchmark-only authorization/routing path.
 
@@ -200,11 +200,12 @@ PR #64 preserves the Roadmap quality dimensions already demonstrated by reviewed
 - `tool_selection_accuracy`;
 - `tool_argument_accuracy`;
 - `trajectory_success`;
-- `grounding`.
+- `grounding`;
+- `pt_br_quality` — bounded reviewer-authored Brazilian Portuguese locale/terminology conformance from `rag-ptbr-v2`.
 
 `quality_success_rate` remains the reviewed task-success aggregate. Latency p50/p95, TTFT, normalized input/output units, cost, provider/rate-limit errors and fallback frequency remain operational scorecard evidence and are not conflated with offline quality. Provider failures carry no component quality and do not dilute completed-call component means.
 
-PT-BR quality remains an explicit gap: `rag-ptbr-v1` measures required-fact coverage with forbidden-claim checks in PT-BR, not independent Portuguese fluency/grammar/localization/style quality. The ledger therefore does not fabricate a `pt_br_quality` alias.
+PR #67 closes the explicit PT-BR measurement gap only with bounded evidence: `rag-ptbr-v2` measures case-local Brazilian Portuguese locale/terminology conformance as `pt_br_quality` separately from grounding. The ledger still does not infer arbitrary Portuguese fluency, complete grammar correctness, unrestricted localization/style quality or dialect quality from that component.
 
 ## Target matrices
 
@@ -259,14 +260,14 @@ Default CI remains credential-free and deterministic:
 - snapshot/digest behavior is replayable;
 - architecture/security/secret gates cover benchmark code.
 
-Latest validated `main` baseline after PR #64:
+Latest validated `main` baseline after PR #67:
 
-- commit `ef1d83c8c82a63a3f5abc533d7dc75db51144690`;
-- post-merge quality run `34048733993` — PASS;
-- 714 tests passed;
-- 82.21% aggregate coverage;
-- strict mypy and Ruff passed across 172 source files;
-- Bandit reported no issues across 15,972 LOC;
+- commit `a92e7961ae2de6d3ec40aaa0dda3a955b4e92660`;
+- post-merge quality run `34050920267` — PASS;
+- 725 tests passed;
+- 82.16% aggregate coverage;
+- strict mypy and Ruff passed across 174 source files;
+- Bandit reported no issues across 16,170 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
@@ -276,4 +277,4 @@ All roadmap-listed benchmark classes now have reviewed versioned contracts. That
 
 Issue #18 still defers OpsLens reconciliation and explicitly prevents starting RAGForge in parallel unless the normative integration order is revised.
 
-Until that changes, further gateway work should be consumer-agnostic and independently justified. The Roadmap measurement audit is now explicit: all currently supportable deterministic component measures are preserved, while independent PT-BR quality remains the next concrete benchmark-measurement gap. A future live benchmark executor must use normal gateway authorization and must not introduce a benchmark-only provider/model forcing path.
+Until that changes, further gateway work should be consumer-agnostic and independently justified. The Roadmap measurement audit now preserves every currently reviewed deterministic quality dimension, including bounded `pt_br_quality`; broader language-quality claims remain intentionally out of scope unless a separate explicit contract is justified. A future live benchmark executor must use normal gateway authorization and must not introduce a benchmark-only provider/model forcing path.

@@ -129,8 +129,9 @@ Additional roadmap-listed post-core evaluation classes were then added without c
 - PR #58 — `rag-answer-v1`, a deterministic grounded-answer benchmark over checked-in public/synthetic source records with required-fact coverage, citation set-F1, fail-closed unknown citations and reference-source grounding validation, without retrieval or an LLM-as-judge.
 - PR #61 — `json-schema-compliance-v1`, a binary normalized-JSON schema-compliance benchmark that reuses the bounded Phase 7 Draft 2020-12 schema acceptance boundary while keeping extraction-value correctness out of scope.
 - PR #64 — immutable benchmark quality-component evidence for schema validity, tool selection, tool arguments, trajectory success and grounding, with snapshot schema 1.2 and no implicit promotion/ranking change.
+- PR #67 — `rag-ptbr-v2`, preserving historical v1 while adding separate grounding and bounded reviewer-authored Brazilian Portuguese locale/terminology quality evidence as `pt_br_quality`, with no provider/model forcing or promotion/ranking change.
 
-All roadmap-listed benchmark classes now have reviewed versioned contracts. The Roadmap measurement audit also preserves every currently supportable deterministic quality component separately from operational health. Independent PT-BR language quality remains an explicit gap rather than being fabricated from `rag-ptbr-v1` grounding evidence.
+All roadmap-listed benchmark classes now have reviewed versioned contracts. The Roadmap measurement audit preserves every currently reviewed deterministic quality component separately from operational health, including bounded `pt_br_quality` from `rag-ptbr-v2`. Historical `rag-ptbr-v1` remains unchanged, and broader fluency/grammar/style/cultural-quality claims remain explicitly out of scope.
 
 The benchmark target catalog is intentionally versioned rather than rewritten:
 
@@ -152,21 +153,21 @@ Shared benchmark properties remain:
 - no LLM-as-judge dependency in the default path;
 - benchmark/runtime evidence can affect ranking only inside the already-authorized and eligible set.
 
-Latest validated gateway baseline after PR #64:
+Latest validated gateway baseline after PR #67:
 
-`ef1d83c8c82a63a3f5abc533d7dc75db51144690`
+`a92e7961ae2de6d3ec40aaa0dda3a955b4e92660`
 
 Post-merge quality run:
 
-`34048733993` — PASS.
+`34050920267` — PASS.
 
 Validation:
 
-- 714 tests passed;
-- aggregate coverage 82.21%;
-- strict mypy passed across 172 source files;
-- Ruff lint/format passed across 172 files;
-- Bandit reported no issues across 15,972 LOC;
+- 725 tests passed;
+- aggregate coverage 82.16%;
+- strict mypy passed across 174 source files;
+- Ruff lint/format passed across 174 files;
+- Bandit reported no issues across 16,170 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
@@ -252,7 +253,7 @@ Remains after the preceding integration cases.
 3. Do not begin RAGForge in parallel unless the roadmap order is explicitly revised.
 4. Accept further upstream gateway changes only when they are consumer-agnostic, independently justified and preserve the permanent authorization invariant.
 5. Do not create a model-forcing benchmark bypass: benchmark target identity must never become an authorization or routing override.
-6. Preserve PT-BR quality as the next explicit benchmark-measurement gap; do not alias `rag-ptbr-v1` grounded fact coverage to independent language quality.
+6. Treat `rag-ptbr-v2` `pt_br_quality` strictly as bounded reviewer-authored Brazilian Portuguese locale/terminology evidence; do not generalize it into arbitrary fluency, grammar, style or cultural-quality claims.
 7. Keep quality-component evidence outside promotion/ranking until a separate explicit versioned contract reviews such use.
 8. A future live gateway-backed benchmark executor must use an already-authorized gateway path, preserve target/effective-execution integrity checks, and remain outside credential-free default CI.
 9. When OpsLens is resumed, reconcile against the then-current gateway commit and rerun the full OpsLens Python and Terraform gates before merge.

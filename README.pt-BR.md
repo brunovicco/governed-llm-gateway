@@ -4,7 +4,7 @@
 
 Gateway reutilizável e neutro em relação a provedores de LLM para **resolução e execução governada de modelos**.
 
-Status: **Phases 0–13 concluídas; Phase 14 em andamento — Cases 1/2 concluídos, Case 3 deferido. Todas as classes de benchmark listadas no roadmap estão representadas por contratos determinísticos revisados. Evidência revisada de componentes de qualidade é preservada separadamente da saúde operacional; qualidade linguística PT-BR independente permanece um gap explícito de medição.**
+Status: **Phases 0–13 concluídas; Phase 14 em andamento — Cases 1/2 concluídos, Case 3 deferido. Todas as classes de benchmark listadas no roadmap estão representadas por contratos determinísticos revisados. Evidência revisada de componentes de qualidade é preservada separadamente da saúde operacional, incluindo qualidade limitada de localidade/terminologia PT-BR em `rag-ptbr-v2`; não há alegação de fluência ou gramática universal.**
 
 O gateway funciona como Policy Enforcement Point (PEP) operacional entre o workload declarado pela aplicação e o deployment concreto de LLM escolhido para execução.
 
@@ -79,7 +79,7 @@ As classes de workload listadas no roadmap estão representadas por contratos de
 | `structured_extraction` | `structured-extraction-v2` (v1 preservado historicamente) | PRs #19 e #22 |
 | `json_schema_compliance` | `json-schema-compliance-v1` | PR #61 |
 | `rag_answer` | `rag-answer-v1` | PR #58 |
-| `rag_ptbr` | `rag-ptbr-v1` | PR #20 |
+| `rag_ptbr` | `rag-ptbr-v2` (v1 preservado historicamente) | PRs #20 e #67 |
 | `reasoning` | `reasoning-v1` | PR #47 |
 | `code_generation` | `code-generation-v1` | PR #21 |
 | `code_review` | `code-review-v1` | PR #48 |
@@ -104,17 +104,18 @@ As suítes específicas continuam:
 - incapazes de executar business tools, código gerado, agentes ou side effects;
 - incapazes de se autopromover ou alterar o roteamento ativo.
 
-Onde os scorers atuais realmente sustentam a medida, o PR #64 preserva estes componentes de qualidade offline separadamente do score escalar histórico:
+Onde os scorers atuais realmente sustentam a medida, o PR #64 estabeleceu evidência offline com componentes preservados e o PR #67 estendeu o vocabulário revisado com qualidade PT-BR limitada:
 
 - `schema_validity`;
 - `tool_selection_accuracy`;
 - `tool_argument_accuracy`;
 - `trajectory_success`;
-- `grounding`.
+- `grounding`;
+- `pt_br_quality` (conformidade limitada e revisada de localidade/terminologia do português do Brasil).
 
 Falhas de provider continuam sendo evidência de disponibilidade e não se tornam qualidade zero do modelo. Snapshots com componentes usam schema `1.2`; schemas históricos `1.0` e `1.1` permanecem canônicos e inalterados.
 
-Qualidade linguística PT-BR independente intencionalmente **ainda não é reivindicada**. `rag-ptbr-v1` mede cobertura revisada de fatos obrigatórios com checks de `forbidden_claim` em PT-BR, não fluência, gramática, terminologia, localização ou estilo em português de forma separada.
+O PR #67 adiciona `rag-ptbr-v2`, que preserva `grounding` separadamente de um componente limitado `pt_br_quality`, baseado apenas em regras revisadas de localidade/terminologia do português do Brasil. O histórico `rag-ptbr-v1` permanece inalterado e sem componente de qualidade linguística. Isso não reivindica fluência arbitrária, correção gramatical completa, equivalência semântica irrestrita, estilo/tom ou adequação cultural.
 
 O fluxo de evidência permanece:
 
@@ -186,16 +187,16 @@ uv sync --frozen
 uv run python scripts/quality_gate.py
 ```
 
-Baseline validado atual do `main` após o PR #64 (`ef1d83c8c82a63a3f5abc533d7dc75db51144690`):
+Baseline validado atual do `main` após o PR #67 (`a92e7961ae2de6d3ec40aaa0dda3a955b4e92660`):
 
-- **714 testes passaram**;
-- **82,21% de cobertura agregada** (threshold 80%);
-- mypy passou em **172 arquivos fonte**;
-- Ruff lint/format passou em **172 arquivos**;
-- Bandit reportou **0 issues** em 15.972 LOC;
+- **725 testes passaram**;
+- **82,16% de cobertura agregada** (threshold 80%);
+- mypy passou em **174 arquivos fonte**;
+- Ruff lint/format passou em **174 arquivos**;
+- Bandit reportou **0 issues** em 16.170 LOC;
 - pip-audit reportou **nenhuma vulnerabilidade conhecida**;
 - architecture check, secret scan e Phase 0 gate passaram;
-- quality run pós-merge no `main` `34048733993` — **PASS**.
+- quality run pós-merge no `main` `34050920267` — **PASS**.
 
 O warning conhecido do Starlette TestClient sobre `httpx`/`httpx2` continua não bloqueante.
 
@@ -207,7 +208,7 @@ Comece por:
 - `docs/project/ROADMAP.md` e `docs/project/SOURCE_ROADMAP.txt` — ledger de execução e fonte normativa;
 - `docs/project/EVALUATION.md` — arquitetura de benchmark/evidência;
 - `docs/evaluation/BENCHMARK_MATRIX.md` — matriz completa de workloads do roadmap e fronteira de evidência;
-- `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` — componentes revisados, snapshot schema 1.2 e gap explícito de qualidade PT-BR;
+- `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` — componentes revisados, snapshot schema 1.2 e evidência limitada de `pt_br_quality`;
 - `docs/project/PHASE14_PROVIDER_NEUTRAL_EXECUTION_PROVENANCE.md` — evidência terminal de runtime;
 - `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` — fronteira de capacidade/autoridade da Phase 7;
 - `docs/project/STREAMING.md` — lifecycle de streaming da Phase 8;
