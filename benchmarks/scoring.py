@@ -19,6 +19,7 @@ from .workloads.multimodal_analysis import (
     score_multimodal_analysis,
 )
 from .workloads.rag_ptbr import RAG_PTBR_SCORER_ID, score_rag_ptbr
+from .workloads.reasoning import REASONING_SCORER_ID, score_reasoning
 from .workloads.structured_extraction import (
     STRUCTURED_EXTRACTION_SCORER_ID,
     score_structured_extraction,
@@ -101,6 +102,7 @@ def build_default_scorers() -> Mapping[str, DeterministicScorer]:
         MULTIMODAL_ANALYSIS_SCORER_ID: score_multimodal_analysis,
         LONG_CONTEXT_SCORER_ID: score_long_context,
         CLASSIFICATION_SCORER_ID: score_classification,
+        REASONING_SCORER_ID: score_reasoning,
     }
     return scorers
 

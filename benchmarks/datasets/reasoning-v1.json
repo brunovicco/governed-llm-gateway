@@ -1,0 +1,103 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "reasoning-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "reasoning.arithmetic.001",
+      "workload": "reasoning",
+      "scorer": "reasoning_v1",
+      "prompt": "Solve this synthetic reasoning problem. Return only JSON with the key answer and do not provide chain-of-thought or explanation. Problem: A warehouse packs 18 boxes with 24 items each, then removes 37 damaged items. How many items remain?",
+      "expected": {"answer": 395},
+      "metadata": {"answer_only": true, "contract_version": "1.0", "family": "arithmetic", "response_format": "reasoning_answer_v1", "synthetic": true}
+    },
+    {
+      "case_id": "reasoning.arithmetic.002",
+      "workload": "reasoning",
+      "scorer": "reasoning_v1",
+      "prompt": "Solve this synthetic reasoning problem. Return only JSON with the key answer and do not provide chain-of-thought or explanation. Problem: A service processes 7 batches of 36 requests and then 48 additional requests. How many requests are processed in total?",
+      "expected": {"answer": 300},
+      "metadata": {"answer_only": true, "contract_version": "1.0", "family": "arithmetic", "response_format": "reasoning_answer_v1", "synthetic": true}
+    },
+    {
+      "case_id": "reasoning.arithmetic.003",
+      "workload": "reasoning",
+      "scorer": "reasoning_v1",
+      "prompt": "Solve this synthetic reasoning problem. Return only JSON with the key answer and do not provide chain-of-thought or explanation. Problem: A budget of 960 credits is split equally among 12 teams. Each team then uses 17 credits. How many credits remain for each team?",
+      "expected": {"answer": 63},
+      "metadata": {"answer_only": true, "contract_version": "1.0", "family": "arithmetic", "response_format": "reasoning_answer_v1", "synthetic": true}
+    },
+    {
+      "case_id": "reasoning.boolean-logic.001",
+      "workload": "reasoning",
+      "scorer": "reasoning_v1",
+      "prompt": "Solve this synthetic reasoning problem. Return only JSON with the key answer and do not provide chain-of-thought or explanation. Problem: Every red key opens door A. Key K is red. Under these rules, does key K open door A?",
+      "expected": {"answer": true},
+      "metadata": {"answer_only": true, "contract_version": "1.0", "family": "boolean_logic", "response_format": "reasoning_answer_v1", "synthetic": true}
+    },
+    {
+      "case_id": "reasoning.boolean-logic.002",
+      "workload": "reasoning",
+      "scorer": "reasoning_v1",
+      "prompt": "Solve this synthetic reasoning problem. Return only JSON with the key answer and do not provide chain-of-thought or explanation. Problem: No archived record is editable. Record R is archived. Under these rules, is record R editable?",
+      "expected": {"answer": false},
+      "metadata": {"answer_only": true, "contract_version": "1.0", "family": "boolean_logic", "response_format": "reasoning_answer_v1", "synthetic": true}
+    },
+    {
+      "case_id": "reasoning.boolean-logic.003",
+      "workload": "reasoning",
+      "scorer": "reasoning_v1",
+      "prompt": "Solve this synthetic reasoning problem. Return only JSON with the key answer and do not provide chain-of-thought or explanation. Problem: If a service is healthy, then its status is green. The status is not green. Under this rule, can the service be healthy?",
+      "expected": {"answer": false},
+      "metadata": {"answer_only": true, "contract_version": "1.0", "family": "boolean_logic", "response_format": "reasoning_answer_v1", "synthetic": true}
+    },
+    {
+      "case_id": "reasoning.constraint.001",
+      "workload": "reasoning",
+      "scorer": "reasoning_v1",
+      "prompt": "Solve this synthetic reasoning problem. Return only JSON with the key answer and do not provide chain-of-thought or explanation. Problem: Ada must be scheduled before Bruno, and Bruno must be scheduled before Carla. Who is in the middle position?",
+      "expected": {"answer": "bruno"},
+      "metadata": {"answer_only": true, "contract_version": "1.0", "family": "constraint", "response_format": "reasoning_answer_v1", "synthetic": true}
+    },
+    {
+      "case_id": "reasoning.constraint.002",
+      "workload": "reasoning",
+      "scorer": "reasoning_v1",
+      "prompt": "Solve this synthetic reasoning problem. Return only JSON with the key answer and do not provide chain-of-thought or explanation. Problem: A meeting must occur after Monday and before Friday, and it cannot occur on Thursday. What is the earliest possible weekday?",
+      "expected": {"answer": "tuesday"},
+      "metadata": {"answer_only": true, "contract_version": "1.0", "family": "constraint", "response_format": "reasoning_answer_v1", "synthetic": true}
+    },
+    {
+      "case_id": "reasoning.constraint.003",
+      "workload": "reasoning",
+      "scorer": "reasoning_v1",
+      "prompt": "Solve this synthetic reasoning problem. Return only JSON with the key answer and do not provide chain-of-thought or explanation. Problem: Queue beta has higher priority than queue gamma. Queue alpha has lower priority than beta but higher priority than gamma. Which queue has the highest priority?",
+      "expected": {"answer": "beta"},
+      "metadata": {"answer_only": true, "contract_version": "1.0", "family": "constraint", "response_format": "reasoning_answer_v1", "synthetic": true}
+    },
+    {
+      "case_id": "reasoning.sequence.001",
+      "workload": "reasoning",
+      "scorer": "reasoning_v1",
+      "prompt": "Solve this synthetic reasoning problem. Return only JSON with the key answer and do not provide chain-of-thought or explanation. Problem: Continue the sequence 3, 6, 12, 24. What is the next number?",
+      "expected": {"answer": 48},
+      "metadata": {"answer_only": true, "contract_version": "1.0", "family": "sequence", "response_format": "reasoning_answer_v1", "synthetic": true}
+    },
+    {
+      "case_id": "reasoning.sequence.002",
+      "workload": "reasoning",
+      "scorer": "reasoning_v1",
+      "prompt": "Solve this synthetic reasoning problem. Return only JSON with the key answer and do not provide chain-of-thought or explanation. Problem: Continue the sequence 2, 5, 10, 17, 26. The increments are consecutive odd numbers. What is the next number?",
+      "expected": {"answer": 37},
+      "metadata": {"answer_only": true, "contract_version": "1.0", "family": "sequence", "response_format": "reasoning_answer_v1", "synthetic": true}
+    },
+    {
+      "case_id": "reasoning.sequence.003",
+      "workload": "reasoning",
+      "scorer": "reasoning_v1",
+      "prompt": "Solve this synthetic reasoning problem. Return only JSON with the key answer and do not provide chain-of-thought or explanation. Problem: Letter positions follow 1, 3, 6, 10, increasing the gap by one each time. The letters are a, c, f, j. What lowercase letter comes next?",
+      "expected": {"answer": "o"},
+      "metadata": {"answer_only": true, "contract_version": "1.0", "family": "sequence", "response_format": "reasoning_answer_v1", "synthetic": true}
+    }
+  ]
+}
