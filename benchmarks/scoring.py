@@ -15,6 +15,10 @@ from .workloads.classification import CLASSIFICATION_SCORER_ID, score_classifica
 from .workloads.code_generation import CODE_GENERATION_SCORER_ID, score_code_generation
 from .workloads.code_review import CODE_REVIEW_SCORER_ID, score_code_review
 from .workloads.long_context import LONG_CONTEXT_SCORER_ID, score_long_context
+from .workloads.multi_step_tool_use import (
+    MULTI_STEP_TOOL_USE_SCORER_ID,
+    score_multi_step_tool_use,
+)
 from .workloads.multimodal_analysis import (
     MULTIMODAL_ANALYSIS_SCORER_ID,
     score_multimodal_analysis,
@@ -115,6 +119,7 @@ def build_default_scorers() -> Mapping[str, DeterministicScorer]:
         TOOL_ARGUMENT_GENERATION_SCORER_ID: score_tool_argument_generation,
         TOOL_SELECTION_SCORER_ID: score_tool_selection,
         TOOL_USE_SCORER_ID: score_tool_use,
+        MULTI_STEP_TOOL_USE_SCORER_ID: score_multi_step_tool_use,
         AGENT_ORCHESTRATION_SCORER_ID: score_agent_orchestration,
         MULTIMODAL_ANALYSIS_SCORER_ID: score_multimodal_analysis,
         LONG_CONTEXT_SCORER_ID: score_long_context,

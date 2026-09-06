@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "benchmark_version": "multi-step-tool-use-v1",
+  "data_classification": "public",
+  "cases": [
+    {
+      "case_id": "multi-step-tool-use.account-status-notification.001",
+      "workload": "multi_step_tool_use",
+      "scorer": "multi_step_tool_use_v1",
+      "prompt": "Plan the complete reviewed synthetic tool trajectory. Intermediate tool results are already supplied as immutable synthetic context; do not execute any tool. Return only JSON with the key steps, where every step contains exactly tool and arguments. Catalog: account_lookup, knowledge_search, send_notification, weather_forecast. Scenario: Read synthetic account A-104 without transaction history, then notify its owner of the reviewed status. Immutable synthetic result context: account_lookup for A-104 returns owner U-7 and status locked.",
+      "expected": {
+        "steps": [
+          {"tool": "account_lookup", "arguments": {"account_id": "A-104", "include_history": false}},
+          {"tool": "send_notification", "arguments": {"user_id": "U-7", "message": "Account A-104 is locked", "channels": ["email"]}}
+        ]
+      },
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "multi_step_tool_calls_v1", "synthetic": true, "execute_tools": false}
+    },
+    {
+      "case_id": "multi-step-tool-use.weather-notification.001",
+      "workload": "multi_step_tool_use",
+      "scorer": "multi_step_tool_use_v1",
+      "prompt": "Plan the complete reviewed synthetic tool trajectory. Intermediate tool results are already supplied as immutable synthetic context; do not execute any tool. Return only JSON with the key steps, where every step contains exactly tool and arguments. Catalog: account_lookup, knowledge_search, send_notification, weather_forecast. Scenario: Read a one-day metric forecast for Example City, then notify synthetic user U-9 when the reviewed forecast indicates rain. Immutable synthetic result context: weather_forecast for Example City returns rain expected tomorrow.",
+      "expected": {
+        "steps": [
+          {"tool": "weather_forecast", "arguments": {"city": "Example City", "days": 1, "units": "metric"}},
+          {"tool": "send_notification", "arguments": {"user_id": "U-9", "message": "Rain is expected tomorrow in Example City", "channels": ["in_app"]}}
+        ]
+      },
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "multi_step_tool_calls_v1", "synthetic": true, "execute_tools": false}
+    },
+    {
+      "case_id": "multi-step-tool-use.knowledge-notification.001",
+      "workload": "multi_step_tool_use",
+      "scorer": "multi_step_tool_use_v1",
+      "prompt": "Plan the complete reviewed synthetic tool trajectory. Intermediate tool results are already supplied as immutable synthetic context; do not execute any tool. Return only JSON with the key steps, where every step contains exactly tool and arguments. Catalog: account_lookup, knowledge_search, send_notification, weather_forecast. Scenario: Search the synthetic export feature documentation with at most three results, then notify synthetic user U-5 with the reviewed location. Immutable synthetic result context: knowledge_search returns that the export feature is available on the Reports page.",
+      "expected": {
+        "steps": [
+          {"tool": "knowledge_search", "arguments": {"query": "synthetic export feature", "limit": 3}},
+          {"tool": "send_notification", "arguments": {"user_id": "U-5", "message": "The export feature is available on the Reports page", "channels": ["email", "in_app"]}}
+        ]
+      },
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "multi_step_tool_calls_v1", "synthetic": true, "execute_tools": false}
+    },
+    {
+      "case_id": "multi-step-tool-use.account-guide-notification.001",
+      "workload": "multi_step_tool_use",
+      "scorer": "multi_step_tool_use_v1",
+      "prompt": "Plan the complete reviewed synthetic tool trajectory. Intermediate tool results are already supplied as immutable synthetic context; do not execute any tool. Return only JSON with the key steps, where every step contains exactly tool and arguments. Catalog: account_lookup, knowledge_search, send_notification, weather_forecast. Scenario: Read synthetic account A-204 without transaction history, search the reviewed recovery guidance appropriate to its tier with at most two results, then notify the owner. Immutable synthetic result context: account_lookup returns owner U-12 and tier premium; knowledge_search for synthetic premium recovery guide returns the reviewed recovery guide.",
+      "expected": {
+        "steps": [
+          {"tool": "account_lookup", "arguments": {"account_id": "A-204", "include_history": false}},
+          {"tool": "knowledge_search", "arguments": {"query": "synthetic premium recovery guide", "limit": 2}},
+          {"tool": "send_notification", "arguments": {"user_id": "U-12", "message": "Use the premium recovery guide for account A-204", "channels": ["email"]}}
+        ]
+      },
+      "metadata": {"contract_version": "1.0", "catalog_version": "support-tools-v1", "response_format": "multi_step_tool_calls_v1", "synthetic": true, "execute_tools": false}
+    }
+  ]
+}
