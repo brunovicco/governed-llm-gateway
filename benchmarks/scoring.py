@@ -91,6 +91,7 @@ class ComponentScorer:
         self,
         evaluator: Callable[[BenchmarkCase, JsonValue], QualityMeasurement],
     ) -> None:
+        """Bind one deterministic component-aware evaluator."""
         self._evaluator = evaluator
 
     def __call__(self, case: BenchmarkCase, output: JsonValue) -> Decimal:
