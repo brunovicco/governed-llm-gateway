@@ -19,6 +19,7 @@ class BenchmarkWorkload(StrEnum):
     STRUCTURED_EXTRACTION = "structured_extraction"
     RAG_PTBR = "rag_ptbr"
     CODE_GENERATION = "code_generation"
+    CODE_REVIEW = "code_review"
     TOOL_USE = "tool_use"
     AGENT_ORCHESTRATION = "agent_orchestration"
     MULTIMODAL_ANALYSIS = "multimodal_analysis"
