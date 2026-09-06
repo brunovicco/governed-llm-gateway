@@ -18,6 +18,38 @@ jobs:
           ref: feat/operational-sample-batch-handoff
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v6
+      - name: Wrap non-auto-fixable lines fail closed
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path("packages/gateway-core/src/governed_llm_gateway_core/application/operational_sample_batch.py"): [
+                  (
+                      '            raise OperationalSampleBatchError("operational sample batch schema_version must be \'1.0\'")\n',
+                      '            raise OperationalSampleBatchError(\n'
+                      '                "operational sample batch schema_version must be \'1.0\'"\n'
+                      '            )\n',
+                  ),
+              ],
+              Path("tests/contract/test_operational_sample_batch.py"): [
+                  (
+                      '    with pytest.raises(OperationalSampleBatchError, match="unknown operational sample batch fields"):\n',
+                      '    with pytest.raises(\n'
+                      '        OperationalSampleBatchError, match="unknown operational sample batch fields"\n'
+                      '    ):\n',
+                  ),
+              ],
+          }
+          for path, edits in replacements.items():
+              text = path.read_text()
+              for old, new in edits:
+                  count = text.count(old)
+                  if count != 1:
+                      raise SystemExit(f"expected exactly one marker in {path}, found {count}")
+                  text = text.replace(old, new)
+              path.write_text(text)
+          PY
       - name: Canonical Ruff formatting
         run: |
           uvx --python 3.13 --from ruff==0.12.11 ruff check --fix \
@@ -43,5 +75,6 @@ jobs:
             tests/contract/test_operational_sample_batch.py \
             .github/workflows/format-issue78-sample-batch.yml
           git diff --cached --check
+          git diff --cached --quiet && { echo "no formatting changes"; exit 1; }
           git commit -m "style: format operational sample batch handoff"
           git push origin HEAD:feat/operational-sample-batch-handoff
