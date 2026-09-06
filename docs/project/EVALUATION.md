@@ -144,7 +144,17 @@ Scorecards aggregate independently:
 - fallback frequency;
 - stable provider error counts.
 
-Online gateway runtime health and circuit-breaker state remain separate mutable operational evidence.
+Online gateway runtime health and circuit-breaker state remain immediate mutable process-local state; PR #70 adds a separate immutable recent operational-evidence snapshot contract rather than reinterpreting that health state as historical evidence.
+
+## Recent operational evidence boundary
+
+PR #70 introduces schema `1.0` `OperationalEvidenceSnapshot` for bounded recent runtime windows. It preserves collector identity/version, UTC window provenance, a content-derived `evidence_id`, request/provider-attempt counts, provider errors, rate-limit errors, timeouts, fallback requests and provider latency p50/p95 per `(runtime_workload, deployment_id)`.
+
+This evidence is descriptive and immutable. It is not an authorization source, does not modify eligibility, is not automatically loaded by ranking and does not create adaptive policy. No production materializer or metrics-backend adapter exists yet. A later reviewed materializer may build these snapshots from a metadata-only runtime source; only a subsequent explicit versioned ranking policy may define how operational measurements influence score dimensions.
+
+`InMemoryHealthTracker` / `DeploymentHealthSnapshot` remain the immediate process-local resilience boundary and are not historical window reconstruction.
+
+See `docs/evaluation/OPERATIONAL_EVIDENCE.md`.
 
 ## Snapshot reproducibility
 

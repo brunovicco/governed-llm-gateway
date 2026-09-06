@@ -4,7 +4,7 @@
 
 Reusable provider-neutral LLM execution gateway for **governed model resolution and execution**.
 
-Status: **Phases 0–13 complete; Phase 14 in progress — Cases 1/2 complete, Case 3 deferred. All roadmap-listed benchmark classes are represented by reviewed deterministic contracts. Reviewed quality-component evidence is preserved separately from operational health, including bounded PT-BR locale/terminology quality in `rag-ptbr-v2`; no universal fluency or grammar claim is made.**
+Status: **Phases 0–13 complete; Phase 14 in progress — Cases 1/2 complete, Case 3 deferred. All roadmap-listed benchmark classes are represented by reviewed deterministic contracts. Offline quality evidence, immediate runtime health and versioned recent operational evidence remain explicit separate boundaries; no online-telemetry ranking policy is active.**
 
 The gateway is the operational Policy Enforcement Point (PEP) between an application's declared workload and the concrete LLM deployment selected for execution.
 
@@ -57,7 +57,8 @@ Phases 0–13 are complete and establish:
 - a thin typed client SDK with no provider SDK/API-key requirement for consumers;
 - optional Verifiable AI Governance authorization and runtime evidence;
 - provider-neutral terminal execution provenance preserved through SSE/API/SDK;
-- reviewed benchmark quality-component evidence preserved in immutable snapshots without implicit promotion or routing authority.
+- reviewed benchmark quality-component evidence preserved in immutable snapshots without implicit promotion or routing authority;
+- strict content-addressed recent operational evidence schema `1.0`, preserved separately from process-local health and not yet consumed by ranking.
 
 Phase 14 is migrating real consumers incrementally in the normative order:
 
@@ -166,6 +167,14 @@ Successful aggregate SDK responses preserve terminal provider-neutral execution 
 
 Unknown optional evidence remains absent instead of being synthesized. Runtime evidence is descriptive only and never becomes authorization.
 
+## Recent operational evidence
+
+PR #70 adds a strict, immutable, content-addressed schema `1.0` artifact for bounded recent operational windows. It preserves collector provenance, request/provider-attempt counts, provider errors, rate limits, timeouts, fallback requests and provider latency p50/p95 per `(runtime_workload, deployment_id)`.
+
+This is separate from `InMemoryHealthTracker` / `DeploymentHealthSnapshot`, which remain immediate process-local resilience and eligibility state. No production materializer or metrics-backend query is implemented yet, and operational evidence does not modify `StaticDeploymentScore`, ranking weights, eligibility or authorization. A later reviewed increment may materialize this evidence from a metadata-only runtime source before any separate versioned online-scoring policy is considered.
+
+See `docs/evaluation/OPERATIONAL_EVIDENCE.md`.
+
 ## Repository layout
 
 ```text
@@ -187,16 +196,16 @@ uv sync --frozen
 uv run python scripts/quality_gate.py
 ```
 
-Current validated `main` baseline after PR #67 (`a92e7961ae2de6d3ec40aaa0dda3a955b4e92660`):
+Current validated `main` baseline after PR #70 (`7ac70d69f34aea8b0f2a2b6c49f0e7ef89439006`):
 
-- **725 tests passed**;
-- **82.16% aggregate coverage** (threshold 80%);
-- mypy passed across **174 source files**;
-- Ruff lint/format passed across **174 files**;
-- Bandit reported **0 issues** across 16,170 LOC;
+- **746 tests passed**;
+- **82.28% aggregate coverage** (threshold 80%);
+- mypy passed across **177 source files**;
+- Ruff lint/format passed across **177 files**;
+- Bandit reported **0 issues** across 16,550 LOC;
 - pip-audit reported **no known vulnerabilities**;
 - architecture check, secret scan and Phase 0 gate passed;
-- post-merge `main` quality run `34050920267` — **PASS**.
+- post-merge `main` quality run `34055635049` — **PASS**.
 
 The known Starlette TestClient `httpx`/`httpx2` deprecation warning remains non-blocking.
 
@@ -209,6 +218,7 @@ Start with:
 - `docs/project/EVALUATION.md` — benchmark/evidence architecture;
 - `docs/evaluation/BENCHMARK_MATRIX.md` — complete roadmap workload matrix and evidence boundary;
 - `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` — reviewed component metrics, snapshot schema 1.2 and bounded `pt_br_quality` evidence;
+- `docs/evaluation/OPERATIONAL_EVIDENCE.md` — versioned recent operational evidence schema and non-authorizing/non-ranking boundary;
 - `docs/project/PHASE14_PROVIDER_NEUTRAL_EXECUTION_PROVENANCE.md` — terminal runtime evidence;
 - `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` — Phase 7 capability/authority boundary;
 - `docs/project/STREAMING.md` — Phase 8 streaming lifecycle;

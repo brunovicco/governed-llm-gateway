@@ -4,7 +4,7 @@
 
 Gateway reutilizável e neutro em relação a provedores de LLM para **resolução e execução governada de modelos**.
 
-Status: **Phases 0–13 concluídas; Phase 14 em andamento — Cases 1/2 concluídos, Case 3 deferido. Todas as classes de benchmark listadas no roadmap estão representadas por contratos determinísticos revisados. Evidência revisada de componentes de qualidade é preservada separadamente da saúde operacional, incluindo qualidade limitada de localidade/terminologia PT-BR em `rag-ptbr-v2`; não há alegação de fluência ou gramática universal.**
+Status: **Phases 0–13 concluídas; Phase 14 em andamento — Cases 1/2 concluídos, Case 3 deferido. Todas as classes de benchmark listadas no roadmap estão representadas por contratos determinísticos revisados. Evidência offline de qualidade, saúde imediata de runtime e evidência operacional recente versionada permanecem fronteiras explícitas e separadas; nenhuma policy de ranking por telemetria online está ativa.**
 
 O gateway funciona como Policy Enforcement Point (PEP) operacional entre o workload declarado pela aplicação e o deployment concreto de LLM escolhido para execução.
 
@@ -57,7 +57,8 @@ As Phases 0–13 estão concluídas e estabelecem:
 - SDK cliente fino e tipado, sem exigir SDK/API key de provedor nos consumidores;
 - integração opcional com Verifiable AI Governance e evidência de runtime;
 - proveniência terminal de execução provider-neutral preservada por SSE/API/SDK;
-- evidência revisada de componentes de qualidade de benchmark preservada em snapshots imutáveis sem promoção implícita ou autoridade de roteamento.
+- evidência revisada de componentes de qualidade de benchmark preservada em snapshots imutáveis sem promoção implícita ou autoridade de roteamento;
+- schema `1.0` estrito e content-addressed para evidência operacional recente, separado da saúde process-local e ainda não consumido pelo ranking.
 
 A Phase 14 migra consumidores reais incrementalmente na ordem normativa:
 
@@ -166,6 +167,14 @@ Respostas agregadas bem-sucedidas do SDK preservam evidência terminal provider-
 
 Evidência opcional desconhecida permanece ausente em vez de ser sintetizada. Evidência de runtime é apenas descritiva e nunca se torna autorização.
 
+## Evidência operacional recente
+
+O PR #70 adiciona um artefato schema `1.0` estrito, imutável e content-addressed para janelas operacionais recentes limitadas. Ele preserva proveniência do collector, contagens de requests/tentativas do provider, erros do provider, rate limits, timeouts, requests com fallback e latência p50/p95 do provider por `(runtime_workload, deployment_id)`.
+
+Isso permanece separado de `InMemoryHealthTracker` / `DeploymentHealthSnapshot`, que continuam como estado imediato e process-local de resiliência/elegibilidade. Ainda não existe materializer de produção nem consulta a backend de métricas, e essa evidência não altera `StaticDeploymentScore`, pesos de ranking, elegibilidade ou autorização. Um incremento revisado posterior pode materializar essa evidência a partir de uma fonte de runtime metadata-only antes de qualquer policy versionada separada de scoring online.
+
+Veja `docs/evaluation/OPERATIONAL_EVIDENCE.md`.
+
 ## Estrutura do repositório
 
 ```text
@@ -187,16 +196,16 @@ uv sync --frozen
 uv run python scripts/quality_gate.py
 ```
 
-Baseline validado atual do `main` após o PR #67 (`a92e7961ae2de6d3ec40aaa0dda3a955b4e92660`):
+Baseline validado atual do `main` após o PR #70 (`7ac70d69f34aea8b0f2a2b6c49f0e7ef89439006`):
 
-- **725 testes passaram**;
-- **82,16% de cobertura agregada** (threshold 80%);
-- mypy passou em **174 arquivos fonte**;
-- Ruff lint/format passou em **174 arquivos**;
-- Bandit reportou **0 issues** em 16.170 LOC;
+- **746 testes passaram**;
+- **82,28% de cobertura agregada** (threshold 80%);
+- mypy passou em **177 arquivos fonte**;
+- Ruff lint/format passou em **177 arquivos**;
+- Bandit reportou **0 issues** em 16.550 LOC;
 - pip-audit reportou **nenhuma vulnerabilidade conhecida**;
 - architecture check, secret scan e Phase 0 gate passaram;
-- quality run pós-merge no `main` `34050920267` — **PASS**.
+- quality run pós-merge no `main` `34055635049` — **PASS**.
 
 O warning conhecido do Starlette TestClient sobre `httpx`/`httpx2` continua não bloqueante.
 
@@ -209,6 +218,7 @@ Comece por:
 - `docs/project/EVALUATION.md` — arquitetura de benchmark/evidência;
 - `docs/evaluation/BENCHMARK_MATRIX.md` — matriz completa de workloads do roadmap e fronteira de evidência;
 - `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` — componentes revisados, snapshot schema 1.2 e evidência limitada de `pt_br_quality`;
+- `docs/evaluation/OPERATIONAL_EVIDENCE.md` — schema de evidência operacional recente versionada e fronteira sem autoridade de autorização/ranking;
 - `docs/project/PHASE14_PROVIDER_NEUTRAL_EXECUTION_PROVENANCE.md` — evidência terminal de runtime;
 - `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` — fronteira de capacidade/autoridade da Phase 7;
 - `docs/project/STREAMING.md` — lifecycle de streaming da Phase 8;

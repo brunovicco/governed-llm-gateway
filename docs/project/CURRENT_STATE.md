@@ -32,6 +32,7 @@ Last updated: 2026-09-06
 - governance authorization may narrow that set further but may never expand it;
 - provider-specific SDKs/credentials remain behind gateway adapters;
 - metadata-only evidence remains the default;
+- immediate process-local runtime health and versioned recent operational evidence remain distinct from ranking policy and from each other;
 - business-tool execution remains outside the gateway;
 - benchmark, telemetry, SDK, client state and runtime evidence are never authorization sources.
 
@@ -130,6 +131,7 @@ Additional roadmap-listed post-core evaluation classes were then added without c
 - PR #61 — `json-schema-compliance-v1`, a binary normalized-JSON schema-compliance benchmark that reuses the bounded Phase 7 Draft 2020-12 schema acceptance boundary while keeping extraction-value correctness out of scope.
 - PR #64 — immutable benchmark quality-component evidence for schema validity, tool selection, tool arguments, trajectory success and grounding, with snapshot schema 1.2 and no implicit promotion/ranking change.
 - PR #67 — `rag-ptbr-v2`, preserving historical v1 while adding separate grounding and bounded reviewer-authored Brazilian Portuguese locale/terminology quality evidence as `pt_br_quality`, with no provider/model forcing or promotion/ranking change.
+- PR #70 — strict schema `1.0` recent operational evidence with collector/time-window provenance, content-derived identity and explicit request/error/fallback/latency measurements; no collector, ranking-score normalization or routing-policy change.
 
 All roadmap-listed benchmark classes now have reviewed versioned contracts. The Roadmap measurement audit preserves every currently reviewed deterministic quality component separately from operational health, including bounded `pt_br_quality` from `rag-ptbr-v2`. Historical `rag-ptbr-v1` remains unchanged, and broader fluency/grammar/style/cultural-quality claims remain explicitly out of scope.
 
@@ -153,25 +155,35 @@ Shared benchmark properties remain:
 - no LLM-as-judge dependency in the default path;
 - benchmark/runtime evidence can affect ranking only inside the already-authorized and eligible set.
 
-Latest validated gateway baseline after PR #67:
+Latest validated gateway baseline after PR #70:
 
-`a92e7961ae2de6d3ec40aaa0dda3a955b4e92660`
+`7ac70d69f34aea8b0f2a2b6c49f0e7ef89439006`
 
 Post-merge quality run:
 
-`34050920267` — PASS.
+`34055635049` — PASS.
 
 Validation:
 
-- 725 tests passed;
-- aggregate coverage 82.16%;
-- strict mypy passed across 174 source files;
-- Ruff lint/format passed across 174 files;
-- Bandit reported no issues across 16,170 LOC;
+- 746 tests passed;
+- aggregate coverage 82.28%;
+- strict mypy passed across 177 source files;
+- Ruff lint/format passed across 177 files;
+- Bandit reported no issues across 16,550 LOC;
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
 The detailed benchmark ledger is documented in `docs/evaluation/BENCHMARK_MATRIX.md`.
+
+## Recent operational evidence — CONTRACT COMPLETE, MATERIALIZER PENDING
+
+PR #70 establishes schema `1.0` `OperationalEvidenceSnapshot` as immutable recent-window evidence. It records collector identity/version, UTC window provenance, content-derived identity and explicit request/provider-attempt/error/rate-limit/timeout/fallback/provider-latency p50/p95 measurements.
+
+This does not reinterpret `InMemoryHealthTracker` / `DeploymentHealthSnapshot` as historical evidence. Those objects remain immediate process-local resilience/eligibility state. No production materializer, metrics-backend query, shared health store, online-score normalization or ranking-policy change exists yet.
+
+The next admissible consumer-agnostic step is a metadata-only materializer for a bounded recent runtime window. Only after that evidence-production path is reviewed should a separate explicit versioned policy define how operational measurements could influence score dimensions. Operational evidence cannot authorize or restore an otherwise ineligible candidate.
+
+See `docs/evaluation/OPERATIONAL_EVIDENCE.md`.
 
 ## Phase 14 — Real Project Integrations
 
@@ -248,15 +260,16 @@ Remains after the preceding integration cases.
 
 ## Current working boundary
 
-1. Keep `governed-llm-gateway/main` stable at the validated post-core benchmark/provenance baseline.
+1. Keep `governed-llm-gateway/main` stable at the validated post-PR #70 evidence baseline.
 2. Do not modify OpsLens until its independent development state is ready for reconciliation.
 3. Do not begin RAGForge in parallel unless the roadmap order is explicitly revised.
 4. Accept further upstream gateway changes only when they are consumer-agnostic, independently justified and preserve the permanent authorization invariant.
 5. Do not create a model-forcing benchmark bypass: benchmark target identity must never become an authorization or routing override.
 6. Treat `rag-ptbr-v2` `pt_br_quality` strictly as bounded reviewer-authored Brazilian Portuguese locale/terminology evidence; do not generalize it into arbitrary fluency, grammar, style or cultural-quality claims.
-7. Keep quality-component evidence outside promotion/ranking until a separate explicit versioned contract reviews such use.
-8. A future live gateway-backed benchmark executor must use an already-authorized gateway path, preserve target/effective-execution integrity checks, and remain outside credential-free default CI.
-9. When OpsLens is resumed, reconcile against the then-current gateway commit and rerun the full OpsLens Python and Terraform gates before merge.
+7. Keep benchmark quality components and recent operational evidence outside new ranking semantics until separate explicit versioned contracts review such use.
+8. The next operational-evidence increment may materialize schema `1.0` from a bounded metadata-only runtime source; it must not invent online score normalization or adaptive policy.
+9. A future live gateway-backed benchmark executor must use an already-authorized gateway path, preserve target/effective-execution integrity checks, and remain outside credential-free default CI.
+10. When OpsLens is resumed, reconcile against the then-current gateway commit and rerun the full OpsLens Python and Terraform gates before merge.
 
 ## Explicitly deferred
 

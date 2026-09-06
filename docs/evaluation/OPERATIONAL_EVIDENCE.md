@@ -1,5 +1,7 @@
 # Recent Operational Evidence
 
+Status: **COMPLETE — contract merged in PR #70; materializer and online ranking policy remain pending.**
+
 ## Purpose
 
 The Roadmap separates offline benchmark quality from online operational health and allows a future runtime score to combine the latest approved benchmark snapshot with recent operational measurements.
