@@ -19,6 +19,10 @@ from .workloads.multimodal_analysis import (
     MULTIMODAL_ANALYSIS_SCORER_ID,
     score_multimodal_analysis,
 )
+from .workloads.multi_step_tool_use import (
+    MULTI_STEP_TOOL_USE_SCORER_ID,
+    score_multi_step_tool_use,
+)
 from .workloads.rag_ptbr import RAG_PTBR_SCORER_ID, score_rag_ptbr
 from .workloads.reasoning import REASONING_SCORER_ID, score_reasoning
 from .workloads.security_analysis import (
@@ -115,6 +119,7 @@ def build_default_scorers() -> Mapping[str, DeterministicScorer]:
         TOOL_ARGUMENT_GENERATION_SCORER_ID: score_tool_argument_generation,
         TOOL_SELECTION_SCORER_ID: score_tool_selection,
         TOOL_USE_SCORER_ID: score_tool_use,
+        MULTI_STEP_TOOL_USE_SCORER_ID: score_multi_step_tool_use,
         AGENT_ORCHESTRATION_SCORER_ID: score_agent_orchestration,
         MULTIMODAL_ANALYSIS_SCORER_ID: score_multimodal_analysis,
         LONG_CONTEXT_SCORER_ID: score_long_context,

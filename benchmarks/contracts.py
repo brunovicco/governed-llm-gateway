@@ -24,6 +24,7 @@ class BenchmarkWorkload(StrEnum):
     TOOL_SELECTION = "tool_selection"
     TOOL_ARGUMENT_GENERATION = "tool_argument_generation"
     TOOL_USE = "tool_use"
+    MULTI_STEP_TOOL_USE = "multi_step_tool_use"
     AGENT_ORCHESTRATION = "agent_orchestration"
     MULTIMODAL_ANALYSIS = "multimodal_analysis"
     LONG_CONTEXT = "long_context"
