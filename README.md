@@ -2,225 +2,122 @@
 
 **English** | [Português (Brasil)](README.pt-BR.md)
 
-Reusable provider-neutral LLM execution gateway for **governed model resolution and execution**.
+**A provider-neutral LLM execution gateway for governed AI platforms.**
 
-Status: **Phases 0–13 complete; Phase 14 in progress — Cases 1/2 complete, Case 3 deferred. All roadmap-listed benchmark classes are represented by reviewed deterministic contracts. Offline quality evidence, immediate runtime health and versioned recent operational evidence with bounded process-local materialization, best-effort runtime recording and content-addressed source-instance batch handoff remain explicit separate boundaries; no fleet-completeness or online-telemetry ranking policy is active.**
+It centralizes model authorization, selection, resilience, provider adaptation and runtime evidence so applications and agents do not need to own provider credentials, model choice, retry/fallback or routing policy.
 
-The gateway is the operational Policy Enforcement Point (PEP) between an application's declared workload and the concrete LLM deployment selected for execution.
+## Why this project exists
+
+LLM execution becomes harder to govern as applications add more models, providers and agent workflows. This project separates **business/application logic** from **model execution policy** and keeps authorization ahead of optimization.
+
+The gateway is designed to provide one reusable boundary for:
+
+- provider-neutral model execution;
+- deterministic and explainable routing;
+- policy enforcement and fail-closed authorization;
+- runtime resilience and safe fallback;
+- structured output, tool-call normalization and streaming;
+- observability, provenance and auditable evidence;
+- benchmark-driven model evaluation without automatic policy mutation.
+
+## Core capabilities
+
+| Area | What the gateway provides |
+|---|---|
+| **Governance** | PDP/PEP separation, fail-closed authorization and optional governance integration |
+| **Routing** | Deterministic model registry, eligibility filters, ranking and route explainability |
+| **Resilience** | Runtime health, circuit breaking, bounded retry and safe fallback |
+| **Provider abstraction** | Provider-neutral contracts, request translation and normalized execution results |
+| **Model I/O** | Structured-output validation, tool-call normalization, streaming and cancellation |
+| **Observability** | OpenTelemetry integration, metadata-only defaults and terminal execution provenance |
+| **Evaluation** | Deterministic benchmark framework, immutable evidence, explicit promotion and rollback boundaries |
+| **Consumer integration** | Thin typed SDK without requiring provider SDKs or provider API keys in consumers |
+
+## Architecture
 
 ```text
 Application / Agent
        │ workload + requirements + policy metadata
        ▼
 Policy Model Router (PDP)
-       │ authorized logical model group + provenance
+       │ authorized logical model groups
        ▼
-Governed LLM Gateway (PEP + operational selector)
-       │ authorized candidates only
-       ├─ capability / environment eligibility
+Governed LLM Gateway (PEP)
+       ├─ eligibility
        ├─ deterministic ranking
-       ├─ runtime health / circuit breaker
-       ├─ bounded retry / safe fallback
-       ├─ structured-output / tool-call normalization
-       ├─ streaming / cancellation
-       ├─ approved benchmark evidence
-       └─ provider-neutral execution provenance
+       ├─ health / circuit breaker
+       ├─ retry / safe fallback
+       ├─ provider translation
+       └─ provenance / telemetry
        ▼
 LLM Provider
-       │ normalized model output + metadata-only evidence
-       ▼
-Application / Agent / MCP runtime
-       └─ authorizes and executes business tools / side effects
 ```
 
-Permanent invariant:
+Business-tool execution and side effects remain outside the gateway. The gateway may normalize a tool call, but the application/agent runtime owns tool authorization and execution.
+
+### Permanent authorization invariant
 
 ```text
 Gateway allowed set ⊆ Policy Router authorized set
 ```
 
-The gateway may narrow authorization because of capability, data/environment policy, governance scope, cost, latency, health or other operational constraints. It may never broaden PDP authorization. Ranking, retry/fallback, benchmark evidence, telemetry, SDK state and runtime provenance are not authorization sources.
+The gateway may narrow the authorized set because of capability, environment, governance, cost, latency or runtime health. It may never broaden upstream authorization. Ranking, telemetry, benchmark evidence and runtime provenance are not authorization sources.
 
-## Current implementation
+## Design principles
 
-Phases 0–13 are complete and establish:
+- **Authorization before optimization.** Ranking only operates inside the already-authorized and eligible candidate set.
+- **Fail closed on ambiguity.** Invalid policy, provenance, capability or evidence state does not silently degrade into permissive behavior.
+- **Evidence is descriptive, not authority.** Runtime and benchmark evidence cannot self-authorize or rewrite active policy.
+- **Provider failures are not model-quality failures.** Availability and quality evidence remain separate.
+- **Business side effects stay outside the gateway.** Tools and application actions remain owned by the consumer runtime.
 
-- strict provider-neutral contracts and deterministic model registry;
-- Policy Model Router integration with fail-closed authorization;
-- deterministic eligibility, ranking and `POST /v1/route/explain`;
-- runtime health, circuit breaking, bounded retry and safe fallback;
-- structured-output validation and provider-neutral tool-call normalization;
-- normalized streaming, cancellation and replay-safety boundaries;
-- OpenTelemetry integration with metadata-only defaults;
-- offline deterministic benchmark infrastructure and explicit evidence promotion;
-- evidence-driven ranking with manual override and rollback boundaries;
-- a thin typed client SDK with no provider SDK/API-key requirement for consumers;
-- optional Verifiable AI Governance authorization and runtime evidence;
-- provider-neutral terminal execution provenance preserved through SSE/API/SDK;
-- reviewed benchmark quality-component evidence preserved in immutable snapshots without implicit promotion or routing authority;
-- strict content-addressed recent operational evidence schema `1.0`, bounded fail-closed process-local materialization, optional best-effort runtime attempt recording and source-instance-scoped content-addressed batch handoff, preserved separately from health and not consumed by ranking.
+## Current status
 
-Phase 14 is migrating real consumers incrementally in the normative order:
+- **Core platform:** Phases 0–13 complete.
+- **Real-project migration:** Phase 14 in progress; `controlled-autonomy-lab` and `getnet-multi-agent-support-v2` are complete, while OpsLens remains deliberately deferred.
+- **Evaluation:** all roadmap-listed benchmark classes are represented by reviewed deterministic contracts.
+- **Operational evidence:** bounded materialization, best-effort runtime recording and content-addressed source-instance batch handoff are implemented; fleet/shared completeness and online operational-score policy are not active.
 
-1. `controlled-autonomy-lab` — **COMPLETE**;
-2. `getnet-multi-agent-support-v2` — **COMPLETE**;
-3. `OpsLens` — **VALIDATED CANDIDATE, DEFERRED** while that repository evolves independently;
-4. `RAGForge` — **NOT STARTED** because the sequencing guard remains active;
-5. `Verifiable AI Governance` — **NOT STARTED** as a Phase 14 consumer case.
+For the authoritative project checkpoint and Phase 14 sequencing, see [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
 
-See `docs/project/CURRENT_STATE.md` for the authoritative checkpoint and issue #18 for the active OpsLens/RAGForge sequencing guard.
+## Quality baseline
 
-## Benchmark program — roadmap classes represented
+Current `main` is validated with:
 
-The roadmap-listed workload classes are represented by reviewed, versioned deterministic contracts:
+- **782 tests passing**;
+- **82.52% aggregate coverage**;
+- strict **mypy** and **Ruff** checks;
+- **Bandit: 0 findings** across 17,632 LOC;
+- **pip-audit: no known vulnerabilities**;
+- architecture, secret-scan and Phase 0 gates passing.
 
-| Workload | Current reviewed contract | Merge |
-|---|---|---|
-| `classification` | `classification-v1` | PR #45 |
-| `structured_extraction` | `structured-extraction-v2` (v1 preserved historically) | PRs #19 and #22 |
-| `json_schema_compliance` | `json-schema-compliance-v1` | PR #61 |
-| `rag_answer` | `rag-answer-v1` | PR #58 |
-| `rag_ptbr` | `rag-ptbr-v2` (v1 preserved historically) | PRs #20 and #67 |
-| `reasoning` | `reasoning-v1` | PR #47 |
-| `code_generation` | `code-generation-v1` | PR #21 |
-| `code_review` | `code-review-v1` | PR #48 |
-| `security_analysis` | `security-analysis-v1` | PR #50 |
-| `tool_selection` | `tool-selection-v1` | PR #51 |
-| `tool_argument_generation` | `tool-argument-generation-v1` | PR #52 |
-| `tool_use` | `tool-use-v1` | PR #23 |
-| `multi_step_tool_use` | `multi-step-tool-use-v1` | PR #55 |
-| `agent_orchestration` | `agent-orchestration-v1` | PR #24 |
-| `multimodal_analysis` | `multimodal-analysis-v1` | PR #32 |
-| `long_context` | `long-context-v1` | PR #44 |
-
-The first five roadmap workloads remain the historical core baseline; later classes were added as separate contracts rather than rewriting that baseline.
-
-The workload-specific suites remain:
-
-- public/synthetic and credential-free by default;
-- deterministic and replayable;
-- explicit about provider/model/API/configuration/date provenance;
-- separate from live provider availability evidence;
-- free of LLM-as-judge scoring in the default CI path;
-- unable to execute business tools, generated code, agents or side effects;
-- unable to self-promote or mutate active runtime routing.
-
-Where current reviewed scorers genuinely support them, PR #64 established component-preserving offline quality evidence and PR #67 extended the reviewed vocabulary with bounded PT-BR quality:
-
-- `schema_validity`;
-- `tool_selection_accuracy`;
-- `tool_argument_accuracy`;
-- `trajectory_success`;
-- `grounding`;
-- `pt_br_quality` (bounded reviewed Brazilian Portuguese locale/terminology conformance).
-
-Provider failures remain availability evidence and do not become zero model-quality evidence. Component-bearing snapshots use schema `1.2`; historical snapshot schemas `1.0` and `1.1` remain canonical and unchanged.
-
-PR #67 adds `rag-ptbr-v2`, which preserves `grounding` separately from a bounded `pt_br_quality` component based only on reviewer-authored Brazilian Portuguese locale/terminology rules. Historical `rag-ptbr-v1` remains unchanged and component-free for language quality. This does not claim arbitrary Portuguese fluency, complete grammar correctness, unrestricted semantic equivalence, style/tone or cultural appropriateness.
-
-The evidence path remains:
-
-```text
-versioned dataset / fixture
-  -> BenchmarkRunner
-  -> deterministic scorer
-  -> observation + Scorecard
-  -> content-addressed snapshot
-  -> explicit promotion
-  -> ranking evidence inside the already-authorized candidate set
-```
-
-See `docs/evaluation/BENCHMARK_MATRIX.md`, `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` and `docs/project/EVALUATION.md`.
-
-## Structured output and tools
-
-Structured output is a model/API capability, not a prompt convention. Provider-native schema enforcement is followed by local bounded validation.
-
-Business-tool authority remains outside the gateway:
-
-```text
-Gateway → normalizes ToolCall
-Application / Agent / MCP runtime → authorizes + executes tool → owns ToolResult
-```
-
-The tool benchmarks evaluate reviewed proposed selections/arguments/trajectories only. They never execute the tool.
-
-## Agent orchestration boundary
-
-The `agent_orchestration` benchmark evaluates only an observable proposed trajectory (`agent`, `action`, `handoff_to`). It does not inspect chain-of-thought and does not execute agents, tools, business operations or human handoffs.
-
-Framework-specific orchestration remains a consumer/runtime responsibility. Frameworks are adapters, not owners of gateway policy or authorization.
-
-## Safe retry and fallback
-
-Retry and fallback remain bounded to the authorized, eligible and ranked sequence:
-
-- retry targets the same concrete deployment;
-- fallback can only advance to an already-authorized alternative;
-- permanent validation/authentication/authorization/configuration failures do not automatically fallback;
-- circuit-open/unhealthy state only narrows eligibility;
-- visible semantic output, side effects or opaque continuation state stop automatic replay.
-
-## Runtime evidence
-
-Successful aggregate SDK responses preserve terminal provider-neutral execution evidence including provider/model/deployment identity, gateway request identity, optional provider request identity, finish reason, retry/fallback position, measured provider-attempt latency, normalized token usage and optional cost when actually known. Later reviewed provenance also carries selected `api_family` and concrete positive `max_output_tokens` when terminal execution can attest them.
-
-Unknown optional evidence remains absent instead of being synthesized. Runtime evidence is descriptive only and never becomes authorization.
-
-## Recent operational evidence
-
-PR #70 adds a strict, immutable, content-addressed schema `1.0` artifact for bounded recent operational windows. PR #73 adds deterministic materialization from explicit timestamped metadata-only provider-attempt samples, PR #76 adds optional process-local best-effort recording in both bounded runtime executors with conservative completeness invalidation, and PR #79 adds content-addressed source-instance batch export/load outside provider execution.
-
-This remains separate from `InMemoryHealthTracker` / `DeploymentHealthSnapshot`, which are immediate process-local resilience and eligibility state. Recorder failure, caller cancellation or an unrepresentable post-call failure cannot fabricate provider-error evidence or become an inference-availability dependency. Shared ingestion, fleet/source-membership completeness and production backend adapters remain pending. Operational evidence does not modify `StaticDeploymentScore`, ranking weights, eligibility or authorization; any future online scoring still requires a separate explicit versioned policy.
-
-See `docs/evaluation/OPERATIONAL_EVIDENCE.md` and `docs/evaluation/OPERATIONAL_SAMPLE_BATCH.md`.
-
-## Repository layout
-
-```text
-apps/gateway-api/           HTTP composition root
-packages/gateway-contracts provider-neutral contracts
-packages/gateway-core/     domain/application/adapters boundary
-packages/gateway-client/   thin typed consumer SDK
-config/                    model/ranking/provider configuration
-benchmarks/                offline datasets, scorers, runner, snapshots and promotion
-examples/                  bounded examples
-tests/                     contract/integration/e2e suites
-docs/                      durable project sources, evaluation docs and ADRs
-```
-
-## Validate
+## Validate locally
 
 ```bash
 uv sync --frozen
 uv run python scripts/quality_gate.py
 ```
 
-Current validated `main` baseline after PR #79 (`51a9196f066a7ae4035322ccda7aefb147003b0c`):
+The default quality path is deterministic and credential-free.
 
-- **782 tests passed**;
-- **82.52% aggregate coverage** (threshold 80%);
-- mypy passed across **186 source files**;
-- Ruff lint/format passed across **186 files**;
-- Bandit reported **0 issues** across 17,632 LOC;
-- pip-audit reported **no known vulnerabilities**;
-- architecture check, secret scan and Phase 0 gate passed;
-- post-merge `main` quality run `34064435787` — **PASS**.
+## Repository map
 
-The known Starlette TestClient `httpx`/`httpx2` deprecation warning remains non-blocking.
+| Path | Responsibility |
+|---|---|
+| `apps/gateway-api/` | HTTP composition root |
+| `packages/gateway-contracts/` | Provider-neutral public contracts |
+| `packages/gateway-core/` | Domain, application services and adapters |
+| `packages/gateway-client/` | Thin typed client SDK |
+| `benchmarks/` | Deterministic evaluation, evidence and promotion |
+| `config/` | Model, ranking and provider configuration |
+| `tests/` | Contract, integration and end-to-end validation |
+| `docs/` | Architecture, roadmap, evaluation and project state |
 
-## Source of truth
+## Deep dives
 
-Start with:
-
-- `docs/project/CURRENT_STATE.md` — current project checkpoint;
-- `docs/project/ROADMAP.md` and `docs/project/SOURCE_ROADMAP.txt` — execution ledger and normative source;
-- `docs/project/EVALUATION.md` — benchmark/evidence architecture;
-- `docs/evaluation/BENCHMARK_MATRIX.md` — complete roadmap workload matrix and evidence boundary;
-- `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` — reviewed component metrics, snapshot schema 1.2 and bounded `pt_br_quality` evidence;
-- `docs/evaluation/OPERATIONAL_EVIDENCE.md` — versioned recent operational evidence schema and non-authorizing/non-ranking boundary;
-- `docs/evaluation/OPERATIONAL_SAMPLE_BATCH.md` — source-instance-scoped content-addressed sample handoff and fleet-completeness boundary;
-- `docs/project/PHASE14_PROVIDER_NEUTRAL_EXECUTION_PROVENANCE.md` — terminal runtime evidence;
-- `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` — Phase 7 capability/authority boundary;
-- `docs/project/STREAMING.md` — Phase 8 streaming lifecycle;
-- `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md` — authorization boundary.
+- [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — authoritative project checkpoint
+- [`docs/project/ROADMAP.md`](docs/project/ROADMAP.md) — implementation roadmap and phase ledger
+- [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — benchmark and evidence architecture
+- [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — authorization boundary
+- [`docs/evaluation/OPERATIONAL_EVIDENCE.md`](docs/evaluation/OPERATIONAL_EVIDENCE.md) — recent operational-evidence model
+- [`docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md`](docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md) — structured output and tool authority boundary

@@ -2,225 +2,122 @@
 
 [English](README.md) | **Português (Brasil)**
 
-Gateway reutilizável e neutro em relação a provedores de LLM para **resolução e execução governada de modelos**.
+**Um gateway provider-neutral para execução governada de LLMs em plataformas de IA.**
 
-Status: **Phases 0–13 concluídas; Phase 14 em andamento — Cases 1/2 concluídos, Case 3 deferido. Todas as classes de benchmark listadas no roadmap estão representadas por contratos determinísticos revisados. Evidência offline de qualidade, saúde imediata de runtime e evidência operacional recente versionada com materialização process-local limitada, gravação best-effort de tentativas de runtime e handoff content-addressed por instância de origem permanecem fronteiras explícitas e separadas; nenhuma completude de frota ou policy de ranking por telemetria online está ativa.**
+Ele centraliza autorização de modelos, seleção, resiliência, adaptação entre provedores e evidência de runtime para que aplicações e agentes não precisem ser responsáveis por credenciais de provider, escolha de modelo, retry/fallback ou policy de roteamento.
 
-O gateway funciona como Policy Enforcement Point (PEP) operacional entre o workload declarado pela aplicação e o deployment concreto de LLM escolhido para execução.
+## Por que este projeto existe
+
+A execução de LLMs fica mais difícil de governar à medida que aplicações passam a usar mais modelos, provedores e workflows com agentes. Este projeto separa **lógica de negócio/aplicação** de **política de execução de modelos** e mantém autorização antes da otimização.
+
+O gateway foi desenhado para oferecer uma fronteira reutilizável para:
+
+- execução provider-neutral de modelos;
+- roteamento determinístico e explicável;
+- policy enforcement e autorização fail-closed;
+- resiliência de runtime e fallback seguro;
+- structured output, normalização de tool calls e streaming;
+- observabilidade, proveniência e evidência auditável;
+- avaliação de modelos baseada em benchmarks sem mutação automática de policy.
+
+## Capacidades principais
+
+| Área | O que o gateway oferece |
+|---|---|
+| **Governança** | Separação PDP/PEP, autorização fail-closed e integração opcional com governança |
+| **Roteamento** | Model registry determinístico, filtros de elegibilidade, ranking e explicabilidade da rota |
+| **Resiliência** | Runtime health, circuit breaker, retry limitado e fallback seguro |
+| **Abstração de provider** | Contratos provider-neutral, tradução de requests e resultados normalizados |
+| **Model I/O** | Validação de structured output, normalização de tool calls, streaming e cancelamento |
+| **Observabilidade** | OpenTelemetry, defaults metadata-only e proveniência terminal de execução |
+| **Avaliação** | Framework determinístico de benchmarks, evidência imutável, promoção explícita e rollback |
+| **Integração com consumidores** | SDK fino e tipado sem exigir SDKs ou API keys de provider nos consumidores |
+
+## Arquitetura
 
 ```text
 Aplicação / Agente
-       │ workload + requisitos + metadados de política
+       │ workload + requisitos + metadados de policy
        ▼
 Policy Model Router (PDP)
-       │ grupo lógico de modelos autorizado + proveniência
+       │ grupos lógicos de modelos autorizados
        ▼
-Governed LLM Gateway (PEP + seletor operacional)
-       │ somente candidatos autorizados
-       ├─ elegibilidade por capacidade / ambiente
+Governed LLM Gateway (PEP)
+       ├─ elegibilidade
        ├─ ranking determinístico
-       ├─ saúde de runtime / circuit breaker
-       ├─ retry limitado / fallback seguro
-       ├─ structured output / normalização de tool calls
-       ├─ streaming / cancelamento
-       ├─ evidência de benchmark aprovada
-       └─ proveniência de execução provider-neutral
+       ├─ health / circuit breaker
+       ├─ retry / fallback seguro
+       ├─ tradução de provider
+       └─ proveniência / telemetria
        ▼
 Provedor de LLM
-       │ output normalizado + evidência metadata-only
-       ▼
-Aplicação / Agente / runtime MCP
-       └─ autoriza e executa business tools / side effects
 ```
 
-Invariante permanente:
+Execução de business tools e side effects permanece fora do gateway. O gateway pode normalizar uma tool call, mas o runtime da aplicação/agente é responsável por autorizar e executar a ferramenta.
+
+### Invariante permanente de autorização
 
 ```text
 Gateway allowed set ⊆ Policy Router authorized set
 ```
 
-O gateway pode restringir a autorização por capacidade, política de dados/ambiente, escopo de governança, custo, latência, saúde ou outras restrições operacionais. Ele nunca pode ampliar a autorização do PDP. Ranking, retry/fallback, benchmark, telemetria, estado do SDK e proveniência de runtime não são fontes de autorização.
+O gateway pode restringir o conjunto autorizado por capacidade, ambiente, governança, custo, latência ou saúde de runtime. Ele nunca pode ampliar a autorização upstream. Ranking, telemetria, benchmark evidence e proveniência de runtime não são fontes de autorização.
 
-## Implementação atual
+## Princípios de design
 
-As Phases 0–13 estão concluídas e estabelecem:
+- **Autorização antes da otimização.** O ranking opera somente dentro do conjunto já autorizado e elegível.
+- **Fail-closed diante de ambiguidade.** Estado inválido de policy, proveniência, capacidade ou evidência não degrada silenciosamente para comportamento permissivo.
+- **Evidência é descritiva, não autoridade.** Evidência de runtime ou benchmark não pode se autoautorizar nem reescrever a policy ativa.
+- **Falha de provider não é falha de qualidade do modelo.** Evidência de disponibilidade e qualidade permanece separada.
+- **Side effects permanecem fora do gateway.** Tools e ações da aplicação continuam sob responsabilidade do runtime consumidor.
 
-- contratos provider-neutral e model registry determinístico;
-- integração com Policy Model Router e autorização fail-closed;
-- elegibilidade, ranking e `POST /v1/route/explain` determinísticos;
-- runtime health, circuit breaker, retry limitado e fallback seguro;
-- validação de structured output e normalização provider-neutral de tool calls;
-- streaming normalizado, cancelamento e fronteiras de replay seguro;
-- OpenTelemetry com defaults metadata-only;
-- infraestrutura offline determinística de benchmarks e promoção explícita de evidência;
-- evidence-driven ranking com fronteiras de manual override e rollback;
-- SDK cliente fino e tipado, sem exigir SDK/API key de provedor nos consumidores;
-- integração opcional com Verifiable AI Governance e evidência de runtime;
-- proveniência terminal de execução provider-neutral preservada por SSE/API/SDK;
-- evidência revisada de componentes de qualidade de benchmark preservada em snapshots imutáveis sem promoção implícita ou autoridade de roteamento;
-- schema `1.0` estrito e content-addressed para evidência operacional recente, materialização process-local limitada/fail-closed, gravação opcional best-effort de tentativas de runtime e handoff content-addressed limitado por instância de origem, separados da saúde e não consumidos pelo ranking.
+## Estado atual
 
-A Phase 14 migra consumidores reais incrementalmente na ordem normativa:
+- **Plataforma core:** Phases 0–13 concluídas.
+- **Migração de projetos reais:** Phase 14 em andamento; `controlled-autonomy-lab` e `getnet-multi-agent-support-v2` estão concluídos, enquanto OpsLens permanece deliberadamente deferido.
+- **Avaliação:** todas as classes de benchmark listadas no roadmap estão representadas por contratos determinísticos revisados.
+- **Evidência operacional:** materialização limitada, gravação best-effort em runtime e handoff content-addressed por instância de origem estão implementados; completude compartilhada/de frota e policy de scoring operacional online não estão ativas.
 
-1. `controlled-autonomy-lab` — **COMPLETE**;
-2. `getnet-multi-agent-support-v2` — **COMPLETE**;
-3. `OpsLens` — **VALIDATED CANDIDATE, DEFERRED** enquanto o repositório evolui de forma independente;
-4. `RAGForge` — **NOT STARTED** porque o sequencing guard continua ativo;
-5. `Verifiable AI Governance` — **NOT STARTED** como consumer case da Phase 14.
+Para o checkpoint autoritativo do projeto e o sequenciamento da Phase 14, veja [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
 
-Veja `docs/project/CURRENT_STATE.md` para o checkpoint autoritativo e a issue #18 para o sequencing guard ativo entre OpsLens e RAGForge.
+## Baseline de qualidade
 
-## Programa de benchmarks — classes do roadmap representadas
+O `main` atual está validado com:
 
-As classes de workload listadas no roadmap estão representadas por contratos determinísticos revisados e versionados:
+- **782 testes passando**;
+- **82,52% de cobertura agregada**;
+- verificações strict de **mypy** e **Ruff**;
+- **Bandit: 0 findings** em 17.632 LOC;
+- **pip-audit: nenhuma vulnerabilidade conhecida**;
+- architecture check, secret scan e Phase 0 gate passando.
 
-| Workload | Contrato revisado atual | Merge |
-|---|---|---|
-| `classification` | `classification-v1` | PR #45 |
-| `structured_extraction` | `structured-extraction-v2` (v1 preservado historicamente) | PRs #19 e #22 |
-| `json_schema_compliance` | `json-schema-compliance-v1` | PR #61 |
-| `rag_answer` | `rag-answer-v1` | PR #58 |
-| `rag_ptbr` | `rag-ptbr-v2` (v1 preservado historicamente) | PRs #20 e #67 |
-| `reasoning` | `reasoning-v1` | PR #47 |
-| `code_generation` | `code-generation-v1` | PR #21 |
-| `code_review` | `code-review-v1` | PR #48 |
-| `security_analysis` | `security-analysis-v1` | PR #50 |
-| `tool_selection` | `tool-selection-v1` | PR #51 |
-| `tool_argument_generation` | `tool-argument-generation-v1` | PR #52 |
-| `tool_use` | `tool-use-v1` | PR #23 |
-| `multi_step_tool_use` | `multi-step-tool-use-v1` | PR #55 |
-| `agent_orchestration` | `agent-orchestration-v1` | PR #24 |
-| `multimodal_analysis` | `multimodal-analysis-v1` | PR #32 |
-| `long_context` | `long-context-v1` | PR #44 |
-
-Os cinco primeiros workloads do roadmap permanecem como baseline histórico do core; as classes posteriores foram adicionadas como contratos separados em vez de reescrever esse baseline.
-
-As suítes específicas continuam:
-
-- públicas/sintéticas e sem credenciais por padrão;
-- determinísticas e reproduzíveis;
-- explícitas sobre proveniência de provider/model/API/configuração/data;
-- separadas da evidência de disponibilidade de provedores;
-- sem LLM-as-judge no CI padrão;
-- incapazes de executar business tools, código gerado, agentes ou side effects;
-- incapazes de se autopromover ou alterar o roteamento ativo.
-
-Onde os scorers atuais realmente sustentam a medida, o PR #64 estabeleceu evidência offline com componentes preservados e o PR #67 estendeu o vocabulário revisado com qualidade PT-BR limitada:
-
-- `schema_validity`;
-- `tool_selection_accuracy`;
-- `tool_argument_accuracy`;
-- `trajectory_success`;
-- `grounding`;
-- `pt_br_quality` (conformidade limitada e revisada de localidade/terminologia do português do Brasil).
-
-Falhas de provider continuam sendo evidência de disponibilidade e não se tornam qualidade zero do modelo. Snapshots com componentes usam schema `1.2`; schemas históricos `1.0` e `1.1` permanecem canônicos e inalterados.
-
-O PR #67 adiciona `rag-ptbr-v2`, que preserva `grounding` separadamente de um componente limitado `pt_br_quality`, baseado apenas em regras revisadas de localidade/terminologia do português do Brasil. O histórico `rag-ptbr-v1` permanece inalterado e sem componente de qualidade linguística. Isso não reivindica fluência arbitrária, correção gramatical completa, equivalência semântica irrestrita, estilo/tom ou adequação cultural.
-
-O fluxo de evidência permanece:
-
-```text
-dataset / fixture versionado
-  -> BenchmarkRunner
-  -> scorer determinístico
-  -> observation + Scorecard
-  -> snapshot content-addressed
-  -> promoção explícita
-  -> ranking evidence dentro do conjunto já autorizado
-```
-
-Veja `docs/evaluation/BENCHMARK_MATRIX.md`, `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` e `docs/project/EVALUATION.md`.
-
-## Structured output e tools
-
-Structured output é capacidade do modelo/API, não convenção de prompt. O enforcement nativo do provedor é seguido por validação local limitada.
-
-A autoridade sobre business tools permanece fora do gateway:
-
-```text
-Gateway → normaliza ToolCall
-Aplicação / Agente / runtime MCP → autoriza + executa tool → é dono do ToolResult
-```
-
-Os benchmarks de tools avaliam somente seleções/argumentos/trajetórias propostas e revisadas. Eles nunca executam a tool.
-
-## Fronteira de agent orchestration
-
-O benchmark `agent_orchestration` avalia somente uma trajetória observável proposta (`agent`, `action`, `handoff_to`). Ele não inspeciona chain-of-thought e não executa agentes, tools, operações de negócio ou handoffs humanos.
-
-Orquestração específica de frameworks continua sendo responsabilidade do consumer/runtime. Frameworks são adapters, não donos das regras de política ou autorização do gateway.
-
-## Retry e fallback seguros
-
-Retry e fallback permanecem limitados à sequência autorizada, elegível e ranqueada:
-
-- retry usa o mesmo deployment concreto;
-- fallback só pode avançar para alternativa já autorizada;
-- falhas permanentes de validação/autenticação/autorização/configuração não fazem fallback automático;
-- circuit-open/unhealthy apenas restringe elegibilidade;
-- output semântico visível, side effects ou estado opaco de continuação encerram replay automático.
-
-## Evidência de runtime
-
-Respostas agregadas bem-sucedidas do SDK preservam evidência terminal provider-neutral: provider/model/deployment, identidade do request do gateway, identidade opcional do request do provedor, finish reason, posição de retry/fallback, latência observada da tentativa, token usage normalizado e custo opcional quando realmente conhecido. Proveniência revisada posterior também carrega `api_family` selecionado e `max_output_tokens` concreto e positivo quando a execução terminal consegue atestá-los.
-
-Evidência opcional desconhecida permanece ausente em vez de ser sintetizada. Evidência de runtime é apenas descritiva e nunca se torna autorização.
-
-## Evidência operacional recente
-
-O PR #70 adiciona um artefato schema `1.0` estrito, imutável e content-addressed para janelas operacionais recentes limitadas. O PR #73 adiciona materialização determinística de samples explícitos, timestamped e metadata-only de tentativas reais do provider, o PR #76 adiciona gravação opcional best-effort e process-local nos dois executores limitados, com invalidação conservadora de completude, e o PR #79 adiciona export/load de batches content-addressed por instância de origem fora da execução do provider.
-
-Isso permanece separado de `InMemoryHealthTracker` / `DeploymentHealthSnapshot`, que continuam como estado imediato e process-local de resiliência/elegibilidade. Falha do recorder, cancelamento do caller ou uma falha pós-call não representável não podem fabricar provider-error evidence nem se tornar dependência de disponibilidade da inferência. Ingestão compartilhada, completude de frota/membership de instâncias e adapters de backend de produção continuam pendentes. Essa evidência não altera `StaticDeploymentScore`, pesos de ranking, elegibilidade ou autorização; qualquer scoring online futuro ainda exige uma policy versionada explícita e separada.
-
-Veja `docs/evaluation/OPERATIONAL_EVIDENCE.md` e `docs/evaluation/OPERATIONAL_SAMPLE_BATCH.md`.
-
-## Estrutura do repositório
-
-```text
-apps/gateway-api/           composition root HTTP
-packages/gateway-contracts contratos provider-neutral
-packages/gateway-core/     fronteira domain/application/adapters
-packages/gateway-client/   SDK cliente fino e tipado
-config/                    configuração de modelos/ranking/provedores
-benchmarks/                datasets, scorers, runner, snapshots e promoção offline
-examples/                  exemplos limitados
-tests/                     suítes contract/integration/e2e
-docs/                      fontes duráveis, avaliação e ADRs
-```
-
-## Validação
+## Validar localmente
 
 ```bash
 uv sync --frozen
 uv run python scripts/quality_gate.py
 ```
 
-Baseline validado atual do `main` após o PR #79 (`51a9196f066a7ae4035322ccda7aefb147003b0c`):
+O caminho padrão de qualidade é determinístico e não exige credenciais.
 
-- **782 testes passaram**;
-- **82,52% de cobertura agregada** (threshold 80%);
-- mypy passou em **186 arquivos fonte**;
-- Ruff lint/format passou em **186 arquivos**;
-- Bandit reportou **0 issues** em 17.632 LOC;
-- pip-audit reportou **nenhuma vulnerabilidade conhecida**;
-- architecture check, secret scan e Phase 0 gate passaram;
-- quality run pós-merge no `main` `34064435787` — **PASS**.
+## Mapa do repositório
 
-O warning conhecido do Starlette TestClient sobre `httpx`/`httpx2` continua não bloqueante.
+| Caminho | Responsabilidade |
+|---|---|
+| `apps/gateway-api/` | Composition root HTTP |
+| `packages/gateway-contracts/` | Contratos públicos provider-neutral |
+| `packages/gateway-core/` | Domínio, serviços de aplicação e adapters |
+| `packages/gateway-client/` | SDK cliente fino e tipado |
+| `benchmarks/` | Avaliação determinística, evidência e promoção |
+| `config/` | Configuração de modelos, ranking e providers |
+| `tests/` | Validação contract, integration e end-to-end |
+| `docs/` | Arquitetura, roadmap, avaliação e estado do projeto |
 
-## Fonte de verdade
+## Aprofundamento
 
-Comece por:
-
-- `docs/project/CURRENT_STATE.md` — checkpoint atual;
-- `docs/project/ROADMAP.md` e `docs/project/SOURCE_ROADMAP.txt` — ledger de execução e fonte normativa;
-- `docs/project/EVALUATION.md` — arquitetura de benchmark/evidência;
-- `docs/evaluation/BENCHMARK_MATRIX.md` — matriz completa de workloads do roadmap e fronteira de evidência;
-- `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` — componentes revisados, snapshot schema 1.2 e evidência limitada de `pt_br_quality`;
-- `docs/evaluation/OPERATIONAL_EVIDENCE.md` — schema de evidência operacional recente versionada e fronteira sem autoridade de autorização/ranking;
-- `docs/evaluation/OPERATIONAL_SAMPLE_BATCH.md` — handoff content-addressed por instância de origem e fronteira de completude de frota;
-- `docs/project/PHASE14_PROVIDER_NEUTRAL_EXECUTION_PROVENANCE.md` — evidência terminal de runtime;
-- `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` — fronteira de capacidade/autoridade da Phase 7;
-- `docs/project/STREAMING.md` — lifecycle de streaming da Phase 8;
-- `docs/architecture/PDP_PEP_CONTRACT_DRAFT.md` — fronteira de autorização.
+- [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — checkpoint autoritativo do projeto
+- [`docs/project/ROADMAP.md`](docs/project/ROADMAP.md) — roadmap de implementação e ledger de fases
+- [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — arquitetura de benchmark e evidência
+- [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — fronteira de autorização
+- [`docs/evaluation/OPERATIONAL_EVIDENCE.md`](docs/evaluation/OPERATIONAL_EVIDENCE.md) — modelo de evidência operacional recente
+- [`docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md`](docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md) — fronteira de structured output e autoridade de tools
