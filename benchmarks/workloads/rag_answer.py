@@ -273,8 +273,7 @@ def _normalized_output(
     ]
     if unknown:
         issues = tuple(
-            RagAnswerIssue("unknown_citation", f"/citations/{index}")
-            for index, _ in unknown
+            RagAnswerIssue("unknown_citation", f"/citations/{index}") for index, _ in unknown
         )
         return None, issues
 
