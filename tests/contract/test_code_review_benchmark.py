@@ -132,11 +132,7 @@ def test_code_review_scorer_rejects_invalid_severity() -> None:
     case = load_code_review_dataset(_DATASET_PATH).cases[0]
     assessment = assess_code_review(
         case,
-        {
-            "findings": [
-                {"rule_id": "mutable_default_argument", "severity": "high", "line": 1}
-            ]
-        },
+        {"findings": [{"rule_id": "mutable_default_argument", "severity": "high", "line": 1}]},
     )
 
     assert assessment.score == Decimal("0")
