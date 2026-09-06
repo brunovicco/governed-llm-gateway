@@ -26,6 +26,7 @@ class InMemoryOperationalSampleStore:
         self._samples: list[OperationalAttemptSample] = []
         self._latest_observed_at: datetime | None = None
         self._evicted_through: datetime | None = None
+        self._incomplete_through: datetime | None = None
 
     @property
     def coverage_start(self) -> datetime:
@@ -36,6 +37,27 @@ class InMemoryOperationalSampleStore:
     def evicted_through(self) -> datetime | None:
         """Return the latest timestamp whose history may have been truncated by capacity."""
         return self._evicted_through
+
+    @property
+    def incomplete_through(self) -> datetime | None:
+        """Return the latest timestamp through which complete runtime history is uncertain."""
+        return self._incomplete_through
+
+    def invalidate_completeness(self, *, observed_at: datetime) -> None:
+        """Conservatively invalidate history through one unrepresentable attempt outcome."""
+        now = self._clock()
+        _validate_utc(now, "source clock")
+        _validate_utc(observed_at, "observed_at")
+        if observed_at < self._coverage_start:
+            raise OperationalEvidenceMaterializationError(
+                "operational completeness gap predates process-local source coverage"
+            )
+        if observed_at > now:
+            raise OperationalEvidenceMaterializationError(
+                "operational completeness gap cannot be recorded from the future"
+            )
+        if self._incomplete_through is None or observed_at > self._incomplete_through:
+            self._incomplete_through = observed_at
 
     def record(self, sample: OperationalAttemptSample) -> None:
         """Append one chronological actual-attempt sample within current source coverage."""
@@ -84,6 +106,10 @@ class InMemoryOperationalSampleStore:
         if self._evicted_through is not None and window_start <= self._evicted_through:
             raise OperationalEvidenceMaterializationError(
                 "operational sample window may intersect capacity-evicted history"
+            )
+        if self._incomplete_through is not None and window_start <= self._incomplete_through:
+            raise OperationalEvidenceMaterializationError(
+                "operational sample window may intersect incomplete runtime history"
             )
         return tuple(
             sample for sample in self._samples if window_start <= sample.observed_at < window_end

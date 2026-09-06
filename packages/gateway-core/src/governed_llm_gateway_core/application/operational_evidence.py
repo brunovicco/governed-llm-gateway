@@ -82,6 +82,18 @@ class OperationalAttemptSample:
             )
 
 
+class OperationalAttemptRecorder(Protocol):
+    """Record process-local attempt evidence without remote I/O authority."""
+
+    def record(self, sample: OperationalAttemptSample) -> None:
+        """Persist one schema-compatible provider-attempt sample locally."""
+        ...
+
+    def invalidate_completeness(self, *, observed_at: datetime) -> None:
+        """Advance a conservative boundary when complete evidence cannot be proven."""
+        ...
+
+
 class OperationalSampleSource(Protocol):
     """Read a complete half-open window of operational attempt samples."""
 
