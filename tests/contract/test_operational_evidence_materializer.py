@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from uuid import UUID
 
 import pytest
@@ -86,9 +87,9 @@ def test_attempt_sample_is_immutable_and_rejects_invalid_semantics() -> None:
         delattr(sample, "latency_ms")
 
     with pytest.raises(OperationalEvidenceMaterializationError, match="gateway_request_id"):
-        OperationalAttemptSample(  # type: ignore[arg-type]
+        OperationalAttemptSample(
             observed_at=BASE,
-            gateway_request_id="not-a-uuid",
+            gateway_request_id=cast(UUID, "not-a-uuid"),
             runtime_workload="rag.answer",
             deployment_id="openai-primary",
             attempt_number=1,
@@ -117,11 +118,11 @@ def test_attempt_sample_is_immutable_and_rejects_invalid_semantics() -> None:
 
 def test_attempt_sample_rejects_boolean_integer_fields() -> None:
     with pytest.raises(OperationalEvidenceMaterializationError, match="attempt_number"):
-        _sample(seconds=1, attempt=True)  # type: ignore[arg-type]
+        _sample(seconds=1, attempt=True)
     with pytest.raises(OperationalEvidenceMaterializationError, match="fallback_index"):
-        _sample(seconds=1, fallback_index=False)  # type: ignore[arg-type]
+        _sample(seconds=1, fallback_index=False)
     with pytest.raises(OperationalEvidenceMaterializationError, match="latency_ms"):
-        _sample(seconds=1, latency_ms=False)  # type: ignore[arg-type]
+        _sample(seconds=1, latency_ms=False)
 
 
 def test_in_memory_source_requires_complete_recent_coverage() -> None:
@@ -177,8 +178,9 @@ def test_in_memory_source_fails_closed_after_capacity_eviction() -> None:
 
 
 def test_in_memory_source_rejects_future_and_out_of_order_samples() -> None:
-    clock = MutableUtcClock(BASE + timedelta(seconds=10))
+    clock = MutableUtcClock()
     store = InMemoryOperationalSampleStore(max_samples=3, clock=clock)
+    clock.advance(10)
     store.record(_sample(seconds=5))
     with pytest.raises(OperationalEvidenceMaterializationError, match="non-decreasing"):
         store.record(_sample(seconds=4, attempt=2))
