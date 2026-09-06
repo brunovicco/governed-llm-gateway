@@ -22,6 +22,7 @@ class BenchmarkWorkload(StrEnum):
     CODE_REVIEW = "code_review"
     SECURITY_ANALYSIS = "security_analysis"
     TOOL_SELECTION = "tool_selection"
+    TOOL_ARGUMENT_GENERATION = "tool_argument_generation"
     TOOL_USE = "tool_use"
     AGENT_ORCHESTRATION = "agent_orchestration"
     MULTIMODAL_ANALYSIS = "multimodal_analysis"
