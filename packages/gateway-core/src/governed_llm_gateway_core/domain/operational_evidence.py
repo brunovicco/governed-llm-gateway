@@ -225,6 +225,20 @@ def _validate_record(record: OperationalEvidenceRecord) -> None:
     if "." not in record.runtime_workload:
         raise OperationalEvidenceError("runtime_workload must be dotted")
     _validate_identifier(record.deployment_id, "deployment_id")
+    integer_fields = {
+        "gateway_request_count": record.gateway_request_count,
+        "provider_attempt_count": record.provider_attempt_count,
+        "successful_provider_attempt_count": record.successful_provider_attempt_count,
+        "provider_error_count": record.provider_error_count,
+        "rate_limit_error_count": record.rate_limit_error_count,
+        "timeout_count": record.timeout_count,
+        "fallback_request_count": record.fallback_request_count,
+        "provider_latency_p50_ms": record.provider_latency_p50_ms,
+        "provider_latency_p95_ms": record.provider_latency_p95_ms,
+    }
+    for name, value in integer_fields.items():
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise OperationalEvidenceError(f"{name} must be an integer")
     if record.gateway_request_count <= 0:
         raise OperationalEvidenceError("gateway_request_count must be positive")
     if record.provider_attempt_count <= 0:
