@@ -4,7 +4,7 @@
 
 Reusable provider-neutral LLM execution gateway for **governed model resolution and execution**.
 
-Status: **Phases 0–13 complete; Phase 14 in progress — Cases 1/2 complete, Case 3 deferred. Initial benchmark workload matrix 5/5 complete.**
+Status: **Phases 0–13 complete; Phase 14 in progress — Cases 1/2 complete, Case 3 deferred. All roadmap-listed benchmark classes are represented by reviewed deterministic contracts. Reviewed quality-component evidence is preserved separately from operational health; independent PT-BR language quality remains an explicit measurement gap.**
 
 The gateway is the operational Policy Enforcement Point (PEP) between an application's declared workload and the concrete LLM deployment selected for execution.
 
@@ -56,7 +56,8 @@ Phases 0–13 are complete and establish:
 - evidence-driven ranking with manual override and rollback boundaries;
 - a thin typed client SDK with no provider SDK/API-key requirement for consumers;
 - optional Verifiable AI Governance authorization and runtime evidence;
-- provider-neutral terminal execution provenance preserved through SSE/API/SDK.
+- provider-neutral terminal execution provenance preserved through SSE/API/SDK;
+- reviewed benchmark quality-component evidence preserved in immutable snapshots without implicit promotion or routing authority.
 
 Phase 14 is migrating real consumers incrementally in the normative order:
 
@@ -68,17 +69,30 @@ Phase 14 is migrating real consumers incrementally in the normative order:
 
 See `docs/project/CURRENT_STATE.md` for the authoritative checkpoint and issue #18 for the active OpsLens/RAGForge sequencing guard.
 
-## Benchmark workload matrix — 5/5 complete
+## Benchmark program — roadmap classes represented
 
-The roadmap's first five workload-specific benchmark contracts are implemented:
+The roadmap-listed workload classes are represented by reviewed, versioned deterministic contracts:
 
 | Workload | Current reviewed contract | Merge |
 |---|---|---|
+| `classification` | `classification-v1` | PR #45 |
 | `structured_extraction` | `structured-extraction-v2` (v1 preserved historically) | PRs #19 and #22 |
+| `json_schema_compliance` | `json-schema-compliance-v1` | PR #61 |
+| `rag_answer` | `rag-answer-v1` | PR #58 |
 | `rag_ptbr` | `rag-ptbr-v1` | PR #20 |
+| `reasoning` | `reasoning-v1` | PR #47 |
 | `code_generation` | `code-generation-v1` | PR #21 |
+| `code_review` | `code-review-v1` | PR #48 |
+| `security_analysis` | `security-analysis-v1` | PR #50 |
+| `tool_selection` | `tool-selection-v1` | PR #51 |
+| `tool_argument_generation` | `tool-argument-generation-v1` | PR #52 |
 | `tool_use` | `tool-use-v1` | PR #23 |
+| `multi_step_tool_use` | `multi-step-tool-use-v1` | PR #55 |
 | `agent_orchestration` | `agent-orchestration-v1` | PR #24 |
+| `multimodal_analysis` | `multimodal-analysis-v1` | PR #32 |
+| `long_context` | `long-context-v1` | PR #44 |
+
+The first five roadmap workloads remain the historical core baseline; later classes were added as separate contracts rather than rewriting that baseline.
 
 The workload-specific suites remain:
 
@@ -90,19 +104,31 @@ The workload-specific suites remain:
 - unable to execute business tools, generated code, agents or side effects;
 - unable to self-promote or mutate active runtime routing.
 
+Where current reviewed scorers genuinely support them, PR #64 preserves these offline quality components separately from the historical scalar score:
+
+- `schema_validity`;
+- `tool_selection_accuracy`;
+- `tool_argument_accuracy`;
+- `trajectory_success`;
+- `grounding`.
+
+Provider failures remain availability evidence and do not become zero model-quality evidence. Component-bearing snapshots use schema `1.2`; historical snapshot schemas `1.0` and `1.1` remain canonical and unchanged.
+
+Independent PT-BR language quality is intentionally **not** claimed yet. `rag-ptbr-v1` measures reviewed required-fact coverage with forbidden-claim checks in PT-BR, not separate Portuguese fluency, grammar, terminology, localization or style quality.
+
 The evidence path remains:
 
 ```text
-versioned dataset
+versioned dataset / fixture
   -> BenchmarkRunner
   -> deterministic scorer
-  -> Scorecard
+  -> observation + Scorecard
   -> content-addressed snapshot
   -> explicit promotion
   -> ranking evidence inside the already-authorized candidate set
 ```
 
-See `docs/evaluation/BENCHMARK_MATRIX.md` and `docs/project/EVALUATION.md`.
+See `docs/evaluation/BENCHMARK_MATRIX.md`, `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` and `docs/project/EVALUATION.md`.
 
 ## Structured output and tools
 
@@ -115,7 +141,7 @@ Gateway → normalizes ToolCall
 Application / Agent / MCP runtime → authorizes + executes tool → owns ToolResult
 ```
 
-The `tool_use` benchmark evaluates only the proposed tool decision and arguments. It never executes the tool.
+The tool benchmarks evaluate reviewed proposed selections/arguments/trajectories only. They never execute the tool.
 
 ## Agent orchestration boundary
 
@@ -135,7 +161,7 @@ Retry and fallback remain bounded to the authorized, eligible and ranked sequenc
 
 ## Runtime evidence
 
-Successful aggregate SDK responses preserve terminal provider-neutral execution evidence including provider/model/deployment identity, gateway request identity, optional provider request identity, finish reason, retry/fallback position, measured provider-attempt latency, normalized token usage and optional cost when actually known.
+Successful aggregate SDK responses preserve terminal provider-neutral execution evidence including provider/model/deployment identity, gateway request identity, optional provider request identity, finish reason, retry/fallback position, measured provider-attempt latency, normalized token usage and optional cost when actually known. Later reviewed provenance also carries selected `api_family` and concrete positive `max_output_tokens` when terminal execution can attest them.
 
 Unknown optional evidence remains absent instead of being synthesized. Runtime evidence is descriptive only and never becomes authorization.
 
@@ -160,16 +186,16 @@ uv sync --frozen
 uv run python scripts/quality_gate.py
 ```
 
-Current validated `main` baseline after PR #24 (`a8f2003663eb9ac713df6929a8c7b5bc79573e69`):
+Current validated `main` baseline after PR #64 (`ef1d83c8c82a63a3f5abc533d7dc75db51144690`):
 
-- **421 tests passed**;
-- **81.32% aggregate coverage** (threshold 80%);
-- mypy passed across **132 source files**;
-- Ruff lint/format passed across **132 files**;
-- Bandit reported **0 issues** across 12,883 LOC;
+- **714 tests passed**;
+- **82.21% aggregate coverage** (threshold 80%);
+- mypy passed across **172 source files**;
+- Ruff lint/format passed across **172 files**;
+- Bandit reported **0 issues** across 15,972 LOC;
 - pip-audit reported **no known vulnerabilities**;
 - architecture check, secret scan and Phase 0 gate passed;
-- post-merge `main` quality run `33968458431` — **PASS**.
+- post-merge `main` quality run `34048733993` — **PASS**.
 
 The known Starlette TestClient `httpx`/`httpx2` deprecation warning remains non-blocking.
 
@@ -180,7 +206,8 @@ Start with:
 - `docs/project/CURRENT_STATE.md` — current project checkpoint;
 - `docs/project/ROADMAP.md` and `docs/project/SOURCE_ROADMAP.txt` — execution ledger and normative source;
 - `docs/project/EVALUATION.md` — benchmark/evidence architecture;
-- `docs/evaluation/BENCHMARK_MATRIX.md` — completed initial workload matrix;
+- `docs/evaluation/BENCHMARK_MATRIX.md` — complete roadmap workload matrix and evidence boundary;
+- `docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md` — reviewed component metrics, snapshot schema 1.2 and the explicit PT-BR-quality gap;
 - `docs/project/PHASE14_PROVIDER_NEUTRAL_EXECUTION_PROVENANCE.md` — terminal runtime evidence;
 - `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md` — Phase 7 capability/authority boundary;
 - `docs/project/STREAMING.md` — Phase 8 streaming lifecycle;
