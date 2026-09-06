@@ -165,8 +165,11 @@ def test_operational_evidence_rejects_invalid_time_provenance(
     ("record", "message"),
     [
         (_record(workload="raganswer"), "runtime_workload must be dotted"),
-        (_record(gateway_requests=0), "gateway_request_count must be positive"),
-        (_record(attempts=0, successes=0, errors=0), "provider_attempt_count must be positive"),
+        (_record(gateway_requests=0), "gateway_request_count must be a positive integer"),
+        (
+            _record(attempts=0, successes=0, errors=0),
+            "provider_attempt_count must be a positive integer",
+        ),
         (
             _record(attempts=12, successes=9, errors=2),
             "successful_provider_attempt_count.*must equal provider_attempt_count",
