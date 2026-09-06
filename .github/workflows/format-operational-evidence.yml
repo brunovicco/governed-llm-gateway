@@ -18,18 +18,34 @@ jobs:
         with:
           ref: feat/versioned-operational-evidence
       - uses: astral-sh/setup-uv@v6
-      - name: Apply deterministic lint fix
+      - name: Apply deterministic lint fixes
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("tests/contract/test_operational_evidence.py")
-          text = path.read_text()
-          old = '        setattr(record, "provider_error_count", 0)\n'
-          new = '        delattr(record, "provider_error_count")\n'
-          if text.count(old) != 1:
+          test_path = Path("tests/contract/test_operational_evidence.py")
+          test_text = test_path.read_text()
+          old_setattr = '        setattr(record, "provider_error_count", 0)\n'
+          new_delattr = '        delattr(record, "provider_error_count")\n'
+          if test_text.count(old_setattr) != 1:
               raise SystemExit("expected exactly one frozen setattr marker")
-          path.write_text(text.replace(old, new))
+          test_path.write_text(test_text.replace(old_setattr, new_delattr))
+
+          domain_path = Path(
+              "packages/gateway-core/src/governed_llm_gateway_core/domain/operational_evidence.py"
+          )
+          domain_text = domain_path.read_text()
+          old_message = (
+              '            "successful_provider_attempt_count + provider_error_count must equal '
+              'provider_attempt_count"\n'
+          )
+          new_message = (
+              '            "successful_provider_attempt_count + provider_error_count "\n'
+              '            "must equal provider_attempt_count"\n'
+          )
+          if domain_text.count(old_message) != 1:
+              raise SystemExit("expected exactly one long provider-attempt invariant message")
+          domain_path.write_text(domain_text.replace(old_message, new_message))
           PY
           uvx --python 3.13 --from ruff==0.12.11 ruff check --fix . || true
           uvx --python 3.13 --from ruff==0.12.11 ruff format .
