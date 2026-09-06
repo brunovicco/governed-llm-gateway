@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from benchmarks.contracts import BenchmarkWorkload
+from benchmarks.contracts import BenchmarkWorkload, JsonValue
 from benchmarks.dataset import load_dataset
 from benchmarks.scoring import build_default_scorers
 from benchmarks.snapshot import dataset_digest
@@ -23,7 +23,7 @@ from benchmarks.workloads.tool_argument_generation import (
 _DATASET_PATH = Path("benchmarks/datasets/tool-argument-generation-v1.json")
 
 
-def _expected_arguments(case_index: int) -> dict[str, object]:
+def _expected_arguments(case_index: int) -> dict[str, JsonValue]:
     case = load_tool_argument_generation_dataset(_DATASET_PATH).cases[case_index]
     expected = case.expected
     assert isinstance(expected, dict)
