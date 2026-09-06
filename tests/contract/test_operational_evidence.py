@@ -207,6 +207,41 @@ def test_operational_evidence_record_is_immutable() -> None:
         delattr(record, "provider_error_count")
 
 
+def test_direct_record_construction_rejects_boolean_counts() -> None:
+    with pytest.raises(OperationalEvidenceError, match="gateway_request_count must be an integer"):
+        OperationalEvidenceRecord(
+            runtime_workload="rag.answer",
+            deployment_id="openai-primary",
+            gateway_request_count=True,
+            provider_attempt_count=10,
+            successful_provider_attempt_count=10,
+            provider_error_count=0,
+            rate_limit_error_count=0,
+            timeout_count=0,
+            fallback_request_count=0,
+            provider_latency_p50_ms=100,
+            provider_latency_p95_ms=200,
+        )
+
+    with pytest.raises(
+        OperationalEvidenceError,
+        match="provider_latency_p50_ms must be an integer",
+    ):
+        OperationalEvidenceRecord(
+            runtime_workload="rag.answer",
+            deployment_id="openai-primary",
+            gateway_request_count=10,
+            provider_attempt_count=10,
+            successful_provider_attempt_count=10,
+            provider_error_count=0,
+            rate_limit_error_count=0,
+            timeout_count=0,
+            fallback_request_count=0,
+            provider_latency_p50_ms=False,
+            provider_latency_p95_ms=200,
+        )
+
+
 def test_direct_record_construction_preserves_fail_closed_invariants() -> None:
     with pytest.raises(OperationalEvidenceError, match="must equal provider_attempt_count"):
         OperationalEvidenceRecord(
