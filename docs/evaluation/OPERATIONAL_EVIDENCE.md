@@ -1,6 +1,6 @@
 # Recent Operational Evidence
 
-Status: **Schema `1.0` COMPLETE in PR #70; bounded process-local materialization is implemented by the current issue #72 increment. Runtime recorder wiring, production/shared sources and online ranking policy remain pending.**
+Status: **COMPLETE through PR #73 for schema `1.0` plus bounded process-local materialization. Runtime recorder wiring, production/shared sources and online ranking policy remain pending.**
 
 ## Purpose
 
@@ -8,7 +8,7 @@ The Roadmap separates offline benchmark quality from online operational health a
 
 The gateway already has per-process `DeploymentHealthSnapshot` state for circuit breaking and coarse eligibility. That state is intentionally not treated as a reviewed ranking snapshot: it is cumulative process-local state, has no explicit observation window, and currently affects ranking only through health/circuit eligibility.
 
-PR #70 introduced the first bounded step toward Roadmap online-telemetry ranking: a strict, immutable, content-addressed contract for preserving recent operational measurements. Issue #72 adds a deterministic materialization path from explicit metadata-only provider-attempt samples. **Neither increment changes ranking.**
+PR #70 introduced the strict, immutable, content-addressed contract for preserving recent operational measurements. PR #73 completes issue #72 by adding a deterministic materialization path from explicit metadata-only provider-attempt samples. **Neither increment changes ranking.**
 
 ## Snapshot provenance
 
