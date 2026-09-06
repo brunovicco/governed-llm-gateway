@@ -64,6 +64,10 @@ lowers citation recall. Unknown/invented source IDs fail closed with zero qualit
 Explicitly reviewed forbidden claims also force zero quality. This remains a narrow
 regression guard and does not claim arbitrary factuality detection.
 
+Reference ground truth is validated independently: every reviewed required fact must occur
+in the combined text of the reference citations. A known citation that does not support the
+reviewed facts is rejected instead of becoming misleading benchmark truth.
+
 ## Fail-closed validation
 
 Dataset/case validation rejects, among other things:
@@ -78,6 +82,7 @@ Dataset/case validation rejects, among other things:
 - malformed or duplicate source IDs;
 - fewer than two reviewed source records;
 - expected citations that reference undeclared sources;
+- expected citations whose reviewed source text does not support every required fact;
 - prompt/source drift;
 - reference answers missing reviewed required facts;
 - reference answers containing reviewed forbidden claims.
