@@ -1,0 +1,33 @@
+name: reconcile-pr79-docs
+
+on:
+  push:
+    branches:
+      - docs/reconcile-operational-sample-batch-pr79
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: docs/reconcile-operational-sample-batch-pr79
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply fail-closed documentation reconciliation
+        run: uv run --python 3.13 python scripts/reconcile_pr79_docs.py
+      - name: Remove temporary reconciler
+        run: |
+          rm scripts/reconcile_pr79_docs.py
+          rm .github/workflows/reconcile-pr79-docs.yml
+      - name: Commit reconciled documentation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md README.pt-BR.md docs/project/CURRENT_STATE.md docs/project/EVALUATION.md docs/evaluation/BENCHMARK_MATRIX.md docs/evaluation/OPERATIONAL_EVIDENCE.md docs/evaluation/OPERATIONAL_SAMPLE_BATCH.md scripts/reconcile_pr79_docs.py .github/workflows/reconcile-pr79-docs.yml
+          git diff --cached --exit-code && { echo "No reconciliation changes produced"; exit 1; } || true
+          git commit -m "docs: reconcile operational sample batch through PR 79"
+          git push origin HEAD:docs/reconcile-operational-sample-batch-pr79
