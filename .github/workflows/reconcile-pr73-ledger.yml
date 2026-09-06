@@ -1,0 +1,33 @@
+name: reconcile-pr73-ledger
+
+on:
+  push:
+    branches:
+      - docs/reconcile-operational-materializer-pr73
+    paths:
+      - .github/workflows/reconcile-pr73-ledger.yml
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconcile PR 73 documentation
+        run: |
+          python scripts/_reconcile_pr73_docs.py
+          rm scripts/_reconcile_pr73_docs.py
+          rm .github/workflows/reconcile-pr73-ledger.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md README.pt-BR.md \
+            docs/project/CURRENT_STATE.md \
+            docs/project/EVALUATION.md \
+            docs/evaluation/BENCHMARK_MATRIX.md \
+            docs/evaluation/OPERATIONAL_EVIDENCE.md \
+            scripts/_reconcile_pr73_docs.py \
+            .github/workflows/reconcile-pr73-ledger.yml
+          git commit -m "docs: reconcile operational materializer through PR 73"
+          git push
