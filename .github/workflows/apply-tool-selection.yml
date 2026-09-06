@@ -1,0 +1,61 @@
+name: apply-tool-selection
+
+on:
+  push:
+    branches:
+      - feat/tool-selection-benchmark-v1
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/tool-selection-benchmark-v1
+      - name: Apply deterministic registrations
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          contracts = Path("benchmarks/contracts.py")
+          text = contracts.read_text()
+          old = '    SECURITY_ANALYSIS = "security_analysis"\n    TOOL_USE = "tool_use"\n'
+          new = '    SECURITY_ANALYSIS = "security_analysis"\n    TOOL_SELECTION = "tool_selection"\n    TOOL_USE = "tool_use"\n'
+          if '    TOOL_SELECTION = "tool_selection"\n' not in text:
+              assert text.count(old) == 1
+              contracts.write_text(text.replace(old, new, 1))
+
+          scoring = Path("benchmarks/scoring.py")
+          text = scoring.read_text()
+          import_anchor = 'from .workloads.tool_use import TOOL_USE_SCORER_ID, score_tool_use\n'
+          import_block = (
+              'from .workloads.tool_selection import (\n'
+              '    TOOL_SELECTION_SCORER_ID,\n'
+              '    score_tool_selection,\n'
+              ')\n'
+          )
+          if 'TOOL_SELECTION_SCORER_ID' not in text:
+              assert text.count(import_anchor) == 1
+              text = text.replace(import_anchor, import_block + import_anchor, 1)
+              registry_anchor = '        SECURITY_ANALYSIS_SCORER_ID: score_security_analysis,\n'
+              assert text.count(registry_anchor) == 1
+              text = text.replace(
+                  registry_anchor,
+                  registry_anchor + '        TOOL_SELECTION_SCORER_ID: score_tool_selection,\n',
+                  1,
+              )
+              scoring.write_text(text)
+          PY
+      - name: Commit registrations when needed
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add benchmarks/contracts.py benchmarks/scoring.py
+          git commit -m "feat: register tool selection benchmark"
+          git push origin HEAD:feat/tool-selection-benchmark-v1
