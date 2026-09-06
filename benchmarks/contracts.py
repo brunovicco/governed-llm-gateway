@@ -316,7 +316,15 @@ class BenchmarkSnapshot:
         if self.schema_version == "1.1":
             if has_components:
                 raise ValueError("snapshot schema 1.1 must not carry quality component metrics")
-            _require_target_matrix_provenance(self.target_matrix_version, self.target_matrix_digest)
+            if (
+                self.target_matrix_version is None
+                or not self.target_matrix_version
+                or self.target_matrix_version.strip() != self.target_matrix_version
+            ):
+                raise ValueError("snapshot schema 1.1 requires normalized target_matrix_version")
+            digest = self.target_matrix_digest
+            if digest is None or not _is_sha256_digest(digest):
+                raise ValueError("snapshot schema 1.1 requires canonical target_matrix_digest")
             return
         if self.schema_version != "1.2":
             raise ValueError("unsupported benchmark snapshot schema_version")
