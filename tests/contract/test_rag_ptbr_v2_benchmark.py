@@ -149,7 +149,9 @@ def test_rag_ptbr_v2_requires_expected_facts_to_be_grounded_in_context() -> None
 def test_rag_ptbr_v2_rejects_overlapping_locale_terms() -> None:
     case = load_rag_ptbr_v2_dataset(_V2_DATASET).cases[0]
     metadata = dict(case.metadata)
-    rules = list(metadata["pt_br_quality_rules"])
+    rules_value = metadata["pt_br_quality_rules"]
+    assert isinstance(rules_value, list)
+    rules = list(rules_value)
     assert isinstance(rules[0], dict)
     rules[0] = {"preferred": ["usuário"], "rejected": ["usuário"]}
     metadata["pt_br_quality_rules"] = rules
