@@ -16,7 +16,14 @@ _EXPECTED_IMAGES = {
     "tempo": "grafana/tempo:3.0.3",
     "grafana": "grafana/grafana:13.2.1",
 }
-_BANNED_SECRET_KEY_PARTS = ("password", "api_key", "apikey", "authorization", "token", "secret")
+_BANNED_SECRET_KEY_PARTS = (
+    "password",
+    "api_key",
+    "apikey",
+    "authorization",
+    "token",
+    "secret",
+)
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -78,7 +85,9 @@ def test_collector_exports_only_metadata_traces_to_internal_tempo() -> None:
     collector = _load_yaml(_COLLECTOR_PATH)
     traces = collector["service"]["pipelines"]["traces"]
 
-    assert collector["receivers"]["otlp"]["protocols"]["http"]["endpoint"] == "0.0.0.0:4318"
+    assert (
+        collector["receivers"]["otlp"]["protocols"]["http"]["endpoint"] == "0.0.0.0:4318"
+    )
     assert set(collector["exporters"]) == {"otlp/tempo"}
     assert collector["exporters"]["otlp/tempo"]["endpoint"] == "tempo:4317"
     assert traces == {
@@ -129,7 +138,12 @@ def test_observability_configuration_contains_no_secret_keys_or_langfuse() -> No
 
     raw = "\n".join(
         path.read_text(encoding="utf-8").lower()
-        for path in (_COMPOSE_PATH, _COLLECTOR_PATH, _TEMPO_PATH, _GRAFANA_DATASOURCE_PATH)
+        for path in (
+            _COMPOSE_PATH,
+            _COLLECTOR_PATH,
+            _TEMPO_PATH,
+            _GRAFANA_DATASOURCE_PATH,
+        )
     )
     assert "langfuse" not in raw
     assert "authorization:" not in raw
