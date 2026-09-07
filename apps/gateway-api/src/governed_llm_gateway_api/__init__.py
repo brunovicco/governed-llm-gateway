@@ -7,6 +7,11 @@ from .complexity_evidence import (
     ComplexityNarrowingExplainModel,
     complexity_evidence_from_decision,
 )
+from .provider_bootstrap import (
+    ProviderRuntimeBootstrapBundle,
+    ProviderRuntimeBootstrapPaths,
+    bootstrap_provider_runtime,
+)
 from .route_explain import (
     ClientAuthenticationError,
     ComplexityRouteExplainCoordinator,
@@ -36,10 +41,13 @@ __all__ = [
     "GenerateCoordinator",
     "GenerateRequestModel",
     "PreparedStreamingExecution",
+    "ProviderRuntimeBootstrapBundle",
+    "ProviderRuntimeBootstrapPaths",
     "RouteExplainCoordinator",
     "RouteExplainRequestModel",
     "RouteExplainResponseModel",
     "attach_generate_route",
+    "bootstrap_provider_runtime",
     "complexity_evidence_from_decision",
     "create_app",
 ]
