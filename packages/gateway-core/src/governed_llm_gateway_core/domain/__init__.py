@@ -7,6 +7,11 @@ from .authorization import (
     enforce_allowed_subset,
     enforce_selected_group,
 )
+from .complexity import (
+    ComplexityPolicy,
+    DeterministicComplexityEvaluator,
+    WorkloadComplexityFloor,
+)
 from .governance import (
     GovernanceAuthorizationViolation,
     GovernanceDenialReason,
@@ -61,7 +66,9 @@ __all__ = [
     "AuthorizationBoundaryViolation",
     "CircuitBreakerPolicy",
     "CircuitState",
+    "ComplexityPolicy",
     "DeploymentHealthSnapshot",
+    "DeterministicComplexityEvaluator",
     "DuplicateRankingKeyError",
     "DuplicateRegistryKeyError",
     "EffectivePolicyContext",
@@ -88,6 +95,7 @@ __all__ = [
     "StructuredOutputValidationError",
     "ToolCallValidationError",
     "VerifiedGovernanceAuthorization",
+    "WorkloadComplexityFloor",
     "WorkloadRankingPolicy",
     "authorized_registry_candidates",
     "build_model_registry",
