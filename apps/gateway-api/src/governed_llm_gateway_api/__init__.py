@@ -10,6 +10,13 @@ from .client_auth import (
     StaticGatewayClientContextResolver,
     build_static_gateway_client_context_resolver,
 )
+from .client_auth_json import (
+    DuplicateGatewayClientAuthKeyError,
+    GatewayClientAuthDocument,
+    GatewayClientAuthDocumentError,
+    load_gateway_client_auth_document,
+    load_gateway_client_auth_document_text,
+)
 from .complexity_evidence import (
     ComplexityAssessmentExplainModel,
     ComplexityExplainModel,
@@ -47,9 +54,12 @@ __all__ = [
     "ComplexityNarrowingExplainModel",
     "ComplexityRouteExplainCoordinator",
     "ComplexityRouteExplainResponseModel",
+    "DuplicateGatewayClientAuthKeyError",
     "EffectiveContextResolver",
     "EnvironmentGatewayClientSecretResolver",
     "GatewayClientAuthBinding",
+    "GatewayClientAuthDocument",
+    "GatewayClientAuthDocumentError",
     "GatewayClientAuthenticationConfigurationError",
     "GatewayClientAuthorizationError",
     "GatewayClientSecretResolutionError",
@@ -68,4 +78,6 @@ __all__ = [
     "build_static_gateway_client_context_resolver",
     "complexity_evidence_from_decision",
     "create_app",
+    "load_gateway_client_auth_document",
+    "load_gateway_client_auth_document_text",
 ]
