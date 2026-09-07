@@ -27,6 +27,7 @@ from governed_llm_gateway_core.application.ranking import (
     RouteExplainService,
 )
 from governed_llm_gateway_core.application.telemetry import (
+    GatewaySpanName,
     mark_span_failure,
     mark_span_success,
     set_gateway_span_attributes,
@@ -245,7 +246,7 @@ def create_app(
                 )
 
             with observability.start_span(
-                "llm.gateway.request",
+                GatewaySpanName.REQUEST.value,
                 attributes={
                     "request_id": str(payload.request_id),
                     "operation": "route.explain",
