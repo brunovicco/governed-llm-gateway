@@ -50,6 +50,26 @@ class GovernedGatewayServices:
         return self.complexity_route_service is not None
 
 
+def validate_governed_routing_inputs(
+    *,
+    ranking_policy: RankingPolicy,
+    complexity_routing: ComplexityRoutingDocument | None,
+) -> None:
+    """Validate routing artifacts without config, secret, environment, or network access."""
+    if not isinstance(ranking_policy, RankingPolicy):
+        raise TypeError("ranking_policy must use RankingPolicy")
+    if complexity_routing is not None and not isinstance(
+        complexity_routing, ComplexityRoutingDocument
+    ):
+        raise TypeError("complexity_routing must use ComplexityRoutingDocument")
+    if complexity_routing is not None and not isinstance(
+        ranking_policy, EvidenceDrivenRankingPolicy
+    ):
+        raise GovernedServiceCompositionError(
+            "complexity routing requires an explicit evidence-driven ranking policy"
+        )
+
+
 def compose_governed_gateway_services(
     runtime: GovernedProcessRuntimeBundle,
     *,
@@ -63,14 +83,12 @@ def compose_governed_gateway_services(
     """Build the governed HTTP service graph without reading config, secrets, or the network."""
     if not isinstance(runtime, GovernedProcessRuntimeBundle):
         raise TypeError("runtime must use GovernedProcessRuntimeBundle")
-    if not isinstance(ranking_policy, RankingPolicy):
-        raise TypeError("ranking_policy must use RankingPolicy")
     if not isinstance(defaults, PolicyProjectionDefaults):
         raise TypeError("defaults must use PolicyProjectionDefaults")
-    if complexity_routing is not None and not isinstance(
-        complexity_routing, ComplexityRoutingDocument
-    ):
-        raise TypeError("complexity_routing must use ComplexityRoutingDocument")
+    validate_governed_routing_inputs(
+        ranking_policy=ranking_policy,
+        complexity_routing=complexity_routing,
+    )
     if retry_policy is not None and not isinstance(retry_policy, RetryPolicy):
         raise TypeError("retry_policy must use RetryPolicy")
     if health is not None and not isinstance(health, InMemoryHealthTracker):
@@ -80,13 +98,6 @@ def compose_governed_gateway_services(
     if policy_adapter is None:
         raise GovernedServiceCompositionError(
             "governed service composition requires a materialized Policy Router adapter"
-        )
-
-    if complexity_routing is not None and not isinstance(
-        ranking_policy, EvidenceDrivenRankingPolicy
-    ):
-        raise GovernedServiceCompositionError(
-            "complexity routing requires an explicit evidence-driven ranking policy"
         )
 
     active_health = health or InMemoryHealthTracker()
