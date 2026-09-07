@@ -1,10 +1,12 @@
 """Contract tests for deployment-owned activation settings above the staged bootstrap."""
 
+import json
 from collections.abc import Iterator, Mapping
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from fastapi.routing import APIRoute
 from governed_llm_gateway_api import GovernedDeploymentSettings, activate_governed_deployment
 from governed_llm_gateway_core.domain.model_registry import ModelRegistryError
 
@@ -52,6 +54,105 @@ def _settings(
         complexity_routing_path=complexity_routing_path,
         default_max_latency_ms=default_max_latency_ms,
         default_max_cost_usd=default_max_cost_usd,
+    )
+
+
+def _write_valid_static_deployment(root: Path) -> None:
+    config = root / "config"
+    config.mkdir()
+    (config / "model-registry.yaml").write_text(
+        """schema_version: "1.0"
+catalog_version: "pc12-test"
+source_date: "2026-09-07"
+deployments:
+  openai-primary:
+    provider: openai
+    model_id: openai/test-model
+    model_group: general
+    api_family: openai-responses
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: true
+      structured_output: true
+      streaming: true
+    context_tokens: 128000
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "1.00"
+      output_usd_per_million_tokens: "2.00"
+      source_date: "2026-09-07"
+      snapshot_version: "pc12-pricing"
+    max_data_classification: internal
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-07"
+    catalog_version: "pc12-test"
+""",
+        encoding="utf-8",
+    )
+    (config / "provider-runtime.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "config_version": "pc12-test",
+                "bindings": [
+                    {
+                        "provider": "openai",
+                        "api_family": "openai-responses",
+                        "credential_reference": "OPENAI_API_KEY",
+                        "endpoint": "https://api.openai.example/v1/responses",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (config / "client-auth.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "config_version": "pc12-test",
+                "bindings": [
+                    {
+                        "client_id": "service-a",
+                        "environment": "development",
+                        "credential_reference": "GATEWAY_CLIENT_A_KEY",
+                        "allowed_workloads": ["rag.answer"],
+                        "minimum_risk_level": "high",
+                        "minimum_data_classification": "confidential",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (config / "policy-router.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "config_version": "pc12-test",
+                "enabled": True,
+                "endpoint": "https://policy-router.example/route",
+                "timeout_seconds": 5.0,
+                "bindings": [
+                    {
+                        "client_id": "service-a",
+                        "credential_reference": "POLICY_SERVICE_A_KEY",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (config / "ranking.yaml").write_text(
+        """schema_version: "1.0"
+policy_version: "pc12-static-v1"
+score_snapshot_id: "pc12-static-v1"
+source_date: "2026-09-07"
+workloads: {}
+""",
+        encoding="utf-8",
     )
 
 
@@ -125,3 +226,23 @@ def test_invalid_artifact_fails_before_environment_secret_lookup(tmp_path: Path)
         activate_governed_deployment(settings, environ=environment)
 
     assert environment.lookups == []
+
+
+def test_valid_settings_delegate_to_existing_governed_service_graph(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    _write_valid_static_deployment(root)
+    settings = _settings(root)
+    environment = {
+        "GATEWAY_CLIENT_A_KEY": "pc12-client-opaque",
+        "POLICY_SERVICE_A_KEY": "pc12-policy-opaque",
+        "OPENAI_API_KEY": "pc12-provider-opaque",
+    }
+
+    services = activate_governed_deployment(settings, environ=environment)
+
+    route_paths = {route.path for route in services.app.routes if isinstance(route, APIRoute)}
+    assert "/v1/route/explain" in route_paths
+    assert "/v1/generate" in route_paths
+    assert services.complexity_enabled is False
+    assert services.generate_coordinator._health is services.health
+    assert services.streaming_service._health is services.health
