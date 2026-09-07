@@ -286,11 +286,11 @@ def _require_exact_fields(
     unknown = sorted(keys - allowed)
     if missing:
         raise ProviderRuntimeDocumentError(
-            f"{label} is missing required fields: {', '.join(missing)}"
+            f"{label} is missing required fields: {', '.join(missing)}",
         )
     if unknown:
         raise ProviderRuntimeDocumentError(
-            f"{label} contains unknown fields: {', '.join(unknown)}"
+            f"{label} contains unknown fields: {', '.join(unknown)}",
         )
 
 
