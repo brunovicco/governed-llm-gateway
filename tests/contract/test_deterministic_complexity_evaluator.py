@@ -1,5 +1,6 @@
 """Tests for deterministic metadata-only task-complexity assessment."""
 
+from typing import cast
 from uuid import UUID
 
 import pytest
@@ -231,3 +232,33 @@ def test_policy_rejects_duplicate_or_unsorted_workload_floors() -> None:
         _policy(workload_floors=(first, duplicate))
     with pytest.raises(ValueError, match="must be sorted by workload"):
         _policy(workload_floors=(first, earlier))
+
+
+def test_workload_floor_rejects_non_string_runtime_workload() -> None:
+    with pytest.raises(ValueError, match="must use a normalized workload identifier"):
+        WorkloadComplexityFloor(
+            workload=cast(str, 42),
+            minimum=TaskComplexity.MEDIUM,
+        )
+
+
+def test_policy_rejects_non_string_runtime_identifier() -> None:
+    with pytest.raises(ValueError, match="complexity policy_id must be a normalized identifier"):
+        ComplexityPolicy(
+            policy_id=cast(str, 42),
+            version="v1",
+            medium_context_tokens=8_000,
+            high_context_tokens=32_000,
+            medium_output_tokens=2_000,
+            high_output_tokens=8_000,
+            tool_calling_floor=TaskComplexity.MEDIUM,
+            structured_output_floor=TaskComplexity.MEDIUM,
+            vision_floor=TaskComplexity.HIGH,
+        )
+
+
+def test_policy_rejects_invalid_runtime_workload_floor_entry() -> None:
+    invalid_floor = cast(WorkloadComplexityFloor, "not-a-floor")
+
+    with pytest.raises(ValueError, match="must use WorkloadComplexityFloor entries"):
+        _policy(workload_floors=(invalid_floor,))
