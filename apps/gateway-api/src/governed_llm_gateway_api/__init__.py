@@ -50,11 +50,13 @@ from .stream_generate import (
     PreparedStreamingExecution,
     attach_generate_route,
 )
+from .complexity_generate import ComplexityGenerateCoordinator
 
 __all__ = [
     "ClientAuthenticationError",
     "ComplexityAssessmentExplainModel",
     "ComplexityExplainModel",
+    "ComplexityGenerateCoordinator",
     "ComplexityHttpEvidenceInvariantViolation",
     "ComplexityNarrowingExplainModel",
     "ComplexityRouteExplainCoordinator",
