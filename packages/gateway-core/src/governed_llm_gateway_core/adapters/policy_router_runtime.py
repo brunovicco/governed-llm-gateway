@@ -149,9 +149,7 @@ def build_policy_router_adapter(
 
 def _validate_bindings(bindings: object) -> None:
     if not isinstance(bindings, tuple):
-        raise PolicyRouterRuntimeConfigurationError(
-            "Policy Router bindings must be a tuple"
-        )
+        raise PolicyRouterRuntimeConfigurationError("Policy Router bindings must be a tuple")
     client_ids: set[str] = set()
     references: set[str] = set()
     previous_client_id: str | None = None
