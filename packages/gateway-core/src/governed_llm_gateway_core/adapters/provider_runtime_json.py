@@ -20,9 +20,7 @@ from .provider_runtime import (
 _SCHEMA_VERSION = "1.0"
 _IDENTIFIER = re.compile(r"^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$")
 _ROOT_FIELDS = frozenset({"schema_version", "config_version", "bindings"})
-_BINDING_REQUIRED_FIELDS = frozenset(
-    {"provider", "api_family", "credential_reference", "endpoint"}
-)
+_BINDING_REQUIRED_FIELDS = frozenset({"provider", "api_family", "credential_reference", "endpoint"})
 _BINDING_OPTIONAL_FIELDS = frozenset({"anthropic_api_version", "openai_compatible"})
 _COMPATIBLE_FIELDS = frozenset(
     {
@@ -183,9 +181,7 @@ def _parse_binding(payload: Mapping[object, object], *, index: int) -> ProviderR
     try:
         api_family = ProviderApiFamily(api_family_text)
     except ValueError as exc:
-        raise ProviderRuntimeDocumentError(
-            f"bindings[{index}].api_family is unsupported"
-        ) from exc
+        raise ProviderRuntimeDocumentError(f"bindings[{index}].api_family is unsupported") from exc
 
     anthropic_api_version = _optional_string(
         payload.get("anthropic_api_version"),
