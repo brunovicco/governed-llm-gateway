@@ -124,12 +124,15 @@ def dump_approved_ranking_artifact_text(artifact: ApprovedRankingArtifact) -> st
         },
         "policy": artifact.policy.canonical_payload(),
     }
-    return json.dumps(
-        payload,
-        ensure_ascii=True,
-        sort_keys=True,
-        separators=(",", ":"),
-    ) + "\n"
+    return (
+        json.dumps(
+            payload,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    )
 
 
 def _build_evidence_driven_policy(
