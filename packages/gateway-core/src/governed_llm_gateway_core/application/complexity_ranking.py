@@ -52,6 +52,10 @@ class ComplexityAwareRankingService:
             raise ComplexityRankingError(
                 "complexity-aware ranking requires at least one complexity-eligible candidate"
             )
+        if ranking_policy.digest != eligible.provenance.ranking_policy_digest:
+            raise ComplexityRankingError(
+                "operational ranking policy does not match complexity-narrowing provenance"
+            )
 
         narrowed_authorized = AuthorizedCandidateSet(
             policy=eligible.authorized.policy,
@@ -80,13 +84,10 @@ def _validate_ranking_subset(
 ) -> None:
     """Defend against any future ranking implementation accidentally widening candidates."""
     eligible_ids = frozenset(item.deployment_id for item in eligible.candidates)
-    ranked_ids = {
-        item.deployment.deployment_id
-        for item in (
-            *((ranking.selected,) if ranking.selected is not None else ()),
-            *ranking.alternatives,
-        )
-    }
+    ranked_candidates = (
+        (() if ranking.selected is None else (ranking.selected,)) + ranking.alternatives
+    )
+    ranked_ids = frozenset(item.deployment.deployment_id for item in ranked_candidates)
     rejected_ids = frozenset(item.deployment for item in ranking.rejected_candidates)
     if not ranked_ids <= eligible_ids:
         raise ComplexityRankingError(
