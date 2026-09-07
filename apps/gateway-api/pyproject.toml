@@ -7,9 +7,13 @@ dependencies = [
     "a2a-otel-kit==0.6.0",
     "fastapi==0.141.1",
     "pydantic==2.13.5",
+    "uvicorn==0.52.4",
     "governed-llm-gateway-contracts",
     "governed-llm-gateway-core",
 ]
+
+[project.scripts]
+governed-llm-gateway = "governed_llm_gateway_api.server:main"
 
 [tool.uv.sources]
 governed-llm-gateway-contracts = { workspace = true }
