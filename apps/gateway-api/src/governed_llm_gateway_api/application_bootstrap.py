@@ -90,7 +90,9 @@ class GovernedApplicationArtifacts:
             raise TypeError("process must use GovernedProcessArtifacts")
         if self.approved_ranking_artifact is not None:
             if not isinstance(self.approved_ranking_artifact, ApprovedRankingArtifact):
-                raise TypeError("approved_ranking_artifact must use ApprovedRankingArtifact or None")
+                raise TypeError(
+                    "approved_ranking_artifact must use ApprovedRankingArtifact or None"
+                )
             if self.approved_ranking_artifact.policy.digest != self.ranking_policy.digest:
                 raise ValueError(
                     "approved ranking artifact policy must match the effective ranking policy"
