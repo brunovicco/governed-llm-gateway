@@ -155,7 +155,10 @@ def test_duplicate_credential_reference_fails_closed() -> None:
         ),
     ]
 
-    with pytest.raises(GatewayClientAuthDocumentError, match="credential references must be unique"):
+    with pytest.raises(
+        GatewayClientAuthDocumentError,
+        match="credential references must be unique",
+    ):
         load_gateway_client_auth_document_text(_document(bindings))
 
 
