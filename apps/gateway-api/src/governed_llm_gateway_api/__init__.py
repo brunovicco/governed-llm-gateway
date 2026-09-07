@@ -69,6 +69,13 @@ from .route_explain import (
     RouteExplainResponseModel,
     create_app,
 )
+from .server import (
+    GovernedServerSettings,
+    ServerRunner,
+    UvicornServerRunner,
+    parse_server_args,
+    run_governed_server,
+)
 from .service_composition import (
     GovernedGatewayServices,
     GovernedServiceCompositionError,
@@ -112,6 +119,7 @@ __all__ = [
     "GovernedProcessArtifacts",
     "GovernedProcessBootstrapPaths",
     "GovernedProcessRuntimeBundle",
+    "GovernedServerSettings",
     "GovernedServiceCompositionError",
     "PolicyRouterClientAuthMismatchError",
     "PolicyRouterRuntimeBootstrapBundle",
@@ -122,7 +130,9 @@ __all__ = [
     "RouteExplainCoordinator",
     "RouteExplainRequestModel",
     "RouteExplainResponseModel",
+    "ServerRunner",
     "StaticGatewayClientContextResolver",
+    "UvicornServerRunner",
     "activate_governed_deployment",
     "attach_generate_route",
     "bootstrap_gateway_runtime",
@@ -141,6 +151,8 @@ __all__ = [
     "load_governed_process_artifacts",
     "materialize_governed_application_services",
     "materialize_governed_process_runtime",
+    "parse_server_args",
+    "run_governed_server",
     "validate_governed_routing_inputs",
     "validate_policy_router_client_auth",
 ]
