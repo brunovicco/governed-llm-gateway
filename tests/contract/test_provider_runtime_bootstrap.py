@@ -15,6 +15,11 @@ from governed_llm_gateway_core.adapters import (
 from governed_llm_gateway_core.domain import ModelRegistryError
 
 _ROOT = Path(__file__).resolve().parents[2]
+_MALFORMED_REGISTRY = """schema_version: "2.0"
+catalog_version: bad
+source_date: "2026-09-07"
+deployments: {}
+"""
 
 
 class RecordingSecretResolver:
@@ -118,7 +123,7 @@ def test_malformed_registry_fails_before_secret_resolution(tmp_path: Path) -> No
     secrets = RecordingSecretResolver()
     paths = _paths(
         tmp_path,
-        registry_text='schema_version: "2.0"\ncatalog_version: bad\nsource_date: "2026-09-07"\ndeployments: {}\n',
+        registry_text=_MALFORMED_REGISTRY,
         runtime_text=_runtime_json(),
     )
 
