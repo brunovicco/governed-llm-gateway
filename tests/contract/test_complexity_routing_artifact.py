@@ -187,7 +187,10 @@ def test_workload_floor_rejects_unknown_fields_and_invalid_complexity() -> None:
     clean_assessment["workload_floors"] = [
         {"workload": "demo.reasoning", "minimum": "critical"}
     ]
-    with pytest.raises(ComplexityRoutingDocumentError, match="provider-neutral complexity vocabulary"):
+    with pytest.raises(
+        ComplexityRoutingDocumentError,
+        match="provider-neutral complexity vocabulary",
+    ):
         load_complexity_routing_document_text(_dump(clean))
 
 
