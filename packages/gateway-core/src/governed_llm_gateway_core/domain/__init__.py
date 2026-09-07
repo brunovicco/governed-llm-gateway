@@ -12,6 +12,7 @@ from .complexity import (
     DeterministicComplexityEvaluator,
     WorkloadComplexityFloor,
 )
+from .complexity_quality import ComplexityQualityPolicy, ComplexityQualityPolicyError
 from .governance import (
     GovernanceAuthorizationViolation,
     GovernanceDenialReason,
@@ -67,6 +68,8 @@ __all__ = [
     "CircuitBreakerPolicy",
     "CircuitState",
     "ComplexityPolicy",
+    "ComplexityQualityPolicy",
+    "ComplexityQualityPolicyError",
     "DeploymentHealthSnapshot",
     "DeterministicComplexityEvaluator",
     "DuplicateRankingKeyError",
