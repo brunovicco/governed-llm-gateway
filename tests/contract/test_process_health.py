@@ -2,6 +2,7 @@
 
 import pytest
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from governed_llm_gateway_api.process_health import (
     ProcessHealthCompositionError,
@@ -44,5 +45,6 @@ def test_existing_health_path_conflict_fails_before_partial_attachment() -> None
     with pytest.raises(ProcessHealthCompositionError, match="/readyz"):
         attach_process_health_routes(app)
 
-    assert sum(route.path == "/livez" for route in app.routes) == 0
-    assert sum(route.path == "/readyz" for route in app.routes) == 1
+    route_paths = [route.path for route in app.routes if isinstance(route, APIRoute)]
+    assert route_paths.count("/livez") == 0
+    assert route_paths.count("/readyz") == 1
