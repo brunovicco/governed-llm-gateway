@@ -1,5 +1,11 @@
 """Application orchestration boundaries."""
 
+from .complexity_routing import (
+    ComplexityEligibleCandidateSet,
+    ComplexityNarrowingError,
+    ComplexityNarrowingProvenance,
+    narrow_authorized_candidates_by_complexity,
+)
 from .governance_evidence import (
     GovernanceEventSink,
     GovernanceEvidenceDeliveryError,
@@ -55,6 +61,9 @@ from .resilience import (
 
 __all__ = [
     "AuthorizedCandidateSet",
+    "ComplexityEligibleCandidateSet",
+    "ComplexityNarrowingError",
+    "ComplexityNarrowingProvenance",
     "ExecutionAttempt",
     "ExecutionAttemptOutcome",
     "GovernanceEventSink",
@@ -96,5 +105,6 @@ __all__ = [
     "StaticProviderResolver",
     "build_governance_denial_evidence",
     "build_governance_execution_evidence",
+    "narrow_authorized_candidates_by_complexity",
     "project_policy_request",
 ]
