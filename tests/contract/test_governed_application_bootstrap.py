@@ -5,6 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from fastapi.routing import APIRoute
 from governed_llm_gateway_api import (
     GovernedApplicationBootstrapPaths,
     GovernedGatewayServices,
@@ -277,8 +278,8 @@ def test_operational_bootstrap_resolves_secrets_then_delegates_to_pc9(tmp_path: 
         "provider:OPENAI_API_KEY",
     ]
     assert services.complexity_enabled is False
-    assert services.generate_coordinator.health is services.health
-    assert services.streaming_service.health is services.health
-    routes = {route.path for route in services.app.routes}
-    assert "/v1/route/explain" in routes
-    assert "/v1/generate" in routes
+    assert services.generate_coordinator._health is services.health
+    assert services.streaming_service._health is services.health
+    paths = {route.path for route in services.app.routes if isinstance(route, APIRoute)}
+    assert "/v1/route/explain" in paths
+    assert "/v1/generate" in paths
