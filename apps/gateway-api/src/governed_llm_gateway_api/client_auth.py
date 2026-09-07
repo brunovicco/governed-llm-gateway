@@ -46,6 +46,7 @@ class GatewayClientAuthorizationError(HTTPException):
     """Sanitized HTTP rejection for an authenticated client outside its workload scope."""
 
     def __init__(self) -> None:
+        """Return a stable 403 without exposing client or workload configuration."""
         super().__init__(
             status_code=403,
             detail={"code": "gateway_client_not_authorized"},
@@ -113,6 +114,7 @@ class EnvironmentGatewayClientSecretResolver:
     """Resolve Gateway client credentials from the Gateway process environment."""
 
     def __init__(self, environ: Mapping[str, str] | None = None) -> None:
+        """Bind an explicit mapping for tests or the current process environment."""
         self._environ = os.environ if environ is None else environ
 
     def resolve(self, reference: str) -> str:
@@ -139,6 +141,7 @@ class StaticGatewayClientContextResolver:
     """Authenticate one Gateway key and produce authoritative policy context."""
 
     def __init__(self, bindings: tuple[_ResolvedGatewayClientBinding, ...]) -> None:
+        """Bind a validated immutable credential-to-identity lookup set."""
         self._bindings = bindings
 
     async def resolve(
@@ -213,7 +216,7 @@ def build_static_gateway_client_context_resolver(
 def _validate_bindings(
     bindings: Sequence[GatewayClientAuthBinding],
 ) -> tuple[GatewayClientAuthBinding, ...]:
-    if isinstance(bindings, (str, bytes)):
+    if isinstance(bindings, str | bytes):
         raise GatewayClientAuthenticationConfigurationError(
             "gateway client bindings must be a sequence of binding objects"
         )
