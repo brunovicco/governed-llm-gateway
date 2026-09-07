@@ -1,6 +1,13 @@
 """Infrastructure adapters owned by gateway-core."""
 
 from .anthropic import AnthropicMessagesAdapter
+from .approved_ranking_artifact_json import (
+    ApprovedRankingArtifactDocumentError,
+    DuplicateApprovedRankingArtifactKeyError,
+    dump_approved_ranking_artifact_text,
+    load_approved_ranking_artifact,
+    load_approved_ranking_artifact_text,
+)
 from .complexity_routing_json import (
     ComplexityRoutingDocument,
     ComplexityRoutingDocumentError,
@@ -57,8 +64,10 @@ from .ranking_policy_yaml import load_ranking_policy, load_ranking_policy_text
 
 __all__ = [
     "AnthropicMessagesAdapter",
+    "ApprovedRankingArtifactDocumentError",
     "ComplexityRoutingDocument",
     "ComplexityRoutingDocumentError",
+    "DuplicateApprovedRankingArtifactKeyError",
     "DuplicateComplexityRoutingKeyError",
     "DuplicatePolicyRouterRuntimeKeyError",
     "DuplicateProviderRuntimeKeyError",
@@ -89,6 +98,9 @@ __all__ = [
     "StdlibPolicyTransport",
     "build_policy_router_adapter",
     "build_static_provider_resolver",
+    "dump_approved_ranking_artifact_text",
+    "load_approved_ranking_artifact",
+    "load_approved_ranking_artifact_text",
     "load_complexity_routing_document",
     "load_complexity_routing_document_text",
     "load_model_registry",
