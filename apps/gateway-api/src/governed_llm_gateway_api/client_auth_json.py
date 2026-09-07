@@ -155,9 +155,7 @@ def _parse_binding(
     try:
         minimum_risk = RiskLevel(risk_text)
     except ValueError as exc:
-        raise GatewayClientAuthDocumentError(
-            f"{label}.minimum_risk_level is unsupported"
-        ) from exc
+        raise GatewayClientAuthDocumentError(f"{label}.minimum_risk_level is unsupported") from exc
     try:
         minimum_classification = DataClassification(classification_text)
     except ValueError as exc:
