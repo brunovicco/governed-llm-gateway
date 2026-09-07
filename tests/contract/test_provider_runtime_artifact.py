@@ -212,7 +212,10 @@ def test_registry_cross_check_rejects_missing_runtime_binding() -> None:
         _deployment("openai", "openai-responses", deployment_id="openai-a"),
     )
 
-    with pytest.raises(ProviderRuntimeRegistryMismatchError, match="missing=openai/openai-responses"):
+    with pytest.raises(
+        ProviderRuntimeRegistryMismatchError,
+        match="missing=openai/openai-responses",
+    ):
         validate_provider_runtime_registry(document, registry)
 
 
