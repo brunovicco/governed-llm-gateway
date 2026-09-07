@@ -53,12 +53,12 @@ class GovernedDeploymentSettings:
         ):
             if not isinstance(value, Path):
                 raise TypeError(f"{name} must be a pathlib.Path")
-        for name, value in (
+        for name, optional_value in (
             ("ranking_policy_path", self.ranking_policy_path),
             ("approved_ranking_artifact_path", self.approved_ranking_artifact_path),
             ("complexity_routing_path", self.complexity_routing_path),
         ):
-            if value is not None and not isinstance(value, Path):
+            if optional_value is not None and not isinstance(optional_value, Path):
                 raise TypeError(f"{name} must be a pathlib.Path or None")
 
         static_selected = self.ranking_policy_path is not None
