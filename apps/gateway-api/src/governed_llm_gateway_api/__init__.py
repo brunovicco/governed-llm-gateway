@@ -1,6 +1,13 @@
 """FastAPI composition-root surfaces for the Governed LLM Gateway."""
 
 from .application import create_gateway_app
+from .application_bootstrap import (
+    GovernedApplicationArtifacts,
+    GovernedApplicationBootstrapPaths,
+    bootstrap_governed_application_services,
+    load_governed_application_artifacts,
+    materialize_governed_application_services,
+)
 from .client_auth import (
     EnvironmentGatewayClientSecretResolver,
     GatewayClientAuthBinding,
@@ -65,6 +72,7 @@ from .service_composition import (
     GovernedGatewayServices,
     GovernedServiceCompositionError,
     compose_governed_gateway_services,
+    validate_governed_routing_inputs,
 )
 from .stream_generate import (
     GenerateCoordinator,
@@ -96,6 +104,8 @@ __all__ = [
     "GatewayRuntimeBootstrapPaths",
     "GenerateCoordinator",
     "GenerateRequestModel",
+    "GovernedApplicationArtifacts",
+    "GovernedApplicationBootstrapPaths",
     "GovernedGatewayServices",
     "GovernedProcessArtifacts",
     "GovernedProcessBootstrapPaths",
@@ -113,6 +123,7 @@ __all__ = [
     "StaticGatewayClientContextResolver",
     "attach_generate_route",
     "bootstrap_gateway_runtime",
+    "bootstrap_governed_application_services",
     "bootstrap_governed_process_runtime",
     "bootstrap_policy_router_runtime",
     "bootstrap_provider_runtime",
@@ -123,7 +134,10 @@ __all__ = [
     "create_gateway_app",
     "load_gateway_client_auth_document",
     "load_gateway_client_auth_document_text",
+    "load_governed_application_artifacts",
     "load_governed_process_artifacts",
+    "materialize_governed_application_services",
     "materialize_governed_process_runtime",
+    "validate_governed_routing_inputs",
     "validate_policy_router_client_auth",
 ]
