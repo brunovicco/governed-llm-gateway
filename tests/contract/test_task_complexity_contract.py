@@ -40,8 +40,9 @@ def test_complexity_assessment_rejects_malformed_provenance(
     assessment_id = invalid_value if field_name == "assessment_id" else "assessment-001"
     evaluator_id = invalid_value if field_name == "evaluator_id" else "deterministic-complexity"
     evaluator_version = invalid_value if field_name == "evaluator_version" else "v1"
+    error_pattern = rf"complexity {field_name} must be a normalized identifier"
 
-    with pytest.raises(ValueError, match=rf"complexity {field_name} must be a normalized identifier"):
+    with pytest.raises(ValueError, match=error_pattern):
         ComplexityAssessment(
             level=TaskComplexity.MEDIUM,
             assessment_id=assessment_id,
@@ -51,7 +52,9 @@ def test_complexity_assessment_rejects_malformed_provenance(
 
 
 def test_complexity_assessment_rejects_non_vocab_level() -> None:
-    with pytest.raises(ValueError, match="complexity level must use the provider-neutral vocabulary"):
+    error_pattern = "complexity level must use the provider-neutral vocabulary"
+
+    with pytest.raises(ValueError, match=error_pattern):
         ComplexityAssessment(
             level=cast(TaskComplexity, "high"),
             assessment_id="assessment-001",
