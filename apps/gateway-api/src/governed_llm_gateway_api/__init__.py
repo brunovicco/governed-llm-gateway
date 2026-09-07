@@ -1,5 +1,6 @@
 """FastAPI composition-root surfaces for the Governed LLM Gateway."""
 
+from .application import create_gateway_app
 from .client_auth import (
     EnvironmentGatewayClientSecretResolver,
     GatewayClientAuthBinding,
@@ -88,6 +89,7 @@ __all__ = [
     "build_static_gateway_client_context_resolver",
     "complexity_evidence_from_decision",
     "create_app",
+    "create_gateway_app",
     "load_gateway_client_auth_document",
     "load_gateway_client_auth_document_text",
 ]
