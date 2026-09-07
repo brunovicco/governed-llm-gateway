@@ -15,24 +15,33 @@ The initial request can carry:
 - capability requirements;
 - latency/cost limits.
 
-These are inputs/claims. They may make a request stricter, but cannot by themselves weaken an
-authoritative restriction.
+These are inputs/claims. They may make a request stricter, but cannot by themselves weaken an authoritative restriction.
 
 ## Authoritative context
 
-Before the PDP decision is accepted for enforcement, the gateway/authentication boundary must bind at
-least:
+Before the PDP decision is accepted for enforcement, the gateway/authentication boundary binds:
 
-- authenticated client/workload identity;
+- authenticated client identity;
 - deployment environment;
-- policy version/decision provenance;
-- permitted workload namespace(s);
-- minimum effective data classification and risk constraints applicable to the identity.
+- exact permitted workload scope;
+- minimum effective data classification applicable to the identity;
+- minimum effective risk applicable to the identity.
+
+Policy version/decision provenance remains authoritative PDP output rather than a caller-authentication attribute.
 
 ## Reconciliation
 
-If caller and authoritative context conflict, the gateway/policy layer chooses the stricter outcome or
-rejects the request. It never trusts a caller downgrade such as `confidential → public` or a workload
-outside the identity's allowed scope.
+PC-3 makes the API-key reconciliation rule concrete:
 
-The exact identity provider/API-key mapping is deferred beyond Phase 0; the trust rule is not.
+1. authenticate `X-Gateway-API-Key` against server-side resolved Gateway client credentials;
+2. bind the matching deployment-owned client identity and environment;
+3. require exact workload allowlist membership;
+4. compute the stricter of caller risk and the configured authoritative minimum risk;
+5. compute the stricter of caller data classification and the configured authoritative minimum classification;
+6. emit `EffectivePolicyContext` for the existing prompt-free PDP projection.
+
+If caller and authoritative context conflict, the gateway chooses the stricter risk/classification or rejects the request. It never trusts a caller downgrade such as `confidential → public`, a workload outside the identity's allowed scope, or caller-controlled `agent_identity` as authentication evidence.
+
+Invalid credentials fail as authentication errors. A valid credential outside its configured workload scope fails separately as client authorization. Neither condition can trigger provider execution.
+
+See `docs/project/GATEWAY_CLIENT_AUTHENTICATION.md` for the concrete PC-3 boundary.
