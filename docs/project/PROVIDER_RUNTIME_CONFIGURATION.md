@@ -122,8 +122,40 @@ ProviderRuntimeConfig(
 
 The example hostname is illustrative. Production endpoints remain explicit deployment-owned configuration and must be independently verified before enablement.
 
-## PC-0 scope boundary
+## Versioned artifact and bootstrap progression
 
-PC-0 establishes the typed runtime composition boundary. It deliberately does not add a provider configuration file loader or process bootstrap yet.
+PC-0 established the typed provider configuration and server-side secret-resolution boundary.
 
-The next provider-composition increment can load a closed, versioned deployment artifact, cross-check configured provider/API-family bindings against the Model Registry, and assemble the Gateway application at startup. That work must preserve the same rule: configuration may make an adapter available, but it never authorizes a model.
+PC-1 added the closed JSON provider-runtime artifact at `config/providers/runtime.json`, deterministic configuration provenance, and exact cross-checking against the enabled `(provider, api_family)` requirement set from `config/model_registry.yaml`. The checked-in artifacts remain intentionally empty and credential-free until reviewed live provider entries are introduced.
+
+PC-2 adds the API composition helper `bootstrap_provider_runtime(...)`. It is deliberately a one-shot provider-runtime bootstrap rather than a global application singleton. The required startup ordering is:
+
+```text
+explicit local paths
+    -> load Model Registry
+    -> load provider runtime artifact
+    -> exact registry/runtime cross-check
+    -> server-side ProviderSecretResolver
+    -> StaticProviderResolver
+    -> immutable ProviderRuntimeBootstrapBundle
+```
+
+The registry/runtime cross-check occurs before any provider credential is resolved. A malformed artifact, missing binding, or extra binding therefore fails closed without secret-backend access.
+
+The immutable bootstrap bundle exposes:
+
+- the validated `ModelRegistry`;
+- the validated `ProviderRuntimeDocument`;
+- deterministic model-registry and provider-runtime digests;
+- the provider-runtime `config_version`;
+- the configured `StaticProviderResolver` used only after governed routing has selected a concrete deployment.
+
+It does not expose raw provider credentials and it does not create provider candidates, model groups, ranking scores, policy decisions, health state, or fallback authority.
+
+## Full process bootstrap remains a separate increment
+
+The FastAPI package already exposes dependency-injected route/application factories, but provider composition is only one part of a complete Gateway process. Policy Router authentication/configuration, trusted client-context resolution, ranking-policy composition, health lifecycle, observability process setup, and deployment entrypoint configuration must be composed explicitly rather than hidden behind mutable module globals.
+
+PC-2 therefore does **not** add a module-level `FastAPI` application, `uvicorn` entrypoint, container command, request-time provider config reload, file watcher, adaptive provider discovery, or cloud-specific secret-manager implementation.
+
+A later process-bootstrap increment may assemble those independently reviewed dependencies around this provider bundle. That future composition must preserve the permanent authority rule: provider configuration can make an adapter operationally available, but it can never authorize, widen, rank, or resurrect a model candidate.
