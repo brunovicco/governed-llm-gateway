@@ -4,21 +4,27 @@ Provider configuration is deployment-owned by the Governed LLM Gateway. Consumer
 not receive provider endpoints or provider credentials; they use only the Gateway URL and Gateway
 credential.
 
-PC-0 introduces the typed runtime boundary in
-`governed_llm_gateway_core.adapters.provider_runtime`:
+The runtime boundary in `governed_llm_gateway_core.adapters.provider_runtime` provides:
 
-- `ProviderRuntimeConfig` stores provider/API-family transport metadata and a credential reference,
+- `ProviderRuntimeConfig` for provider/API-family transport metadata plus a credential reference,
   never a credential value;
-- `ProviderSecretResolver` resolves provider credentials inside the Gateway process;
-- `EnvironmentProviderSecretResolver` is the initial server-side implementation;
-- `build_static_provider_resolver` creates the existing `(provider, api_family)` resolver mapping.
+- `ProviderSecretResolver` for server-side credential resolution;
+- `EnvironmentProviderSecretResolver` as the initial resolver implementation;
+- `build_static_provider_resolver` for the existing `(provider, api_family)` adapter mapping.
+
+PC-1 adds `runtime.json` as the committed, closed, versioned, secret-free deployment artifact. The
+artifact is parsed without provider I/O or secret resolution, receives a deterministic digest after
+validation, and is cross-checked against the `(provider, api_family)` pairs required by enabled Model
+Registry deployments.
+
+The current `runtime.json` is intentionally empty because `config/model_registry.yaml` still contains
+no concrete deployments. Adding a provider binding without a corresponding enabled registry deployment
+fails the PC-1 cross-check; enabling a registry deployment without its runtime binding fails as well.
+Neither condition has authorization semantics: Policy Model Router remains the authority for which
+logical model group may be used.
 
 Custom endpoints are validated before adapter construction and must not be caller-controlled request
 values. OpenAI-compatible feature claims remain explicit and fail closed.
 
-No committed provider configuration artifact or provider secret is added in PC-0. A later PC-1
-increment will define the closed deployment file/bootstrap contract and cross-check it against the
-Model Registry.
-
-See `docs/project/PROVIDER_RUNTIME_CONFIGURATION.md` for the full boundary and supported API-family
-vocabulary.
+See `docs/project/PROVIDER_RUNTIME_CONFIGURATION.md` and
+`docs/project/PROVIDER_RUNTIME_ARTIFACT.md` for the full runtime and artifact boundaries.

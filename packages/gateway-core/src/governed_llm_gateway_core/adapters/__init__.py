@@ -21,10 +21,20 @@ from .provider_runtime import (
     ProviderSecretResolver,
     build_static_provider_resolver,
 )
+from .provider_runtime_json import (
+    DuplicateProviderRuntimeKeyError,
+    ProviderRuntimeDocument,
+    ProviderRuntimeDocumentError,
+    ProviderRuntimeRegistryMismatchError,
+    load_provider_runtime_document,
+    load_provider_runtime_document_text,
+    validate_provider_runtime_registry,
+)
 from .ranking_policy_yaml import load_ranking_policy, load_ranking_policy_text
 
 __all__ = [
     "AnthropicMessagesAdapter",
+    "DuplicateProviderRuntimeKeyError",
     "EnvironmentProviderSecretResolver",
     "GeminiAdapter",
     "GovernanceAuthorizationVerificationError",
@@ -35,6 +45,9 @@ __all__ = [
     "ProviderApiFamily",
     "ProviderRuntimeConfig",
     "ProviderRuntimeConfigurationError",
+    "ProviderRuntimeDocument",
+    "ProviderRuntimeDocumentError",
+    "ProviderRuntimeRegistryMismatchError",
     "ProviderSecretResolutionError",
     "ProviderSecretResolver",
     "StaticGovernanceKeyResolver",
@@ -42,7 +55,10 @@ __all__ = [
     "build_static_provider_resolver",
     "load_model_registry",
     "load_model_registry_text",
+    "load_provider_runtime_document",
+    "load_provider_runtime_document_text",
     "load_ranking_policy",
     "load_ranking_policy_text",
+    "validate_provider_runtime_registry",
     "verify_governance_authorization_text",
 ]
