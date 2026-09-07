@@ -419,9 +419,10 @@ def test_complexity_generation_authorizes_before_assessment_and_selects_high_qua
     assert events == ["authorize", "assess"]
     assert prepared.decision.selected is not None
     assert prepared.decision.selected.deployment.deployment_id == "deployment-high"
-    assert tuple(
-        candidate.deployment.deployment_id for candidate in prepared.decision.alternatives
-    ) == ()
+    assert (
+        tuple(candidate.deployment.deployment_id for candidate in prepared.decision.alternatives)
+        == ()
+    )
     assert prepared.decision.routing.score_provenance_mode == "benchmark_hybrid"
 
 
