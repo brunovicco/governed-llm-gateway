@@ -252,9 +252,9 @@ def _require_exact_fields(
     expected: frozenset[str],
     label: str,
 ) -> None:
-    actual = frozenset(payload)
-    missing = sorted(expected - actual)
-    extra = sorted(actual - expected, key=str)
+    actual: frozenset[object] = frozenset(payload)
+    missing = sorted(item for item in expected if item not in actual)
+    extra = sorted((item for item in actual if item not in expected), key=str)
     if missing or extra:
         details: list[str] = []
         if missing:
