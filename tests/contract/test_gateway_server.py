@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 import uvicorn
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from governed_llm_gateway_api import server as server_module
 from governed_llm_gateway_api.deployment_activation import GovernedDeploymentSettings
 from governed_llm_gateway_api.server import (
@@ -154,7 +155,7 @@ def test_injected_runner_receives_composed_app_without_socket_binding(
     assert runner.app is app
     assert runner.host == "localhost"
     assert runner.port == 8123
-    route_paths = [route.path for route in app.routes]
+    route_paths = [route.path for route in app.routes if isinstance(route, APIRoute)]
     assert route_paths.count("/livez") == 1
     assert route_paths.count("/readyz") == 1
 
