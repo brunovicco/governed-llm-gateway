@@ -1,9 +1,112 @@
 # Observability and Evidence
 
-Runtime OpenTelemetry integration begins in Phase 9 using `a2a-otel-kit`. Earlier phases establish the
-privacy and provenance contract that telemetry must later carry without changing domain authority.
+OpenTelemetry runtime instrumentation is established by Phase 9 on top of `a2a-otel-kit`. The gateway
+adds gateway-specific application spans and bounded attributes while the kit remains responsible for
+the vendor-neutral observability foundation, including sanitization, W3C propagation, OTLP/HTTP
+lifecycle, flush and shutdown semantics.
 
-## Current routing evidence
+Observability is descriptive only. It is never an authorization source and must never alter inference
+availability or broaden the candidate set.
+
+Permanent invariant:
+
+```text
+Gateway allowed set ⊆ Policy Router authorized set
+```
+
+Ranking, benchmark evidence, operational evidence, health, telemetry, exporter success, retry and
+fallback cannot authorize a deployment rejected by policy.
+
+## Stable Phase 9 vocabulary
+
+The existing runtime names are now treated as a compatibility contract rather than implementation
+literals that may be renamed for presentation purposes.
+
+Spans:
+
+| Purpose | Span name |
+| --- | --- |
+| authenticated gateway request boundary | `llm.gateway.request` |
+| prompt-free PDP authorization | `policy.route` |
+| one concrete provider attempt | `provider.inference` |
+| normalized public streaming lifecycle | `llm.gateway.stream` |
+
+Provider-attempt events:
+
+| Purpose | Event name |
+| --- | --- |
+| bounded same-deployment retry | `llm.gateway.retry` |
+| bounded move to the next already-ranked candidate | `llm.gateway.fallback` |
+
+These names describe execution. They do not create authority. In particular, `provider.inference` may
+only exist after the authorization/ranking boundaries have already produced an eligible concrete
+candidate.
+
+## Attribute boundary
+
+Gateway-specific attributes pass through `a2a_otel_kit.sanitize_attributes()` with an explicit local
+allowlist. The current bounded vocabulary includes:
+
+- `llm.workload`;
+- `llm.provider`;
+- `llm.model`;
+- `llm.deployment`;
+- `llm.usage.input_count`;
+- `llm.usage.output_count`;
+- `llm.latency_ms`;
+- `llm.ttft_ms`;
+- `llm.fallback_count`;
+- `llm.attempt_number`;
+- `llm.retry_delay_ms`;
+- `llm.partial`;
+- `llm.streaming`;
+- `routing.decision_id`;
+- `routing.policy_id`;
+- `routing.policy_version`;
+- `routing.policy_digest`;
+- `routing.model_group`;
+- `registry.digest`;
+- `ranking.policy_version`;
+- `ranking.policy_digest`;
+- `ranking.score_snapshot_id`.
+
+The foundation sanitizer remains deny-by-default, accepts only bounded scalar values, and rejects
+sensitive-looking keys even when a caller tries to extend an allowlist.
+
+Avoid adding high-cardinality business values simply because OpenTelemetry can carry them. A new
+attribute requires an explicit privacy, cardinality and operational-use justification.
+
+## W3C trace continuity
+
+The Phase 9 contract preserves W3C Trace Context across the gateway boundary and outbound provider
+HTTP/SSE transports. Current contract tests verify that provider attempts remain on the gateway trace
+and that outbound transports inject the active `traceparent` without leaking provider credentials.
+
+The target local topology for the Operational Readiness track is:
+
+```text
+Application / Agent
+        │
+        ▼
+Policy Model Router
+        │
+        ▼
+Governed LLM Gateway
+        │
+        ▼
+   a2a-otel-kit
+        │ OTLP/HTTP
+        ▼
+OpenTelemetry Collector
+   ├── Tempo
+   ├── Grafana
+   └── optional future OTLP-compatible backends
+```
+
+A remote observability backend must never become an inference-availability dependency. Export or
+flush failure cannot change an otherwise valid provider result.
+
+## Routing and authorization evidence
 
 Metadata-only routing evidence can include:
 
@@ -13,90 +116,95 @@ Metadata-only routing evidence can include:
 - model-registry digest;
 - deterministic routing decision ID;
 - ranking-policy version and digest;
-- static `score_snapshot_id`;
+- score/benchmark snapshot identity when present;
 - selected provider/model/deployment;
 - machine-readable candidate rejection reasons.
 
-`score_snapshot_id` identifies static/versioned ranking configuration. It is **not** benchmark
-evidence. `benchmark_snapshot_id` remains unset until approved benchmark evidence is introduced in
-Phases 10–11.
+The explainability surface remains prompt-free and provider-free. Rejected-candidate reason codes are
+gateway-produced evidence; a UI must display those codes rather than infer its own reasons.
 
-## Phase 6 resilience evidence
+## Resilience evidence
 
-Phase 6 adds metadata sufficient to reconstruct bounded availability handling without storing payloads:
+Availability handling remains reconstructable without payload capture:
 
-- ordered `fallback_sequence` of concrete deployments actually attempted;
-- per-attempt deployment ID and attempt number;
-- normalized outcome (`succeeded`, `transient_failure`, `permanent_failure`, `circuit_open`);
-- normalized provider error category/status where applicable;
+- ordered fallback progression across already-ranked authorized deployments;
+- concrete deployment and attempt number;
+- normalized provider failure category/status where applicable;
 - bounded retry delay and attempt latency;
-- per-deployment health/circuit counters/state.
+- deployment health/circuit state;
+- retry and fallback span events.
 
-Same-deployment retries are represented separately rather than duplicating a deployment in
-`fallback_sequence`. Runtime health is mutable operational evidence, not static ranking/benchmark
-evidence.
+Same-deployment retry and cross-deployment fallback remain distinct concepts. Runtime health can only
+remove or skip candidates; it cannot resurrect an unauthorized candidate.
 
-## Phase 8 streaming evidence
+Provider failure remains availability evidence and must not be silently reclassified as model-quality
+failure.
 
-Phase 8 exposes a normalized public stream to the authenticated caller, but streaming payload content
-is not automatically converted into observability evidence.
+## Streaming evidence
+
+The normalized public stream exposes requested model output to the authenticated caller, but that
+payload does not become telemetry merely because it crosses the gateway.
 
 Metadata that can be reconstructed from the stream boundary includes:
 
-- selected deployment and bounded fallback sequence;
-- monotonic public stream sequence numbers;
-- event categories (`response.started`, content/tool lifecycle, final usage, completion/failure);
-- whether a terminal failure occurred before or after semantic output (`partial`);
+- selected deployment and bounded fallback progression;
+- monotonic public sequence numbers;
+- normalized event categories;
+- partial/non-partial terminal failure state;
 - normalized terminal error category;
 - final normalized token usage;
-- cancellation/closure outcome as an operational lifecycle fact, without treating caller cancellation
-  as provider failure.
-
-Default logs/traces/evidence must **not** record the actual text deltas, structured-output payload,
-tool argument deltas, completed tool arguments/results, or arbitrary SSE `data` values.
-
-Provider response headers are not general evidence. The Phase 8 transport retains only the bounded
-safe subset required by execution (`content-type`, `retry-after`).
-
-## Streaming provenance boundary
-
-Routing provenance may appear in `response.started` and terminal public events so the caller can
-associate output with the governed decision. It may contain decision-scoped policy/registry/ranking and
-selected/fallback identity metadata.
-
-It must not contain:
-
-- prompt/message content;
-- completion/content deltas;
-- structured payloads;
-- tool arguments/results;
-- provider/PDP/gateway credentials;
-- Authorization headers;
-- arbitrary provider response headers;
-- raw provider error bodies.
-
-A client disconnect closes the upstream stream but does not create provider-failure evidence. This is
-important so later telemetry does not corrupt provider health metrics with consumer-side cancellation.
+- cancellation/closure lifecycle state without treating caller cancellation as provider failure.
 
 ## Privacy boundary
 
-Default evidence/telemetry remains metadata-only. SDK logging, FastAPI middleware, SSE transport,
-exception serialization, retry/fallback handling, and future exporters must not implicitly capture
-customer/model payloads.
+Default telemetry is metadata-only.
 
-`POST /v1/route/explain` follows the same rule: decision metadata only, no prompt/global inventory.
-`POST /v1/generate` returns requested output to that caller but does not make the output eligible for
-background telemetry capture by default.
+Do not record implicitly:
 
-## Future tracing
+- prompts, message bodies or completions;
+- content deltas or structured-output payloads;
+- tool arguments or tool results;
+- documents or provider raw responses;
+- raw/unsanitized remote exception text;
+- arbitrary request or response headers;
+- Authorization headers, API keys or credentials.
 
-W3C trace context should eventually remain continuous across application → gateway → PDP/provider and
-MCP/A2A boundaries without making `a2a-otel-kit` a domain dependency.
+Content capture is not part of the current product-readiness cycle. Any future content capture would
+require explicit opt-in, redaction/classification, bounded retention and a separately governed policy.
 
-Phase 9 adds runtime OpenTelemetry and must preserve:
+## Operational evidence is not fleet completeness
 
-- PDP/PEP authority separation;
-- metadata-only defaults;
-- Phase 6 retry/fallback reconstruction;
-- Phase 8 stream lifecycle/partial/cancellation semantics;
-- no payload capture unless a later explicit, governed policy permits it.
+The gateway intentionally keeps distinct responsibilities:
+
+```text
+InMemoryHealthTracker
+    -> immediate per-process resilience state
+OperationalAttemptRecorder
+    -> process-local sample recording
+OperationalSampleBatch
+    -> content-addressed handoff
+OperationalEvidenceSnapshot
+    -> reviewed recent-window evidence
+```
+
+Process-local evidence must not be presented as fleet-complete telemetry. A future aggregation layer
+must make its coverage/completeness semantics explicit before a console or dashboard claims fleet
+completeness.
+
+## Collector receipt verification
+
+The Operational Readiness stack should reuse the positive-receipt pattern already proven by
+`a2a-otel-kit`: exporter flush alone is not proof that a Collector received the expected trace. The
+integration/e2e boundary should verify that expected gateway span/service identities actually appear
+in Collector output or another deterministic receipt surface.
+
+Default CI must remain credential-free and must not require a SaaS backend. Docker-based observability
+verification may live in an explicit integration/e2e job when its runtime cost and runner support are
+acceptable.
+
+## Next operational increment
+
+The next independent Operational Readiness increment should add the local Collector + Tempo + Grafana
+foundation, with pinned images, loopback-only host bindings, least-privilege container settings and no
+hardcoded secrets. Langfuse remains optional and must integrate downstream of OTLP/Collector rather
+than through a gateway SDK dependency.
