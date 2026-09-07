@@ -1,0 +1,30 @@
+name: pc15-format-once
+
+on:
+  push:
+    branches:
+      - feat/pc15-local-observability-foundation
+    paths:
+      - .github/workflows/pc15-format-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format-and-remove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/pc15-local-observability-foundation
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply pinned Ruff formatter and remove one-shot workflow
+        run: |
+          uvx --python 3.13 --from ruff==0.12.11 ruff format tests/contract/test_local_observability_foundation.py
+          git rm .github/workflows/pc15-format-once.yml
+          git add tests/contract/test_local_observability_foundation.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "style: apply pinned Ruff formatter"
+          git push origin HEAD:feat/pc15-local-observability-foundation
