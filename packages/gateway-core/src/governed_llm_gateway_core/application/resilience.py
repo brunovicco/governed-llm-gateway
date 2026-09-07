@@ -37,6 +37,8 @@ from .provider import (
 )
 from .ranking import RankedCandidate, RankingDecision, RankingInvariantViolation
 from .telemetry import (
+    GatewaySpanEventName,
+    GatewaySpanName,
     add_gateway_span_event,
     mark_span_failure,
     mark_span_success,
@@ -323,7 +325,7 @@ class ResilientExecutionService:
                 )
                 span_context = (
                     self._observability.start_span(
-                        "provider.inference",
+                        GatewaySpanName.PROVIDER_ATTEMPT.value,
                         attributes={
                             "request_id": str(request.request_id),
                             "operation": "generate",
@@ -403,7 +405,7 @@ class ResilientExecutionService:
                             if can_retry and retry_delay is not None:
                                 add_gateway_span_event(
                                     span,
-                                    "llm.gateway.retry",
+                                    GatewaySpanEventName.RETRY.value,
                                     {
                                         "retry_count": attempt_number,
                                         "llm.retry_delay_ms": int(retry_delay * 1000),
@@ -413,7 +415,7 @@ class ResilientExecutionService:
                             elif transient and candidate_index + 1 < len(bounded_candidates):
                                 add_gateway_span_event(
                                     span,
-                                    "llm.gateway.fallback",
+                                    GatewaySpanEventName.FALLBACK.value,
                                     {
                                         "llm.fallback_count": len(fallback_sequence),
                                         "llm.deployment": deployment_id,

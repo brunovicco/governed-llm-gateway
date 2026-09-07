@@ -42,6 +42,7 @@ from governed_llm_gateway_core.application.ranking import (
 )
 from governed_llm_gateway_core.application.streaming import StreamingExecutionService
 from governed_llm_gateway_core.application.telemetry import (
+    GatewaySpanName,
     mark_span_cancelled,
     mark_span_failure,
     mark_span_success,
@@ -318,7 +319,7 @@ def attach_generate_route(
                 )
             else:
                 with observability.start_span(
-                    "llm.gateway.request",
+                    GatewaySpanName.REQUEST.value,
                     attributes={
                         "request_id": str(payload.request_id),
                         "operation": "generate",
@@ -426,7 +427,7 @@ async def _sse_body(
     with (
         trace_context,
         observability.start_span(
-            "llm.gateway.stream",
+            GatewaySpanName.STREAM.value,
             attributes={
                 "request_id": str(prepared.request.request_id),
                 "operation": "stream",
