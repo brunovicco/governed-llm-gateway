@@ -184,9 +184,7 @@ def test_workload_floor_rejects_unknown_fields_and_invalid_complexity() -> None:
     clean = deepcopy(payload)
     clean_assessment = clean["assessment_policy"]
     assert isinstance(clean_assessment, dict)
-    clean_assessment["workload_floors"] = [
-        {"workload": "demo.reasoning", "minimum": "critical"}
-    ]
+    clean_assessment["workload_floors"] = [{"workload": "demo.reasoning", "minimum": "critical"}]
     with pytest.raises(
         ComplexityRoutingDocumentError,
         match="provider-neutral complexity vocabulary",
