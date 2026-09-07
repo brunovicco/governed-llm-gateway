@@ -276,8 +276,8 @@ def test_operational_composition_reuses_runtime_without_new_secret_reads(tmp_pat
     assert services.complexity_route_service is None
     assert services.complexity_route_explain_coordinator is None
     assert services.complexity_generate_coordinator is None
-    assert getattr(services.streaming_service, "_health") is health
-    assert getattr(services.generate_coordinator, "_health") is health
+    assert services.streaming_service._health is health
+    assert services.generate_coordinator._health is health
     paths = {route.path for route in services.app.routes}
     assert "/v1/route/explain" in paths
     assert "/v1/generate" in paths
@@ -322,5 +322,5 @@ def test_evidence_driven_complexity_composes_complete_post_authorization_path(
     assert services.complexity_route_service is not None
     assert services.complexity_route_explain_coordinator is not None
     assert services.complexity_generate_coordinator is not None
-    assert getattr(services.streaming_service, "_health") is health
-    assert getattr(services.complexity_generate_coordinator, "_health") is health
+    assert services.streaming_service._health is health
+    assert services.complexity_generate_coordinator._health is health
