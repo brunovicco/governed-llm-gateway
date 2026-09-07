@@ -35,17 +35,14 @@ def test_reference_bundle_has_exact_reviewed_provider_family_set() -> None:
     assert runtime.config_version == "pc3-reference-20260907"
     assert len(registry.deployments) == 4
     assert {
-        (deployment.provider, deployment.api_family)
-        for deployment in registry.deployments
+        (deployment.provider, deployment.api_family) for deployment in registry.deployments
     } == {
         ("openai", ProviderApiFamily.OPENAI_RESPONSES.value),
         ("anthropic", ProviderApiFamily.ANTHROPIC_MESSAGES.value),
         ("google", ProviderApiFamily.GEMINI_GENERATE_CONTENT.value),
         ("nvidia", ProviderApiFamily.OPENAI_COMPATIBLE.value),
     }
-    assert {
-        (binding.provider, binding.api_family.value) for binding in runtime.bindings
-    } == {
+    assert {(binding.provider, binding.api_family.value) for binding in runtime.bindings} == {
         ("openai", ProviderApiFamily.OPENAI_RESPONSES.value),
         ("anthropic", ProviderApiFamily.ANTHROPIC_MESSAGES.value),
         ("google", ProviderApiFamily.GEMINI_GENERATE_CONTENT.value),
