@@ -5,7 +5,7 @@ import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Protocol, TypeGuard
 
 from fastapi import HTTPException
 from governed_llm_gateway_contracts import DataClassification, GatewayRequest, RiskLevel
@@ -236,7 +236,7 @@ def _validate_bindings(
         client_ids.add(binding.client_id)
         references.add(binding.credential_reference)
         validated.append(binding)
-    return tuple(validated)
+    return tuple(sorted(validated, key=lambda item: item.client_id))
 
 
 def _require_identifier(value: object, field_name: str) -> None:
@@ -246,7 +246,7 @@ def _require_identifier(value: object, field_name: str) -> None:
         )
 
 
-def _valid_api_key(value: object) -> bool:
+def _valid_api_key(value: object) -> TypeGuard[str]:
     return (
         isinstance(value, str)
         and 0 < len(value) <= _MAX_API_KEY_LENGTH
