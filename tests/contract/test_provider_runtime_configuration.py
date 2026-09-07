@@ -29,7 +29,7 @@ from governed_llm_gateway_core.adapters.openai_responses_streaming import (
 from governed_llm_gateway_core.application.provider import ProviderStreamingPort
 from governed_llm_gateway_core.domain import ModelDeployment, PricingMetadata
 
-_SECRET = "provider-secret-must-not-appear"
+_OPAQUE_VALUE = "runtime-value-must-not-appear"
 _TODAY = date(2026, 9, 7)
 
 
@@ -94,7 +94,7 @@ def test_runtime_config_contains_only_credential_reference() -> None:
     )
 
     assert config.credential_env_var == "OPENAI_API_KEY"
-    assert _SECRET not in repr(config)
+    assert _OPAQUE_VALUE not in repr(config)
     assert not hasattr(config, "api_key")
     assert not hasattr(config, "credential")
 
@@ -141,7 +141,7 @@ def test_environment_secret_resolution_fails_closed_without_secret_contents() ->
     resolver = EnvironmentProviderSecretResolver(
         {
             "EMPTY_PROVIDER_KEY": "",
-            "MALFORMED_PROVIDER_KEY": f" {_SECRET} ",
+            "MALFORMED_PROVIDER_KEY": f" {_OPAQUE_VALUE} ",
         }
     )
 
@@ -152,7 +152,7 @@ def test_environment_secret_resolution_fails_closed_without_secret_contents() ->
     ):
         with pytest.raises(ProviderSecretResolutionError) as caught:
             resolver.resolve(reference)
-        assert _SECRET not in str(caught.value)
+        assert _OPAQUE_VALUE not in str(caught.value)
 
 
 def test_factory_builds_native_streaming_adapters_from_server_side_secrets() -> None:
@@ -181,9 +181,9 @@ def test_factory_builds_native_streaming_adapters_from_server_side_secrets() -> 
         configs,
         EnvironmentProviderSecretResolver(
             {
-                "OPENAI_API_KEY": _SECRET,
-                "ANTHROPIC_API_KEY": _SECRET,
-                "GEMINI_API_KEY": _SECRET,
+                "OPENAI_API_KEY": _OPAQUE_VALUE,
+                "ANTHROPIC_API_KEY": _OPAQUE_VALUE,
+                "GEMINI_API_KEY": _OPAQUE_VALUE,
             }
         ),
     )
@@ -218,7 +218,7 @@ def test_nvidia_uses_explicit_openai_compatible_streaming_family() -> None:
     )
     resolver = build_static_provider_resolver(
         (config,),
-        EnvironmentProviderSecretResolver({"NVIDIA_API_KEY": _SECRET}),
+        EnvironmentProviderSecretResolver({"NVIDIA_API_KEY": _OPAQUE_VALUE}),
     )
 
     adapter = resolver.resolve(_deployment("nvidia", ProviderApiFamily.OPENAI_COMPATIBLE))
@@ -226,7 +226,7 @@ def test_nvidia_uses_explicit_openai_compatible_streaming_family() -> None:
     assert isinstance(adapter, ProviderStreamingPort)
     assert adapter.feature_support.native_streaming is True
     assert adapter.feature_support.streaming_usage is True
-    assert _SECRET not in repr(config)
+    assert _OPAQUE_VALUE not in repr(config)
 
 
 def test_non_streaming_compatible_config_does_not_gain_streaming_support() -> None:
@@ -239,7 +239,7 @@ def test_non_streaming_compatible_config_does_not_gain_streaming_support() -> No
     )
     resolver = build_static_provider_resolver(
         (config,),
-        EnvironmentProviderSecretResolver({"COMPATIBLE_API_KEY": _SECRET}),
+        EnvironmentProviderSecretResolver({"COMPATIBLE_API_KEY": _OPAQUE_VALUE}),
     )
 
     adapter = resolver.resolve(
@@ -263,13 +263,16 @@ def test_duplicate_provider_api_family_binding_fails_closed() -> None:
         "https://secondary.openai.example/v1/responses",
     )
 
-    with pytest.raises(ProviderRuntimeConfigurationError, match="duplicate provider runtime binding"):
+    with pytest.raises(
+        ProviderRuntimeConfigurationError,
+        match="duplicate provider runtime binding",
+    ):
         build_static_provider_resolver(
             (first, duplicate),
             EnvironmentProviderSecretResolver(
                 {
-                    "OPENAI_API_KEY": _SECRET,
-                    "OPENAI_SECONDARY_API_KEY": _SECRET,
+                    "OPENAI_API_KEY": _OPAQUE_VALUE,
+                    "OPENAI_SECONDARY_API_KEY": _OPAQUE_VALUE,
                 }
             ),
         )
