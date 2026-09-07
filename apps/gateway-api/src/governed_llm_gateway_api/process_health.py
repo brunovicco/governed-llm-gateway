@@ -3,6 +3,7 @@
 from typing import Literal
 
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict
 
 
@@ -30,7 +31,9 @@ def attach_process_health_routes(app: FastAPI) -> None:
     """Attach process-only health routes exactly once without dependency probing."""
     if not isinstance(app, FastAPI):
         raise TypeError("app must be a FastAPI application")
-    existing_paths = {route.path for route in app.routes}
+    existing_paths = {
+        route.path for route in app.routes if isinstance(route, APIRoute)
+    }
     conflicts = sorted(existing_paths & {"/livez", "/readyz"})
     if conflicts:
         raise ProcessHealthCompositionError(
