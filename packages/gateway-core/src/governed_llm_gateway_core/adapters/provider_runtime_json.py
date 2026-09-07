@@ -118,9 +118,14 @@ def validate_provider_runtime_registry(
     if missing or extra:
         details: list[str] = []
         if missing:
-            details.append("missing=" + ",".join(f"{provider}/{family}" for provider, family in missing))
+            details.append(
+                "missing="
+                + ",".join(f"{provider}/{family}" for provider, family in missing)
+            )
         if extra:
-            details.append("extra=" + ",".join(f"{provider}/{family}" for provider, family in extra))
+            details.append(
+                "extra=" + ",".join(f"{provider}/{family}" for provider, family in extra)
+            )
         raise ProviderRuntimeRegistryMismatchError(
             "provider runtime bindings do not match enabled registry API families: "
             + "; ".join(details)
