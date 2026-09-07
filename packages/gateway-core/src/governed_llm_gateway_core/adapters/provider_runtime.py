@@ -197,11 +197,7 @@ def _resolve_credential(
         credential = secrets.resolve(config.credential_reference)
     except Exception:
         raise ProviderSecretResolutionError("provider credential resolution failed") from None
-    if (
-        not isinstance(credential, str)
-        or not credential
-        or credential.strip() != credential
-    ):
+    if not isinstance(credential, str) or not credential or credential.strip() != credential:
         raise ProviderSecretResolutionError("provider credential resolution failed")
     return credential
 
