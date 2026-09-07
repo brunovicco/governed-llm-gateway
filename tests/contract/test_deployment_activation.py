@@ -25,10 +25,6 @@ class RecordingEnvironment(Mapping[str, str]):
     def __len__(self) -> int:
         return 0
 
-    def get(self, key: str, default: str | None = None) -> str | None:
-        self.lookups.append(key)
-        return default
-
 
 def _settings(
     root: Path,
