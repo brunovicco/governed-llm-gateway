@@ -9,6 +9,8 @@ from .complexity_evidence import (
 )
 from .route_explain import (
     ClientAuthenticationError,
+    ComplexityRouteExplainCoordinator,
+    ComplexityRouteExplainResponseModel,
     EffectiveContextResolver,
     RouteExplainCoordinator,
     RouteExplainRequestModel,
@@ -28,6 +30,8 @@ __all__ = [
     "ComplexityExplainModel",
     "ComplexityHttpEvidenceInvariantViolation",
     "ComplexityNarrowingExplainModel",
+    "ComplexityRouteExplainCoordinator",
+    "ComplexityRouteExplainResponseModel",
     "EffectiveContextResolver",
     "GenerateCoordinator",
     "GenerateRequestModel",

@@ -6,7 +6,7 @@ from typing import Annotated, Literal, Protocol
 from uuid import UUID
 
 from a2a_otel_kit import Observability, continue_trace
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from governed_llm_gateway_contracts import (
     DataClassification,
     GatewayRequest,
@@ -15,6 +15,10 @@ from governed_llm_gateway_contracts import (
     WorkloadRequirements,
 )
 from governed_llm_gateway_core.application import (
+    ComplexityNarrowingError,
+    ComplexityRankingError,
+    ComplexityRouteExplainDecision,
+    ComplexityRouteExplainService,
     PolicyDecisionError,
     PolicyDecisionErrorCode,
     PolicyProjectionDefaults,
@@ -32,10 +36,17 @@ from governed_llm_gateway_core.application.telemetry import (
     mark_span_success,
     set_gateway_span_attributes,
 )
+from governed_llm_gateway_core.domain.evidence_ranking import EvidenceDrivenRankingPolicy
 from governed_llm_gateway_core.domain.model_registry import ModelRegistry
 from governed_llm_gateway_core.domain.ranking import RankingPolicy, RankingPolicyError
 from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
 from pydantic import BaseModel, ConfigDict, Field
+
+from .complexity_evidence import (
+    ComplexityExplainModel,
+    ComplexityHttpEvidenceInvariantViolation,
+    complexity_evidence_from_decision,
+)
 
 _WORKLOAD_PATTERN = r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"
 _TRACE_HEADERS = ("traceparent", "tracestate")
@@ -178,6 +189,12 @@ class RouteExplainResponseModel(BaseModel):
     ranking: RankingExplainModel
 
 
+class ComplexityRouteExplainResponseModel(RouteExplainResponseModel):
+    """Opt-in route explanation with validated benchmark-grounded complexity evidence."""
+
+    complexity: ComplexityExplainModel
+
+
 class RouteExplainCoordinator:
     """Compose credential resolution, PDP authorization, and deterministic ranking."""
 
@@ -221,26 +238,76 @@ class RouteExplainCoordinator:
         return _response(payload.request_id, decision)
 
 
+class ComplexityRouteExplainCoordinator:
+    """Compose credential resolution with the validated CR-2c no-inference service."""
+
+    def __init__(
+        self,
+        *,
+        context_resolver: EffectiveContextResolver,
+        service: ComplexityRouteExplainService,
+        registry: ModelRegistry,
+        ranking_policy: EvidenceDrivenRankingPolicy,
+        defaults: PolicyProjectionDefaults,
+    ) -> None:
+        """Bind explicit benchmark-grounded complexity routing dependencies."""
+        self._context_resolver = context_resolver
+        self._service = service
+        self._registry = registry
+        self._ranking_policy = ranking_policy
+        self._defaults = defaults
+
+    async def explain(
+        self,
+        *,
+        api_key: str,
+        payload: RouteExplainRequestModel,
+    ) -> ComplexityRouteExplainResponseModel:
+        """Resolve trusted context and return complexity-aware route evidence."""
+        request = payload.to_gateway_request()
+        effective_context = await self._context_resolver.resolve(
+            api_key=api_key,
+            request=request,
+        )
+        decision = await self._service.explain(
+            request,
+            effective_context,
+            self._registry,
+            self._ranking_policy,
+            context_tokens_estimated=payload.context_tokens_estimated,
+            max_output_tokens_estimated=payload.max_output_tokens_estimated,
+            defaults=self._defaults,
+        )
+        return _complexity_response(payload.request_id, decision)
+
+
 def create_app(
     coordinator: RouteExplainCoordinator,
     *,
+    complexity_coordinator: ComplexityRouteExplainCoordinator | None = None,
     observability: Observability | None = None,
 ) -> FastAPI:
-    """Create the API with authenticated explain routing and optional Phase 9 tracing."""
+    """Create authenticated route explanation with optional explicit complexity mode."""
     app = FastAPI(title="Governed LLM Gateway", version="0.1.0")
 
-    @app.post("/v1/route/explain", response_model=RouteExplainResponseModel)
+    @app.post(
+        "/v1/route/explain",
+        response_model=ComplexityRouteExplainResponseModel | RouteExplainResponseModel,
+    )
     async def route_explain(
         request: Request,
         payload: RouteExplainRequestModel,
         gateway_api_key: Annotated[str, Header(alias="X-Gateway-API-Key", min_length=1)],
-    ) -> RouteExplainResponseModel:
+        mode: Annotated[Literal["operational", "complexity"], Query()] = "operational",
+    ) -> ComplexityRouteExplainResponseModel | RouteExplainResponseModel:
         trace_carrier = _trace_carrier(request)
         trace_context = continue_trace(trace_carrier) if trace_carrier else nullcontext()
         with trace_context:
             if observability is None:
-                return await _execute_route_explain(
+                return await _dispatch_route_explain(
                     coordinator,
+                    complexity_coordinator=complexity_coordinator,
+                    mode=mode,
                     api_key=gateway_api_key,
                     payload=payload,
                 )
@@ -261,8 +328,10 @@ def create_app(
                     },
                 )
                 try:
-                    response = await _execute_route_explain(
+                    response = await _dispatch_route_explain(
                         coordinator,
+                        complexity_coordinator=complexity_coordinator,
+                        mode=mode,
                         api_key=gateway_api_key,
                         payload=payload,
                     )
@@ -293,6 +362,32 @@ def create_app(
                 return response
 
     return app
+
+
+async def _dispatch_route_explain(
+    coordinator: RouteExplainCoordinator,
+    *,
+    complexity_coordinator: ComplexityRouteExplainCoordinator | None,
+    mode: Literal["operational", "complexity"],
+    api_key: str,
+    payload: RouteExplainRequestModel,
+) -> ComplexityRouteExplainResponseModel | RouteExplainResponseModel:
+    if mode == "complexity":
+        if complexity_coordinator is None:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "complexity_routing_unavailable"},
+            )
+        return await _execute_complexity_route_explain(
+            complexity_coordinator,
+            api_key=api_key,
+            payload=payload,
+        )
+    return await _execute_route_explain(
+        coordinator,
+        api_key=api_key,
+        payload=payload,
+    )
 
 
 async def _execute_route_explain(
@@ -327,6 +422,41 @@ async def _execute_route_explain(
         raise HTTPException(
             status_code=503,
             detail={"code": "ranking_invariant_violation"},
+        ) from exc
+
+
+async def _execute_complexity_route_explain(
+    coordinator: ComplexityRouteExplainCoordinator,
+    *,
+    api_key: str,
+    payload: RouteExplainRequestModel,
+) -> ComplexityRouteExplainResponseModel:
+    try:
+        return await coordinator.explain(
+            api_key=api_key,
+            payload=payload,
+        )
+    except ClientAuthenticationError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "invalid_gateway_credential"},
+        ) from exc
+    except PolicyProjectionError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "invalid_policy_projection"},
+        ) from exc
+    except PolicyDecisionError as exc:
+        raise _policy_http_exception(exc) from exc
+    except (ComplexityNarrowingError, ComplexityRankingError, RankingPolicyError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "complexity_routing_unavailable"},
+        ) from exc
+    except (ComplexityHttpEvidenceInvariantViolation, RankingInvariantViolation) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "complexity_routing_invariant_violation"},
         ) from exc
 
 
@@ -398,6 +528,22 @@ def _response(request_id: UUID, decision: RankingDecision) -> RouteExplainRespon
                 for item in decision.rejected_candidates
             ),
         ),
+    )
+
+
+def _complexity_response(
+    request_id: UUID,
+    decision: ComplexityRouteExplainDecision,
+) -> ComplexityRouteExplainResponseModel:
+    base = _response(request_id, decision.ranking)
+    return ComplexityRouteExplainResponseModel(
+        request_id=base.request_id,
+        authorized_model_group=base.authorized_model_group,
+        selected_deployment=base.selected_deployment,
+        policy=base.policy,
+        model_registry_digest=base.model_registry_digest,
+        ranking=base.ranking,
+        complexity=complexity_evidence_from_decision(decision),
     )
 
 
