@@ -119,8 +119,7 @@ def validate_provider_runtime_registry(
         details: list[str] = []
         if missing:
             details.append(
-                "missing="
-                + ",".join(f"{provider}/{family}" for provider, family in missing)
+                "missing=" + ",".join(f"{provider}/{family}" for provider, family in missing)
             )
         if extra:
             details.append(
