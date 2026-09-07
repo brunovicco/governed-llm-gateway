@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from governed_llm_gateway_api import (
     GovernedApplicationBootstrapPaths,
+    GovernedGatewayServices,
     GovernedProcessBootstrapPaths,
     GovernedServiceCompositionError,
     bootstrap_governed_application_services,
@@ -194,7 +195,7 @@ def _bootstrap(
     client: RecordingSecrets,
     policy: RecordingSecrets,
     provider: RecordingSecrets,
-):
+) -> GovernedGatewayServices:
     return bootstrap_governed_application_services(
         paths,
         client_secrets=client,
