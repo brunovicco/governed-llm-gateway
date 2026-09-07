@@ -8,6 +8,7 @@ from enum import StrEnum
 from typing import Protocol
 from urllib.parse import urlsplit
 
+from governed_llm_gateway_core.application.provider import ProviderPort
 from governed_llm_gateway_core.application.resilience import StaticProviderResolver
 
 from .anthropic_streaming import AnthropicMessagesStreamingAdapter
@@ -160,7 +161,7 @@ def build_static_provider_resolver(
     secrets: ProviderSecretResolver,
 ) -> StaticProviderResolver:
     """Build one immutable resolver from validated configs and server-side credentials."""
-    providers: dict[tuple[str, str], object] = {}
+    providers: dict[tuple[str, str], ProviderPort] = {}
     for config in configs:
         if not isinstance(config, ProviderRuntimeConfig):
             raise ProviderRuntimeConfigurationError(
@@ -176,7 +177,7 @@ def build_static_provider_resolver(
     return StaticProviderResolver(providers)
 
 
-def _build_adapter(config: ProviderRuntimeConfig, credential: str) -> object:
+def _build_adapter(config: ProviderRuntimeConfig, credential: str) -> ProviderPort:
     if config.api_family is ProviderApiFamily.OPENAI_RESPONSES:
         return OpenAIResponsesStreamingAdapter(
             api_key=credential,
