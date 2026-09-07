@@ -85,8 +85,8 @@ def _validate_ranking_subset(
     """Defend against any future ranking implementation accidentally widening candidates."""
     eligible_ids = frozenset(item.deployment_id for item in eligible.candidates)
     ranked_candidates = (
-        (() if ranking.selected is None else (ranking.selected,)) + ranking.alternatives
-    )
+        () if ranking.selected is None else (ranking.selected,)
+    ) + ranking.alternatives
     ranked_ids = frozenset(item.deployment.deployment_id for item in ranked_candidates)
     rejected_ids = frozenset(item.deployment for item in ranking.rejected_candidates)
     if not ranked_ids <= eligible_ids:
