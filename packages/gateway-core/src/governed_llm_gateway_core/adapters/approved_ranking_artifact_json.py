@@ -146,7 +146,7 @@ def _build_evidence_driven_policy(
             "approved runtime policy schema_version must be '1.1'"
         )
 
-    base_payload: dict[str, object] = {
+    base_payload: dict[object, object] = {
         "schema_version": "1.0",
         "policy_version": payload["policy_version"],
         "score_snapshot_id": payload["score_snapshot_id"],
