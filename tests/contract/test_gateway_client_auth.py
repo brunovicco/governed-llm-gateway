@@ -158,7 +158,7 @@ def test_authenticated_client_outside_workload_scope_gets_distinct_403() -> None
         )
 
     assert captured.value.status_code == 403
-    assert captured.value.detail == {"code": "gateway_client_not_authorized"}
+    assert cast(object, captured.value.detail) == {"code": "gateway_client_not_authorized"}
 
 
 def test_duplicate_client_ids_fail_before_secret_backend_access() -> None:
