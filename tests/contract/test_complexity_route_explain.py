@@ -1,5 +1,6 @@
 """Contract tests for end-to-end complexity-aware no-inference route explanation."""
 
+import asyncio
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -248,8 +249,7 @@ def _defaults() -> PolicyProjectionDefaults:
     )
 
 
-@pytest.mark.asyncio
-async def test_authorization_precedes_complexity_and_unauthorized_model_never_resurrects() -> None:
+def test_authorization_precedes_complexity_and_unauthorized_model_never_resurrects() -> None:
     events: list[str] = []
     low = _deployment("deployment-low")
     high = _deployment("deployment-high")
@@ -261,14 +261,16 @@ async def test_authorization_precedes_complexity_and_unauthorized_model_never_re
         _score(forbidden.deployment_id, "1.00"),
     )
 
-    result = await _service(events).explain(
-        _request(),
-        _effective_context(),
-        registry,
-        ranking_policy,
-        context_tokens_estimated=1_000,
-        max_output_tokens_estimated=500,
-        defaults=_defaults(),
+    result = asyncio.run(
+        _service(events).explain(
+            _request(),
+            _effective_context(),
+            registry,
+            ranking_policy,
+            context_tokens_estimated=1_000,
+            max_output_tokens_estimated=500,
+            defaults=_defaults(),
+        )
     )
 
     assert events == ["authorize", "assess"]
@@ -280,88 +282,94 @@ async def test_authorization_precedes_complexity_and_unauthorized_model_never_re
     assert forbidden.deployment_id not in result.narrowing.excluded_deployments
 
 
-@pytest.mark.asyncio
-async def test_policy_rejection_stops_before_complexity_assessment() -> None:
+def test_policy_rejection_stops_before_complexity_assessment() -> None:
     events: list[str] = []
     deployment = _deployment("deployment-one")
 
     with pytest.raises(PolicyDecisionError, match="policy rejected request"):
-        await _service(events, reject=True).explain(
-            _request(),
-            _effective_context(),
-            _registry(deployment),
-            _ranking_policy(_score(deployment.deployment_id, "0.95")),
-            context_tokens_estimated=1_000,
-            max_output_tokens_estimated=500,
-            defaults=_defaults(),
+        asyncio.run(
+            _service(events, reject=True).explain(
+                _request(),
+                _effective_context(),
+                _registry(deployment),
+                _ranking_policy(_score(deployment.deployment_id, "0.95")),
+                context_tokens_estimated=1_000,
+                max_output_tokens_estimated=500,
+                defaults=_defaults(),
+            )
         )
 
     assert events == ["authorize"]
 
 
-@pytest.mark.asyncio
-async def test_empty_complexity_subset_fails_closed_without_authorized_fallback() -> None:
+def test_empty_complexity_subset_fails_closed_without_authorized_fallback() -> None:
     events: list[str] = []
     low = _deployment("deployment-low")
 
     with pytest.raises(ComplexityRankingError, match="at least one complexity-eligible"):
-        await _service(events).explain(
-            _request(),
-            _effective_context(),
-            _registry(low),
-            _ranking_policy(_score(low.deployment_id, "0.60")),
-            context_tokens_estimated=1_000,
-            max_output_tokens_estimated=500,
-            defaults=_defaults(),
+        asyncio.run(
+            _service(events).explain(
+                _request(),
+                _effective_context(),
+                _registry(low),
+                _ranking_policy(_score(low.deployment_id, "0.60")),
+                context_tokens_estimated=1_000,
+                max_output_tokens_estimated=500,
+                defaults=_defaults(),
+            )
         )
 
     assert events == ["authorize", "assess"]
 
 
-@pytest.mark.asyncio
-async def test_missing_benchmark_quality_fails_closed_after_authorization() -> None:
+def test_missing_benchmark_quality_fails_closed_after_authorization() -> None:
     events: list[str] = []
     deployment = _deployment("deployment-missing")
 
     with pytest.raises(ComplexityNarrowingError, match="missing benchmark-derived quality"):
-        await _service(events).explain(
-            _request(),
-            _effective_context(),
-            _registry(deployment),
-            _ranking_policy(),
-            context_tokens_estimated=1_000,
-            max_output_tokens_estimated=500,
-            defaults=_defaults(),
+        asyncio.run(
+            _service(events).explain(
+                _request(),
+                _effective_context(),
+                _registry(deployment),
+                _ranking_policy(),
+                context_tokens_estimated=1_000,
+                max_output_tokens_estimated=500,
+                defaults=_defaults(),
+            )
         )
 
     assert events == ["authorize", "assess"]
 
 
-@pytest.mark.asyncio
-async def test_identical_inputs_produce_identical_composite_evidence() -> None:
+def test_identical_inputs_produce_identical_composite_evidence() -> None:
     deployment = _deployment("deployment-high")
     registry = _registry(deployment)
     ranking_policy = _ranking_policy(_score(deployment.deployment_id, "0.95"))
 
     first_events: list[str] = []
     second_events: list[str] = []
-    first = await _service(first_events).explain(
-        _request(),
-        _effective_context(),
-        registry,
-        ranking_policy,
-        context_tokens_estimated=1_000,
-        max_output_tokens_estimated=500,
-        defaults=_defaults(),
+    first = asyncio.run(
+        _service(first_events).explain(
+            _request(),
+            _effective_context(),
+            registry,
+            ranking_policy,
+            context_tokens_estimated=1_000,
+            max_output_tokens_estimated=500,
+            defaults=_defaults(),
+        )
     )
-    second = await _service(second_events).explain(
-        _request(),
-        _effective_context(),
-        registry,
-        ranking_policy,
-        context_tokens_estimated=1_000,
-        max_output_tokens_estimated=500,
-        defaults=_defaults(),
+    second = asyncio.run(
+        _service(second_events).explain(
+            _request(),
+            _effective_context(),
+            registry,
+            ranking_policy,
+            context_tokens_estimated=1_000,
+            max_output_tokens_estimated=500,
+            defaults=_defaults(),
+        )
     )
 
     assert first == second
