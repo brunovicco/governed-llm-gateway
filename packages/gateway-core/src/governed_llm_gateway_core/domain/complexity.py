@@ -66,7 +66,9 @@ class ComplexityPolicy:
             ("vision_floor", self.vision_floor),
         ):
             if not isinstance(floor, TaskComplexity):
-                raise ValueError(f"complexity {field_name} must use the provider-neutral vocabulary")
+                raise ValueError(
+                    f"complexity {field_name} must use the provider-neutral vocabulary"
+                )
         workloads = tuple(rule.workload for rule in self.workload_floors)
         if len(workloads) != len(set(workloads)):
             raise ValueError("complexity workload floors must not contain duplicate workloads")
