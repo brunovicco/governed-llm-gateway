@@ -234,9 +234,7 @@ def test_disabled_policy_router_rejects_active_gateway_clients_before_secret_rea
 
 
 def test_environment_policy_router_secret_resolver_fails_closed() -> None:
-    resolver = EnvironmentPolicyRouterSecretResolver(
-        {"POLICY_CLIENT_A_KEY": _OPAQUE_VALUE}
-    )
+    resolver = EnvironmentPolicyRouterSecretResolver({"POLICY_CLIENT_A_KEY": _OPAQUE_VALUE})
 
     assert resolver.resolve("POLICY_CLIENT_A_KEY") == _OPAQUE_VALUE
     with pytest.raises(PolicyRouterSecretResolutionError):
