@@ -120,7 +120,7 @@ def test_committed_provider_runtime_artifact_matches_committed_registry() -> Non
     validate_provider_runtime_registry(document, registry)
 
     assert document.schema_version == "1.0"
-    assert document.config_version == "phase2-empty"
+    assert document.config_version == "pc1-empty"
     assert document.bindings == ()
 
 
