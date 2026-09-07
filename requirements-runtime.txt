@@ -6,3 +6,4 @@ httpx==0.28.1
 jsonschema==4.26.0
 Pydantic==2.13.5
 PyYAML==6.0.3
+uvicorn==0.52.4
