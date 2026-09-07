@@ -42,11 +42,11 @@ deterministic operational ranking
 provider execution / bounded resilience
 ```
 
-Future implementations may move complexity assessment earlier for efficiency, but its output remains non-authoritative and can only be applied as an intersection with the already authorized set.
+Complexity may be computed earlier for efficiency, but its output remains non-authoritative and can only be applied as an intersection with the already authorized set.
 
 ## CR-0 contract
 
-CR-0 introduces only stable provider-neutral metadata:
+CR-0 introduced stable provider-neutral metadata:
 
 - `TaskComplexity.LOW` → `low`;
 - `TaskComplexity.MEDIUM` → `medium`;
@@ -55,10 +55,29 @@ CR-0 introduces only stable provider-neutral metadata:
 
 The assessment contract is metadata-only. It contains no prompt, completion, tool arguments, tool results, document contents, credentials, or provider-native payloads.
 
-CR-0 does not change model selection.
+## CR-1 deterministic evaluator
 
-## Planned evolution
+CR-1 adds a pure, versioned metadata evaluator. `ComplexityPolicy` makes every rule explicit rather than embedding hidden routing heuristics:
 
-Later increments can add a deterministic/versioned complexity evaluator, define how complexity maps to minimum capability or quality requirements, and integrate that result into routing provenance. Those increments must preserve the authorization boundary above and remain benchmark/evidence driven rather than adaptive or self-modifying.
+- medium/high effective-context token thresholds;
+- medium/high output-token thresholds;
+- configured floors for tool calling, structured output, and vision;
+- optional exact workload-specific floors.
+
+For one request, the evaluator starts at `low` and monotonically takes the maximum complexity produced by every applicable configured rule. The effective context signal is the maximum of the caller's context estimate and the request's explicit `min_context_tokens` requirement, so a declared minimum context requirement cannot be underclassified by a smaller estimate.
+
+The evaluator generates `assessment_id` as a SHA-256 digest over canonical metadata containing the versioned policy, workload identifier, capability flags, and token estimates. Request message content is deliberately excluded. Identical metadata under an identical policy therefore produces identical complexity evidence.
+
+CR-1 still does not change model selection. It produces evidence only.
+
+## Current limitation and future semantic assessment
+
+The CR-1 evaluator does not claim to infer semantic reasoning difficulty from prompt text. Token volume and capability requirements are operational signals, while workload-specific floors allow explicit policy-defined knowledge about known task classes.
+
+A future semantic evaluator may be added behind a provider-neutral contract when there is benchmark evidence to justify it. If such an evaluator uses an LLM, its output remains advisory evidence and must not gain authorization authority, self-modify policy, or bypass deterministic validation.
+
+A later increment can map assessed complexity to model capability/quality tiers and intersect those requirements with the already-authorized, registry-eligible candidate set. That mapping must be explicit, versioned, auditable, reversible, and benchmark/evidence driven.
+
+## Centralized provider boundary
 
 Provider credentials remain an operational gateway concern. Consuming applications should authenticate to the gateway rather than receive direct OpenAI, Anthropic, Google/Gemini, NVIDIA, or other provider credentials.
