@@ -24,6 +24,11 @@ from .complexity_evidence import (
     ComplexityNarrowingExplainModel,
     complexity_evidence_from_decision,
 )
+from .gateway_runtime_bootstrap import (
+    GatewayRuntimeBootstrapBundle,
+    GatewayRuntimeBootstrapPaths,
+    bootstrap_gateway_runtime,
+)
 from .provider_bootstrap import (
     ProviderRuntimeBootstrapBundle,
     ProviderRuntimeBootstrapPaths,
@@ -64,6 +69,8 @@ __all__ = [
     "GatewayClientAuthorizationError",
     "GatewayClientSecretResolutionError",
     "GatewayClientSecretResolver",
+    "GatewayRuntimeBootstrapBundle",
+    "GatewayRuntimeBootstrapPaths",
     "GenerateCoordinator",
     "GenerateRequestModel",
     "PreparedStreamingExecution",
@@ -74,6 +81,7 @@ __all__ = [
     "RouteExplainResponseModel",
     "StaticGatewayClientContextResolver",
     "attach_generate_route",
+    "bootstrap_gateway_runtime",
     "bootstrap_provider_runtime",
     "build_static_gateway_client_context_resolver",
     "complexity_evidence_from_decision",
