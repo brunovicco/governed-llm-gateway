@@ -179,9 +179,7 @@ def _parse_binding(payload: Mapping[object, object], *, index: int) -> ProviderR
     allowed = _BINDING_REQUIRED_FIELDS | _BINDING_OPTIONAL_FIELDS
     _require_exact_fields(payload, _BINDING_REQUIRED_FIELDS, allowed, f"bindings[{index}]")
     provider = _require_string(payload["provider"], f"bindings[{index}].provider")
-    api_family_text = _require_string(
-        payload["api_family"], f"bindings[{index}].api_family"
-    )
+    api_family_text = _require_string(payload["api_family"], f"bindings[{index}].api_family")
     try:
         api_family = ProviderApiFamily(api_family_text)
     except ValueError as exc:
