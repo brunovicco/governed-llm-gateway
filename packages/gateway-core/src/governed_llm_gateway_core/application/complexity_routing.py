@@ -66,9 +66,13 @@ def narrow_authorized_candidates_by_complexity(
 ) -> ComplexityEligibleCandidateSet:
     """Intersect authorized candidates with benchmark-derived quality for task complexity."""
     if not workload or workload.strip() != workload or "." not in workload:
-        raise ComplexityNarrowingError("complexity narrowing workload must be normalized and dotted")
+        raise ComplexityNarrowingError(
+            "complexity narrowing workload must be normalized and dotted"
+        )
     if not isinstance(assessment, ComplexityAssessment):
-        raise ComplexityNarrowingError("complexity narrowing requires ComplexityAssessment evidence")
+        raise ComplexityNarrowingError(
+            "complexity narrowing requires ComplexityAssessment evidence"
+        )
     if not isinstance(ranking_policy, EvidenceDrivenRankingPolicy):
         raise ComplexityNarrowingError(
             "complexity narrowing requires evidence-driven ranking policy provenance"
