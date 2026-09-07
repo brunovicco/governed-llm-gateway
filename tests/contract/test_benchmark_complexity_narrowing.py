@@ -113,7 +113,9 @@ def _evidence_policy(
     *scores: StaticDeploymentScore,
     mode: ScoreProvenanceMode = ScoreProvenanceMode.BENCHMARK_HYBRID,
 ) -> EvidenceDrivenRankingPolicy:
-    manual_override_id = "sha256:" + "c" * 64 if mode is ScoreProvenanceMode.MANUAL_OVERRIDE else None
+    manual_override_id = (
+        "sha256:" + "c" * 64 if mode is ScoreProvenanceMode.MANUAL_OVERRIDE else None
+    )
     return EvidenceDrivenRankingPolicy(
         schema_version="1.1",
         policy_version="ranking-v1",
