@@ -33,10 +33,37 @@ _OPAQUE_VALUE = "runtime-value-must-not-appear"
 _TODAY = date(2026, 9, 7)
 
 
+class RecordingSecretResolver:
+    """Record server-side credential-resolution calls for ordering assertions."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def resolve(self, reference: str) -> str:
+        self.calls.append(reference)
+        return _OPAQUE_VALUE
+
+
+class LeakySecretResolver:
+    """Simulate a backend exception containing material that must be sanitized."""
+
+    def resolve(self, reference: str) -> str:
+        assert reference
+        raise RuntimeError(_OPAQUE_VALUE)
+
+
+class MalformedSecretResolver:
+    """Simulate a protocol-violating backend return at runtime."""
+
+    def resolve(self, reference: str) -> str:
+        assert reference
+        return cast(str, 123)
+
+
 def _config(
     provider: str,
     api_family: ProviderApiFamily,
-    credential_env_var: str,
+    credential_reference: str,
     endpoint: str,
     *,
     anthropic_api_version: str | None = None,
@@ -45,7 +72,7 @@ def _config(
     return ProviderRuntimeConfig(
         provider=provider,
         api_family=api_family,
-        credential_env_var=credential_env_var,
+        credential_reference=credential_reference,
         endpoint=endpoint,
         anthropic_api_version=anthropic_api_version,
         openai_compatible=compatible,
@@ -85,18 +112,39 @@ def test_provider_api_family_vocabulary_is_stable() -> None:
     )
 
 
-def test_runtime_config_contains_only_credential_reference() -> None:
+def test_runtime_config_contains_only_generic_credential_reference() -> None:
     config = _config(
         "openai",
         ProviderApiFamily.OPENAI_RESPONSES,
-        "OPENAI_API_KEY",
+        "vault://providers/openai",
         "https://api.openai.example/v1/responses",
     )
 
-    assert config.credential_env_var == "OPENAI_API_KEY"
+    assert config.credential_reference == "vault://providers/openai"
     assert _OPAQUE_VALUE not in repr(config)
     assert not hasattr(config, "api_key")
     assert not hasattr(config, "credential")
+    assert not hasattr(config, "credential_env_var")
+
+
+@pytest.mark.parametrize(
+    "reference",
+    (
+        "",
+        " leading",
+        "trailing ",
+        "contains whitespace",
+        "x" * 257,
+    ),
+)
+def test_runtime_config_rejects_malformed_credential_references(reference: str) -> None:
+    with pytest.raises(ProviderRuntimeConfigurationError, match="credential_reference"):
+        _config(
+            "openai",
+            ProviderApiFamily.OPENAI_RESPONSES,
+            reference,
+            "https://api.openai.example/v1/responses",
+        )
 
 
 @pytest.mark.parametrize(
@@ -137,6 +185,15 @@ def test_compatible_runtime_options_require_stream_usage_with_streaming() -> Non
         )
 
 
+def test_environment_resolver_rejects_non_environment_reference_cleanly() -> None:
+    resolver = EnvironmentProviderSecretResolver({})
+
+    with pytest.raises(ProviderSecretResolutionError) as caught:
+        resolver.resolve("vault://providers/openai")
+
+    assert "vault://providers/openai" not in str(caught.value)
+
+
 def test_environment_secret_resolution_fails_closed_without_secret_contents() -> None:
     resolver = EnvironmentProviderSecretResolver(
         {
@@ -153,6 +210,7 @@ def test_environment_secret_resolution_fails_closed_without_secret_contents() ->
         with pytest.raises(ProviderSecretResolutionError) as caught:
             resolver.resolve(reference)
         assert _OPAQUE_VALUE not in str(caught.value)
+        assert reference not in str(caught.value)
 
 
 def test_factory_builds_native_streaming_adapters_from_server_side_secrets() -> None:
@@ -249,7 +307,7 @@ def test_non_streaming_compatible_config_does_not_gain_streaming_support() -> No
     assert not isinstance(adapter, ProviderStreamingPort)
 
 
-def test_duplicate_provider_api_family_binding_fails_closed() -> None:
+def test_duplicate_binding_fails_before_any_secret_resolution() -> None:
     first = _config(
         "openai",
         ProviderApiFamily.OPENAI_RESPONSES,
@@ -262,20 +320,46 @@ def test_duplicate_provider_api_family_binding_fails_closed() -> None:
         "OPENAI_SECONDARY_API_KEY",
         "https://secondary.openai.example/v1/responses",
     )
+    secret_resolver = RecordingSecretResolver()
 
     with pytest.raises(
         ProviderRuntimeConfigurationError,
         match="duplicate provider runtime binding",
     ):
-        build_static_provider_resolver(
-            (first, duplicate),
-            EnvironmentProviderSecretResolver(
-                {
-                    "OPENAI_API_KEY": _OPAQUE_VALUE,
-                    "OPENAI_SECONDARY_API_KEY": _OPAQUE_VALUE,
-                }
-            ),
-        )
+        build_static_provider_resolver((first, duplicate), secret_resolver)
+
+    assert secret_resolver.calls == []
+
+
+def test_secret_backend_exception_is_sanitized_without_chained_leakage() -> None:
+    config = _config(
+        "openai",
+        ProviderApiFamily.OPENAI_RESPONSES,
+        "vault://providers/openai",
+        "https://api.openai.example/v1/responses",
+    )
+
+    with pytest.raises(ProviderSecretResolutionError) as caught:
+        build_static_provider_resolver((config,), LeakySecretResolver())
+
+    assert str(caught.value) == "provider credential resolution failed"
+    assert _OPAQUE_VALUE not in str(caught.value)
+    assert caught.value.__cause__ is None
+    assert caught.value.__suppress_context__ is True
+
+
+def test_secret_backend_malformed_return_is_sanitized() -> None:
+    config = _config(
+        "openai",
+        ProviderApiFamily.OPENAI_RESPONSES,
+        "vault://providers/openai",
+        "https://api.openai.example/v1/responses",
+    )
+
+    with pytest.raises(ProviderSecretResolutionError) as caught:
+        build_static_provider_resolver((config,), MalformedSecretResolver())
+
+    assert str(caught.value) == "provider credential resolution failed"
 
 
 def test_runtime_config_rejects_non_contract_values_at_runtime() -> None:
@@ -283,6 +367,6 @@ def test_runtime_config_rejects_non_contract_values_at_runtime() -> None:
         ProviderRuntimeConfig(
             provider="openai",
             api_family=cast(ProviderApiFamily, "openai-responses"),
-            credential_env_var="OPENAI_API_KEY",
+            credential_reference="OPENAI_API_KEY",
             endpoint="https://api.openai.example/v1/responses",
         )
