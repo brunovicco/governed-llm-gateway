@@ -153,9 +153,7 @@ class StaticGatewayClientContextResolver:
             raise ClientAuthenticationError("gateway credential rejected")
 
         matches = tuple(
-            item
-            for item in self._bindings
-            if hmac.compare_digest(api_key, item.credential)
+            item for item in self._bindings if hmac.compare_digest(api_key, item.credential)
         )
         if len(matches) != 1:
             raise ClientAuthenticationError("gateway credential rejected")
