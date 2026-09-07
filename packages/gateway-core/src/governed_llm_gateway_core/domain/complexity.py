@@ -25,7 +25,7 @@ class WorkloadComplexityFloor:
 
     def __post_init__(self) -> None:
         """Reject ambiguous workload rules before they can influence an assessment."""
-        if fullmatch(_WORKLOAD_PATTERN, self.workload) is None:
+        if not isinstance(self.workload, str) or fullmatch(_WORKLOAD_PATTERN, self.workload) is None:
             raise ValueError("complexity workload floor must use a normalized workload identifier")
         if not isinstance(self.minimum, TaskComplexity):
             raise ValueError("complexity workload floor must use the provider-neutral vocabulary")
@@ -69,6 +69,8 @@ class ComplexityPolicy:
                 raise ValueError(
                     f"complexity {field_name} must use the provider-neutral vocabulary"
                 )
+        if any(not isinstance(rule, WorkloadComplexityFloor) for rule in self.workload_floors):
+            raise ValueError("complexity workload floors must use WorkloadComplexityFloor entries")
         workloads = tuple(rule.workload for rule in self.workload_floors)
         if len(workloads) != len(set(workloads)):
             raise ValueError("complexity workload floors must not contain duplicate workloads")
@@ -143,8 +145,8 @@ class DeterministicComplexityEvaluator:
         )
 
 
-def _validate_identifier(value: str, field_name: str) -> None:
-    if fullmatch(_IDENTIFIER_PATTERN, value) is None:
+def _validate_identifier(value: object, field_name: str) -> None:
+    if not isinstance(value, str) or fullmatch(_IDENTIFIER_PATTERN, value) is None:
         raise ValueError(f"complexity {field_name} must be a normalized identifier")
 
 
