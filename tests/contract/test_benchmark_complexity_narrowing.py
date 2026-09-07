@@ -366,16 +366,25 @@ def test_candidate_set_direct_construction_defends_authorization_subset() -> Non
 
 def test_narrowing_provenance_is_deterministic_and_metadata_only() -> None:
     deployment = _deployment("deployment-one")
-    kwargs = {
-        "workload": _WORKLOAD,
-        "authorized": _authorized(deployment),
-        "assessment": _assessment(TaskComplexity.MEDIUM),
-        "ranking_policy": _evidence_policy(_score(deployment.deployment_id, "0.95")),
-        "quality_policy": _quality_policy(),
-    }
+    authorized = _authorized(deployment)
+    assessment = _assessment(TaskComplexity.MEDIUM)
+    ranking_policy = _evidence_policy(_score(deployment.deployment_id, "0.95"))
+    quality_policy = _quality_policy()
 
-    first = narrow_authorized_candidates_by_complexity(**kwargs)
-    second = narrow_authorized_candidates_by_complexity(**kwargs)
+    first = narrow_authorized_candidates_by_complexity(
+        workload=_WORKLOAD,
+        authorized=authorized,
+        assessment=assessment,
+        ranking_policy=ranking_policy,
+        quality_policy=quality_policy,
+    )
+    second = narrow_authorized_candidates_by_complexity(
+        workload=_WORKLOAD,
+        authorized=authorized,
+        assessment=assessment,
+        ranking_policy=ranking_policy,
+        quality_policy=quality_policy,
+    )
 
     assert first == second
     assert first.provenance.complexity_assessment_id == "assessment-001"
