@@ -61,6 +61,11 @@ from .route_explain import (
     RouteExplainResponseModel,
     create_app,
 )
+from .service_composition import (
+    GovernedGatewayServices,
+    GovernedServiceCompositionError,
+    compose_governed_gateway_services,
+)
 from .stream_generate import (
     GenerateCoordinator,
     GenerateRequestModel,
@@ -91,9 +96,11 @@ __all__ = [
     "GatewayRuntimeBootstrapPaths",
     "GenerateCoordinator",
     "GenerateRequestModel",
+    "GovernedGatewayServices",
     "GovernedProcessArtifacts",
     "GovernedProcessBootstrapPaths",
     "GovernedProcessRuntimeBundle",
+    "GovernedServiceCompositionError",
     "PolicyRouterClientAuthMismatchError",
     "PolicyRouterRuntimeBootstrapBundle",
     "PolicyRouterRuntimeBootstrapPaths",
@@ -111,6 +118,7 @@ __all__ = [
     "bootstrap_provider_runtime",
     "build_static_gateway_client_context_resolver",
     "complexity_evidence_from_decision",
+    "compose_governed_gateway_services",
     "create_app",
     "create_gateway_app",
     "load_gateway_client_auth_document",
