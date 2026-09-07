@@ -3,6 +3,7 @@
 import json
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from governed_llm_gateway_contracts import Capability, DataClassification, Modality
@@ -11,12 +12,15 @@ from governed_llm_gateway_core.adapters import (
     ProviderApiFamily,
     ProviderRuntimeDocumentError,
     ProviderRuntimeRegistryMismatchError,
+    load_model_registry,
+    load_provider_runtime_document,
     load_provider_runtime_document_text,
     validate_provider_runtime_registry,
 )
 from governed_llm_gateway_core.domain import ModelDeployment, ModelRegistry, PricingMetadata
 
 _TODAY = date(2026, 9, 7)
+_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _binding(
@@ -106,6 +110,17 @@ def test_empty_document_matches_empty_registry() -> None:
 
     assert document.schema_version == "1.0"
     assert document.config_version == "runtime-v1"
+    assert document.bindings == ()
+
+
+def test_committed_provider_runtime_artifact_matches_committed_registry() -> None:
+    document = load_provider_runtime_document(_ROOT / "config/providers/runtime.json")
+    registry = load_model_registry(_ROOT / "config/model_registry.yaml")
+
+    validate_provider_runtime_registry(document, registry)
+
+    assert document.schema_version == "1.0"
+    assert document.config_version == "phase2-empty"
     assert document.bindings == ()
 
 
