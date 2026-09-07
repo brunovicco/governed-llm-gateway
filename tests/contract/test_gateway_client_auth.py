@@ -21,6 +21,7 @@ from governed_llm_gateway_contracts import (
     RiskLevel,
     WorkloadRequirements,
 )
+from governed_llm_gateway_core.domain import EffectivePolicyContext
 
 _REQUEST_ID = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
 _KEY_A = "unit-test-gateway-key-a"
@@ -87,7 +88,7 @@ def _resolve(
     request: GatewayRequest,
     *,
     binding: GatewayClientAuthBinding | None = None,
-):
+) -> EffectivePolicyContext:
     secrets = RecordingSecrets({"GATEWAY_CLIENT_A_KEY": _KEY_A})
     resolver = build_static_gateway_client_context_resolver(
         (binding or _binding(),),
@@ -274,7 +275,11 @@ def test_resolved_secret_is_hidden_from_resolver_repr() -> None:
 )
 def test_binding_validation_fails_closed(kwargs: dict[str, object]) -> None:
     with pytest.raises(GatewayClientAuthenticationConfigurationError):
-        _binding(**kwargs)  # type: ignore[arg-type]
+        _binding(
+            client_id=cast(str, kwargs.get("client_id", "service-a")),
+            reference=cast(str, kwargs.get("reference", "GATEWAY_CLIENT_A_KEY")),
+            workloads=cast(tuple[str, ...], kwargs.get("workloads", ("rag.answer",))),
+        )
 
 
 def test_environment_secret_resolver_is_backend_specific_and_sanitized() -> None:
