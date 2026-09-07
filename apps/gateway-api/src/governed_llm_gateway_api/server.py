@@ -14,6 +14,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from .deployment_activation import GovernedDeploymentSettings, activate_governed_deployment
+from .process_health import attach_process_health_routes
 
 _DEFAULT_HOST = "127.0.0.1"
 _DEFAULT_PORT = 8000
@@ -96,6 +97,7 @@ def run_governed_server(
     if not isinstance(settings, GovernedServerSettings):
         raise TypeError("settings must use GovernedServerSettings")
     services = activate_governed_deployment(settings.deployment, environ=environ)
+    attach_process_health_routes(services.app)
     selected_runner = UvicornServerRunner() if runner is None else runner
     selected_runner.run(services.app, host=settings.host, port=settings.port)
 

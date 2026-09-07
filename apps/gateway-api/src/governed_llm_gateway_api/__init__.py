@@ -54,6 +54,12 @@ from .process_bootstrap import (
     load_governed_process_artifacts,
     materialize_governed_process_runtime,
 )
+from .process_health import (
+    ProcessHealthCompositionError,
+    ProcessLiveResponse,
+    ProcessReadyResponse,
+    attach_process_health_routes,
+)
 from .provider_bootstrap import (
     ProviderRuntimeBootstrapBundle,
     ProviderRuntimeBootstrapPaths,
@@ -125,6 +131,9 @@ __all__ = [
     "PolicyRouterRuntimeBootstrapBundle",
     "PolicyRouterRuntimeBootstrapPaths",
     "PreparedStreamingExecution",
+    "ProcessHealthCompositionError",
+    "ProcessLiveResponse",
+    "ProcessReadyResponse",
     "ProviderRuntimeBootstrapBundle",
     "ProviderRuntimeBootstrapPaths",
     "RouteExplainCoordinator",
@@ -135,6 +144,7 @@ __all__ = [
     "UvicornServerRunner",
     "activate_governed_deployment",
     "attach_generate_route",
+    "attach_process_health_routes",
     "bootstrap_gateway_runtime",
     "bootstrap_governed_application_services",
     "bootstrap_governed_process_runtime",
