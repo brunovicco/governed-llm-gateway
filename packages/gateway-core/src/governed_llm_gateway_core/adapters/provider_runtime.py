@@ -82,7 +82,10 @@ class ProviderRuntimeConfig:
 
     def __post_init__(self) -> None:
         """Validate immutable deployment-owned configuration before adapter construction."""
-        if not isinstance(self.provider, str) or _PROVIDER_IDENTIFIER.fullmatch(self.provider) is None:
+        if (
+            not isinstance(self.provider, str)
+            or _PROVIDER_IDENTIFIER.fullmatch(self.provider) is None
+        ):
             raise ProviderRuntimeConfigurationError("provider must be a normalized identifier")
         if not isinstance(self.api_family, ProviderApiFamily):
             raise ProviderRuntimeConfigurationError("api_family must use ProviderApiFamily")
