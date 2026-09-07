@@ -24,7 +24,7 @@ def uv_run(*args: str) -> list[str]:
 COMMANDS = [
     ["uv", "lock", "--check"],
     uvx("--from", "ruff==0.12.11", "ruff", "check", "."),
-    uvx("--from", "ruff==0.12.11", "ruff", "format", "--diff", "."),
+    uvx("--from", "ruff==0.12.11", "ruff", "format", "--check", "."),
     uv_run(
         "--with",
         "mypy==1.17.1",
