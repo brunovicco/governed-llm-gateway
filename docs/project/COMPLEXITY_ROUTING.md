@@ -35,7 +35,7 @@ capability / registry eligibility
         ↓
 task-complexity assessment
         ↓
-complexity-aware narrowing / ranking
+benchmark-grounded complexity narrowing
         ↓
 deterministic operational ranking
         ↓
@@ -57,7 +57,7 @@ The assessment contract is metadata-only. It contains no prompt, completion, too
 
 ## CR-1 deterministic evaluator
 
-CR-1 adds a pure, versioned metadata evaluator. `ComplexityPolicy` makes every rule explicit rather than embedding hidden routing heuristics:
+CR-1 added a pure, versioned metadata evaluator. `ComplexityPolicy` makes every rule explicit rather than embedding hidden routing heuristics:
 
 - medium/high effective-context token thresholds;
 - medium/high output-token thresholds;
@@ -68,7 +68,35 @@ For one request, the evaluator starts at `low` and monotonically takes the maxim
 
 The evaluator generates `assessment_id` as a SHA-256 digest over canonical metadata containing the versioned policy, workload identifier, capability flags, and token estimates. Request message content is deliberately excluded. Identical metadata under an identical policy therefore produces identical complexity evidence.
 
-CR-1 still does not change model selection. It produces evidence only.
+CR-1 does not change model selection. It produces evidence only.
+
+## CR-2a benchmark-grounded quality narrowing
+
+CR-2a connects complexity evidence to the existing Phase 11 benchmark evidence plane without adding a second subjective model tier to the registry.
+
+`ComplexityQualityPolicy` declares explicit, versioned minimum quality floors for `low`, `medium`, and `high` complexity. The floors must be finite values in `[0, 1]` and monotonic:
+
+```text
+low_min_quality <= medium_min_quality <= high_min_quality
+```
+
+The narrowing boundary accepts only an already-created `AuthorizedCandidateSet`. It then reads per-deployment quality from an `EvidenceDrivenRankingPolicy` whose score provenance is explicitly `benchmark_hybrid`. Static Phase 5 ranking policies and manual-override ranking policies fail closed at this boundary because they do not prove that the quality value used for complexity narrowing came from promoted benchmark evidence.
+
+For every authorized candidate, benchmark-derived quality must be present for the workload. Missing quality evidence fails closed rather than silently falling back. Candidates below the assessed complexity floor are excluded; candidates meeting the floor remain eligible for later operational ranking.
+
+The permanent subset relation is therefore explicit:
+
+```text
+complexity-eligible candidates
+    ⊆ authorized candidates
+    ⊆ Policy Router authorized set
+```
+
+A high-quality deployment that is present in benchmark evidence but absent from the authorized candidate set can never appear in the complexity-eligible result.
+
+CR-2a emits metadata-only narrowing provenance containing the complexity assessment identity, complexity level, effective minimum quality, quality-policy digest, ranking-policy digest, benchmark snapshot identity, promotion evidence identity, and excluded deployment identifiers. It does not capture prompt or completion content.
+
+CR-2a deliberately does not wire this subset into `OperationalRankingService.rank` yet. That integration is a later increment so the subset invariant can be tested independently before changing the operational selection pipeline.
 
 ## Current limitation and future semantic assessment
 
@@ -76,7 +104,7 @@ The CR-1 evaluator does not claim to infer semantic reasoning difficulty from pr
 
 A future semantic evaluator may be added behind a provider-neutral contract when there is benchmark evidence to justify it. If such an evaluator uses an LLM, its output remains advisory evidence and must not gain authorization authority, self-modify policy, or bypass deterministic validation.
 
-A later increment can map assessed complexity to model capability/quality tiers and intersect those requirements with the already-authorized, registry-eligible candidate set. That mapping must be explicit, versioned, auditable, reversible, and benchmark/evidence driven.
+Future increments can integrate the CR-2a subset into operational ranking and eventually evaluate whether additional capability/quality mappings are justified by evidence. Any such mapping must remain explicit, versioned, auditable, reversible, and benchmark/evidence driven.
 
 ## Centralized provider boundary
 
