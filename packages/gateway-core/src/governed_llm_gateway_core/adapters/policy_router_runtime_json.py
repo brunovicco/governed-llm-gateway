@@ -186,9 +186,7 @@ def _require_exact_fields(
 
 def _require_string(value: object, label: str) -> str:
     if not isinstance(value, str) or not value or value.strip() != value:
-        raise PolicyRouterRuntimeDocumentError(
-            f"{label} must be a normalized non-empty string"
-        )
+        raise PolicyRouterRuntimeDocumentError(f"{label} must be a normalized non-empty string")
     return value
 
 
