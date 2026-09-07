@@ -130,16 +130,60 @@ Examples:
 
 This reconciled context is what the existing prompt-free PDP projection consumes. The caller cannot lower policy risk/classification by changing request metadata.
 
-## PC-3 scope boundary
+## Versioned artifact progression
 
-PC-3 establishes the in-memory authentication/composition contract. It deliberately does not add:
+PC-3 established the in-memory authentication and trusted-context composition contract.
 
-- a committed client-auth configuration artifact;
+PC-4 adds the committed `config/clients/auth.json` artifact and `GatewayClientAuthDocument` loader. The artifact is deliberately closed, versioned, and secret-free. Its root contains only:
+
+```text
+schema_version
+config_version
+bindings
+```
+
+Each binding contains exactly the PC-3 trust fields:
+
+```text
+client_id
+environment
+credential_reference
+allowed_workloads
+minimum_risk_level
+minimum_data_classification
+```
+
+Raw API-key values such as `api_key`, `credential`, or `secret_value` are not valid schema fields.
+
+The loader rejects duplicate JSON keys before normal object construction can overwrite them. It also rejects unknown/missing fields, unsupported schema versions, malformed trust vocabulary, duplicate client IDs, duplicate credential references, and any binding that violates `GatewayClientAuthBinding` validation.
+
+`GatewayClientAuthDocument.digest` is SHA-256 over canonical validated content. Formatting, root key order, and binding order therefore do not change document identity. Binding-local workload order remains explicit and must already satisfy the deterministic sorted PC-3 contract.
+
+Loading the artifact is side-effect free with respect to authentication infrastructure: it does not resolve credentials, inspect process environment secrets, authenticate a request, call the Policy Model Router, enumerate models, or contact providers.
+
+The checked-in artifact is intentionally:
+
+```json
+{
+  "schema_version": "1.0",
+  "config_version": "pc4-empty",
+  "bindings": []
+}
+```
+
+This default is fail-closed. Zero bindings means the repository does not implicitly authorize any Gateway client.
+
+## Process bootstrap remains a separate increment
+
+PC-4 does **not** add:
+
 - a module-level FastAPI singleton;
 - a `uvicorn` or container process entrypoint;
+- automatic secret resolution while loading the artifact;
 - OAuth/OIDC/JWT or mTLS authentication;
 - cloud-specific secret-manager integration;
+- live client bindings or credentials;
 - provider/model catalog entries;
 - model authorization or routing authority.
 
-A later increment can add a closed, versioned, secret-free client-auth artifact and include it in full Gateway process bootstrap. That future work must preserve the same trust flow and keep raw credentials server-side.
+A later increment may load the client-auth artifact once, resolve its credential references server-side, and compose the resulting `StaticGatewayClientContextResolver` into the full Gateway process alongside provider runtime, Policy Model Router, ranking, health, and observability dependencies. That future bootstrap must preserve the same fail-closed trust flow and must not make authentication an independent model-authority source.
