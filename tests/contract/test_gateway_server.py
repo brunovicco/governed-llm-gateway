@@ -154,6 +154,9 @@ def test_injected_runner_receives_composed_app_without_socket_binding(
     assert runner.app is app
     assert runner.host == "localhost"
     assert runner.port == 8123
+    route_paths = [route.path for route in app.routes]
+    assert route_paths.count("/livez") == 1
+    assert route_paths.count("/readyz") == 1
 
 
 def test_uvicorn_runner_delegates_single_worker_without_global_app(
