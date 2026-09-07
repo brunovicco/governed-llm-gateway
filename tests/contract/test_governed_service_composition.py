@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from governed_llm_gateway_api import (
     GovernedProcessBootstrapPaths,
+    GovernedProcessRuntimeBundle,
     GovernedServiceCompositionError,
     bootstrap_governed_process_runtime,
     compose_governed_gateway_services,
@@ -143,7 +144,7 @@ def _runtime_paths(tmp_path: Path) -> GovernedProcessBootstrapPaths:
     )
 
 
-def _runtime(tmp_path: Path) -> tuple[object, list[str]]:
+def _runtime(tmp_path: Path) -> tuple[GovernedProcessRuntimeBundle, list[str]]:
     events: list[str] = []
     client = RecordingSecrets(
         {"GATEWAY_CLIENT_A_KEY": "pc9-client-opaque"},
