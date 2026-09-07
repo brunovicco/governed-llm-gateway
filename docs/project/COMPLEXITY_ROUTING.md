@@ -31,8 +31,6 @@ Policy Router authorization
         ↓
 authorized candidate set
         ↓
-capability / registry eligibility
-        ↓
 task-complexity assessment
         ↓
 benchmark-grounded complexity narrowing
@@ -119,7 +117,33 @@ Phase 5 continues to own deterministic operational checks such as capabilities, 
 
 `ComplexityAwareRankingDecision` preserves both evidence planes: the existing `RankingDecision` and the immutable CR-2a `ComplexityNarrowingProvenance`.
 
-CR-2b is an application composition boundary only. API/runtime wiring remains a later increment so the new selection chain can be validated independently before changing public request handling.
+## CR-2c end-to-end no-inference composition
+
+CR-2c introduces `ComplexityRouteExplainService`, an application-level composition boundary for the complete validated chain without changing the public API yet.
+
+The service performs these steps in fixed order:
+
+```text
+project trusted policy metadata
+        ↓
+PDP authorization
+        ↓
+deterministic complexity assessment
+        ↓
+benchmark-grounded complexity narrowing
+        ↓
+complexity-aware operational ranking
+```
+
+The PDP call completes before the complexity evaluator is invoked. A PDP rejection therefore terminates the request before any complexity assessment can influence later routing work.
+
+The same explicit context/output token estimates are used for policy projection and CR-1 assessment. CR-2a and CR-2b receive the same `EvidenceDrivenRankingPolicy`, and CR-2b still verifies its digest against the narrowing provenance before scoring.
+
+`ComplexityRouteExplainDecision` returns only metadata/provenance: the CR-1 assessment, CR-2a narrowing provenance, the retained deployment identifiers, and the existing Phase 5 `RankingDecision`. No provider call is part of this service.
+
+Missing benchmark quality, an empty complexity-eligible subset, PDP rejection, policy/evidence drift, or any downstream subset violation fails closed. There is no automatic fallback to the broader authorized set and no quality-floor relaxation.
+
+CR-2c deliberately stops at the application boundary. Public `/v1/route/explain` response/schema wiring and generation/provider-execution wiring remain separate increments so compatibility and execution behavior can be reviewed independently.
 
 ## Current limitation and future semantic assessment
 
@@ -127,7 +151,7 @@ The CR-1 evaluator does not claim to infer semantic reasoning difficulty from pr
 
 A future semantic evaluator may be added behind a provider-neutral contract when there is benchmark evidence to justify it. If such an evaluator uses an LLM, its output remains advisory evidence and must not gain authorization authority, self-modify policy, or bypass deterministic validation.
 
-Future increments can wire the validated CR-0 → CR-1 → CR-2a → CR-2b chain into route explanation and provider execution. Any additional capability/quality mapping must remain explicit, versioned, auditable, reversible, and benchmark/evidence driven.
+Future increments can expose the validated CR-0 → CR-1 → CR-2a → CR-2b → CR-2c evidence chain through route explanation and later provider execution. Any additional capability/quality mapping must remain explicit, versioned, auditable, reversible, and benchmark/evidence driven.
 
 ## Centralized provider boundary
 
