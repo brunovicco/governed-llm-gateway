@@ -22,7 +22,7 @@ from governed_llm_gateway_core.adapters.openai_responses_streaming import (
 
 _ROOT = Path(__file__).resolve().parents[2]
 _REFERENCE = _ROOT / "config" / "reference" / "multi-provider"
-_OPAQUE_SECRET = "pc3-opaque-runtime-value"
+_OPAQUE_VALUE = "pc3-opaque-runtime-value"
 
 
 def test_reference_bundle_has_exact_reviewed_provider_family_set() -> None:
@@ -70,10 +70,10 @@ def test_reference_bundle_composes_provider_adapters_from_server_side_secrets() 
         runtime.bindings,
         EnvironmentProviderSecretResolver(
             {
-                "OPENAI_API_KEY": _OPAQUE_SECRET,
-                "ANTHROPIC_API_KEY": _OPAQUE_SECRET,
-                "GEMINI_API_KEY": _OPAQUE_SECRET,
-                "NVIDIA_API_KEY": _OPAQUE_SECRET,
+                "OPENAI_API_KEY": _OPAQUE_VALUE,
+                "ANTHROPIC_API_KEY": _OPAQUE_VALUE,
+                "GEMINI_API_KEY": _OPAQUE_VALUE,
+                "NVIDIA_API_KEY": _OPAQUE_VALUE,
             }
         ),
     )
@@ -94,7 +94,7 @@ def test_reference_bundle_composes_provider_adapters_from_server_side_secrets() 
         resolver.resolve(registry.by_id("nvidia-llama-3-3-70b-reference")),
         OpenAICompatibleAdapter,
     )
-    assert _OPAQUE_SECRET not in repr(runtime)
+    assert _OPAQUE_VALUE not in repr(runtime)
 
 
 def test_reference_bundle_keeps_provider_credentials_as_references_only() -> None:
@@ -109,7 +109,7 @@ def test_reference_bundle_keeps_provider_credentials_as_references_only() -> Non
     for binding in runtime.bindings:
         assert not hasattr(binding, "api_key")
         assert not hasattr(binding, "credential")
-        assert _OPAQUE_SECRET not in repr(binding)
+        assert _OPAQUE_VALUE not in repr(binding)
 
 
 def test_nvidia_reference_is_explicitly_non_streaming_openai_compatible() -> None:
