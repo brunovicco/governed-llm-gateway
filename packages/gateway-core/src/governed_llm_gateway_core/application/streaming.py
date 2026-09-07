@@ -44,6 +44,8 @@ from .provider import (
 from .ranking import RankedCandidate, RankingDecision, RankingInvariantViolation
 from .resilience import InMemoryHealthTracker, ProviderResolutionError, ProviderResolver
 from .telemetry import (
+    GatewaySpanEventName,
+    GatewaySpanName,
     add_gateway_span_event,
     mark_span_cancelled,
     mark_span_failure,
@@ -195,7 +197,7 @@ class StreamingExecutionService:
                 attempt_terminal_recorded = False
                 span_context = (
                     self._observability.start_span(
-                        "provider.inference",
+                        GatewaySpanName.PROVIDER_ATTEMPT.value,
                         attributes={
                             "request_id": str(request.request_id),
                             "operation": "stream",
@@ -476,7 +478,7 @@ class StreamingExecutionService:
                             if span is not None:
                                 add_gateway_span_event(
                                     span,
-                                    "llm.gateway.retry",
+                                    GatewaySpanEventName.RETRY.value,
                                     {
                                         "retry_count": attempt_number,
                                         "llm.retry_delay_ms": int(delay * 1000),
@@ -488,7 +490,7 @@ class StreamingExecutionService:
                             if span is not None and candidate_index + 1 < len(bounded):
                                 add_gateway_span_event(
                                     span,
-                                    "llm.gateway.fallback",
+                                    GatewaySpanEventName.FALLBACK.value,
                                     {
                                         "llm.fallback_count": len(fallback_sequence),
                                         "llm.deployment": deployment_id,
