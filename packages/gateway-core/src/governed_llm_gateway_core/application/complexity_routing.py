@@ -1,6 +1,7 @@
 """Subset-only complexity narrowing over already-authorized model candidates."""
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 from governed_llm_gateway_contracts import ComplexityAssessment, TaskComplexity
 
@@ -115,7 +116,7 @@ def narrow_authorized_candidates_by_complexity(
     )
 
 
-def _canonical_quality(value: object) -> str:
+def _canonical_quality(value: Decimal) -> str:
     """Serialize the already-validated Decimal floor without leaking other policy data."""
     text = format(value, "f")
     if "." not in text:
