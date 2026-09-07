@@ -30,19 +30,33 @@ class RecordingEnvironment(Mapping[str, str]):
         return default
 
 
-def _settings(root: Path, **overrides: object) -> GovernedDeploymentSettings:
-    values: dict[str, object] = {
-        "deployment_root": root,
-        "model_registry_path": Path("config/model-registry.yaml"),
-        "provider_runtime_path": Path("config/provider-runtime.json"),
-        "client_auth_path": Path("config/client-auth.json"),
-        "policy_router_path": Path("config/policy-router.json"),
-        "ranking_policy_path": Path("config/ranking.yaml"),
-        "default_max_latency_ms": 5_000,
-        "default_max_cost_usd": Decimal("1.25"),
-    }
-    values.update(overrides)
-    return GovernedDeploymentSettings(**values)  # type: ignore[arg-type]
+def _settings(
+    root: Path,
+    *,
+    model_registry_path: Path = Path("config/model-registry.yaml"),
+    provider_runtime_path: Path = Path("config/provider-runtime.json"),
+    client_auth_path: Path = Path("config/client-auth.json"),
+    policy_router_path: Path = Path("config/policy-router.json"),
+    ranking_policy_path: Path | None = Path("config/ranking.yaml"),
+    approved_ranking_artifact_path: Path | None = None,
+    expected_ranking_artifact_id: str | None = None,
+    complexity_routing_path: Path | None = None,
+    default_max_latency_ms: int = 5_000,
+    default_max_cost_usd: Decimal = Decimal("1.25"),
+) -> GovernedDeploymentSettings:
+    return GovernedDeploymentSettings(
+        deployment_root=root,
+        model_registry_path=model_registry_path,
+        provider_runtime_path=provider_runtime_path,
+        client_auth_path=client_auth_path,
+        policy_router_path=policy_router_path,
+        ranking_policy_path=ranking_policy_path,
+        approved_ranking_artifact_path=approved_ranking_artifact_path,
+        expected_ranking_artifact_id=expected_ranking_artifact_id,
+        complexity_routing_path=complexity_routing_path,
+        default_max_latency_ms=default_max_latency_ms,
+        default_max_cost_usd=default_max_cost_usd,
+    )
 
 
 def test_settings_resolve_relative_paths_deterministically(tmp_path: Path) -> None:
