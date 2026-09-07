@@ -1,5 +1,10 @@
 """Application orchestration boundaries."""
 
+from .complexity_ranking import (
+    ComplexityAwareRankingDecision,
+    ComplexityAwareRankingService,
+    ComplexityRankingError,
+)
 from .complexity_routing import (
     ComplexityEligibleCandidateSet,
     ComplexityNarrowingError,
@@ -61,9 +66,12 @@ from .resilience import (
 
 __all__ = [
     "AuthorizedCandidateSet",
+    "ComplexityAwareRankingDecision",
+    "ComplexityAwareRankingService",
     "ComplexityEligibleCandidateSet",
     "ComplexityNarrowingError",
     "ComplexityNarrowingProvenance",
+    "ComplexityRankingError",
     "ExecutionAttempt",
     "ExecutionAttemptOutcome",
     "GovernanceEventSink",
