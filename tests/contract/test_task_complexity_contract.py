@@ -1,5 +1,7 @@
 """Contract tests for provider-neutral task-complexity metadata."""
 
+from typing import cast
+
 import pytest
 from governed_llm_gateway_contracts import ComplexityAssessment, TaskComplexity
 
@@ -35,22 +37,23 @@ def test_complexity_assessment_rejects_malformed_provenance(
     field_name: str,
     invalid_value: str,
 ) -> None:
-    values = {
-        "level": TaskComplexity.MEDIUM,
-        "assessment_id": "assessment-001",
-        "evaluator_id": "deterministic-complexity",
-        "evaluator_version": "v1",
-    }
-    values[field_name] = invalid_value
+    assessment_id = invalid_value if field_name == "assessment_id" else "assessment-001"
+    evaluator_id = invalid_value if field_name == "evaluator_id" else "deterministic-complexity"
+    evaluator_version = invalid_value if field_name == "evaluator_version" else "v1"
 
     with pytest.raises(ValueError, match=rf"complexity {field_name} must be a normalized identifier"):
-        ComplexityAssessment(**values)  # type: ignore[arg-type]
+        ComplexityAssessment(
+            level=TaskComplexity.MEDIUM,
+            assessment_id=assessment_id,
+            evaluator_id=evaluator_id,
+            evaluator_version=evaluator_version,
+        )
 
 
 def test_complexity_assessment_rejects_non_vocab_level() -> None:
     with pytest.raises(ValueError, match="complexity level must use the provider-neutral vocabulary"):
         ComplexityAssessment(
-            level="high",  # type: ignore[arg-type]
+            level=cast(TaskComplexity, "high"),
             assessment_id="assessment-001",
             evaluator_id="deterministic-complexity",
             evaluator_version="v1",
