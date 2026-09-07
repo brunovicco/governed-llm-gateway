@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "config_version": "pc7-empty",
+  "enabled": false,
+  "endpoint": null,
+  "timeout_seconds": 5.0,
+  "bindings": []
+}

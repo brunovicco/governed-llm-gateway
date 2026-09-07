@@ -31,6 +31,13 @@ from .gateway_runtime_bootstrap import (
     GatewayRuntimeBootstrapPaths,
     bootstrap_gateway_runtime,
 )
+from .policy_router_bootstrap import (
+    PolicyRouterClientAuthMismatchError,
+    PolicyRouterRuntimeBootstrapBundle,
+    PolicyRouterRuntimeBootstrapPaths,
+    bootstrap_policy_router_runtime,
+    validate_policy_router_client_auth,
+)
 from .provider_bootstrap import (
     ProviderRuntimeBootstrapBundle,
     ProviderRuntimeBootstrapPaths,
@@ -76,6 +83,9 @@ __all__ = [
     "GatewayRuntimeBootstrapPaths",
     "GenerateCoordinator",
     "GenerateRequestModel",
+    "PolicyRouterClientAuthMismatchError",
+    "PolicyRouterRuntimeBootstrapBundle",
+    "PolicyRouterRuntimeBootstrapPaths",
     "PreparedStreamingExecution",
     "ProviderRuntimeBootstrapBundle",
     "ProviderRuntimeBootstrapPaths",
@@ -85,6 +95,7 @@ __all__ = [
     "StaticGatewayClientContextResolver",
     "attach_generate_route",
     "bootstrap_gateway_runtime",
+    "bootstrap_policy_router_runtime",
     "bootstrap_provider_runtime",
     "build_static_gateway_client_context_resolver",
     "complexity_evidence_from_decision",
@@ -92,4 +103,5 @@ __all__ = [
     "create_gateway_app",
     "load_gateway_client_auth_document",
     "load_gateway_client_auth_document_text",
+    "validate_policy_router_client_auth",
 ]
