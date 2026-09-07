@@ -116,9 +116,14 @@ Metadata-only routing evidence can include:
 - model-registry digest;
 - deterministic routing decision ID;
 - ranking-policy version and digest;
-- score/benchmark snapshot identity when present;
+- ranking score-snapshot identity;
 - selected provider/model/deployment;
 - machine-readable candidate rejection reasons.
+
+`ranking.score_snapshot_id` identifies the score snapshot used by deterministic ranking. It is not
+itself a benchmark evidence artifact. Approved benchmark snapshots remain separately versioned and
+reviewed evidence; any relationship between benchmark evidence and active ranking must be explicit in
+the ranking-evidence/provenance contract rather than inferred from telemetry.
 
 The explainability surface remains prompt-free and provider-free. Rejected-candidate reason codes are
 gateway-produced evidence; a UI must display those codes rather than infer its own reasons.
