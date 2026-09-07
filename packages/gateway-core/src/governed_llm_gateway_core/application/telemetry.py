@@ -1,10 +1,28 @@
 """Phase 9 gateway telemetry semantics built on the a2a-otel-kit privacy boundary."""
 
 from collections.abc import Mapping
+from enum import StrEnum
 
 from a2a_otel_kit import sanitize_attributes
 from opentelemetry.trace import Span
 from opentelemetry.trace.status import Status, StatusCode
+
+
+class GatewaySpanName(StrEnum):
+    """Stable metadata-only gateway span names used by Phase 9 instrumentation."""
+
+    REQUEST = "llm.gateway.request"
+    POLICY_ROUTE = "policy.route"
+    PROVIDER_ATTEMPT = "provider.inference"
+    STREAM = "llm.gateway.stream"
+
+
+class GatewaySpanEventName(StrEnum):
+    """Stable metadata-only gateway span-event names for resilience transitions."""
+
+    RETRY = "llm.gateway.retry"
+    FALLBACK = "llm.gateway.fallback"
+
 
 _GATEWAY_ALLOWED_ATTRIBUTE_KEYS = frozenset(
     {
