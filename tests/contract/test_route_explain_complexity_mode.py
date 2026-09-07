@@ -2,6 +2,7 @@
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 import httpx
@@ -314,11 +315,12 @@ def _payload() -> dict[str, object]:
 
 def _post(client: TestClient, *, mode: str | None = None) -> httpx.Response:
     path = "/v1/route/explain" if mode is None else f"/v1/route/explain?mode={mode}"
-    return client.post(
+    response = client.post(
         path,
         json=_payload(),
         headers={"X-Gateway-API-Key": _TEST_CREDENTIAL},
     )
+    return cast(httpx.Response, response)
 
 
 def test_default_mode_preserves_existing_response_shape_when_complexity_is_configured() -> None:
