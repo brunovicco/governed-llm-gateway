@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
+import httpx
 from fastapi.testclient import TestClient
 from governed_llm_gateway_api import (
     ComplexityRouteExplainCoordinator,
@@ -204,6 +205,9 @@ def _evidence_ranking_policy(
     *,
     mode: ScoreProvenanceMode = ScoreProvenanceMode.BENCHMARK_HYBRID,
 ) -> EvidenceDrivenRankingPolicy:
+    manual_override_id = (
+        "sha256:" + "c" * 64 if mode is ScoreProvenanceMode.MANUAL_OVERRIDE else None
+    )
     return EvidenceDrivenRankingPolicy(
         schema_version="1.1",
         policy_version="ranking-v1",
@@ -213,7 +217,7 @@ def _evidence_ranking_policy(
         score_provenance_mode=mode,
         benchmark_snapshot_id="sha256:" + "a" * 64,
         promotion_evidence_id="sha256:" + "b" * 64,
-        manual_override_id=("sha256:" + "c" * 64 if mode is ScoreProvenanceMode.MANUAL_OVERRIDE else None),
+        manual_override_id=manual_override_id,
     )
 
 
@@ -308,7 +312,7 @@ def _payload() -> dict[str, object]:
     }
 
 
-def _post(client: TestClient, *, mode: str | None = None):
+def _post(client: TestClient, *, mode: str | None = None) -> httpx.Response:
     path = "/v1/route/explain" if mode is None else f"/v1/route/explain?mode={mode}"
     return client.post(
         path,
@@ -380,6 +384,7 @@ def test_complexity_mode_rejects_manual_override_evidence_without_leaking_reason
     assert response.json() == {"detail": {"code": "complexity_routing_unavailable"}}
     assert events == ["authorize", "assess"]
     assert "benchmark_hybrid" not in response.text
+    assert manual.manual_override_id is not None
     assert manual.manual_override_id not in response.text
     assert _TEST_CREDENTIAL not in response.text
 
