@@ -160,13 +160,41 @@ The representation has no fields for prompts, completions, messages, tool argume
 
 CR-2d intentionally does **not** modify `RouteExplainResponseModel`, the `/v1/route/explain` path, or its existing static/manual-override ranking behavior. A later increment can wire this validated subdocument through an explicit compatibility-safe API mode or version.
 
+## CR-2e opt-in route explanation mode
+
+CR-2e exposes the validated CR-2c/CR-2d evidence chain through the existing metadata-only HTTP route without changing its default behavior.
+
+The compatibility contract is explicit:
+
+```text
+POST /v1/route/explain
+    -> operational mode (default, existing response shape)
+
+POST /v1/route/explain?mode=complexity
+    -> PDP authorization
+    -> deterministic complexity assessment
+    -> benchmark-grounded narrowing
+    -> operational ranking of the narrowed subset
+    -> existing route evidence + complexity evidence subdocument
+```
+
+`create_app` accepts an optional `ComplexityRouteExplainCoordinator`. The default operational path never depends on that coordinator, so existing static ranking and Phase 11 manual-override behavior remain available without implicit complexity activation.
+
+Complexity mode is fail closed. If no complexity coordinator is configured, the API returns a sanitized `complexity_routing_unavailable` error. Evidence that is not `benchmark_hybrid`, missing benchmark quality, an empty complexity subset, or policy/evidence inconsistency also fails closed rather than falling back to the broader operational candidate set.
+
+The complexity response extends the existing route explanation with only the CR-2d metadata subdocument. It does not add prompt/message content, provider-native payloads, provider credentials, raw provider responses, or provider execution.
+
+The HTTP boundary preserves authorization ordering: trusted client context is resolved first, PDP authorization completes before the complexity evaluator runs, and the complexity result can only narrow the already-authorized candidate set.
+
+CR-2e remains a no-inference explanation surface. Generation/streaming execution can adopt complexity-aware routing only in a separate increment after this compatibility boundary is validated.
+
 ## Current limitation and future semantic assessment
 
 The CR-1 evaluator does not claim to infer semantic reasoning difficulty from prompt text. Token volume and capability requirements are operational signals, while workload-specific floors allow explicit policy-defined knowledge about known task classes.
 
 A future semantic evaluator may be added behind a provider-neutral contract when there is benchmark evidence to justify it. If such an evaluator uses an LLM, its output remains advisory evidence and must not gain authorization authority, self-modify policy, or bypass deterministic validation.
 
-Future increments can expose the validated CR-0 → CR-1 → CR-2a → CR-2b → CR-2c → CR-2d evidence chain through a compatibility-safe route explanation mode and later provider execution. Any additional capability/quality mapping must remain explicit, versioned, auditable, reversible, and benchmark/evidence driven.
+Future increments can extend the validated CR-0 → CR-1 → CR-2a → CR-2b → CR-2c → CR-2d → CR-2e chain into provider execution. Any additional capability/quality mapping must remain explicit, versioned, auditable, reversible, and benchmark/evidence driven.
 
 ## Centralized provider boundary
 
