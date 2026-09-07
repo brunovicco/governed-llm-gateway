@@ -25,7 +25,10 @@ class WorkloadComplexityFloor:
 
     def __post_init__(self) -> None:
         """Reject ambiguous workload rules before they can influence an assessment."""
-        if not isinstance(self.workload, str) or fullmatch(_WORKLOAD_PATTERN, self.workload) is None:
+        if (
+            not isinstance(self.workload, str)
+            or fullmatch(_WORKLOAD_PATTERN, self.workload) is None
+        ):
             raise ValueError("complexity workload floor must use a normalized workload identifier")
         if not isinstance(self.minimum, TaskComplexity):
             raise ValueError("complexity workload floor must use the provider-neutral vocabulary")
