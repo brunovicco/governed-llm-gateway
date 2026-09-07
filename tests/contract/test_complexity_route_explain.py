@@ -57,7 +57,9 @@ class RecordingPolicyPort:
         self._events = events
         self._reject = reject
 
-    async def authorize(self, metadata: PolicyRequestMetadata) -> PolicyAuthorizationDecision:
+    async def authorize(
+        self, metadata: PolicyRequestMetadata
+    ) -> PolicyAuthorizationDecision:
         self._events.append("authorize")
         if self._reject:
             raise PolicyDecisionError(
@@ -200,7 +202,9 @@ def _complexity_evaluator(events: list[str]) -> ComplexityEvaluator:
             ),
         ),
     )
-    return RecordingComplexityEvaluator(events, DeterministicComplexityEvaluator(policy))
+    return RecordingComplexityEvaluator(
+        events, DeterministicComplexityEvaluator(policy)
+    )
 
 
 def _quality_policy() -> ComplexityQualityPolicy:
@@ -213,7 +217,9 @@ def _quality_policy() -> ComplexityQualityPolicy:
     )
 
 
-def _service(events: list[str], *, reject: bool = False) -> ComplexityRouteExplainService:
+def _service(
+    events: list[str], *, reject: bool = False
+) -> ComplexityRouteExplainService:
     return ComplexityRouteExplainService(
         policy_enforcement=PolicyEnforcementService(
             RecordingPolicyPort(events, reject=reject)
@@ -306,7 +312,9 @@ async def test_empty_complexity_subset_fails_closed_without_authorized_fallback(
     events: list[str] = []
     low = _deployment("deployment-low")
 
-    with pytest.raises(ComplexityRankingError, match="at least one complexity-eligible"):
+    with pytest.raises(
+        ComplexityRankingError, match="at least one complexity-eligible"
+    ):
         await _service(events).explain(
             _request(),
             _effective_context(),
@@ -325,7 +333,9 @@ async def test_missing_benchmark_quality_fails_closed_after_authorization() -> N
     events: list[str] = []
     deployment = _deployment("deployment-missing")
 
-    with pytest.raises(ComplexityNarrowingError, match="missing benchmark-derived quality"):
+    with pytest.raises(
+        ComplexityNarrowingError, match="missing benchmark-derived quality"
+    ):
         await _service(events).explain(
             _request(),
             _effective_context(),
