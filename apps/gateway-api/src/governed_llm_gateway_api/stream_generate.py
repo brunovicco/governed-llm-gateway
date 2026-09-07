@@ -1,16 +1,18 @@
 """Authenticated SSE generation surface for governed streaming execution."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 from collections.abc import AsyncGenerator
 from contextlib import aclosing, nullcontext
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import UUID
 
 from a2a_otel_kit import Observability, continue_trace, inject_trace_context
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from governed_llm_gateway_contracts import (
     DataClassification,
@@ -29,6 +31,8 @@ from governed_llm_gateway_contracts import (
     WorkloadRequirements,
 )
 from governed_llm_gateway_core.application import (
+    ComplexityNarrowingError,
+    ComplexityRankingError,
     InMemoryHealthTracker,
     PolicyDecisionError,
     PolicyDecisionErrorCode,
@@ -57,6 +61,9 @@ from governed_llm_gateway_core.domain.structured import (
 from pydantic import BaseModel, ConfigDict, Field
 
 from .route_explain import ClientAuthenticationError, EffectiveContextResolver
+
+if TYPE_CHECKING:
+    from .complexity_generate import ComplexityGenerateCoordinator
 
 _WORKLOAD_PATTERN = r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"
 _TRACE_HEADERS = ("traceparent", "tracestate")
@@ -296,16 +303,23 @@ def attach_generate_route(
     app: FastAPI,
     coordinator: GenerateCoordinator,
     *,
+    complexity_coordinator: ComplexityGenerateCoordinator | None = None,
     observability: Observability | None = None,
 ) -> None:
-    """Attach governed SSE generation with optional Phase 9 trace continuation."""
+    """Attach governed SSE generation with opt-in complexity routing and tracing."""
 
     @app.post("/v1/generate", response_class=StreamingResponse)
     async def generate(
         request: Request,
         payload: GenerateRequestModel,
         gateway_api_key: Annotated[str, Header(alias="X-Gateway-API-Key", min_length=1)],
+        mode: Annotated[Literal["operational", "complexity"], Query()] = "operational",
     ) -> StreamingResponse:
+        active_coordinator = _select_generate_coordinator(
+            coordinator,
+            complexity_coordinator=complexity_coordinator,
+            mode=mode,
+        )
         trace_carrier = _trace_carrier(request)
         trace_context = continue_trace(trace_carrier) if trace_carrier else nullcontext()
         stream_parent_carrier: dict[str, str] = {}
@@ -313,9 +327,10 @@ def attach_generate_route(
         with trace_context:
             if observability is None:
                 prepared = await _prepare_generation(
-                    coordinator,
+                    active_coordinator,
                     api_key=gateway_api_key,
                     payload=payload,
+                    complexity_mode=mode == "complexity",
                 )
             else:
                 with observability.start_span(
@@ -335,9 +350,10 @@ def attach_generate_route(
                     )
                     try:
                         prepared = await _prepare_generation(
-                            coordinator,
+                            active_coordinator,
                             api_key=gateway_api_key,
                             payload=payload,
+                            complexity_mode=mode == "complexity",
                         )
                     except HTTPException as exc:
                         set_gateway_span_attributes(span, {"http.status_code": exc.status_code})
@@ -356,7 +372,7 @@ def attach_generate_route(
 
         return StreamingResponse(
             _sse_body(
-                coordinator,
+                active_coordinator,
                 prepared,
                 observability=observability,
                 trace_carrier=stream_parent_carrier,
@@ -369,11 +385,28 @@ def attach_generate_route(
         )
 
 
-async def _prepare_generation(
+def _select_generate_coordinator(
     coordinator: GenerateCoordinator,
+    *,
+    complexity_coordinator: ComplexityGenerateCoordinator | None,
+    mode: Literal["operational", "complexity"],
+) -> GenerateCoordinator | ComplexityGenerateCoordinator:
+    if mode == "complexity":
+        if complexity_coordinator is None:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "complexity_routing_unavailable"},
+            )
+        return complexity_coordinator
+    return coordinator
+
+
+async def _prepare_generation(
+    coordinator: GenerateCoordinator | ComplexityGenerateCoordinator,
     *,
     api_key: str,
     payload: GenerateRequestModel,
+    complexity_mode: bool = False,
 ) -> PreparedStreamingExecution:
     try:
         return await coordinator.prepare(
@@ -390,15 +423,32 @@ async def _prepare_generation(
             status_code=503,
             detail={"code": "no_eligible_streaming_deployment"},
         ) from exc
+    except (ComplexityNarrowingError, ComplexityRankingError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "complexity_routing_unavailable"},
+        ) from exc
     except RankingPolicyError as exc:
         raise HTTPException(
             status_code=503,
-            detail={"code": "ranking_policy_unavailable"},
+            detail={
+                "code": (
+                    "complexity_routing_unavailable"
+                    if complexity_mode
+                    else "ranking_policy_unavailable"
+                )
+            },
         ) from exc
     except RankingInvariantViolation as exc:
         raise HTTPException(
             status_code=503,
-            detail={"code": "ranking_invariant_violation"},
+            detail={
+                "code": (
+                    "complexity_routing_invariant_violation"
+                    if complexity_mode
+                    else "ranking_invariant_violation"
+                )
+            },
         ) from exc
     except PolicyDecisionError as exc:
         raise _policy_http_exception(exc) from exc
@@ -410,7 +460,7 @@ async def _prepare_generation(
 
 
 async def _sse_body(
-    coordinator: GenerateCoordinator,
+    coordinator: GenerateCoordinator | ComplexityGenerateCoordinator,
     prepared: PreparedStreamingExecution,
     *,
     observability: Observability | None = None,

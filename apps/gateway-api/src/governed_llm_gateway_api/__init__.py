@@ -24,6 +24,7 @@ from .complexity_evidence import (
     ComplexityNarrowingExplainModel,
     complexity_evidence_from_decision,
 )
+from .complexity_generate import ComplexityGenerateCoordinator
 from .gateway_runtime_bootstrap import (
     GatewayRuntimeBootstrapBundle,
     GatewayRuntimeBootstrapPaths,
@@ -55,6 +56,7 @@ __all__ = [
     "ClientAuthenticationError",
     "ComplexityAssessmentExplainModel",
     "ComplexityExplainModel",
+    "ComplexityGenerateCoordinator",
     "ComplexityHttpEvidenceInvariantViolation",
     "ComplexityNarrowingExplainModel",
     "ComplexityRouteExplainCoordinator",
