@@ -1,5 +1,6 @@
 """Public provider-neutral contracts."""
 
+from .complexity import ComplexityAssessment
 from .contracts import (
     CandidateRejection,
     GatewayRequest,
@@ -28,12 +29,14 @@ from .enums import (
     RejectionReason,
     RiskLevel,
     StreamEventType,
+    TaskComplexity,
 )
 from .errors import GatewayError
 
 __all__ = [
     "CandidateRejection",
     "Capability",
+    "ComplexityAssessment",
     "DataClassification",
     "ExecutionStatus",
     "GatewayError",
@@ -53,6 +56,7 @@ __all__ = [
     "RoutingProvenance",
     "StreamEventType",
     "StructuredOutputSchema",
+    "TaskComplexity",
     "ToolCall",
     "ToolDefinition",
     "ToolResult",

@@ -21,6 +21,14 @@ class RiskLevel(StrEnum):
     CRITICAL = "critical"
 
 
+class TaskComplexity(StrEnum):
+    """Provider-neutral task-complexity vocabulary used only after authorization."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
 class MessageRole(StrEnum):
     """Canonical message roles for the initial request contract."""
 
