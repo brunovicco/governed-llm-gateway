@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import uvicorn
 from fastapi import FastAPI
 from governed_llm_gateway_api import server as server_module
 from governed_llm_gateway_api.deployment_activation import GovernedDeploymentSettings
@@ -170,7 +171,7 @@ def test_uvicorn_runner_delegates_single_worker_without_global_app(
     ) -> None:
         calls.append((candidate, host, port, workers))
 
-    monkeypatch.setattr(server_module.uvicorn, "run", fake_uvicorn_run)
+    monkeypatch.setattr(uvicorn, "run", fake_uvicorn_run)
 
     UvicornServerRunner().run(app, host="127.0.0.1", port=8000)
 
