@@ -19,6 +19,7 @@ from .openai_responses_streaming import OpenAIResponsesStreamingAdapter
 
 _PROVIDER_IDENTIFIER = re.compile(r"^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$")
 _ENV_REFERENCE = re.compile(r"^[A-Z][A-Z0-9_]{1,127}$")
+_MAX_CREDENTIAL_REFERENCE_LENGTH = 256
 _DEFAULT_ANTHROPIC_API_VERSION = "2023-06-01"
 
 
@@ -75,7 +76,7 @@ class ProviderRuntimeConfig:
 
     provider: str
     api_family: ProviderApiFamily
-    credential_env_var: str
+    credential_reference: str
     endpoint: str
     anthropic_api_version: str | None = None
     openai_compatible: OpenAICompatibleRuntimeOptions | None = None
@@ -89,13 +90,7 @@ class ProviderRuntimeConfig:
             raise ProviderRuntimeConfigurationError("provider must be a normalized identifier")
         if not isinstance(self.api_family, ProviderApiFamily):
             raise ProviderRuntimeConfigurationError("api_family must use ProviderApiFamily")
-        if (
-            not isinstance(self.credential_env_var, str)
-            or _ENV_REFERENCE.fullmatch(self.credential_env_var) is None
-        ):
-            raise ProviderRuntimeConfigurationError(
-                "credential_env_var must be a normalized environment-variable name"
-            )
+        _validate_credential_reference(self.credential_reference)
         _validate_endpoint(self.endpoint)
         self._validate_family_configuration()
 
@@ -148,13 +143,15 @@ class EnvironmentProviderSecretResolver:
         self._environ = os.environ if environ is None else environ
 
     def resolve(self, reference: str) -> str:
-        """Resolve a normalized environment reference without surfacing credential values."""
-        if _ENV_REFERENCE.fullmatch(reference) is None:
-            raise ProviderSecretResolutionError("provider credential reference is invalid")
+        """Resolve an environment-variable reference without surfacing credential values."""
+        if not isinstance(reference, str) or _ENV_REFERENCE.fullmatch(reference) is None:
+            raise ProviderSecretResolutionError(
+                "provider credential environment reference is invalid"
+            )
         value = self._environ.get(reference)
         if value is None or not value or value.strip() != value:
             raise ProviderSecretResolutionError(
-                f"provider credential {reference!r} is unavailable or malformed"
+                "provider credential environment value is unavailable or malformed"
             )
         return value
 
@@ -164,20 +161,49 @@ def build_static_provider_resolver(
     secrets: ProviderSecretResolver,
 ) -> StaticProviderResolver:
     """Build one immutable resolver from validated configs and server-side credentials."""
+    validated = _validate_runtime_configs(configs)
     providers: dict[tuple[str, str], ProviderPort] = {}
+    for key, config in validated:
+        credential = _resolve_credential(config, secrets)
+        providers[key] = _build_adapter(config, credential)
+    return StaticProviderResolver(providers)
+
+
+def _validate_runtime_configs(
+    configs: Sequence[ProviderRuntimeConfig],
+) -> tuple[tuple[tuple[str, str], ProviderRuntimeConfig], ...]:
+    validated: list[tuple[tuple[str, str], ProviderRuntimeConfig]] = []
+    seen: set[tuple[str, str]] = set()
     for config in configs:
         if not isinstance(config, ProviderRuntimeConfig):
             raise ProviderRuntimeConfigurationError(
                 "provider runtime configs must contain ProviderRuntimeConfig values"
             )
         key = (config.provider, config.api_family.value)
-        if key in providers:
+        if key in seen:
             raise ProviderRuntimeConfigurationError(
                 f"duplicate provider runtime binding for {key[0]}/{key[1]}"
             )
-        credential = secrets.resolve(config.credential_env_var)
-        providers[key] = _build_adapter(config, credential)
-    return StaticProviderResolver(providers)
+        seen.add(key)
+        validated.append((key, config))
+    return tuple(validated)
+
+
+def _resolve_credential(
+    config: ProviderRuntimeConfig,
+    secrets: ProviderSecretResolver,
+) -> str:
+    try:
+        credential = secrets.resolve(config.credential_reference)
+    except Exception:
+        raise ProviderSecretResolutionError("provider credential resolution failed") from None
+    if (
+        not isinstance(credential, str)
+        or not credential
+        or credential.strip() != credential
+    ):
+        raise ProviderSecretResolutionError("provider credential resolution failed")
+    return credential
 
 
 def _build_adapter(config: ProviderRuntimeConfig, credential: str) -> ProviderPort:
@@ -222,6 +248,19 @@ def _build_adapter(config: ProviderRuntimeConfig, credential: str) -> ProviderPo
         supports_native_structured_output=options.supports_native_structured_output,
         supports_native_tool_calling=options.supports_native_tool_calling,
     )
+
+
+def _validate_credential_reference(value: object) -> None:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value.strip() != value
+        or len(value) > _MAX_CREDENTIAL_REFERENCE_LENGTH
+        or any(char.isspace() for char in value)
+    ):
+        raise ProviderRuntimeConfigurationError(
+            "credential_reference must be a normalized bounded reference"
+        )
 
 
 def _validate_endpoint(value: object) -> None:
