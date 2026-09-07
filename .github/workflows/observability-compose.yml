@@ -5,6 +5,8 @@ on:
     paths:
       - compose.observability.yml
       - deploy/observability/**
+      - docs/project/LOCAL_OBSERVABILITY.md
+      - tests/contract/test_local_observability_foundation.py
       - .github/workflows/observability-compose.yml
   push:
     branches:
@@ -13,6 +15,8 @@ on:
     paths:
       - compose.observability.yml
       - deploy/observability/**
+      - docs/project/LOCAL_OBSERVABILITY.md
+      - tests/contract/test_local_observability_foundation.py
       - .github/workflows/observability-compose.yml
 
 permissions:
