@@ -145,13 +145,28 @@ Missing benchmark quality, an empty complexity-eligible subset, PDP rejection, p
 
 CR-2c deliberately stops at the application boundary. Public `/v1/route/explain` response/schema wiring and generation/provider-execution wiring remain separate increments so compatibility and execution behavior can be reviewed independently.
 
+## CR-2d metadata-only HTTP evidence contract
+
+CR-2d defines the HTTP subdocument that can represent CR-2c complexity evidence without changing the existing `/v1/route/explain` behavior.
+
+`ComplexityExplainModel` contains only two bounded evidence sections:
+
+- assessment provenance: complexity level, assessment ID, evaluator ID, and evaluator version;
+- narrowing provenance: minimum benchmark quality, quality/ranking policy digests, benchmark snapshot ID, promotion evidence ID, retained deployment IDs, and excluded deployment IDs.
+
+`complexity_evidence_from_decision` accepts a `ComplexityRouteExplainDecision` and validates its internal evidence chain before serialization. It fails closed when assessment identity/level drift from narrowing provenance, ranking-policy or benchmark provenance disagree, manual-override evidence is presented as benchmark complexity evidence, retained/excluded deployments overlap or are non-deterministic, or ranking exposes a deployment outside the complexity-eligible subset.
+
+The representation has no fields for prompts, completions, messages, tool arguments/results, credentials, provider payloads, or provider-native responses.
+
+CR-2d intentionally does **not** modify `RouteExplainResponseModel`, the `/v1/route/explain` path, or its existing static/manual-override ranking behavior. A later increment can wire this validated subdocument through an explicit compatibility-safe API mode or version.
+
 ## Current limitation and future semantic assessment
 
 The CR-1 evaluator does not claim to infer semantic reasoning difficulty from prompt text. Token volume and capability requirements are operational signals, while workload-specific floors allow explicit policy-defined knowledge about known task classes.
 
 A future semantic evaluator may be added behind a provider-neutral contract when there is benchmark evidence to justify it. If such an evaluator uses an LLM, its output remains advisory evidence and must not gain authorization authority, self-modify policy, or bypass deterministic validation.
 
-Future increments can expose the validated CR-0 → CR-1 → CR-2a → CR-2b → CR-2c evidence chain through route explanation and later provider execution. Any additional capability/quality mapping must remain explicit, versioned, auditable, reversible, and benchmark/evidence driven.
+Future increments can expose the validated CR-0 → CR-1 → CR-2a → CR-2b → CR-2c → CR-2d evidence chain through a compatibility-safe route explanation mode and later provider execution. Any additional capability/quality mapping must remain explicit, versioned, auditable, reversible, and benchmark/evidence driven.
 
 ## Centralized provider boundary
 
