@@ -1,0 +1,20 @@
+name: format-probe
+
+on:
+  push:
+    branches:
+      - feat/cr2c-complexity-route-explain
+
+permissions:
+  contents: read
+
+jobs:
+  format-probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+      - name: Show Ruff formatting diff
+        run: uvx --python 3.13 --from ruff==0.12.11 ruff format --diff tests/contract/test_complexity_route_explain.py
