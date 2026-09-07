@@ -37,11 +37,11 @@ It does **not** contain provider credentials and registry membership does not gr
 - provider identifier;
 - canonical API family;
 - provider endpoint/base URL;
-- server-side credential environment-variable reference;
+- server-side `credential_reference` understood by the injected secret resolver;
 - Anthropic API version when applicable;
 - explicitly verified OpenAI-compatible transport feature options when applicable.
 
-The object never accepts an API-key/credential value.
+The object never accepts an API-key/credential value. The credential reference is intentionally resolver-neutral: an environment deployment can use `OPENAI_API_KEY`, while a future secret backend can use a provider-specific identifier such as `vault://providers/openai` without changing the runtime configuration schema.
 
 Endpoints fail closed during composition unless they are normalized absolute HTTPS URLs with a host and without userinfo, query strings, or fragments. They are deployment configuration, never caller-controlled request fields.
 
@@ -53,10 +53,12 @@ The environment resolver:
 
 - accepts only normalized environment-variable references;
 - fails closed when the referenced credential is missing, empty, or malformed;
-- never includes the credential value in its exception text;
+- never includes the credential value or reference in its exception text;
 - returns the raw value only to the provider adapter factory inside the Gateway runtime.
 
-A future implementation can resolve references from AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault, or another deployment-specific secret system without changing consumers, routing contracts, or the Model Registry.
+`build_static_provider_resolver(...)` wraps arbitrary secret-backend exceptions into a bounded `ProviderSecretResolutionError` without preserving backend exception text in the visible chain. It also validates returned credential values before adapter construction.
+
+A future implementation can resolve references from AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault, or another deployment-specific secret system without changing consumers, routing contracts, `ProviderRuntimeConfig`, or the Model Registry.
 
 ## Canonical API families
 
@@ -89,7 +91,9 @@ This adapter capability evidence remains separate from the Model Registry. A reg
 
 ## Composition
 
-`build_static_provider_resolver(...)` resolves provider credentials server-side and creates the existing `StaticProviderResolver` keyed by:
+`build_static_provider_resolver(...)` validates the complete provider configuration set before invoking any secret resolver. Duplicate `(provider, api_family)` bindings or malformed config therefore fail before secret-manager access or adapter construction.
+
+Only after structural validation does composition resolve credentials server-side and create the existing `StaticProviderResolver` keyed by:
 
 ```text
 (provider, api_family)
@@ -107,7 +111,7 @@ The following example contains only a secret reference, not a secret value:
 ProviderRuntimeConfig(
     provider="nvidia",
     api_family=ProviderApiFamily.OPENAI_COMPATIBLE,
-    credential_env_var="NVIDIA_API_KEY",
+    credential_reference="NVIDIA_API_KEY",
     endpoint="https://nvidia.example/v1/chat/completions",
     openai_compatible=OpenAICompatibleRuntimeOptions(
         supports_streaming=True,
