@@ -1,5 +1,15 @@
 """FastAPI composition-root surfaces for the Governed LLM Gateway."""
 
+from .client_auth import (
+    EnvironmentGatewayClientSecretResolver,
+    GatewayClientAuthBinding,
+    GatewayClientAuthenticationConfigurationError,
+    GatewayClientAuthorizationError,
+    GatewayClientSecretResolutionError,
+    GatewayClientSecretResolver,
+    StaticGatewayClientContextResolver,
+    build_static_gateway_client_context_resolver,
+)
 from .complexity_evidence import (
     ComplexityAssessmentExplainModel,
     ComplexityExplainModel,
@@ -21,16 +31,6 @@ from .route_explain import (
     RouteExplainRequestModel,
     RouteExplainResponseModel,
     create_app,
-)
-from .client_auth import (
-    EnvironmentGatewayClientSecretResolver,
-    GatewayClientAuthBinding,
-    GatewayClientAuthenticationConfigurationError,
-    GatewayClientAuthorizationError,
-    GatewayClientSecretResolutionError,
-    GatewayClientSecretResolver,
-    StaticGatewayClientContextResolver,
-    build_static_gateway_client_context_resolver,
 )
 from .stream_generate import (
     GenerateCoordinator,
