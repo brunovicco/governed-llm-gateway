@@ -83,9 +83,9 @@ def test_round_trip_preserves_policy_and_approval_identity() -> None:
 def test_policy_tampering_with_stale_declared_identity_fails_closed() -> None:
     artifact = _artifact()
     payload = json.loads(dump_approved_ranking_artifact_text(artifact))
-    payload["policy"]["workloads"]["rag.answer"]["deployments"]["openai-primary"][
-        "quality"
-    ] = "0.1"
+    payload["policy"]["workloads"]["rag.answer"]["deployments"]["openai-primary"]["quality"] = (
+        "0.1"
+    )
 
     with pytest.raises(
         ApprovedRankingArtifactDocumentError,
