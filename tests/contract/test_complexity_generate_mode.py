@@ -1,5 +1,6 @@
 """Contract tests for opt-in complexity-aware streaming generation."""
 
+import asyncio
 from collections.abc import AsyncGenerator
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -39,6 +40,7 @@ from governed_llm_gateway_core.application import (
     PolicyEnforcementService,
     PolicyProjectionDefaults,
     PolicyRequestMetadata,
+    RankingDecision,
 )
 from governed_llm_gateway_core.application.streaming import StreamingExecutionService
 from governed_llm_gateway_core.domain import (
@@ -177,7 +179,7 @@ class FakeHttpCoordinator:
         self.prepare_calls += 1
         return PreparedStreamingExecution(
             request=payload.to_gateway_request(),
-            decision=cast(object, object()),
+            decision=cast(RankingDecision, object()),
             max_output_tokens=payload.max_output_tokens,
             provider_timeout_seconds=payload.provider_timeout_seconds,
         )
@@ -412,9 +414,7 @@ def test_complexity_generation_authorizes_before_assessment_and_selects_high_qua
     coordinator = _complexity_coordinator(events)
     payload = GenerateRequestModel.model_validate(_payload())
 
-    prepared = __import__("asyncio").run(
-        coordinator.prepare(api_key=_API_KEY, payload=payload)
-    )
+    prepared = asyncio.run(coordinator.prepare(api_key=_API_KEY, payload=payload))
 
     assert events == ["authorize", "assess"]
     assert prepared.decision.selected is not None
@@ -431,6 +431,6 @@ def test_complexity_generation_never_resurrects_lower_quality_authorized_candida
     payload = GenerateRequestModel.model_validate(_payload())
 
     with pytest.raises(NoEligibleStreamingDeploymentError):
-        __import__("asyncio").run(coordinator.prepare(api_key=_API_KEY, payload=payload))
+        asyncio.run(coordinator.prepare(api_key=_API_KEY, payload=payload))
 
     assert events == ["authorize", "assess"]
