@@ -38,6 +38,14 @@ from .policy_router_bootstrap import (
     bootstrap_policy_router_runtime,
     validate_policy_router_client_auth,
 )
+from .process_bootstrap import (
+    GovernedProcessArtifacts,
+    GovernedProcessBootstrapPaths,
+    GovernedProcessRuntimeBundle,
+    bootstrap_governed_process_runtime,
+    load_governed_process_artifacts,
+    materialize_governed_process_runtime,
+)
 from .provider_bootstrap import (
     ProviderRuntimeBootstrapBundle,
     ProviderRuntimeBootstrapPaths,
@@ -83,6 +91,9 @@ __all__ = [
     "GatewayRuntimeBootstrapPaths",
     "GenerateCoordinator",
     "GenerateRequestModel",
+    "GovernedProcessArtifacts",
+    "GovernedProcessBootstrapPaths",
+    "GovernedProcessRuntimeBundle",
     "PolicyRouterClientAuthMismatchError",
     "PolicyRouterRuntimeBootstrapBundle",
     "PolicyRouterRuntimeBootstrapPaths",
@@ -95,6 +106,7 @@ __all__ = [
     "StaticGatewayClientContextResolver",
     "attach_generate_route",
     "bootstrap_gateway_runtime",
+    "bootstrap_governed_process_runtime",
     "bootstrap_policy_router_runtime",
     "bootstrap_provider_runtime",
     "build_static_gateway_client_context_resolver",
@@ -103,5 +115,7 @@ __all__ = [
     "create_gateway_app",
     "load_gateway_client_auth_document",
     "load_gateway_client_auth_document_text",
+    "load_governed_process_artifacts",
+    "materialize_governed_process_runtime",
     "validate_policy_router_client_auth",
 ]
