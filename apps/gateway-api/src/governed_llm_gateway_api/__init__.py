@@ -33,6 +33,7 @@ from .complexity_evidence import (
     complexity_evidence_from_decision,
 )
 from .complexity_generate import ComplexityGenerateCoordinator
+from .deployment_activation import GovernedDeploymentSettings, activate_governed_deployment
 from .gateway_runtime_bootstrap import (
     GatewayRuntimeBootstrapBundle,
     GatewayRuntimeBootstrapPaths,
@@ -106,6 +107,7 @@ __all__ = [
     "GenerateRequestModel",
     "GovernedApplicationArtifacts",
     "GovernedApplicationBootstrapPaths",
+    "GovernedDeploymentSettings",
     "GovernedGatewayServices",
     "GovernedProcessArtifacts",
     "GovernedProcessBootstrapPaths",
@@ -121,6 +123,7 @@ __all__ = [
     "RouteExplainRequestModel",
     "RouteExplainResponseModel",
     "StaticGatewayClientContextResolver",
+    "activate_governed_deployment",
     "attach_generate_route",
     "bootstrap_gateway_runtime",
     "bootstrap_governed_application_services",
