@@ -29,7 +29,6 @@ from governed_llm_gateway_contracts import (
     RiskLevel,
     RoutingProvenance,
     StreamEventType,
-    TaskComplexity,
 )
 from governed_llm_gateway_core.adapters import load_complexity_routing_document
 from governed_llm_gateway_core.application import (
