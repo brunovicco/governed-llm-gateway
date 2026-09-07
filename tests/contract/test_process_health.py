@@ -3,7 +3,6 @@
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from governed_llm_gateway_api.process_health import (
     ProcessHealthCompositionError,
     attach_process_health_routes,
@@ -28,7 +27,10 @@ def test_duplicate_process_health_attachment_fails_closed() -> None:
     app = FastAPI()
     attach_process_health_routes(app)
 
-    with pytest.raises(ProcessHealthCompositionError, match="process health route already attached"):
+    with pytest.raises(
+        ProcessHealthCompositionError,
+        match="process health route already attached",
+    ):
         attach_process_health_routes(app)
 
 
