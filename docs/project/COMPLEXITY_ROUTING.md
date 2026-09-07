@@ -37,7 +37,7 @@ task-complexity assessment
         ↓
 benchmark-grounded complexity narrowing
         ↓
-deterministic operational ranking
+deterministic operational ranking of the narrowed subset
         ↓
 provider execution / bounded resilience
 ```
@@ -96,7 +96,30 @@ A high-quality deployment that is present in benchmark evidence but absent from 
 
 CR-2a emits metadata-only narrowing provenance containing the complexity assessment identity, complexity level, effective minimum quality, quality-policy digest, ranking-policy digest, benchmark snapshot identity, promotion evidence identity, and excluded deployment identifiers. It does not capture prompt or completion content.
 
-CR-2a deliberately does not wire this subset into `OperationalRankingService.rank` yet. That integration is a later increment so the subset invariant can be tested independently before changing the operational selection pipeline.
+## CR-2b operational ranking composition
+
+CR-2b composes the CR-2a subset with the existing `OperationalRankingService` without changing the Phase 5 scoring formula or its authority boundary.
+
+`ComplexityAwareRankingService` accepts a previously validated `ComplexityEligibleCandidateSet`. It reconstructs an `AuthorizedCandidateSet` containing only those complexity-eligible deployments while preserving the original PDP decision and model-registry digest, then delegates to the existing Phase 5 ranking implementation.
+
+The service fails closed before ranking when the complexity-eligible subset is empty. It does not relax the quality floor, reuse the broader authorized set, or search benchmark/ranking evidence for a replacement deployment.
+
+The ranking policy digest must also match the digest recorded by CR-2a narrowing provenance. This prevents one ranking/evidence policy from determining complexity eligibility and a different policy from scoring the retained deployments.
+
+After delegation, the composition boundary defensively verifies that every selected deployment, alternative, and Phase 5 rejection belongs to the complexity-eligible subset. The resulting invariant is:
+
+```text
+selected model / alternatives / ranking rejections
+    ⊆ complexity-eligible candidates
+    ⊆ authorized candidates
+    ⊆ Policy Router authorized set
+```
+
+Phase 5 continues to own deterministic operational checks such as capabilities, context size, pricing/cost, expected latency, runtime health, environment, data classification, and score availability. Those checks may only remove candidates from the complexity subset; they cannot restore a deployment that CR-2a excluded.
+
+`ComplexityAwareRankingDecision` preserves both evidence planes: the existing `RankingDecision` and the immutable CR-2a `ComplexityNarrowingProvenance`.
+
+CR-2b is an application composition boundary only. API/runtime wiring remains a later increment so the new selection chain can be validated independently before changing public request handling.
 
 ## Current limitation and future semantic assessment
 
@@ -104,7 +127,7 @@ The CR-1 evaluator does not claim to infer semantic reasoning difficulty from pr
 
 A future semantic evaluator may be added behind a provider-neutral contract when there is benchmark evidence to justify it. If such an evaluator uses an LLM, its output remains advisory evidence and must not gain authorization authority, self-modify policy, or bypass deterministic validation.
 
-Future increments can integrate the CR-2a subset into operational ranking and eventually evaluate whether additional capability/quality mappings are justified by evidence. Any such mapping must remain explicit, versioned, auditable, reversible, and benchmark/evidence driven.
+Future increments can wire the validated CR-0 → CR-1 → CR-2a → CR-2b chain into route explanation and provider execution. Any additional capability/quality mapping must remain explicit, versioned, auditable, reversible, and benchmark/evidence driven.
 
 ## Centralized provider boundary
 
