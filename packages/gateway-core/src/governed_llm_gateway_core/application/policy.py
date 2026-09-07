@@ -25,7 +25,12 @@ from governed_llm_gateway_core.domain.model_registry import ModelDeployment, Mod
 from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
 
 from .provider import ProviderPort, ProviderRequest, ProviderResponse
-from .telemetry import mark_span_failure, mark_span_success, set_gateway_span_attributes
+from .telemetry import (
+    GatewaySpanName,
+    mark_span_failure,
+    mark_span_success,
+    set_gateway_span_attributes,
+)
 
 
 class PolicyProjectionError(ValueError):
@@ -270,7 +275,7 @@ class PolicyEnforcementService:
             return await self._policy.authorize(metadata)
 
         with self._observability.start_span(
-            "policy.route",
+            GatewaySpanName.POLICY_ROUTE.value,
             attributes={
                 "request_id": str(metadata.request_id),
                 "operation": "authorize",
