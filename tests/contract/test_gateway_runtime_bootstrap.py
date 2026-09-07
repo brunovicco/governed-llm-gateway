@@ -17,7 +17,10 @@ from governed_llm_gateway_contracts import (
     RiskLevel,
     WorkloadRequirements,
 )
-from governed_llm_gateway_core.adapters import ProviderRuntimeRegistryMismatchError
+from governed_llm_gateway_core.adapters import (
+    ProviderRuntimeDocumentError,
+    ProviderRuntimeRegistryMismatchError,
+)
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -171,6 +174,33 @@ def test_malformed_client_auth_fails_before_any_secret_access(tmp_path: Path) ->
     )
 
     with pytest.raises(GatewayClientAuthDocumentError):
+        bootstrap_gateway_runtime(
+            paths,
+            provider_secrets=provider_secrets,
+            client_secrets=client_secrets,
+        )
+
+    assert provider_secrets.calls == []
+    assert client_secrets.calls == []
+
+
+def test_malformed_provider_runtime_fails_before_any_secret_access(tmp_path: Path) -> None:
+    provider_secrets = RecordingSecrets({"OPENAI_API_KEY": "server-side-provider-token"})
+    client_secrets = RecordingSecrets({"GATEWAY_CLIENT_A_KEY": "server-side-client-key"})
+    malformed_provider_runtime = json.dumps(
+        {
+            "schema_version": "1.0",
+            "bindings": [],
+        }
+    )
+    paths = _paths(
+        tmp_path,
+        registry_text=_registry_yaml(enabled=False),
+        provider_runtime_text=malformed_provider_runtime,
+        client_auth_text=_client_auth_json(),
+    )
+
+    with pytest.raises(ProviderRuntimeDocumentError):
         bootstrap_gateway_runtime(
             paths,
             provider_secrets=provider_secrets,
