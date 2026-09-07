@@ -14,9 +14,7 @@ from governed_llm_gateway_core.domain import EffectivePolicyContext
 from .route_explain import ClientAuthenticationError
 
 _IDENTIFIER = re.compile(r"^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$")
-_WORKLOAD = re.compile(
-    r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"
-)
+_WORKLOAD = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$")
 _SECRET_REFERENCE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$")
 _ENV_REFERENCE = re.compile(r"^[A-Z][A-Z0-9_]{1,127}$")
 _MAX_API_KEY_LENGTH = 4096
@@ -266,8 +264,4 @@ def _stricter_classification(
     caller: DataClassification,
     minimum: DataClassification,
 ) -> DataClassification:
-    return (
-        caller
-        if _CLASSIFICATION_ORDER[caller] >= _CLASSIFICATION_ORDER[minimum]
-        else minimum
-    )
+    return caller if _CLASSIFICATION_ORDER[caller] >= _CLASSIFICATION_ORDER[minimum] else minimum
