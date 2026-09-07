@@ -6,6 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from fastapi.routing import APIRoute
 from governed_llm_gateway_api import (
     GovernedProcessBootstrapPaths,
     GovernedProcessRuntimeBundle,
@@ -278,7 +279,7 @@ def test_operational_composition_reuses_runtime_without_new_secret_reads(tmp_pat
     assert services.complexity_generate_coordinator is None
     assert services.streaming_service._health is health
     assert services.generate_coordinator._health is health
-    paths = {route.path for route in services.app.routes}
+    paths = {route.path for route in services.app.routes if isinstance(route, APIRoute)}
     assert "/v1/route/explain" in paths
     assert "/v1/generate" in paths
 
