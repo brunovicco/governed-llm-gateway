@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
-from governed_llm_gateway_api.deployment_activation import GovernedDeploymentSettings
 from governed_llm_gateway_api import server as server_module
+from governed_llm_gateway_api.deployment_activation import GovernedDeploymentSettings
 from governed_llm_gateway_api.server import (
     GovernedServerSettings,
     UvicornServerRunner,
@@ -69,7 +69,7 @@ def _static_argv(root: Path) -> list[str]:
 def test_console_script_points_to_gateway_main() -> None:
     package_toml = (_ROOT / "apps/gateway-api/pyproject.toml").read_text(encoding="utf-8")
 
-    assert '[project.scripts]' in package_toml
+    assert "[project.scripts]" in package_toml
     assert 'governed-llm-gateway = "governed_llm_gateway_api.server:main"' in package_toml
 
 
@@ -112,8 +112,10 @@ def test_approved_cli_requires_exact_expected_artifact_identity(tmp_path: Path) 
 
 
 def test_secret_values_are_not_accepted_as_cli_arguments(tmp_path: Path) -> None:
+    argv = [*_static_argv(tmp_path.resolve()), "--provider-api-key", "secret"]
+
     with pytest.raises(SystemExit):
-        parse_server_args(_static_argv(tmp_path.resolve()) + ["--provider-api-key", "secret"])
+        parse_server_args(argv)
 
 
 def test_server_settings_reject_invalid_host_and_port_before_activation(tmp_path: Path) -> None:
