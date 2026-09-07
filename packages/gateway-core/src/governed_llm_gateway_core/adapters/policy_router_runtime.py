@@ -3,7 +3,7 @@
 import math
 import os
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Protocol, TypeGuard
 from urllib.parse import urlsplit
