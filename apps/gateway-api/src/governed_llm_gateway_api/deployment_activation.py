@@ -77,7 +77,6 @@ class GovernedDeploymentSettings:
             if expected_id is None or not expected_id or expected_id.strip() != expected_id:
                 raise ValueError("expected_ranking_artifact_id must be non-empty and normalized")
 
-        # Reuse the existing domain-facing validation for positive deployment ceilings.
         PolicyProjectionDefaults(
             max_latency_ms=self.default_max_latency_ms,
             max_cost_usd=self.default_max_cost_usd,
@@ -103,7 +102,9 @@ class GovernedDeploymentSettings:
                 provider_runtime_path=_resolve_deployment_path(
                     root, self.provider_runtime_path, "provider_runtime_path"
                 ),
-                client_auth_path=_resolve_deployment_path(root, self.client_auth_path, "client_auth_path"),
+                client_auth_path=_resolve_deployment_path(
+                    root, self.client_auth_path, "client_auth_path"
+                ),
                 policy_router_path=_resolve_deployment_path(
                     root, self.policy_router_path, "policy_router_path"
                 ),
@@ -139,7 +140,6 @@ def activate_governed_deployment(
     defaults = settings.projection_defaults
     artifacts = load_governed_application_artifacts(paths)
 
-    # Environment-backed resolvers are created only after every secret-free artifact gate succeeds.
     return materialize_governed_application_services(
         artifacts,
         client_secrets=EnvironmentGatewayClientSecretResolver(environ),
