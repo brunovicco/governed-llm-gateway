@@ -70,12 +70,8 @@ def validate_policy_router_client_auth(
     client_auth_document: GatewayClientAuthDocument,
 ) -> None:
     """Require exact trusted-client coverage before any Policy Router secret access."""
-    runtime_client_ids = {
-        binding.client_id for binding in runtime_document.runtime.bindings
-    }
-    authenticated_client_ids = {
-        binding.client_id for binding in client_auth_document.bindings
-    }
+    runtime_client_ids = {binding.client_id for binding in runtime_document.runtime.bindings}
+    authenticated_client_ids = {binding.client_id for binding in client_auth_document.bindings}
     if runtime_client_ids != authenticated_client_ids:
         raise PolicyRouterClientAuthMismatchError(
             "Policy Router credential bindings must exactly match Gateway client-auth client IDs"
