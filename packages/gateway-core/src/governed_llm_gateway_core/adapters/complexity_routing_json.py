@@ -124,7 +124,9 @@ def load_complexity_routing_document_text(text: str) -> ComplexityRoutingDocumen
             "complexity routing configuration is not valid JSON"
         ) from exc
     if not isinstance(payload, Mapping):
-        raise ComplexityRoutingDocumentError("complexity routing configuration root must be an object")
+        raise ComplexityRoutingDocumentError(
+            "complexity routing configuration root must be an object"
+        )
     return _build_document(cast(Mapping[object, object], payload))
 
 
