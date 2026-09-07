@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "config_version": "complexity-routing-v1",
+  "assessment_policy": {
+    "policy_id": "deterministic-complexity",
+    "version": "v1",
+    "medium_context_tokens": 8000,
+    "high_context_tokens": 32000,
+    "medium_output_tokens": 2000,
+    "high_output_tokens": 8000,
+    "tool_calling_floor": "medium",
+    "structured_output_floor": "medium",
+    "vision_floor": "high",
+    "workload_floors": []
+  },
+  "quality_policy": {
+    "policy_id": "complexity-quality",
+    "version": "v1",
+    "low_min_quality": "0.50",
+    "medium_min_quality": "0.75",
+    "high_min_quality": "0.90"
+  }
+}
