@@ -3,6 +3,7 @@
 import asyncio
 import json
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from governed_llm_gateway_api import (
@@ -224,7 +225,7 @@ def test_valid_runtime_resolves_each_secret_once_after_validation(tmp_path: Path
     assert bundle.provider_resolver.resolve(deployment) is not None
     request = GatewayRequest(
         schema_version="1.0",
-        request_id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        request_id=UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
         workload="rag.answer",
         risk_level=RiskLevel.LOW,
         data_classification=DataClassification.PUBLIC,
