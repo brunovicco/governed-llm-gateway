@@ -26,7 +26,7 @@ def _binding(
         "client_id": client_id,
         "environment": "development",
         "credential_reference": credential_reference,
-        "allowed_workloads": allowed_workloads or ["rag.answer"],
+        "allowed_workloads": ["rag.answer"] if allowed_workloads is None else allowed_workloads,
         "minimum_risk_level": minimum_risk_level,
         "minimum_data_classification": minimum_data_classification,
     }
