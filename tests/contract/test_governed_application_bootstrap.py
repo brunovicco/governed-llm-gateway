@@ -280,6 +280,6 @@ def test_operational_bootstrap_resolves_secrets_then_delegates_to_pc9(tmp_path: 
     assert services.complexity_enabled is False
     assert services.generate_coordinator._health is services.health
     assert services.streaming_service._health is services.health
-    paths = {route.path for route in services.app.routes if isinstance(route, APIRoute)}
-    assert "/v1/route/explain" in paths
-    assert "/v1/generate" in paths
+    route_paths = {route.path for route in services.app.routes if isinstance(route, APIRoute)}
+    assert "/v1/route/explain" in route_paths
+    assert "/v1/generate" in route_paths
