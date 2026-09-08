@@ -3,20 +3,22 @@
 import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
+from governed_llm_gateway_api.client_auth import GatewayClientIdentity
 from governed_llm_gateway_api.operations_http import OperationsHttpCompositionError, attach_operations_routes
+from governed_llm_gateway_core.application import OperationsSnapshot
 
 
 class NeverCalledAuthorizer:
     """Composition-only authorizer double."""
 
-    async def authorize(self, *, api_key: str) -> object:
+    async def authorize(self, *, api_key: str) -> GatewayClientIdentity:
         raise AssertionError(f"authorization must not run during composition: {api_key}")
 
 
 class NeverCalledSnapshotReader:
     """Composition-only snapshot-reader double."""
 
-    def snapshot(self) -> object:
+    def snapshot(self) -> OperationsSnapshot:
         raise AssertionError("snapshot must not run during composition")
 
 
