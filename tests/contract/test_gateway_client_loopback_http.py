@@ -1,5 +1,6 @@
 """Contract tests for the thin client local-development transport boundary."""
 
+import asyncio
 import os
 import unittest
 from unittest.mock import patch
@@ -61,7 +62,7 @@ class GatewayClientLoopbackHTTPTests(unittest.TestCase):
         with patch.dict(os.environ, environment, clear=True):
             client = GatewayClient.from_env()
 
-        self.addCleanup(lambda: None)
+        self.addCleanup(lambda: asyncio.run(client.aclose()))
         self.assertEqual(client.base_url, "http://127.0.0.1:8000")
         self.assertNotIn(_API_KEY, repr(client))
 
