@@ -2,3 +2,13 @@ services:
   tempo:
     ports:
       - 127.0.0.1:3200:3200
+    networks:
+      - observability
+      - tempo-query-host
+  otel-collector:
+    networks:
+      - observability
+      - tempo-query-host
+
+networks:
+  tempo-query-host: {}
