@@ -6,6 +6,8 @@ on:
       - compose.observability.yml
       - deploy/observability/**
       - docs/project/LOCAL_OBSERVABILITY.md
+      - docs/project/OBSERVABILITY.md
+      - docs/project/OPERATIONAL_READINESS.md
       - tests/contract/test_local_observability_foundation.py
       - .github/workflows/observability-compose.yml
   push:
@@ -16,6 +18,8 @@ on:
       - compose.observability.yml
       - deploy/observability/**
       - docs/project/LOCAL_OBSERVABILITY.md
+      - docs/project/OBSERVABILITY.md
+      - docs/project/OPERATIONAL_READINESS.md
       - tests/contract/test_local_observability_foundation.py
       - .github/workflows/observability-compose.yml
 

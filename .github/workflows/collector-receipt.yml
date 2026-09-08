@@ -1,0 +1,72 @@
+name: collector-receipt
+
+on:
+  pull_request:
+    paths:
+      - compose.collector-receipt.yml
+      - tests/contract/test_collector_receipt_foundation.py
+      - tests/integration/test_collector_receipt.py
+      - tests/integration/otel-collector-receipt.yaml
+      - docs/project/OBSERVABILITY.md
+      - docs/project/COLLECTOR_RECEIPT.md
+      - docs/project/OPERATIONAL_READINESS.md
+      - .github/workflows/collector-receipt.yml
+  push:
+    branches:
+      - main
+      - feat/**
+    paths:
+      - compose.collector-receipt.yml
+      - tests/contract/test_collector_receipt_foundation.py
+      - tests/integration/test_collector_receipt.py
+      - tests/integration/otel-collector-receipt.yaml
+      - docs/project/OBSERVABILITY.md
+      - docs/project/COLLECTOR_RECEIPT.md
+      - docs/project/OPERATIONAL_READINESS.md
+      - .github/workflows/collector-receipt.yml
+
+permissions:
+  contents: read
+
+jobs:
+  positive-receipt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Start receipt Collector
+        run: |
+          install -d -m 0777 .collector-receipts
+          install -m 0666 /dev/null .collector-receipts/traces.jsonl
+          docker compose -f compose.collector-receipt.yml up -d
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error \
+              --header "Content-Type: application/x-protobuf" \
+              --data-binary "" \
+              http://127.0.0.1:4318/v1/traces >/dev/null; then
+              exit 0
+            fi
+            if ! docker compose -f compose.collector-receipt.yml ps --status running --services \
+              | grep --quiet --line-regexp collector; then
+              docker compose -f compose.collector-receipt.yml logs collector
+              exit 1
+            fi
+            sleep 1
+          done
+          docker compose -f compose.collector-receipt.yml logs collector
+          exit 1
+      - name: Require positive Collector receipt evidence
+        env:
+          GATEWAY_COLLECTOR_ENDPOINT: http://127.0.0.1:4318/v1/traces
+          GATEWAY_COLLECTOR_RECEIPT_FILE: .collector-receipts/traces.jsonl
+        run: >-
+          uv run --frozen --python 3.13 --all-packages --with pytest==8.4.1
+          pytest -m integration tests/integration/test_collector_receipt.py
+      - name: Stop receipt Collector
+        if: always()
+        run: docker compose -f compose.collector-receipt.yml down --volumes --remove-orphans
