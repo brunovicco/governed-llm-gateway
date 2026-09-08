@@ -1,0 +1,22 @@
+name: pc30-ruff-format-diff
+
+on:
+  push:
+    branches:
+      - feat/pc30-local-demo-orchestration
+    paths:
+      - scripts/local_demo.py
+      - .github/workflows/pc30-ruff-format-diff.yml
+
+permissions:
+  contents: read
+
+jobs:
+  ruff-format-diff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Show canonical Ruff formatter diff
+        run: uvx --python 3.13 --from ruff==0.12.11 ruff format --diff scripts/local_demo.py
