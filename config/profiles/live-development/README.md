@@ -115,9 +115,9 @@ Startup validates all no-secret artifacts and cross-artifact invariants before r
 
 `operations_access.json` is a separate secret-free visibility policy. It grants Operations read visibility only to the authenticated `gateway-demo/development` identity and is cross-validated against `client_auth.json`. The same presented `GATEWAY_DEMO_API_KEY` is authenticated once, but Operations visibility and inference authorization remain independent policy decisions. Operations access cannot widen PDP-authorized model groups, deployment eligibility, ranking, retry, fallback, or provider execution.
 
-## 4. Optional: connect the existing Gateway Console
+## 4. Optional: connect the Gateway Console and run one bounded request
 
-The current Console is read-only Operations UI. It does not yet submit inference requests.
+The Console loads the existing read-only Operations view and can submit one bounded provider-neutral inference request through the governed `/v1/generate` boundary.
 
 With the Gateway from step 3 running, start the Vite Console from the repository root:
 
@@ -129,7 +129,13 @@ npm run dev
 
 Open `http://127.0.0.1:5173` and enter the current value of `GATEWAY_DEMO_API_KEY` into the `X-Gateway-API-Key` field. The Vite development server proxies only relative `/v1` requests to `http://127.0.0.1:8000`; the credential stays in the page's React state and is cleared on disconnect. Do not place the credential in frontend configuration, URLs, browser storage, or source files.
 
-A successful connection proves only the explicit Operations visibility grant for the authenticated identity. It does not prove or create inference authorization.
+A successful **Connect** proves only the explicit Operations visibility grant for the authenticated identity. It does not prove or create inference authorization. Selecting **Run governed request** separately submits a bounded `rag.answer` / `low` / `public` request and lets client-auth plus the Policy Router decide whether inference is authorized.
+
+The Console request surface exposes a prompt and reviewed request ceilings only. It contains no provider, model, deployment, ranking, retry, or fallback selector. Provider and Policy Router credentials stay server-side. The browser displays provider/model/deployment identity only after the normalized SSE stream terminates with validated routing provenance, exactly one normalized usage result, and successful execution evidence whose identity is consistent with routing and fallback provenance.
+
+Prompt, completion, routing evidence, usage, and execution evidence remain in React memory and are reset on disconnect; the Console does not persist them in browser storage, cookies, URLs, or frontend configuration. The local Grafana link remains generic because the current inference response does not expose a real backend trace ID, so the Console makes no per-request trace-correlation claim.
+
+The Console implementation and credential-free CI do not by themselves certify live-provider execution. Record a successful explicit operator run against the credential-backed local profile separately before claiming portfolio/demo-ready live inference.
 
 ## 5. Execute one governed request with the thin SDK
 

@@ -1,10 +1,17 @@
 import { type FormEvent, useRef, useState } from "react";
 
 import { OperationsApiClient, OperationsApiError } from "./api";
+import {
+  GovernedInferenceClient,
+  type GovernedInferenceResult,
+  InferenceApiError,
+} from "./inference";
 import { buildLocalGrafanaDashboardUrl } from "./observability";
 import type { OperationsConsoleSnapshot, OperationsDeployment } from "./types";
 
 const operationsClient = new OperationsApiClient();
+const inferenceClient = new GovernedInferenceClient();
+const DEFAULT_PROMPT = "Explain in one sentence what deterministic model routing means.";
 
 type ConnectionState =
   | { kind: "disconnected" }
@@ -12,17 +19,27 @@ type ConnectionState =
   | { kind: "connected"; snapshot: OperationsConsoleSnapshot }
   | { kind: "error"; message: string };
 
+type InferenceState =
+  | { kind: "idle" }
+  | { kind: "running" }
+  | { kind: "succeeded"; result: GovernedInferenceResult }
+  | { kind: "error"; message: string };
+
 export function App() {
   const [apiKey, setApiKey] = useState("");
   const [connection, setConnection] = useState<ConnectionState>({ kind: "disconnected" });
-  const abortRef = useRef<AbortController | null>(null);
+  const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
+  const [inference, setInference] = useState<InferenceState>({ kind: "idle" });
+  const operationsAbortRef = useRef<AbortController | null>(null);
+  const inferenceAbortRef = useRef<AbortController | null>(null);
 
   async function connect(event?: FormEvent) {
     event?.preventDefault();
-    abortRef.current?.abort();
+    operationsAbortRef.current?.abort();
     const controller = new AbortController();
-    abortRef.current = controller;
+    operationsAbortRef.current = controller;
     setConnection({ kind: "loading" });
+    setInference({ kind: "idle" });
 
     try {
       const snapshot = await operationsClient.load(apiKey, controller.signal);
@@ -39,10 +56,41 @@ export function App() {
     }
   }
 
+  async function runInference(event: FormEvent) {
+    event.preventDefault();
+    if (connection.kind !== "connected") {
+      setInference({ kind: "error", message: "Connect to the Gateway before running inference." });
+      return;
+    }
+
+    inferenceAbortRef.current?.abort();
+    const controller = new AbortController();
+    inferenceAbortRef.current = controller;
+    setInference({ kind: "running" });
+
+    try {
+      const result = await inferenceClient.generate(apiKey, prompt, controller.signal);
+      setInference({ kind: "succeeded", result });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+      const message =
+        error instanceof InferenceApiError
+          ? error.message
+          : "Gateway inference could not establish trusted terminal evidence.";
+      setInference({ kind: "error", message });
+    }
+  }
+
   function disconnect() {
-    abortRef.current?.abort();
-    abortRef.current = null;
+    operationsAbortRef.current?.abort();
+    inferenceAbortRef.current?.abort();
+    operationsAbortRef.current = null;
+    inferenceAbortRef.current = null;
     setApiKey("");
+    setPrompt(DEFAULT_PROMPT);
+    setInference({ kind: "idle" });
     setConnection({ kind: "disconnected" });
   }
 
@@ -56,8 +104,8 @@ export function App() {
           <p className="eyebrow">Governed AI Platform</p>
           <h1>Gateway Console</h1>
           <p className="subtitle">
-            Read-only operational visibility. Evidence, telemetry, and health remain descriptive — never
-            authority.
+            Operational visibility and one bounded governed request. Evidence remains descriptive — model
+            authority stays server-side.
           </p>
         </div>
         <div className="boundary-badge" title="Permanent authorization invariant">
@@ -68,7 +116,7 @@ export function App() {
 
       <section className="connection-panel" aria-labelledby="connection-title">
         <div>
-          <p className="section-kicker">Operations access</p>
+          <p className="section-kicker">Gateway access</p>
           <h2 id="connection-title">Connect to the local Gateway</h2>
           <p className="muted">
             The key is held only in this page&apos;s React state and is cleared when you disconnect.
@@ -85,7 +133,7 @@ export function App() {
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
               disabled={connection.kind === "loading"}
-              placeholder="Operations read credential"
+              placeholder="Gateway credential"
             />
             <button className="primary" type="submit" disabled={connection.kind === "loading"}>
               {connection.kind === "loading" ? "Connecting…" : connected ? "Refresh" : "Connect"}
@@ -104,7 +152,7 @@ export function App() {
           <span className="status-dot neutral" />
           <div>
             <strong>Disconnected</strong>
-            <p>Connect with an explicitly granted Operations identity to load live Gateway metadata.</p>
+            <p>Connect with an explicitly granted Gateway identity to load live operational metadata.</p>
           </div>
         </section>
       )}
@@ -126,7 +174,16 @@ export function App() {
         </section>
       )}
 
-      {connected && <ConsoleView snapshot={connected} grafanaDashboardUrl={grafanaDashboardUrl} />}
+      {connected && (
+        <ConsoleView
+          snapshot={connected}
+          grafanaDashboardUrl={grafanaDashboardUrl}
+          prompt={prompt}
+          inference={inference}
+          onPromptChange={setPrompt}
+          onRunInference={runInference}
+        />
+      )}
     </main>
   );
 }
@@ -134,13 +191,28 @@ export function App() {
 function ConsoleView({
   snapshot,
   grafanaDashboardUrl,
+  prompt,
+  inference,
+  onPromptChange,
+  onRunInference,
 }: {
   snapshot: OperationsConsoleSnapshot;
   grafanaDashboardUrl: string | null;
+  prompt: string;
+  inference: InferenceState;
+  onPromptChange: (value: string) => void;
+  onRunInference: (event: FormEvent) => void;
 }) {
   const { overview, deployments } = snapshot;
   return (
     <div className="console-grid">
+      <InferencePanel
+        prompt={prompt}
+        inference={inference}
+        onPromptChange={onPromptChange}
+        onRunInference={onRunInference}
+      />
+
       <section className="summary-grid" aria-label="Gateway operational overview">
         <SummaryCard
           label="Registry"
@@ -172,7 +244,7 @@ function ConsoleView({
           </div>
           <p className="muted table-note">
             Opens the reviewed local Tempo-backed dashboard. The Console does not query Grafana directly or
-            send the Operations credential in this navigation.
+            send the Gateway credential in this navigation. No per-request trace ID is claimed here.
           </p>
           <a
             className="secondary"
@@ -241,6 +313,138 @@ function ConsoleView({
           </table>
         </div>
       </section>
+    </div>
+  );
+}
+
+function InferencePanel({
+  prompt,
+  inference,
+  onPromptChange,
+  onRunInference,
+}: {
+  prompt: string;
+  inference: InferenceState;
+  onPromptChange: (value: string) => void;
+  onRunInference: (event: FormEvent) => void;
+}) {
+  return (
+    <section className="inference-panel" aria-labelledby="inference-title">
+      <div className="section-heading-row">
+        <div>
+          <p className="section-kicker">Governed inference</p>
+          <h2 id="inference-title">Run one provider-neutral request</h2>
+        </div>
+        <span className="scope-pill">rag.answer · low · public</span>
+      </div>
+      <p className="muted table-note">
+        The Console declares the workload and limits only. Policy Router authorization, deployment ranking,
+        retry, fallback, and provider execution remain server-side.
+      </p>
+      <form className="inference-form" onSubmit={onRunInference}>
+        <label htmlFor="inference-prompt">Prompt</label>
+        <textarea
+          id="inference-prompt"
+          value={prompt}
+          maxLength={2000}
+          rows={4}
+          spellCheck={false}
+          disabled={inference.kind === "running"}
+          onChange={(event) => onPromptChange(event.target.value)}
+        />
+        <div className="inference-actions">
+          <button className="primary" type="submit" disabled={inference.kind === "running"}>
+            {inference.kind === "running" ? "Running governed request…" : "Run governed request"}
+          </button>
+          <span className="muted">No provider, model, deployment, or fallback selector is exposed.</span>
+        </div>
+      </form>
+
+      {inference.kind === "running" && (
+        <div className="inference-status" aria-live="polite">
+          <span className="status-dot pending" />
+          <span>Waiting for validated terminal routing, usage, and execution evidence.</span>
+        </div>
+      )}
+      {inference.kind === "error" && (
+        <div className="inference-error" role="alert">
+          <strong>Governed inference unavailable</strong>
+          <p>{inference.message}</p>
+        </div>
+      )}
+      {inference.kind === "succeeded" && <InferenceEvidence result={inference.result} />}
+    </section>
+  );
+}
+
+function InferenceEvidence({ result }: { result: GovernedInferenceResult }) {
+  const { routing, execution, usage } = result;
+  const totalTokens = usage.total_tokens ?? usage.input_tokens + usage.output_tokens;
+  return (
+    <div className="inference-evidence" aria-live="polite">
+      <div className="answer-block">
+        <span>Completion</span>
+        <p>{result.content}</p>
+      </div>
+      <div className="inference-summary-grid">
+        <SummaryCard
+          label="Authorized group"
+          value={routing.authorized_model_group}
+          detail={`policy ${routing.policy.policy_version}`}
+        />
+        <SummaryCard
+          label="Selected provider"
+          value={execution.provider}
+          detail={execution.model}
+        />
+        <SummaryCard
+          label="Deployment"
+          value={execution.deployment}
+          detail={`attempt ${execution.attempt_number} · fallback ${execution.fallback_index}`}
+        />
+        <SummaryCard
+          label="Execution"
+          value={`${execution.latency_ms} ms`}
+          detail={`${totalTokens} normalized tokens`}
+        />
+      </div>
+      <dl className="provenance-list inference-provenance">
+        <ProvenanceItem term="Request ID" value={result.request_id} mono />
+        <ProvenanceItem term="Routing decision" value={routing.routing_decision_id} mono />
+        <ProvenanceItem
+          term="Policy"
+          value={`${routing.policy.policy_id} · ${routing.policy.policy_version}`}
+        />
+        <ProvenanceItem term="Policy decision" value={routing.policy.decision_id} mono />
+        <ProvenanceItem term="Registry digest" value={shortDigest(routing.model_registry_digest)} mono />
+        <ProvenanceItem term="Ranking policy" value={routing.ranking_policy_version} />
+        <ProvenanceItem
+          term="Score snapshot"
+          value={routing.score_snapshot_id ?? "Not supplied"}
+          mono={routing.score_snapshot_id !== null}
+        />
+        <ProvenanceItem
+          term="Fallback sequence"
+          value={routing.fallback_sequence.join(" → ")}
+          mono
+        />
+        <ProvenanceItem term="API family" value={execution.api_family ?? "Not supplied"} />
+        <ProvenanceItem
+          term="Normalized usage"
+          value={`${usage.input_tokens} in · ${usage.output_tokens} out`}
+        />
+        <ProvenanceItem term="Cost evidence" value={usage.total_cost_usd ?? "Not supplied"} />
+        <ProvenanceItem
+          term="Rejected candidates"
+          value={
+            routing.rejected_candidates.length === 0
+              ? "None"
+              : routing.rejected_candidates
+                  .map((candidate) => `${candidate.deployment}: ${candidate.reason}`)
+                  .join(" · ")
+          }
+        />
+      </dl>
     </div>
   );
 }

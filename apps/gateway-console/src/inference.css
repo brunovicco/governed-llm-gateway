@@ -1,0 +1,140 @@
+.inference-panel {
+  border: 1px solid #1d3041;
+  border-radius: 20px;
+  padding: 24px;
+  background: rgba(8, 19, 29, 0.86);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
+}
+
+.inference-form label {
+  display: block;
+  margin-bottom: 8px;
+  color: #a9b9c8;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.inference-form textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #31485d;
+  border-radius: 12px;
+  padding: 13px 14px;
+  color: #edf4f9;
+  background: #050c12;
+  outline: none;
+  font: inherit;
+  line-height: 1.55;
+}
+
+.inference-form textarea:focus {
+  border-color: #58bfae;
+  box-shadow: 0 0 0 3px rgba(88, 191, 174, 0.13);
+}
+
+.inference-form textarea:disabled {
+  opacity: 0.7;
+}
+
+.inference-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.inference-actions .muted {
+  font-size: 0.8rem;
+}
+
+.inference-status,
+.inference-error {
+  margin-top: 18px;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.inference-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #4c4530;
+  color: #dbc886;
+  background: rgba(80, 62, 24, 0.2);
+}
+
+.inference-error {
+  border: 1px solid #6d3941;
+  color: #f3c3c8;
+  background: rgba(70, 25, 32, 0.35);
+}
+
+.inference-error strong {
+  color: #ffb5be;
+}
+
+.inference-error p {
+  margin: 5px 0 0;
+}
+
+.inference-evidence {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.answer-block {
+  border: 1px solid #254537;
+  border-radius: 14px;
+  padding: 18px;
+  background: rgba(17, 55, 42, 0.22);
+}
+
+.answer-block span {
+  display: block;
+  margin-bottom: 8px;
+  color: #7da494;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.answer-block p {
+  margin: 0;
+  color: #e7f4ef;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.inference-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.inference-provenance {
+  margin-top: 0;
+}
+
+@media (max-width: 980px) {
+  .inference-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .inference-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inference-actions button {
+    width: 100%;
+  }
+
+  .inference-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
