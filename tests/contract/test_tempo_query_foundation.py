@@ -26,9 +26,7 @@ def test_tempo_query_overlay_exposes_only_reviewed_loopback_ports() -> None:
     assert "internal: true" not in overlay
     assert overlay.count("      - observability") == 2
     assert overlay.count("      - tempo-query-host") == 2
-    assert (
-        "./tests/integration/tempo-query.yaml:/etc/tempo/tempo.yaml:ro" in overlay
-    )
+    assert "./tests/integration/tempo-query.yaml:/etc/tempo/tempo.yaml:ro" in overlay
 
 
 def test_tempo_query_config_changes_recent_search_only_for_integration() -> None:
