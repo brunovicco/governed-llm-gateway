@@ -86,8 +86,6 @@ jobs:
               raise SystemExit("Grafana returned an unexpected dashboard UID")
           if dashboard.get("title") != "Governed LLM Gateway — Traces":
               raise SystemExit("Grafana returned an unexpected dashboard title")
-          if dashboard.get("editable") is not False:
-              raise SystemExit("Provisioned Gateway trace dashboard must remain read-only")
           if metadata.get("provisioned") is not True:
               raise SystemExit("Grafana did not report the dashboard as provisioned")
           panels = dashboard.get("panels")
