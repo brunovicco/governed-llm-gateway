@@ -282,14 +282,42 @@ establish Grafana dashboard correctness, fleet completeness, production authenti
 telemetry freshness guarantees, provider reachability, inference readiness, or any authorization,
 ranking, health, retry or fallback authority.
 
+## Grafana trace dashboard verification
+
+PC-27 consumes the certified Tempo queryability prerequisite for one bounded visualization surface. The
+credential-free `grafana-dashboard` workflow starts the real pinned Tempo and Grafana containers and
+requires Grafana to load the checked-in file-provisioned dashboard rather than creating one through the
+API.
+
+The proof requires dashboard UID `governed-llm-gateway-traces`, `meta.provisioned == true`, exactly one
+reviewed panel using the provisioned Tempo datasource and exactly one TraceQL query:
+
+```traceql
+{ span:name = "llm.gateway.request" }
+```
+
+The reusable `observability` network remains internal and Tempo remains unexposed from the base Compose
+stack. Only Grafana also joins the `grafana-host-access` bridge so its explicitly loopback-bound
+`127.0.0.1:3000` endpoint is reachable from the host. This preserves the internal Collector/Tempo evidence
+path while keeping the local dashboard accessible.
+
+See `docs/project/GRAFANA_TRACE_DASHBOARD.md` for local execution, CI failure semantics, status semantics
+and non-claims.
+
+Grafana dashboard success proves only the reviewed local provisioning and Tempo query surface. It does
+not establish production Grafana authentication/durability, fleet completeness, telemetry freshness,
+provider or Policy Router reachability, inference readiness, or any authorization, ranking, health,
+retry or fallback authority.
+
 ## Next operational increment
 
 PC-15 established the local observability stack, PC-16 proved positive Collector receipt, PC-17 bound
 optional observability lifecycle to the executable process, PC-18 through PC-24 established the bounded
-Operations read path, and PC-25 added the first read-only Gateway Console. PC-26 now supplies the
-Collector-to-Tempo queryability proof required before Grafana visualization work is justified.
+Operations read path, PC-25 added the first read-only Gateway Console, PC-26 proved Collector-to-Tempo
+queryability, and PC-27 adds the first bounded file-provisioned Grafana trace dashboard.
 
-Grafana dashboards, trace correlation/deep links and any Console trace-link work remain separate later
-increments and must be re-audited only after PC-26 is certified post-merge. Langfuse remains optional
-and, if introduced later, must integrate downstream of OTLP/Collector rather than through a Gateway SDK
+PC-27 itself is not complete until its reviewed head is squash-merged and the corresponding post-merge
+`main` gates are green. After certification, trace correlation/deep links and any Console trace-link work
+remain separate increments that require a fresh audit of the real `main`. Langfuse remains optional and,
+if introduced later, must integrate downstream of OTLP/Collector rather than through a Gateway SDK
 dependency.
