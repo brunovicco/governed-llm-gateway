@@ -143,6 +143,7 @@ def test_missing_credential_returns_sanitized_401_before_authorization_or_snapsh
     response = TestClient(app).get("/v1/ops/overview")
 
     assert response.status_code == 401
+    assert response.headers["cache-control"] == "no-store"
     assert response.json() == {"detail": {"code": "invalid_gateway_credential"}}
     assert authorizer.calls == []
     assert reader.calls == 0
@@ -158,6 +159,7 @@ def test_invalid_credential_returns_sanitized_401_without_snapshot() -> None:
     )
 
     assert response.status_code == 401
+    assert response.headers["cache-control"] == "no-store"
     assert response.json() == {"detail": {"code": "invalid_gateway_credential"}}
     assert authorizer.calls == ["invalid-opaque"]
     assert reader.calls == 0
@@ -173,6 +175,7 @@ def test_authenticated_but_ungranted_credential_returns_403_without_snapshot() -
     )
 
     assert response.status_code == 403
+    assert response.headers["cache-control"] == "no-store"
     assert response.json() == {"detail": {"code": "operations_read_access_denied"}}
     assert authorizer.calls == ["valid-but-ungranted"]
     assert reader.calls == 0
@@ -188,6 +191,7 @@ def test_granted_caller_is_authorized_before_bounded_snapshot_projection() -> No
     )
 
     assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
     assert response.json() == {
         "registry": {
             "schema_version": "1.0",
@@ -238,6 +242,7 @@ def test_snapshot_runtime_failure_is_sanitized_as_503_after_authorization() -> N
     )
 
     assert response.status_code == 503
+    assert response.headers["cache-control"] == "no-store"
     assert response.json() == {"detail": {"code": "operations_snapshot_unavailable"}}
     assert "internal snapshot detail" not in response.text
     assert reader.calls == 1
@@ -253,9 +258,32 @@ def test_incomplete_health_aggregate_fails_closed_as_sanitized_503() -> None:
     )
 
     assert response.status_code == 503
+    assert response.headers["cache-control"] == "no-store"
     assert response.json() == {"detail": {"code": "operations_snapshot_unavailable"}}
     assert reader.calls == 1
     assert events == ["authorize", "snapshot"]
+
+
+def test_unknown_operations_path_is_also_non_cacheable() -> None:
+    app, _, _, _ = _app()
+
+    response = TestClient(app).get("/v1/ops/not-a-route")
+
+    assert response.status_code == 404
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_non_operations_path_does_not_receive_operations_cache_policy() -> None:
+    app, _, _, _ = _app()
+
+    @app.get("/outside-operations")
+    async def outside_operations() -> dict[str, bool]:
+        return {"ok": True}
+
+    response = TestClient(app).get("/outside-operations")
+
+    assert response.status_code == 200
+    assert "cache-control" not in response.headers
 
 
 def test_duplicate_operations_route_attachment_fails_without_second_route() -> None:
