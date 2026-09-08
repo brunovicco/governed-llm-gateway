@@ -13,7 +13,7 @@ Gateway allowed set ⊆ Policy Router authorized set
 ```
 
 Operational readiness may add read models, telemetry export, dashboards, local infrastructure and a
-read-only console. None of those surfaces may authorize a deployment, widen policy, resurrect a
+bounded console. None of those surfaces may authorize a deployment, widen policy, resurrect a
 rejected candidate, execute business tools, or mutate runtime policy.
 
 Evidence is not authority. Telemetry is not authority. Health is not authority.
@@ -28,15 +28,11 @@ The September 2026 audit established the following baseline before product-readi
 - default telemetry is metadata-only;
 - W3C trace propagation is covered across gateway/provider HTTP and SSE boundaries;
 - provider-attempt retry/fallback events and streaming lifecycle telemetry already exist;
-- Phase 10/11 benchmark evidence and later operational evidence are already separate from
-  authorization;
-- process-local health, process-local attempt recording, content-addressed sample batches and reviewed
-  operational snapshots are intentionally distinct abstractions;
+- Phase 10/11 benchmark evidence and later operational evidence are already separate from authorization;
+- process-local health, process-local attempt recording, content-addressed sample batches and reviewed operational snapshots are intentionally distinct abstractions;
 - the gateway repository did not yet contain a local Collector + Tempo + Grafana stack;
-- the gateway repository did not yet contain a dedicated operations read model/API or React Gateway
-  Console;
-- Collector receipt verification existed as a reusable pattern in `a2a-otel-kit` but not yet as a
-  gateway integration/e2e proof.
+- the gateway repository did not yet contain a dedicated operations read model/API or React Gateway Console;
+- Collector receipt verification existed as a reusable pattern in `a2a-otel-kit` but not yet as a gateway integration/e2e proof.
 
 PC-15 subsequently added the pinned local Collector + Tempo + Grafana foundation. PC-16 added the
 credential-free positive Collector receipt proof. PC-17 added optional executable-process ownership of
@@ -61,6 +57,13 @@ backend endpoint, trace-history source or Grafana/Tempo API dependency. PC-29 ad
 local bootstrap without materializing provider or Policy Router execution authority. PC-30 closes the
 bounded OR-8 orchestration path by coordinating that bootstrap, the Console and the existing local
 Collector + Tempo + Grafana stack with real readiness evidence and deterministic teardown.
+
+The later live-development sequence preserves the same authority boundary: PC-33 adds an explicit governed
+live-development profile; PC-34 makes owned Operations responses non-storable; PC-35 narrows the thin-client
+HTTP exception to literal loopback addresses; PC-36 adds an explicit opt-in provider-neutral live smoke
+harness; PC-37 grants Operations visibility explicitly to the reviewed live-development identity; PC-38
+adds a bounded provider-neutral inference action to the Console through only relative `POST /v1/generate`;
+and PC-39 requires repeated routing provenance in that Console SSE stream to remain immutable.
 
 The audit also found documentation drift: the previous observability document still described Phase 9
 runtime tracing as future work even though Phase 9 is already complete.
@@ -117,11 +120,11 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 | process activation | optional process-owned OTel lifecycle | complete in PC-17 |
 | OR-3 | typed read-only operations read model | typed foundation + service-graph composition complete in PC-18/PC-19 |
 | OR-4 | read-only Operations API | authenticated overview, evidence binding and deployment catalog implemented in PC-20..PC-24; broader read surfaces deferred |
-| OR-5 | React/TypeScript/Vite Gateway Console | read-only overview + deployment catalog in PC-25; bounded local Grafana navigation in PC-28; broader console surfaces deferred |
+| OR-5 | React/TypeScript/Vite Gateway Console | Operations overview/catalog + local Grafana navigation + bounded governed inference implemented through PC-38; broader surfaces deferred |
 | OR-6 | Grafana dashboards + trace correlation/deep links | PC-26 Tempo queryability + PC-27 bounded Grafana trace dashboard + PC-28 local dashboard navigation implemented; per-trace correlation deferred |
 | OR-7 | optional Langfuse OTLP fan-out | optional / not started |
 | OR-8 | one-command deterministic local demo | complete in PC-29/PC-30 at the bounded operations-only local-demo scope; not production-ready |
-| OR-9 | broader authentication/security hardening for operational surfaces | not started; minimum OR-4 access prerequisite pulled forward |
+| OR-9 | broader authentication/security hardening for operational surfaces | IN PROGRESS — bounded PC-34/PC-35/PC-37/PC-38/PC-39 hardening complete; production identity/TLS/rate-limit/CSRF concerns pending |
 | OR-10 | final docs, screenshots, demo and product-readiness validation | not started |
 
 OR-1 is split into small increments. Issue #83 declares the compatibility vocabulary and updates the
@@ -143,9 +146,15 @@ the repository-owned one-command orchestrator plus a real-container smoke proof.
 runtime-only demo credential only to the operations-only Gateway child, sanitizes Docker/npm/Vite child
 environments, requires real Gateway/Operations/Grafana/Console/Compose readiness, and tears down owned
 process groups and the dedicated Compose project deterministically.
-None of these increments implies that deployment detail, evidence detail, routing-history persistence,
-broader Grafana dashboards, per-trace Console correlation, production browser identity/session handling,
-production IAM/TLS/SSO or later admin surfaces are complete.
+
+PC-34 begins the broader OR-9 sequence by preventing storage of every response under the owned
+`/v1/ops/` namespace without buffering inference/SSE. PC-35 independently constrains the thin client
+local-development plaintext transport exception. PC-37 keeps Operations visibility as an explicit
+secret-free grant rather than inferring it from workload authorization. PC-38 expands the browser mutation
+surface by exactly one reviewed endpoint, relative `POST /v1/generate`, while retaining the prohibition on
+all other POST targets and PUT/PATCH/DELETE. PC-39 then hardens that consumer protocol by rejecting drift
+in complete normalized routing provenance. These increments do not establish production browser identity,
+OAuth/OIDC/workload identity, TLS termination, rate limiting, CSRF policy or mutation authority.
 
 ## Read-only operations boundary
 
@@ -200,13 +209,17 @@ It returns deterministic registry metadata plus coarse process-local `status`/`c
 excluding mutable execution counters, latency, provider endpoints, credential references, principal/grant
 metadata and operational-evidence records.
 
+PC-34 makes all owned `/v1/ops/*` HTTP responses explicitly non-storable with `Cache-Control: no-store`,
+including sanitized failures and unknown Operations paths. The policy is namespace-specific and does not
+buffer or alter the inference/SSE path.
+
 See `docs/project/OPERATIONS_READ_MODEL.md` for the typed projection/non-claims,
 `docs/project/OPERATIONS_ACCESS.md` for the operations visibility boundary,
 `docs/project/OPERATIONS_ACCESS_ARTIFACT.md` for the deployment artifact/bootstrap contract,
 `docs/project/OPERATIONAL_EVIDENCE_BINDING.md` for PC-23 evidence binding, and
 `docs/project/OPERATIONS_HTTP.md` for the HTTP transport/response contracts.
 
-The implemented Operations endpoints at PC-24 are:
+The implemented Operations endpoints remain:
 
 ```text
 GET /v1/ops/overview
@@ -245,19 +258,28 @@ identity architecture.
 The console performs closed-shape runtime validation before treating Operations JSON as trusted display
 data. Unexpected fields, unsupported enum values, invalid counts/dates/context sizes, or disagreement
 between overview and deployment-catalog sizes fail closed into bounded operator-facing errors. Sanitized
-backend 401/403/503 codes are mapped without rendering raw server exceptions.
+backend failures are mapped without rendering raw server exceptions.
 
 The UI displays registry/ranking provenance, aggregate health, operational-evidence availability and the
 bounded deployment catalog. `process_local` remains visible and is not relabeled as fleet/global state.
 No fake metrics, fake traces, fake costs, fake evidence, inferred authorization reasons or inferred routing
-decisions are rendered. The console contains no mutation control and makes no direct provider, PDP, Tempo,
-Grafana or Langfuse call.
+decisions are rendered. The Console makes no direct provider, PDP, Tempo, Grafana or Langfuse data call.
 
 PC-28 adds navigation, not a data integration. Only the exact local Console origin
 `http://127.0.0.1:5173` can derive a link to the PC-27 dashboard on loopback Grafana port `3000`. The
 builder rejects malformed/unreviewed origins and never receives the Operations credential or response
 data. The generated URL carries no query, fragment, userinfo or token; the Console still does not fetch
 Grafana/Tempo or use their state for readiness.
+
+PC-38 adds exactly one reviewed action surface: a provider-neutral `rag.answer` request through relative
+`POST /v1/generate`. The request has no provider, model, deployment, retry or fallback selector; tool
+calling, structured output and vision are disabled for this bounded demo. Prompt, completion, credential
+and returned evidence remain browser-memory-only and are cleared with the connection state. The SSE parser
+enforces bounded event/stream sizes, request binding, contiguous sequence, reviewed event types,
+normalized usage, terminal execution evidence and routing/execution consistency. PC-39 further requires
+all repeated normalized routing provenance, including evidence-bearing arrays, to remain immutable across
+the stream. The Console does not claim per-request trace correlation because no reviewed backend trace ID
+is exposed by the inference response.
 
 See `docs/project/GATEWAY_CONSOLE.md` for the local execution, credential, runtime-validation, navigation
 and CI contract.
@@ -323,9 +345,9 @@ claims in the first UI rather than deriving stronger semantics in the browser. C
 the gateway has real cost evidence. Routing visualization must display gateway-produced reason codes
 rather than deriving authorization or health reasons in the frontend.
 
-PC-28 does not claim trace correlation: it links only to the reviewed dashboard. A future per-trace
-Console view remains a correlation surface, not a replacement for Tempo/Grafana or another trace
-explorer, and requires an explicit reviewed correlation source before trace IDs are displayed or linked.
+PC-28 does not claim trace correlation: it links only to the reviewed dashboard. PC-38/PC-39 likewise do
+not synthesize a trace ID from request, routing or provider identifiers. A future per-trace Console view
+requires an explicit reviewed correlation source before trace IDs are displayed or linked.
 
 ## CI boundary
 
@@ -367,13 +389,20 @@ provider, PDP call, or external secret/backend is required by the Operations req
 
 PC-25 adds the credential-free, path-scoped `console-quality` workflow. On Node.js 24 LTS it requires a
 locked install, strict TypeScript checking, deterministic unit tests, a console security-boundary scan and
-a production Vite build. The boundary scan rejects browser persistence APIs, mutation request literals,
-arbitrary absolute HTTP URLs and unreviewed `/v1/ops/*` paths in console source. Frontend CI does not
-replace or weaken the Python quality, collector-receipt or observability-compose gates.
+a production Vite build. The boundary scan rejects browser persistence APIs, arbitrary absolute HTTP URLs,
+unreviewed `/v1/ops/*` paths, PUT/PATCH/DELETE and every POST except the reviewed relative
+`/v1/generate` added by PC-38. Frontend CI does not replace or weaken the Python quality,
+collector-receipt or observability-compose gates.
 
-PC-28 reuses that same Console gate. Its deterministic tests require exact local-origin acceptance,
-unreviewed-origin rejection, credential-free URL shape and dashboard-UID agreement with the checked-in
-PC-27 Grafana JSON. No new external service or credential is added to frontend CI.
+PC-38/PC-39 add credential-free protocol tests for the bounded inference request and normalized SSE
+consumer. Mocked streams cover malformed/oversized/incomplete evidence, request/sequence mismatch,
+unknown or disabled tool events, duplicate usage, terminal failure, contradictory execution identity and
+routing-provenance drift. No provider or PDP credential is available to those tests.
+
+PC-28 reuses the same Console gate for local navigation. Its deterministic tests require exact
+local-origin acceptance, unreviewed-origin rejection, credential-free URL shape and dashboard-UID
+agreement with the checked-in PC-27 Grafana JSON. No new external service or credential is added to
+frontend CI.
 
 PC-26 adds the credential-free, path-scoped `tempo-query` workflow. It validates the base-plus-test
 Compose model, starts only the real pinned Tempo and Collector services, performs bounded readiness,
@@ -392,31 +421,40 @@ operations-only Gateway + Console + pinned observability stack, requires the bou
 then verifies that the dedicated Compose services and reviewed loopback listeners are gone after return.
 The post-merge run `34273364740` passed on certified `main@594b8609634b54eec60f75a733e6aa90846face9`.
 
-Changes to the shared observability/readiness documentation trigger the Tempo query workflow. Existing
-observability workflows continue to validate their own path-scoped contracts on applicable candidate
-SHAs; none of these CI checks require provider, PDP, SaaS or secret access.
+PC-33..PC-39 keep provider/PDP credentials outside required CI. PC-36's live smoke harness requires an
+explicit `--live` operator action and consumes only the Gateway client URL/credential; implementation and
+credential-free tests do not constitute a live-provider certification.
+
+Changes to the shared observability/readiness documentation trigger the applicable repository workflows.
+Existing observability workflows continue to validate their own path-scoped contracts on candidate SHAs;
+none of these CI checks require provider, PDP, SaaS or secret access.
 
 ## Next slice
 
-PC-30 is certified at `main@594b8609634b54eec60f75a733e6aa90846face9`. OR-8 is therefore complete
-for the bounded local operations demo: one repository-owned command can start, prove readiness and tear
-down the already-reviewed operations-only Gateway, Console and local observability components. This does
-not create provider/PDP execution authority and is not a production-readiness claim.
+PC-39 is certified at `main@99bbbf1f98605695935a89befc873b8c6a4296d4`. OR-8 remains complete for
+the bounded operations-only local demo. OR-9 is now in progress through separately reviewed hardening
+increments, while OR-10 final product/demo validation remains pending.
 
-The next operational-readiness work must be selected independently. OR-9 broader authentication/security
-hardening and OR-10 final product/demo documentation remain not started. Per-trace Console correlation,
-deployment detail, evidence detail and recent routing history still require separate information-disclosure,
-completeness or persistence contracts before an endpoint or screen is added. Recent routing history must
-not be fabricated from current health or ranking configuration. Fleet aggregation, external IAM, production
-observability URL discovery and mutations remain separate increments.
+The next operational-readiness work must be selected independently from real repository gaps. Production
+browser identity/session handling, OAuth/OIDC/workload identity, TLS termination, rate limiting, CSRF
+policy and any future mutation authority remain distinct reviewable concerns. Per-trace Console
+correlation, deployment detail, evidence detail and recent routing history still require separate
+information-disclosure, completeness or persistence contracts before an endpoint or screen is added.
+Recent routing history must not be fabricated from current health or ranking configuration. Fleet
+aggregation and production observability URL discovery remain separate increments.
 
-Phase 14 consumer integrations remain frozen by issue #18 while OpsLens is under active independent
-development. RAGForge must not start in parallel unless the normative integration order is explicitly
-revised.
+Credential-free CI and the checked-in live-development profile do not prove a real provider/PDP request.
+Any portfolio/demo claim of live inference requires a separate explicit operator run with real
+local/server-side credentials and recorded metadata-only evidence.
+
+Phase 14 sequencing remains versioned directly in `SOURCE_ROADMAP.txt`, `ROADMAP.md` and
+`CURRENT_STATE.md`: OpsLens stays deferred while its repository evolves independently, and RAGForge must
+not start in parallel unless the normative integration order is explicitly revised.
 
 ## Completion rule
 
 No OR increment is considered complete until its pull request is merged and the corresponding
-post-merge `main` CI is green. Product-ready demo status requires the full operational stack, read-only
-operations surfaces, console, trace correlation, reproducible local demo, security review,
-documentation and final post-merge validation.
+post-merge `main` CI is green. Product-ready demo status requires the reviewed operational stack,
+Operations surfaces, bounded Console, reproducible local demo, security review, documentation and final
+post-merge validation. Per-trace correlation is required only if a reviewed correlation source is added;
+it must never be synthesized from unrelated request or provider identifiers.
