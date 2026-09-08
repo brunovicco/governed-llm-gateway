@@ -1,0 +1,29 @@
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal
+
+backend_worker:
+  compaction:
+    block_retention: 24h
+
+# Integration-only recent-query settings. Tempo 3.x excludes the newest 30s
+# from search by default; this proof must query the exact span it just emitted.
+query_frontend:
+  query_end_cutoff: 0s
+
+live_store:
+  fail_on_high_lag: false
