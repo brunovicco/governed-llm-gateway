@@ -190,7 +190,7 @@ remain separate future work.
 
 ## Current gateway baseline
 
-Latest merged and post-merge validated baseline:
+Latest runtime-bearing and post-merge validated baseline:
 
 `594b8609634b54eec60f75a733e6aa90846face9` (PR #172 / PC-30).
 
@@ -200,7 +200,9 @@ Post-merge `main` gates:
 - `local-demo-smoke` run `34273364740` — PASS.
 
 The local-demo smoke proof uses no provider, Policy Router, SaaS or production credential. It proves only
-the bounded operations-only local stack, real readiness and deterministic teardown.
+the bounded operations-only local stack, real readiness and deterministic teardown. Documentation-only
+checkpoint commits may advance `main` without changing this runtime-bearing baseline; all new work still
+starts from the then-current `main`.
 
 ## Next boundary
 

@@ -200,7 +200,7 @@ the permanent authorization boundary. The latest certified sequence is:
 - PC-30 — deterministic one-command orchestration for the operations-only Gateway, Console and local
   Collector + Tempo + Grafana stack, with bounded readiness and deterministic cleanup.
 
-PC-30 squash merge / current certified baseline:
+PC-30 squash merge / latest certified runtime-bearing baseline:
 
 `594b8609634b54eec60f75a733e6aa90846face9` (PR #172).
 
@@ -289,7 +289,7 @@ Remains after the preceding integration cases.
 
 ## Current working boundary
 
-1. Keep `governed-llm-gateway/main` stable at the certified post-PC-30 baseline `594b8609634b54eec60f75a733e6aa90846face9`; further work must remain independently justified and consumer-agnostic while OpsLens is deferred.
+1. Treat `594b8609634b54eec60f75a733e6aa90846face9` as the latest certified runtime-bearing baseline. Documentation-only checkpoints may advance `main` without changing runtime behavior; any further functional change must still start from the then-current `main` and remain independently justified and consumer-agnostic while OpsLens is deferred.
 2. Do not modify OpsLens until its independent development state is ready for reconciliation.
 3. Do not begin RAGForge in parallel unless the roadmap order is explicitly revised.
 4. Accept further upstream gateway changes only when they are consumer-agnostic, independently justified and preserve the permanent authorization invariant.
