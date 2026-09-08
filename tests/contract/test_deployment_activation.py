@@ -438,7 +438,7 @@ def test_configured_operations_access_authorizes_exact_runtime_principal(tmp_pat
     assert identity.environment == "development"
     route_paths = {route.path for route in services.app.routes if isinstance(route, APIRoute)}
     operations_paths = {path for path in route_paths if path.startswith("/v1/ops")}
-    assert operations_paths == {"/v1/ops/overview"}
+    assert operations_paths == {"/v1/ops/overview", "/v1/ops/deployments"}
 
     response = TestClient(services.app).get(
         "/v1/ops/overview",
