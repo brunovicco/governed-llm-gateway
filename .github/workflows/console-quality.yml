@@ -1,0 +1,46 @@
+name: console-quality
+
+on:
+  pull_request:
+    paths:
+      - apps/gateway-console/**
+      - docs/project/GATEWAY_CONSOLE.md
+      - docs/project/OPERATIONAL_READINESS.md
+      - .github/workflows/console-quality.yml
+      - .gitignore
+  push:
+    branches:
+      - main
+      - feat/**
+    paths:
+      - apps/gateway-console/**
+      - docs/project/GATEWAY_CONSOLE.md
+      - docs/project/OPERATIONAL_READINESS.md
+      - .github/workflows/console-quality.yml
+      - .gitignore
+
+permissions:
+  contents: read
+
+jobs:
+  console-quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/gateway-console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.20.0
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npm test
+      - name: Check console security boundaries
+        run: npm run security:surface
+      - name: Build production bundle
+        run: npm run build
