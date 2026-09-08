@@ -113,8 +113,8 @@ describe("OperationsApiClient", () => {
     [403, "operations_read_access_denied", "access_denied"],
     [503, "operations_snapshot_unavailable", "snapshot_unavailable"],
   ] as const)("maps sanitized HTTP %s without exposing raw detail", async (status, code, kind) => {
-    const fetcher = vi.fn().mockResolvedValue(
-      jsonResponse({ detail: { code }, raw_exception: "must not be rendered" }, status),
+    const fetcher = vi.fn().mockImplementation(() =>
+      Promise.resolve(jsonResponse({ detail: { code }, raw_exception: "must not be rendered" }, status)),
     );
     const client = new OperationsApiClient(fetcher);
 
