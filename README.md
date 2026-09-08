@@ -83,7 +83,7 @@ For the authoritative project checkpoint and Phase 14 sequencing, see [`docs/pro
 
 ## Quality baseline
 
-The current PC-27 branch quality gate validates:
+The latest validated quality gate reports:
 
 - **1107 tests passing** and 2 skipped;
 - **83.70% aggregate coverage**;
@@ -91,8 +91,6 @@ The current PC-27 branch quality gate validates:
 - **Bandit: 0 findings** across 22,842 LOC;
 - **pip-audit: no known vulnerabilities**;
 - architecture, secret-scan and Phase 0 gates passing.
-
-These branch results become a `main` baseline only after the reviewed PC-27 head is merged and the required post-merge gates succeed.
 
 ## Validate locally
 
