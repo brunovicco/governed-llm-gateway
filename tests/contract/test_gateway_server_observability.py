@@ -1,7 +1,6 @@
 """Contract tests for executable-process observability ownership and degradation."""
 
 from collections.abc import Mapping
-from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
