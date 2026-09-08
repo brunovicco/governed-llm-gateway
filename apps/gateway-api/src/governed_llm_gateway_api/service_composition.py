@@ -23,6 +23,7 @@ from governed_llm_gateway_core.domain.resilience import RetryPolicy
 from .application import create_gateway_app
 from .complexity_generate import ComplexityGenerateCoordinator
 from .operations_access import OperationsReadAccessService
+from .operations_http import attach_operations_routes
 from .process_bootstrap import GovernedProcessRuntimeBundle
 from .route_explain import ComplexityRouteExplainCoordinator, RouteExplainCoordinator
 from .stream_generate import GenerateCoordinator
@@ -181,6 +182,11 @@ def compose_governed_gateway_services(
         complexity_route_explain_coordinator=complexity_route_explain_coordinator,
         complexity_generate_coordinator=complexity_generate_coordinator,
         observability=observability,
+    )
+    attach_operations_routes(
+        app,
+        access=runtime.operations_read_access,
+        read_model=operations_read_model,
     )
     return GovernedGatewayServices(
         app=app,

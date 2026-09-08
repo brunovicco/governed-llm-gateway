@@ -2,7 +2,7 @@
 
 ## Purpose
 
-PC-20 / OR-4A establishes the authentication and authorization prerequisite for future read-only Operations HTTP surfaces. PC-21 / OR-4B binds that boundary to explicit deployment-owned, secret-free configuration before any Operations route exists.
+PC-20 / OR-4A establishes the authentication and authorization prerequisite for read-only Operations HTTP surfaces. PC-21 / OR-4B binds that boundary to explicit deployment-owned, secret-free configuration. PC-22 / OR-4C uses those exact composed services to expose the first bounded authenticated endpoint, `GET /v1/ops/overview`.
 
 The Gateway already has an authenticated workload boundary, but workload authorization is not administrative authorization. A credential allowed to execute `rag.answer` or `code.review` must not automatically gain visibility into the process-wide model registry, ranking provenance, or deployment health.
 
@@ -18,8 +18,10 @@ GatewayClientIdentity
 OperationsReadAccessPolicy
         ↓ exact principal grant
 OperationsReadAccessService
+        ↓ authorize before read
+OperationsReadModelService
         ↓
-future read-only Operations API
+bounded read-only Operations API
 ```
 
 No synthetic `GatewayRequest` is created for operations access.
@@ -75,6 +77,20 @@ The executable process accepts only `--operations-access-path`. It has no raw op
 
 See `docs/project/OPERATIONS_ACCESS_ARTIFACT.md` for the artifact schema, bootstrap order, provenance and deployment path semantics.
 
+## HTTP exposure
+
+PC-22 exposes exactly one Operations route:
+
+```text
+GET /v1/ops/overview
+```
+
+The adapter reuses `X-Gateway-API-Key`, calls the already-composed `OperationsReadAccessService` first, and only after authorization reads the already-composed `OperationsReadModelService`. Missing/invalid credentials return sanitized 401; authenticated principals without a grant return sanitized 403; read-model/invariant failures return sanitized 503.
+
+The overview is deliberately smaller than the internal operations snapshot. It exposes registry/ranking provenance, aggregate `process_local` health counts, and operational-evidence availability state. It does not serialize principal identity, grant metadata, deployment/model/provider identifiers, per-deployment counters, credential references, raw exceptions, or mutable runtime internals.
+
+See `docs/project/OPERATIONS_HTTP.md` for the exact transport and response contract.
+
 ## Error separation
 
 Authentication and operations authorization remain distinguishable internal contracts:
@@ -82,7 +98,7 @@ Authentication and operations authorization remain distinguishable internal cont
 - unknown, malformed, or ambiguous Gateway credentials retain `ClientAuthenticationError("gateway credential rejected")`;
 - authenticated principals without an operations grant receive `OperationsReadAuthorizationError("operations read access denied")`.
 
-A future HTTP adapter may map those contracts to stable 401/403 responses without serializing principal IDs, grants, credentials, or backend exceptions.
+The HTTP adapter maps those contracts to stable sanitized 401/403 responses without serializing principal IDs, grants, credentials, or backend exceptions.
 
 ## Authority invariant
 
@@ -106,18 +122,12 @@ Operations-read authorization controls only visibility of descriptive operationa
 
 The Policy Router is therefore not called merely to decide whether an authenticated operator may view descriptive operations metadata. This administrative read grant is a separate Gateway surface authorization boundary, not a substitute for model authorization.
 
-## Why no HTTP route yet
-
-`docs/architecture/ADMIN_SURFACES.md` forbids a global unauthenticated catalog response. PC-19 already gives the service graph access to a process-wide operations snapshot, while PC-20 and PC-21 now provide the authenticated visibility boundary and explicit deployment grant configuration required before transport can be safely attached.
-
-PC-21 deliberately still adds no `/v1/ops/*` route. The next bounded increment may add a first authenticated read-only endpoint only if authorization occurs before the process-wide read model is read and no new secret, PDP, provider or mutation path is introduced.
-
 ## Deferred
 
-PC-21 does not add:
+PC-22 does not add:
 
-- `/v1/ops/*` routes;
-- operational-evidence source binding;
+- deployment-detail/model-catalog Operations routes;
+- operational-evidence detail/source binding;
 - recent routing-history persistence;
 - OAuth/OIDC/JWT/mTLS or external IAM integration;
 - fleet health aggregation or completeness claims;
