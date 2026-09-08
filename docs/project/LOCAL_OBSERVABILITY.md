@@ -152,7 +152,7 @@ A dedicated credential-free GitHub Actions workflow additionally executes:
 docker compose -f compose.observability.yml config --quiet
 ```
 
-It validates the Compose model without starting containers, downloading images, contacting a SaaS backend, or requiring credentials.
+It validates the resolved Compose model without starting containers, downloading images, contacting a SaaS backend, or requiring credentials. This structural validation complements the Python contracts but deliberately does not claim runtime connectivity or trace receipt.
 
 ## What this increment does not prove
 
