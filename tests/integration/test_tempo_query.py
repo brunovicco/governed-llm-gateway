@@ -6,14 +6,15 @@ import json
 import os
 import time
 from typing import Any
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 
+import httpx
 import pytest
 from a2a_otel_kit import Observability, ObservabilitySettings
 
 _COLLECTOR_ENDPOINT_ENV = "GATEWAY_TEMPO_QUERY_COLLECTOR_ENDPOINT"
 _TEMPO_ENDPOINT_ENV = "GATEWAY_TEMPO_QUERY_ENDPOINT"
+_EXPECTED_COLLECTOR_ENDPOINT = "http://127.0.0.1:4318/v1/traces"
+_EXPECTED_TEMPO_ENDPOINT = "http://127.0.0.1:3200"
 _EXPECTED_SERVICE = "governed-llm-gateway-tempo-query-integration"
 _EXPECTED_SPAN = "llm.gateway.request"
 _QUERY_TIMEOUT_SECONDS = 10.0
@@ -27,8 +28,13 @@ def test_gateway_metadata_trace_is_queryable_from_tempo() -> None:
     tempo_endpoint = os.environ.get(_TEMPO_ENDPOINT_ENV)
     if collector_endpoint is None or tempo_endpoint is None:
         pytest.skip(
-            f"set {_COLLECTOR_ENDPOINT_ENV} and {_TEMPO_ENDPOINT_ENV} to run Tempo query integration"
+            "set the explicit Collector and Tempo loopback endpoints to run Tempo query integration"
         )
+
+    if collector_endpoint != _EXPECTED_COLLECTOR_ENDPOINT:
+        pytest.fail("Tempo query integration Collector endpoint must use the reviewed loopback address")
+    if tempo_endpoint != _EXPECTED_TEMPO_ENDPOINT:
+        pytest.fail("Tempo query integration endpoint must use the reviewed loopback address")
 
     observability = Observability.configure(
         ObservabilitySettings(
@@ -60,21 +66,23 @@ def test_gateway_metadata_trace_is_queryable_from_tempo() -> None:
         time.sleep(0.1)
 
     pytest.fail(
-        "Tempo did not return the expected Gateway metadata trace within the bounded polling window; "
-        f"last_payload={last_payload!r}"
+        "Tempo did not return the expected Gateway metadata trace within the bounded polling "
+        f"window; last_payload={last_payload!r}"
     )
 
 
 def _tempo_search(endpoint: str, traceql: str) -> dict[str, Any]:
-    url = f"{endpoint.rstrip('/')}/api/search?{urlencode({'q': traceql})}"
-    request = Request(url, method="GET", headers={"Accept": "application/json"})
-    with urlopen(request, timeout=_HTTP_TIMEOUT_SECONDS) as response:  # noqa: S310 - loopback test endpoint
-        if response.status != 200:
-            pytest.fail(f"Tempo search returned HTTP {response.status}")
-        raw = response.read()
+    response = httpx.get(
+        f"{endpoint}/api/search",
+        params={"q": traceql},
+        headers={"Accept": "application/json"},
+        timeout=_HTTP_TIMEOUT_SECONDS,
+    )
+    if response.status_code != 200:
+        pytest.fail(f"Tempo search returned HTTP {response.status_code}")
 
     try:
-        payload: object = json.loads(raw)
+        payload: object = json.loads(response.content)
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         pytest.fail(f"Tempo search returned malformed JSON: {exc}")
 
