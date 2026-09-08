@@ -78,6 +78,9 @@ jobs:
         run: >-
           uv run --frozen --python 3.13 --all-packages --with pytest==8.4.1
           pytest -m integration tests/integration/test_tempo_query.py
+      - name: Preserve failure diagnostics
+        if: failure()
+        run: docker compose -f compose.observability.yml -f compose.tempo-query.yml logs tempo otel-collector
       - name: Stop Tempo query integration stack
         if: always()
         run: docker compose -f compose.observability.yml -f compose.tempo-query.yml down --volumes --remove-orphans
