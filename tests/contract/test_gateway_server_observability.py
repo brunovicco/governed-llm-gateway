@@ -183,7 +183,7 @@ def test_enabled_observability_is_injected_and_shutdown_after_runner_return(
         injected.append(observability)
         return SimpleNamespace(app=app)
 
-    monkeypatch.setattr(server_module.Observability, "configure", staticmethod(fake_configure))
+    monkeypatch.setattr(Observability, "configure", staticmethod(fake_configure))
     monkeypatch.setattr(server_module, "activate_governed_deployment", fake_activate)
 
     run_governed_server(settings, environ={}, runner=runner)
@@ -218,7 +218,7 @@ def test_observability_configuration_failure_degrades_to_null_telemetry(
         injected.append(observability)
         return SimpleNamespace(app=app)
 
-    monkeypatch.setattr(server_module.Observability, "configure", staticmethod(fake_configure))
+    monkeypatch.setattr(Observability, "configure", staticmethod(fake_configure))
     monkeypatch.setattr(server_module, "activate_governed_deployment", fake_activate)
 
     run_governed_server(settings, environ={}, runner=runner)
@@ -251,7 +251,7 @@ def test_activation_failure_still_shuts_down_owned_observability(
         assert observability is expected_observability
         raise ActivationError("activation failed")
 
-    monkeypatch.setattr(server_module.Observability, "configure", staticmethod(fake_configure))
+    monkeypatch.setattr(Observability, "configure", staticmethod(fake_configure))
     monkeypatch.setattr(server_module, "activate_governed_deployment", fake_activate)
 
     with pytest.raises(ActivationError, match="activation failed"):
@@ -284,7 +284,7 @@ def test_shutdown_failure_never_masks_runner_failure(
         assert observability is expected_observability
         return SimpleNamespace(app=app)
 
-    monkeypatch.setattr(server_module.Observability, "configure", staticmethod(fake_configure))
+    monkeypatch.setattr(Observability, "configure", staticmethod(fake_configure))
     monkeypatch.setattr(server_module, "activate_governed_deployment", fake_activate)
 
     with pytest.raises(RunnerError, match="runner failed"):
@@ -319,7 +319,7 @@ def test_shutdown_failure_after_normal_runner_return_is_best_effort(
         assert observability is expected_observability
         return SimpleNamespace(app=app)
 
-    monkeypatch.setattr(server_module.Observability, "configure", staticmethod(fake_configure))
+    monkeypatch.setattr(Observability, "configure", staticmethod(fake_configure))
     monkeypatch.setattr(server_module, "activate_governed_deployment", fake_activate)
 
     run_governed_server(settings, environ={}, runner=runner)
