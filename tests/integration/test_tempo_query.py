@@ -19,6 +19,7 @@ _EXPECTED_SERVICE = "governed-llm-gateway-tempo-query-integration"
 _EXPECTED_SPAN = "llm.gateway.request"
 _QUERY_TIMEOUT_SECONDS = 10.0
 _HTTP_TIMEOUT_SECONDS = 2.0
+_SEARCH_LOOKBACK_SECONDS = 30
 
 
 @pytest.mark.integration
@@ -38,6 +39,7 @@ def test_gateway_metadata_trace_is_queryable_from_tempo() -> None:
     if tempo_endpoint != _EXPECTED_TEMPO_ENDPOINT:
         pytest.fail("Tempo query integration endpoint must use the reviewed loopback address")
 
+    search_start = int(time.time()) - _SEARCH_LOOKBACK_SECONDS
     observability = Observability.configure(
         ObservabilitySettings(
             service_name=_EXPECTED_SERVICE,
@@ -48,35 +50,50 @@ def test_gateway_metadata_trace_is_queryable_from_tempo() -> None:
             otlp_timeout_seconds=5,
         )
     )
-    with observability.start_span(_EXPECTED_SPAN):
-        pass
+    with observability.start_span(_EXPECTED_SPAN) as span:
+        expected_trace_id = format(span.get_span_context().trace_id, "032x")
     try:
         assert observability.flush(5), "OTLP exporter did not flush within five seconds"
     finally:
         observability.shutdown(5)
 
-    traceql = (
-        f'{{ resource.service.name = "{_EXPECTED_SERVICE}" && name = "{_EXPECTED_SPAN}" }}'
-    )
+    service_clause = f'resource.service.name = "{_EXPECTED_SERVICE}"'
+    span_clause = f'name = "{_EXPECTED_SPAN}"'
+    traceql = f"{{ {service_clause} && {span_clause} }}"
     deadline = time.monotonic() + _QUERY_TIMEOUT_SECONDS
     last_payload: dict[str, Any] | None = None
 
     while time.monotonic() < deadline:
-        last_payload = _tempo_search(tempo_endpoint, traceql)
-        if _contains_expected_root(last_payload):
+        last_payload = _tempo_search(
+            tempo_endpoint,
+            traceql,
+            start_epoch_seconds=search_start,
+            end_epoch_seconds=int(time.time()) + 1,
+        )
+        if _contains_expected_root(last_payload, expected_trace_id):
             return
         time.sleep(0.1)
 
     pytest.fail(
         "Tempo did not return the expected Gateway metadata trace within the bounded polling "
-        f"window; last_payload={last_payload!r}"
+        f"window; trace_id={expected_trace_id}; last_payload={last_payload!r}"
     )
 
 
-def _tempo_search(endpoint: str, traceql: str) -> dict[str, Any]:
+def _tempo_search(
+    endpoint: str,
+    traceql: str,
+    *,
+    start_epoch_seconds: int,
+    end_epoch_seconds: int,
+) -> dict[str, Any]:
     response = httpx.get(
         f"{endpoint}/api/search",
-        params={"q": traceql},
+        params={
+            "q": traceql,
+            "start": start_epoch_seconds,
+            "end": end_epoch_seconds,
+        },
         headers={"Accept": "application/json"},
         timeout=_HTTP_TIMEOUT_SECONDS,
     )
@@ -99,7 +116,7 @@ def _tempo_search(endpoint: str, traceql: str) -> dict[str, Any]:
     return payload
 
 
-def _contains_expected_root(payload: dict[str, Any]) -> bool:
+def _contains_expected_root(payload: dict[str, Any], expected_trace_id: str) -> bool:
     traces = payload["traces"]
     assert isinstance(traces, list)
     for trace in traces:
@@ -107,8 +124,7 @@ def _contains_expected_root(payload: dict[str, Any]) -> bool:
         if (
             trace.get("rootServiceName") == _EXPECTED_SERVICE
             and trace.get("rootTraceName") == _EXPECTED_SPAN
-            and isinstance(trace.get("traceID"), str)
-            and bool(trace["traceID"])
+            and trace.get("traceID") == expected_trace_id
         ):
             return True
     return False
