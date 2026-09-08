@@ -66,10 +66,13 @@ services:
       - tempo
     networks:
       - observability
+      - grafana-host-access
 
 networks:
   observability:
     internal: true
+  grafana-host-access:
+    driver: bridge
 
 volumes:
   tempo-data:
