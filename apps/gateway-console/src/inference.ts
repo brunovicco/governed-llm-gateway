@@ -443,8 +443,8 @@ function processFrames(
       throw protocolError("Gateway emitted a tool event for a request with tool calling disabled.");
     }
     if (event.routing !== null) {
-      if (routing !== null && !sameRoutingIdentity(routing, event.routing)) {
-        throw protocolError("Gateway routing identity changed during the inference stream.");
+      if (routing !== null && !sameRoutingProvenance(routing, event.routing)) {
+        throw protocolError("Gateway routing provenance changed during the inference stream.");
       }
       routing = event.routing;
     }
@@ -712,15 +712,8 @@ function validateTerminalEvidence(
   }
 }
 
-function sameRoutingIdentity(left: InferenceRouting, right: InferenceRouting): boolean {
-  return (
-    left.routing_decision_id === right.routing_decision_id &&
-    left.policy.decision_id === right.policy.decision_id &&
-    left.authorized_model_group === right.authorized_model_group &&
-    left.provider === right.provider &&
-    left.model === right.model &&
-    left.deployment === right.deployment
-  );
+function sameRoutingProvenance(left: InferenceRouting, right: InferenceRouting): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function sameUsage(left: InferenceUsage, right: InferenceUsage): boolean {
