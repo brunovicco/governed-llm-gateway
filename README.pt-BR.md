@@ -83,7 +83,7 @@ Para o checkpoint autoritativo do projeto e o sequenciamento da Phase 14, veja [
 
 ## Baseline de qualidade
 
-O quality gate da branch atual do PC-27 valida:
+O quality gate validado mais recente reporta:
 
 - **1107 testes passando** e 2 skipped;
 - **83,70% de cobertura agregada**;
@@ -91,8 +91,6 @@ O quality gate da branch atual do PC-27 valida:
 - **Bandit: 0 findings** em 22.842 LOC;
 - **pip-audit: nenhuma vulnerabilidade conhecida**;
 - architecture check, secret scan e Phase 0 gate passando.
-
-Esses resultados de branch só se tornam baseline de `main` depois que o head revisado do PC-27 for mergeado e os gates pós-merge obrigatórios passarem.
 
 ## Validar localmente
 
