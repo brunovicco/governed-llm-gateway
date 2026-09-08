@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .client_auth import GatewayClientIdentity
 from .operations_access import OperationsReadAuthorizationError
+from .operations_security import OperationsNoStoreMiddleware
 from .route_explain import ClientAuthenticationError
 
 _OPERATIONS_OVERVIEW_PATH = "/v1/ops/overview"
@@ -150,6 +151,8 @@ def attach_operations_routes(
         raise OperationsHttpCompositionError(
             f"operations route already attached: {', '.join(conflicts)}"
         )
+
+    app.add_middleware(OperationsNoStoreMiddleware)
 
     @app.get(
         _OPERATIONS_OVERVIEW_PATH,
