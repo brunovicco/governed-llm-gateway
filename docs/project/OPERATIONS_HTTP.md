@@ -2,7 +2,7 @@
 
 ## Purpose
 
-PC-22 / OR-4C introduced the first read-only Operations HTTP surface after the typed read model (PC-18/PC-19) and the independent authenticated visibility boundary plus deployment-owned grants (PC-20/PC-21) were already in place. PC-23 optionally binds one already-reviewed deployment-owned operational-evidence snapshot into that same read path. PC-24 adds a second bounded read-only projection for the active deployment catalog.
+PC-22 / OR-4C introduced the first read-only Operations HTTP surface after the typed read model (PC-18/PC-19) and the independent authenticated visibility boundary plus deployment-owned grants (PC-20/PC-21) were already in place. PC-23 optionally binds one already-reviewed deployment-owned operational-evidence snapshot into that same read path. PC-24 adds a second bounded read-only projection for the active deployment catalog. PC-34 adds the first bounded OR-9 HTTP cache hardening for this authenticated namespace.
 
 The implemented endpoints are:
 
@@ -48,6 +48,20 @@ The adapter emits stable sanitized failures:
 | 503 | `operations_snapshot_unavailable` | the read model or bounded projection cannot be produced safely |
 
 Raw exceptions, principal identifiers, grant contents, credentials, secret references, provider errors, and internal snapshot details are not serialized.
+
+## Cache policy — PC-34
+
+Every HTTP response whose path is under the owned `/v1/ops/` namespace carries:
+
+```http
+Cache-Control: no-store
+```
+
+The policy is applied outside the individual route return models so it covers both successful projections and sanitized failures, including 401, 403, 503 and unknown Operations paths. This is required because Operations authentication uses the custom `X-Gateway-API-Key` header; intermediary caches must not be relied upon to infer credential-aware cache semantics for that header.
+
+The middleware is namespace-scoped. It does not assign this Operations cache policy to inference, process-health/readiness, provider, PDP, Grafana or unrelated application routes. It does not place a credential in response metadata and does not change authentication, authorization, snapshot ordering, response bodies or inference authority.
+
+`no-store` is bounded cache hardening only. It is not a production browser identity/session architecture, TLS policy, CSRF design or rate-limiting system.
 
 ## Overview response boundary
 
@@ -105,7 +119,7 @@ The snapshot reader wraps the exact active `OperationsReadModelService` and the 
 
 No new secret resolver, network client, PDP adapter, provider adapter, health tracker, or ranking authority is created for the HTTP surfaces.
 
-Operations route attachment owns both `/v1/ops/overview` and `/v1/ops/deployments`. The composition checks both paths before registering either route, so a conflict fails closed before partial attachment. Re-attaching the owned Operations surface also fails closed.
+Operations route attachment owns both `/v1/ops/overview` and `/v1/ops/deployments`. The composition checks both paths before registering either route, so a conflict fails closed before partial attachment. Re-attaching the owned Operations surface also fails closed. PC-34 attaches the no-store middleware only after this conflict check succeeds, so failed/duplicate composition does not partially add a second Operations security layer.
 
 See `docs/project/OPERATIONAL_EVIDENCE_BINDING.md` for the PC-23 startup/binding and non-authority contract.
 
@@ -123,7 +137,7 @@ Health and evidence remain descriptive signals, not authority.
 
 ## Deferred
 
-PC-24 does not add:
+PC-34 still does not add:
 
 - `GET /v1/ops/deployments/{deployment_id}`;
 - detailed per-deployment counters or latency;
@@ -131,9 +145,13 @@ PC-24 does not add:
 - operational-evidence automatic refresh/discovery or freshness policy;
 - recent routing-history persistence or API;
 - fleet aggregation/completeness claims;
-- OAuth/OIDC/JWT/mTLS/external IAM;
+- production OAuth/OIDC/JWT/mTLS/external IAM;
+- browser session/token-exchange architecture;
+- rate limiting or CSRF policy;
 - operator mutation/control APIs;
-- React Gateway Console;
+- broader React Gateway Console surfaces;
+- OR-9 completion;
+- OR-10 completion;
 - Phase 14 consumer integrations.
 
-Each remains a separate reviewable increment so catalog visibility, evidence lifecycle, persistence, fleet semantics, external identity, and mutation authority are not collapsed into one admin surface.
+Each remains a separate reviewable increment so catalog visibility, evidence lifecycle, persistence, fleet semantics, external identity, mutation authority and browser security architecture are not collapsed into one admin surface.
