@@ -4,7 +4,7 @@ import http.client
 import ipaddress
 import json
 from collections.abc import Mapping
-from typing import cast
+from typing import TypeGuard, cast
 from urllib.parse import urlsplit
 
 from .policy_router import (
@@ -17,9 +17,9 @@ from .policy_router import (
 _MAX_RESPONSE_BYTES = 512 * 1024
 
 
-def is_literal_loopback_host(hostname: str | None) -> bool:
+def is_literal_loopback_host(hostname: object) -> TypeGuard[str]:
     """Return whether a hostname is an IP literal in a loopback network."""
-    if hostname is None:
+    if not isinstance(hostname, str):
         return False
     try:
         address = ipaddress.ip_address(hostname)
@@ -44,17 +44,20 @@ class LoopbackHttpPolicyTransport(StdlibPolicyTransport):
             parsed_port = parsed.port
         except ValueError as exc:
             raise ValueError("policy router loopback endpoint is invalid") from exc
+
+        hostname = parsed.hostname
+        if parsed.scheme != "http":
+            raise ValueError("policy router loopback endpoint must use HTTP")
+        if not is_literal_loopback_host(hostname):
+            raise ValueError("policy router HTTP endpoint must use a literal loopback address")
         if (
-            parsed.scheme != "http"
-            or not is_literal_loopback_host(parsed.hostname)
-            or parsed.username is not None
+            parsed.username is not None
             or parsed.password is not None
             or parsed.query
             or parsed.fragment
         ):
             raise ValueError(
-                "policy router HTTP endpoint must use a literal loopback address without "
-                "userinfo, query, or fragment"
+                "policy router HTTP endpoint must not contain userinfo, query, or fragment"
             )
         if timeout_seconds <= 0:
             raise ValueError("policy router timeout_seconds must be positive")
@@ -63,7 +66,7 @@ class LoopbackHttpPolicyTransport(StdlibPolicyTransport):
         path = parsed.path or "/"
         body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         connection = http.client.HTTPConnection(
-            parsed.hostname,
+            hostname,
             port=port,
             timeout=timeout_seconds,
         )
