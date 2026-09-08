@@ -223,7 +223,29 @@ curl --no-buffer \
 
 The SSE stream is backend evidence. Inspect the terminal routing/execution fields rather than inferring provider selection in the client. Retry/fallback may move only to another eligible deployment already inside the PDP-authorized `balanced` group.
 
-## 5. Teardown
+## 5. Run the repeatable opt-in smoke harness
+
+After the Policy Router and Gateway are already running, and after exporting only the two consumer variables from step 4, run:
+
+```bash
+uv run --frozen --package governed-llm-gateway-client \
+  python scripts/live_development_smoke.py --live
+```
+
+The `--live` flag is mandatory. Omitting it exits before any network call. The harness uses `GatewayClient.from_env()` and therefore reads only:
+
+```text
+GOVERNED_LLM_GATEWAY_URL
+GOVERNED_LLM_GATEWAY_API_KEY
+```
+
+It does not inspect `OPENAI_API_KEY`, `GEMINI_API_KEY`, or `POLICY_ROUTER_DEMO_API_KEY`. Those values remain server-side prerequisites for the already-running Gateway/PDP processes.
+
+A successful run prints exactly one metadata-only JSON object containing the request ID, authorized model group, provider/model/deployment identity, API family when present, attempt/fallback position, latency and normalized token counts. It does **not** print the prompt or completion text and it accepts either reviewed PC-33 deployment inside the PDP-authorized `balanced` group.
+
+The harness implementation and credential-free unit tests do not by themselves certify live-provider execution. Record a successful explicit operator run separately before claiming portfolio/demo-ready live inference.
+
+## 6. Teardown
 
 Stop the Gateway and Policy Router processes with `Ctrl+C`. If you started the observability stack:
 
