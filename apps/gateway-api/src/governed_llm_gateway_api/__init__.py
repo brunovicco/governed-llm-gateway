@@ -13,6 +13,7 @@ from .client_auth import (
     GatewayClientAuthBinding,
     GatewayClientAuthenticationConfigurationError,
     GatewayClientAuthorizationError,
+    GatewayClientIdentity,
     GatewayClientSecretResolutionError,
     GatewayClientSecretResolver,
     StaticGatewayClientContextResolver,
@@ -38,6 +39,13 @@ from .gateway_runtime_bootstrap import (
     GatewayRuntimeBootstrapBundle,
     GatewayRuntimeBootstrapPaths,
     bootstrap_gateway_runtime,
+)
+from .operations_access import (
+    GatewayClientIdentityAuthenticator,
+    OperationsReadAccessConfigurationError,
+    OperationsReadAccessPolicy,
+    OperationsReadAccessService,
+    OperationsReadAuthorizationError,
 )
 from .policy_router_bootstrap import (
     PolicyRouterClientAuthMismatchError,
@@ -112,6 +120,8 @@ __all__ = [
     "GatewayClientAuthDocumentError",
     "GatewayClientAuthenticationConfigurationError",
     "GatewayClientAuthorizationError",
+    "GatewayClientIdentity",
+    "GatewayClientIdentityAuthenticator",
     "GatewayClientSecretResolutionError",
     "GatewayClientSecretResolver",
     "GatewayRuntimeBootstrapBundle",
@@ -127,6 +137,10 @@ __all__ = [
     "GovernedProcessRuntimeBundle",
     "GovernedServerSettings",
     "GovernedServiceCompositionError",
+    "OperationsReadAccessConfigurationError",
+    "OperationsReadAccessPolicy",
+    "OperationsReadAccessService",
+    "OperationsReadAuthorizationError",
     "PolicyRouterClientAuthMismatchError",
     "PolicyRouterRuntimeBootstrapBundle",
     "PolicyRouterRuntimeBootstrapPaths",
