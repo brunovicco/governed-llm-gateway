@@ -206,7 +206,11 @@ def _require_non_executable_baseline(
         raise OperationsDemoConfigurationError(
             "operations demo requires zero provider runtime bindings"
         )
-    if policy_router_enabled or policy_router_endpoint is not None or policy_router_binding_count != 0:
+    if (
+        policy_router_enabled
+        or policy_router_endpoint is not None
+        or policy_router_binding_count != 0
+    ):
         raise OperationsDemoConfigurationError(
             "operations demo requires the disabled credential-free Policy Router baseline"
         )

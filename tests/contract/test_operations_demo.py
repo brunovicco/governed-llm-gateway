@@ -6,9 +6,9 @@ import inspect
 import json
 from pathlib import Path
 
-import pytest
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+import pytest
 
 from governed_llm_gateway_api import operations_demo
 from governed_llm_gateway_api.client_auth import GatewayClientSecretResolutionError
