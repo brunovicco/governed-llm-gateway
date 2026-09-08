@@ -1,0 +1,42 @@
+name: temp-pc27-tempo-diagnostic
+
+on:
+  push:
+    branches:
+      - feat/pc27-grafana-tempo-dashboard
+    paths:
+      - .github/workflows/temp-pc27-tempo-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect pinned Tempo image and both configs
+        run: |
+          set -euo pipefail
+          docker pull grafana/tempo:3.0.3
+          echo "IMAGE_ID=$(docker image inspect grafana/tempo:3.0.3 --format '{{.Id}}')"
+          echo "REPO_DIGESTS=$(docker image inspect grafana/tempo:3.0.3 --format '{{json .RepoDigests}}')"
+          echo "VERSION:"
+          docker run --rm grafana/tempo:3.0.3 -version || true
+          echo "HELP CONFIG FLAGS:"
+          docker run --rm grafana/tempo:3.0.3 -help 2>&1 | grep -E 'config\.(file|verify)|backend-worker|compaction' | head -80 || true
+          for config in deploy/observability/tempo.yaml tests/integration/tempo-query.yaml; do
+            echo "=== $config ==="
+            set +e
+            timeout 5s docker run --rm \
+              --mount "type=bind,src=$PWD/$config,dst=/etc/tempo/tempo.yaml,readonly" \
+              grafana/tempo:3.0.3 -config.file=/etc/tempo/tempo.yaml >/tmp/tempo.out 2>&1
+            status=$?
+            set -e
+            cat /tmp/tempo.out
+            echo "STATUS=$status"
+            if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+              exit "$status"
+            fi
+          done
