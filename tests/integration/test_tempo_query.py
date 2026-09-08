@@ -6,8 +6,10 @@ import json
 import os
 import time
 from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode, urlsplit
+from urllib.request import Request, urlopen
 
-import httpx
 import pytest
 from a2a_otel_kit import Observability, ObservabilitySettings
 
@@ -35,8 +37,7 @@ def test_gateway_metadata_trace_is_queryable_from_tempo() -> None:
         pytest.fail(
             "Tempo query integration Collector endpoint must use the reviewed loopback address"
         )
-    if tempo_endpoint != _EXPECTED_TEMPO_ENDPOINT:
-        pytest.fail("Tempo query integration endpoint must use the reviewed loopback address")
+    _require_reviewed_tempo_endpoint(tempo_endpoint)
 
     observability = Observability.configure(
         ObservabilitySettings(
@@ -90,18 +91,30 @@ def test_gateway_metadata_trace_is_queryable_from_tempo() -> None:
     )
 
 
-def _tempo_trace_by_id(endpoint: str, trace_id: str) -> dict[str, Any] | None:
-    response = httpx.get(
-        f"{endpoint}/api/v2/traces/{trace_id}",
-        headers={"Accept": "application/json"},
-        timeout=_HTTP_TIMEOUT_SECONDS,
-    )
-    if response.status_code == 404:
-        return None
-    if response.status_code != 200:
-        pytest.fail(f"Tempo trace-by-ID returned HTTP {response.status_code}")
+def _require_reviewed_tempo_endpoint(endpoint: str) -> None:
+    if endpoint != _EXPECTED_TEMPO_ENDPOINT:
+        pytest.fail("Tempo query integration endpoint must use the reviewed loopback address")
 
-    payload = _json_object(response, "Tempo trace-by-ID")
+    parsed = urlsplit(endpoint)
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname != "127.0.0.1"
+        or parsed.port != 3200
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in ("", "/")
+        or parsed.query
+        or parsed.fragment
+    ):
+        pytest.fail("Tempo query integration endpoint must remain strict loopback HTTP")
+
+
+def _tempo_trace_by_id(endpoint: str, trace_id: str) -> dict[str, Any] | None:
+    url = _reviewed_tempo_url(endpoint, f"/api/v2/traces/{trace_id}")
+    payload = _tempo_get_json(url, "Tempo trace-by-ID", allow_not_found=True)
+    if payload is None:
+        return None
+
     trace = payload.get("trace")
     if trace == {}:
         return None
@@ -111,16 +124,11 @@ def _tempo_trace_by_id(endpoint: str, trace_id: str) -> dict[str, Any] | None:
 
 
 def _tempo_search(endpoint: str, traceql: str) -> dict[str, Any]:
-    response = httpx.get(
-        f"{endpoint}/api/search",
-        params={"q": traceql},
-        headers={"Accept": "application/json"},
-        timeout=_HTTP_TIMEOUT_SECONDS,
-    )
-    if response.status_code != 200:
-        pytest.fail(f"Tempo search returned HTTP {response.status_code}")
+    url = _reviewed_tempo_url(endpoint, "/api/search", params={"q": traceql})
+    payload = _tempo_get_json(url, "Tempo search")
+    if payload is None:
+        pytest.fail("Tempo search unexpectedly returned no response payload")
 
-    payload = _json_object(response, "Tempo search")
     traces = payload.get("traces")
     if not isinstance(traces, list):
         pytest.fail("Tempo search response must contain a traces array")
@@ -130,11 +138,47 @@ def _tempo_search(endpoint: str, traceql: str) -> dict[str, Any]:
     return payload
 
 
-def _json_object(response: httpx.Response, boundary: str) -> dict[str, Any]:
+def _reviewed_tempo_url(
+    endpoint: str,
+    path: str,
+    *,
+    params: dict[str, str] | None = None,
+) -> str:
+    _require_reviewed_tempo_endpoint(endpoint)
+    query = urlencode(params or {})
+    suffix = f"?{query}" if query else ""
+    return f"{endpoint}{path}{suffix}"
+
+
+def _tempo_get_json(
+    url: str,
+    boundary: str,
+    *,
+    allow_not_found: bool = False,
+) -> dict[str, Any] | None:
+    request = Request(url, headers={"Accept": "application/json"}, method="GET")
     try:
-        payload: object = json.loads(response.content)
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        pytest.fail(f"{boundary} returned malformed JSON: {exc}")
+        # URL is constructed only after exact loopback validation above.
+        with urlopen(request, timeout=_HTTP_TIMEOUT_SECONDS) as response:  # noqa: S310  # nosec B310
+            status = response.getcode()
+            body = response.read()
+    except HTTPError as exc:
+        if allow_not_found and exc.code == 404:
+            return None
+        pytest.fail(f"{boundary} returned HTTP {exc.code}")
+    except URLError:
+        pytest.fail(f"{boundary} request failed before a valid HTTP response")
+
+    if status != 200:
+        pytest.fail(f"{boundary} returned HTTP {status}")
+    return _json_object(body, boundary)
+
+
+def _json_object(body: bytes, boundary: str) -> dict[str, Any]:
+    try:
+        payload: object = json.loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        pytest.fail(f"{boundary} returned malformed JSON")
 
     if not isinstance(payload, dict):
         pytest.fail(f"{boundary} response must be a JSON object")
