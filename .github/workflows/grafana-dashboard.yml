@@ -38,25 +38,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate observability Compose model
         run: docker compose -f compose.observability.yml config --quiet
-      - name: Start Tempo
-        run: docker compose -f compose.observability.yml up -d tempo
-      - name: Require Tempo container running
+      - name: Start Tempo and Grafana
         run: |
-          running_services="$(docker compose -f compose.observability.yml ps --status running --services)"
-          grep --quiet --line-regexp tempo <<<"$running_services"
-      - name: Start Grafana
-        run: docker compose -f compose.observability.yml up -d grafana
-      - name: Require Grafana container running
-        run: |
-          running_services="$(docker compose -f compose.observability.yml ps --status running --services)"
-          grep --quiet --line-regexp grafana <<<"$running_services"
-      - name: Require Grafana localhost port published
-        run: |
-          grafana_container="$(docker compose -f compose.observability.yml ps -q grafana)"
-          published="$(docker port "$grafana_container" 3000/tcp)"
-          test "$published" = "127.0.0.1:3000"
-      - name: Wait for Grafana readiness
-        run: |
+          docker compose -f compose.observability.yml up -d tempo grafana
           for attempt in {1..30}; do
             if curl --fail --silent --show-error http://127.0.0.1:3000/api/health >/dev/null; then
               exit 0
@@ -64,10 +48,12 @@ jobs:
             running_services="$(docker compose -f compose.observability.yml ps --status running --services)"
             if ! grep --quiet --line-regexp tempo <<<"$running_services" || \
                ! grep --quiet --line-regexp grafana <<<"$running_services"; then
+              docker compose -f compose.observability.yml logs tempo grafana
               exit 1
             fi
             sleep 1
           done
+          docker compose -f compose.observability.yml logs tempo grafana
           exit 1
       - name: Require provisioned Gateway trace dashboard
         run: |
@@ -124,9 +110,7 @@ jobs:
           PY
       - name: Preserve failure diagnostics
         if: failure()
-        run: |
-          docker compose -f compose.observability.yml ps
-          docker compose -f compose.observability.yml logs --no-color tempo grafana
+        run: docker compose -f compose.observability.yml logs tempo grafana
       - name: Stop Grafana dashboard integration stack
         if: always()
         run: docker compose -f compose.observability.yml down --volumes --remove-orphans
