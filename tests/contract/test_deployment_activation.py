@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.routing import APIRoute
+from fastapi.testclient import TestClient
 from governed_llm_gateway_api import (
     GovernedDeploymentSettings,
     OperationsReadAccessDocumentError,
@@ -305,6 +306,13 @@ def test_omitted_operations_access_materializes_deny_all_policy(tmp_path: Path) 
     with pytest.raises(OperationsReadAuthorizationError, match="operations read access denied"):
         asyncio.run(services.operations_read_access.authorize(api_key="pc12-client-opaque"))
 
+    response = TestClient(services.app).get(
+        "/v1/ops/overview",
+        headers={"X-Gateway-API-Key": "pc12-client-opaque"},
+    )
+    assert response.status_code == 403
+    assert response.json() == {"detail": {"code": "operations_read_access_denied"}}
+
 
 def test_configured_operations_access_authorizes_exact_runtime_principal(tmp_path: Path) -> None:
     root = tmp_path.resolve()
@@ -327,7 +335,22 @@ def test_configured_operations_access_authorizes_exact_runtime_principal(tmp_pat
     assert identity.client_id == "service-a"
     assert identity.environment == "development"
     route_paths = {route.path for route in services.app.routes if isinstance(route, APIRoute)}
-    assert not any(path.startswith("/v1/ops") for path in route_paths)
+    operations_paths = {path for path in route_paths if path.startswith("/v1/ops")}
+    assert operations_paths == {"/v1/ops/overview"}
+
+    response = TestClient(services.app).get(
+        "/v1/ops/overview",
+        headers={"X-Gateway-API-Key": "pc12-client-opaque"},
+    )
+    assert response.status_code == 200
+    assert response.json()["registry"]["deployment_count"] == 1
+    assert response.json()["health"] == {
+        "scope": "process_local",
+        "deployment_count": 1,
+        "healthy": 1,
+        "degraded": 0,
+        "unhealthy": 0,
+    }
 
 
 def test_valid_settings_delegate_to_existing_governed_service_graph(tmp_path: Path) -> None:
@@ -345,6 +368,7 @@ def test_valid_settings_delegate_to_existing_governed_service_graph(tmp_path: Pa
     route_paths = {route.path for route in services.app.routes if isinstance(route, APIRoute)}
     assert "/v1/route/explain" in route_paths
     assert "/v1/generate" in route_paths
+    assert "/v1/ops/overview" in route_paths
     assert services.complexity_enabled is False
     assert services.generate_coordinator._health is services.health
     assert services.streaming_service._health is services.health
