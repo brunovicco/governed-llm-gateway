@@ -86,15 +86,21 @@ def _validate_response(response: GatewayResponse) -> LiveDevelopmentSmokeSummary
     routing = response.routing
     execution = response.execution
     if execution is None or execution.status is not ExecutionStatus.SUCCEEDED:
-        raise LiveDevelopmentSmokeError("gateway response lacks successful terminal execution evidence")
+        raise LiveDevelopmentSmokeError(
+            "gateway response lacks successful terminal execution evidence"
+        )
     if routing.authorized_model_group != _PROFILE_MODEL_GROUP:
         raise LiveDevelopmentSmokeError("unexpected authorized model group in terminal provenance")
 
     expected_execution = _PROFILE_EXECUTIONS.get(execution.deployment)
     if expected_execution is None:
-        raise LiveDevelopmentSmokeError("terminal execution used a deployment outside the reviewed profile")
+        raise LiveDevelopmentSmokeError(
+            "terminal execution used a deployment outside the reviewed profile"
+        )
     if (execution.provider, execution.model) != expected_execution:
-        raise LiveDevelopmentSmokeError("terminal execution identity contradicts the reviewed profile")
+        raise LiveDevelopmentSmokeError(
+            "terminal execution identity contradicts the reviewed profile"
+        )
     if (routing.provider, routing.model, routing.deployment) != (
         execution.provider,
         execution.model,
