@@ -47,11 +47,19 @@ def test_profile_has_exact_bounded_provider_and_authority_shape() -> None:
     assert len(registry.deployments) == 2
     assert {deployment.provider for deployment in registry.deployments} == {"google", "openai"}
     assert {deployment.model_group for deployment in registry.deployments} == {"balanced"}
-    assert all(deployment.allowed_environments == frozenset({"development"}) for deployment in registry.deployments)
-    assert all(deployment.max_data_classification.value == "public" for deployment in registry.deployments)
+    assert all(
+        deployment.allowed_environments == frozenset({"development"})
+        for deployment in registry.deployments
+    )
+    assert all(
+        deployment.max_data_classification.value == "public"
+        for deployment in registry.deployments
+    )
     assert policy_runtime.runtime.enabled is True
     assert policy_runtime.runtime.endpoint == "http://127.0.0.1:8001/route"
-    assert tuple(binding.client_id for binding in policy_runtime.runtime.bindings) == ("gateway-demo",)
+    assert tuple(binding.client_id for binding in policy_runtime.runtime.bindings) == (
+        "gateway-demo",
+    )
 
     workload = ranking.for_workload("rag.answer")
     google_score = workload.score_for("google-gemini-3-8-flash-dev")
