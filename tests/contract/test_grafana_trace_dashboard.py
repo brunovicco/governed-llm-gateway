@@ -109,13 +109,9 @@ def test_grafana_dashboard_workflow_is_credential_free_and_fails_closed() -> Non
     assert "permissions:\n  contents: read" in workflow
     assert "docker compose -f compose.observability.yml up -d tempo grafana" in workflow
     assert "http://127.0.0.1:3000/api/health" in workflow
-    assert (
-        "http://127.0.0.1:3000/api/dashboards/uid/governed-llm-gateway-traces" in workflow
-    )
-    assert (
-        'target.get("query") != \'{ span:name = "llm.gateway.request" }\'' in workflow
-    )
-    assert "metadata.get(\"provisioned\") is not True" in workflow
+    assert "http://127.0.0.1:3000/api/dashboards/uid/governed-llm-gateway-traces" in workflow
+    assert 'target.get("query") != \'{ span:name = "llm.gateway.request" }\'' in workflow
+    assert 'metadata.get("provisioned") is not True' in workflow
     assert "down --volumes --remove-orphans" in workflow
     assert "secrets." not in workflow
     assert "Authorization:" not in workflow
