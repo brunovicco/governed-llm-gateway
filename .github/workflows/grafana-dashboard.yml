@@ -1,0 +1,118 @@
+name: grafana-dashboard
+
+on:
+  pull_request:
+    paths:
+      - compose.observability.yml
+      - deploy/observability/grafana-datasources.yaml
+      - deploy/observability/grafana-dashboard-provider.yaml
+      - deploy/observability/gateway-traces-dashboard.json
+      - tests/contract/test_grafana_trace_dashboard.py
+      - docs/project/GRAFANA_TRACE_DASHBOARD.md
+      - docs/project/OBSERVABILITY.md
+      - docs/project/OPERATIONAL_READINESS.md
+      - .github/workflows/grafana-dashboard.yml
+  push:
+    branches:
+      - main
+      - feat/**
+    paths:
+      - compose.observability.yml
+      - deploy/observability/grafana-datasources.yaml
+      - deploy/observability/grafana-dashboard-provider.yaml
+      - deploy/observability/gateway-traces-dashboard.json
+      - tests/contract/test_grafana_trace_dashboard.py
+      - docs/project/GRAFANA_TRACE_DASHBOARD.md
+      - docs/project/OBSERVABILITY.md
+      - docs/project/OPERATIONAL_READINESS.md
+      - .github/workflows/grafana-dashboard.yml
+
+permissions:
+  contents: read
+
+jobs:
+  grafana-dashboard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate observability Compose model
+        run: docker compose -f compose.observability.yml config --quiet
+      - name: Start Tempo and Grafana
+        run: |
+          docker compose -f compose.observability.yml up -d tempo grafana
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/api/health >/dev/null; then
+              exit 0
+            fi
+            running_services="$(docker compose -f compose.observability.yml ps --status running --services)"
+            if ! grep --quiet --line-regexp tempo <<<"$running_services" || \
+               ! grep --quiet --line-regexp grafana <<<"$running_services"; then
+              docker compose -f compose.observability.yml logs tempo grafana
+              exit 1
+            fi
+            sleep 1
+          done
+          docker compose -f compose.observability.yml logs tempo grafana
+          exit 1
+      - name: Require provisioned Gateway trace dashboard
+        run: |
+          dashboard_file="$(mktemp)"
+          found=false
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error \
+              http://127.0.0.1:3000/api/dashboards/uid/governed-llm-gateway-traces \
+              --output "$dashboard_file"; then
+              found=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$found" != true ]; then
+            echo "Provisioned Gateway trace dashboard was not retrievable" >&2
+            exit 1
+          fi
+          python3 - "$dashboard_file" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          dashboard = payload.get("dashboard")
+          metadata = payload.get("meta")
+          if not isinstance(dashboard, dict) or not isinstance(metadata, dict):
+              raise SystemExit("Grafana dashboard response must contain dashboard and meta objects")
+          if dashboard.get("uid") != "governed-llm-gateway-traces":
+              raise SystemExit("Grafana returned an unexpected dashboard UID")
+          if dashboard.get("title") != "Governed LLM Gateway — Traces":
+              raise SystemExit("Grafana returned an unexpected dashboard title")
+          if dashboard.get("editable") is not False:
+              raise SystemExit("Provisioned Gateway trace dashboard must remain read-only")
+          if metadata.get("provisioned") is not True:
+              raise SystemExit("Grafana did not report the dashboard as provisioned")
+          panels = dashboard.get("panels")
+          if not isinstance(panels, list) or len(panels) != 1:
+              raise SystemExit("Gateway trace dashboard must contain exactly one reviewed panel")
+          panel = panels[0]
+          if not isinstance(panel, dict):
+              raise SystemExit("Gateway trace dashboard panel must be an object")
+          datasource = panel.get("datasource")
+          if not isinstance(datasource, dict) or datasource.get("uid") != "tempo":
+              raise SystemExit("Gateway trace dashboard panel must use the provisioned Tempo datasource")
+          targets = panel.get("targets")
+          if not isinstance(targets, list) or len(targets) != 1:
+              raise SystemExit("Gateway trace dashboard must contain exactly one reviewed query")
+          target = targets[0]
+          if not isinstance(target, dict):
+              raise SystemExit("Gateway trace dashboard query must be an object")
+          if target.get("queryType") != "traceql":
+              raise SystemExit("Gateway trace dashboard must use TraceQL")
+          if target.get("query") != '{ span:name = "llm.gateway.request" }':
+              raise SystemExit("Gateway trace dashboard must target the stable request span")
+          PY
+      - name: Preserve failure diagnostics
+        if: failure()
+        run: docker compose -f compose.observability.yml logs tempo grafana
+      - name: Stop Grafana dashboard integration stack
+        if: always()
+        run: docker compose -f compose.observability.yml down --volumes --remove-orphans
