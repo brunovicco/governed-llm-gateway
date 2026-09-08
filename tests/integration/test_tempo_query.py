@@ -109,6 +109,20 @@ def _require_reviewed_tempo_endpoint(endpoint: str) -> None:
         pytest.fail("Tempo query integration endpoint must remain strict loopback HTTP")
 
 
+def _require_reviewed_tempo_url(url: str) -> None:
+    parsed = urlsplit(url)
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname != "127.0.0.1"
+        or parsed.port != 3200
+        or parsed.username is not None
+        or parsed.password is not None
+        or not parsed.path.startswith("/api/")
+        or parsed.fragment
+    ):
+        pytest.fail("Tempo query request URL must remain inside the reviewed loopback boundary")
+
+
 def _tempo_trace_by_id(endpoint: str, trace_id: str) -> dict[str, Any] | None:
     url = _reviewed_tempo_url(endpoint, f"/api/v2/traces/{trace_id}")
     payload = _tempo_get_json(url, "Tempo trace-by-ID", allow_not_found=True)
@@ -147,7 +161,9 @@ def _reviewed_tempo_url(
     _require_reviewed_tempo_endpoint(endpoint)
     query = urlencode(params or {})
     suffix = f"?{query}" if query else ""
-    return f"{endpoint}{path}{suffix}"
+    url = f"{endpoint}{path}{suffix}"
+    _require_reviewed_tempo_url(url)
+    return url
 
 
 def _tempo_get_json(
@@ -156,10 +172,18 @@ def _tempo_get_json(
     *,
     allow_not_found: bool = False,
 ) -> dict[str, Any] | None:
-    request = Request(url, headers={"Accept": "application/json"}, method="GET")
+    _require_reviewed_tempo_url(url)
+    request = Request(  # noqa: S310  # nosec B310
+        url,
+        headers={"Accept": "application/json"},
+        method="GET",
+    )
     try:
-        # URL is constructed only after exact loopback validation above.
-        with urlopen(request, timeout=_HTTP_TIMEOUT_SECONDS) as response:  # noqa: S310  # nosec B310
+        # Both the base endpoint and complete URL are validated as loopback HTTP above.
+        with urlopen(  # noqa: S310  # nosec B310
+            request,
+            timeout=_HTTP_TIMEOUT_SECONDS,
+        ) as response:
             status = response.getcode()
             body = response.read()
     except HTTPError as exc:
