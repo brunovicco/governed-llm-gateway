@@ -112,9 +112,74 @@ To export metadata-only traces into the optional local observability stack, add 
 
 Startup validates all no-secret artifacts and cross-artifact invariants before resolving Gateway, PDP, or provider credentials. A missing required credential fails closed.
 
-## 4. Execute one governed request
+## 4. Execute one governed request with the thin SDK
 
-Use only the Gateway credential from the consumer side:
+The canonical consumer contract contains only the Gateway URL and Gateway credential:
+
+```bash
+export GOVERNED_LLM_GATEWAY_URL='http://127.0.0.1:8000'
+export GOVERNED_LLM_GATEWAY_API_KEY="${GATEWAY_DEMO_API_KEY}"
+```
+
+The thin client permits plaintext HTTP only for a **literal loopback IP address** so this local profile can use the same SDK contract as a deployed consumer. `http://localhost:8000`, private-LAN HTTP and remote HTTP remain rejected. Non-loopback deployments must use HTTPS.
+
+Run one provider-neutral request from the Gateway repository root:
+
+```bash
+uv run --frozen --package governed-llm-gateway-client python - <<'PY'
+import asyncio
+
+from governed_llm_gateway_client import GatewayClient
+from governed_llm_gateway_contracts import (
+    DataClassification,
+    Message,
+    MessageRole,
+    RiskLevel,
+)
+
+
+async def main() -> None:
+    async with GatewayClient.from_env() as gateway:
+        response = await gateway.generate(
+            workload="rag.answer",
+            messages=(
+                Message(
+                    role=MessageRole.USER,
+                    content="Answer in one sentence: what does deterministic model routing mean?",
+                ),
+            ),
+            risk_level=RiskLevel.LOW,
+            data_classification=DataClassification.PUBLIC,
+            context_tokens_estimated=128,
+            max_output_tokens=128,
+            provider_timeout_seconds=30.0,
+        )
+
+    if response.execution is None:
+        raise RuntimeError("successful response is missing execution provenance")
+
+    print(response.content)
+    print(
+        {
+            "request_id": str(response.request_id),
+            "status": response.status.value,
+            "provider": response.execution.provider,
+            "model": response.execution.model,
+            "deployment": response.execution.deployment,
+            "latency_ms": response.execution.latency_ms,
+        }
+    )
+
+
+asyncio.run(main())
+PY
+```
+
+The SDK performs no provider selection and receives no provider or Policy Router credential. It aggregates the normalized SSE stream and requires terminal routing and execution provenance before returning a successful `GatewayResponse`.
+
+### Raw SSE alternative
+
+For transport-level inspection, the same governed request can be observed with `curl` using only the Gateway credential:
 
 ```bash
 REQUEST_ID="$(python - <<'PY'
