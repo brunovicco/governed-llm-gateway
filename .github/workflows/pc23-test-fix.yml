@@ -1,0 +1,54 @@
+name: pc23-test-fix
+
+on:
+  push:
+    branches:
+      - feat/pc23-operational-evidence-binding
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/pc23-operational-evidence-binding
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply typed test fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tests/contract/test_deployment_activation.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '    OperationalEvidenceRecord,\n    OperationalEvidenceState,\n',
+              '    OperationalEvidenceRecord,\n    OperationalEvidenceSnapshot,\n',
+          )
+          text = text.replace(
+              '    deployment_id: str = "openai-primary",\n):\n',
+              '    deployment_id: str = "openai-primary",\n) -> OperationalEvidenceSnapshot:\n',
+          )
+          text = text.replace(
+              '    assert services.operations_snapshot_reader.snapshot().operational_evidence.state is (\n'
+              '        OperationalEvidenceState.AVAILABLE\n'
+              '    )\n',
+              '    assert (\n'
+              '        services.operations_snapshot_reader.snapshot().operational_evidence.state.value\n'
+              '        == "available"\n'
+              '    )\n',
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
+          uvx --python 3.13 --from ruff==0.12.11 ruff format tests/contract/test_deployment_activation.py
+          git rm .github/workflows/pc23-test-fix.yml
+      - name: Commit deterministic fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/contract/test_deployment_activation.py .github/workflows/pc23-test-fix.yml
+          git commit -m "test: fix operational evidence activation contracts"
+          git push origin HEAD:feat/pc23-operational-evidence-binding
