@@ -213,9 +213,9 @@ OR-8 is complete only at this bounded operations-only local-demo scope. Producti
 per-trace Console correlation and final product-readiness validation remain outside PC-30. Evidence,
 dashboards and readiness remain descriptive and cannot authorize execution.
 
-## Governed live-inference development profile — PC-33 validated candidate
+## Governed live-inference development profile — PC-33 certified repository profile
 
-PR #179 introduces the first explicit opt-in development profile that composes the real governed serving
+PR #179 introduced the first explicit opt-in development profile that composes the real governed serving
 path without changing the checked-in fail-closed defaults. The profile lives under
 `config/profiles/live-development/` and is bounded to one `development` / `public` / `rag.answer` client,
 an external Policy Model Router decision, the authorized logical group `balanced`, deterministic ranking,
@@ -235,13 +235,21 @@ The two checked-in ranking entries intentionally use equal neutral static compon
 the existing deterministic tie-break and are not represented as observed quality, reliability,
 availability, latency or benchmark evidence.
 
-Validated pre-merge head:
+Final validated PR head:
 
-`0cd543ad46fda272cc6a0c34a83ba42ac593d3dc`
+`fb6890286e03ef348a0737b2b4dfd2eecf573a71`
 
 Required PR quality run:
 
-`34281338068` — PASS.
+`34281707262` — PASS.
+
+Squash merge / certified repository profile baseline:
+
+`36890ab99f6524c9fe8fe04033cb669816569555` (PR #179).
+
+Post-merge `main` evidence:
+
+`34281851561` — PASS.
 
 Validation:
 
@@ -253,13 +261,48 @@ Validation:
 - pip-audit reported no known vulnerabilities;
 - architecture check, secret scan and Phase 0 gate passed.
 
-This is a credential-free repository/configuration proof, not yet a live-provider certification. A real
+This is a credential-free repository/configuration proof, not a live-provider certification. A real
 provider/PDP request must still be executed and recorded opt-in with local/server-side credentials before
 the live path is called portfolio/demo-ready. Production OAuth/OIDC/workload identity, TLS termination,
 production secret-manager adapters and broader OR-9 hardening also remain outside PC-33.
 
 Phase 14 ordering is unchanged by PC-33: OpsLens remains deferred and RAGForge remains blocked unless the
 normative sequence is explicitly revised.
+
+## Operations cache hardening — PC-34 pre-merge validation record
+
+PC-34 / PR #181 is the first bounded OR-9 hardening increment after the minimum authenticated Operations
+access prerequisite. It makes every HTTP response under the owned `/v1/ops/` namespace explicitly
+non-storable with `Cache-Control: no-store`, including successful projections, sanitized 401/403/503
+responses and unknown Operations paths.
+
+The policy is implemented as raw ASGI middleware with an early non-Operations pass-through, so the
+increment does not introduce response buffering into the Gateway inference/SSE paths. The middleware is
+attached only after Operations route-conflict validation succeeds. Authentication, authorization,
+snapshot ordering, response bodies and inference authority are unchanged.
+
+Validated implementation head:
+
+`067bca57f607eb3fe9477107ead92cc56759b0f5`
+
+Required quality run:
+
+`34282415747` — PASS.
+
+Validation:
+
+- 1,141 tests passed, 2 skipped;
+- aggregate coverage 83.68%;
+- strict mypy passed across 265 source files;
+- Ruff lint/format passed across 265 files;
+- Bandit reported 0 findings across 23,647 lines of code;
+- pip-audit reported no known vulnerabilities;
+- architecture check, secret scan and Phase 0 gate passed.
+
+PC-34 does not complete OR-9. Production browser identity/session handling, OAuth/OIDC/workload identity,
+TLS termination, rate limiting, CSRF policy and any future mutation authority remain separate reviewable
+security concerns. The cache policy is descriptive-surface hardening only and cannot authorize or widen
+model execution.
 
 ## Phase 14 — Real Project Integrations
 
@@ -336,7 +379,7 @@ Remains after the preceding integration cases.
 
 ## Current working boundary
 
-1. Treat PC-33 PR #179's exact validated head as the current runtime-bearing candidate until its protected merge and post-merge `main` quality evidence are recorded. PC-30 remains the certified operations-only baseline. Live-provider execution remains a separate opt-in proof and must not be inferred from credential-free CI.
+1. PC-33 is the certified live-development repository profile baseline. Live-provider execution remains a separate opt-in proof and must not be inferred from credential-free CI. OR-9 remains in progress; PC-34 addresses Operations response caching only and does not complete broader operational security hardening.
 2. Do not modify OpsLens until its independent development state is ready for reconciliation.
 3. Do not begin RAGForge in parallel unless the roadmap order is explicitly revised.
 4. Accept further upstream gateway changes only when they are consumer-agnostic, independently justified and preserve the permanent authorization invariant.
