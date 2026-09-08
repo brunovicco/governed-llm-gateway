@@ -204,9 +204,16 @@ class SystemDemoRuntime:
 
     def _get(self, url: str, *, headers: Mapping[str, str] | None) -> str:
         _require_reviewed_loopback_url(url)
-        request = urllib.request.Request(url, headers=dict(headers or {}), method="GET")
+        request = urllib.request.Request(  # noqa: S310
+            url,
+            headers=dict(headers or {}),
+            method="GET",
+        )
         try:
-            with urllib.request.urlopen(request, timeout=1.0) as response:  # nosec B310
+            with urllib.request.urlopen(  # noqa: S310  # nosec B310
+                request,
+                timeout=1.0,
+            ) as response:
                 return response.read().decode("utf-8")
         except (OSError, urllib.error.URLError, UnicodeDecodeError) as exc:
             raise LocalDemoProbeUnavailable("local HTTP probe is unavailable") from exc
@@ -368,7 +375,8 @@ class LocalDemoLauncher:
             env=self._environments.shared,
             capture_output=True,
         )
-        return _EXPECTED_COMPOSE_SERVICES <= frozenset(running.splitlines())
+        running_services = frozenset(running.splitlines())
+        return running_services.issuperset(_EXPECTED_COMPOSE_SERVICES)
 
     def _require_owned_children_running(self) -> None:
         for process in self._children:
@@ -466,7 +474,9 @@ def _require_reviewed_loopback_url(url: str) -> None:
         or parsed.query
         or parsed.fragment
     ):
-        raise LocalDemoProbeUnavailable("local HTTP probe URL escaped the reviewed loopback boundary")
+        raise LocalDemoProbeUnavailable(
+            "local HTTP probe URL escaped the reviewed loopback boundary"
+        )
 
 
 def parse_args(argv: Sequence[str]) -> LocalDemoSettings:
