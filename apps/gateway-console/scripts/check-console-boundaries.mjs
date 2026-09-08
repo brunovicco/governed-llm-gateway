@@ -1,25 +1,23 @@
 import { readdir, readFile } from "node:fs/promises";
 
 const root = new URL("../src/", import.meta.url);
-const forbidden = [
-  "localStorage",
-  "sessionStorage",
-  "document.cookie",
-  "window.location.search",
-  'method: "POST"',
-  'method: "PUT"',
-  'method: "PATCH"',
-  'method: "DELETE"',
-  '"Authorization"',
+const forbiddenPatterns = [
+  ["localStorage", /\blocalStorage\b/],
+  ["sessionStorage", /\bsessionStorage\b/],
+  ["document.cookie", /\bdocument\s*\.\s*cookie\b/],
+  ["location.search", /\b(?:window\s*\.\s*)?location\s*\.\s*search\b/],
+  ["mutation HTTP method", /\bmethod\s*:\s*["'`](?:POST|PUT|PATCH|DELETE)["'`]/],
+  ["Authorization header", /["'`]Authorization["'`]\s*:/],
+  ["absolute HTTP URL", /https?:\/\//],
 ];
 const allowedOperationsPaths = new Set(["/v1/ops/overview", "/v1/ops/deployments"]);
 
 const files = await collectSourceFiles(root);
 for (const file of files) {
   const content = await readFile(file, "utf8");
-  for (const token of forbidden) {
-    if (content.includes(token)) {
-      throw new Error(`forbidden console boundary token ${JSON.stringify(token)} in ${file.pathname}`);
+  for (const [label, pattern] of forbiddenPatterns) {
+    if (pattern.test(content)) {
+      throw new Error(`forbidden console boundary ${JSON.stringify(label)} in ${file.pathname}`);
     }
   }
 
