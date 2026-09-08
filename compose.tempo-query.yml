@@ -1,5 +1,7 @@
 services:
   tempo:
+    volumes:
+      - ./tests/integration/tempo-query.yaml:/etc/tempo/tempo.yaml:ro
     ports:
       - 127.0.0.1:3200:3200
     networks:
