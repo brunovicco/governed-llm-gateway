@@ -2,7 +2,6 @@
 
 import json
 import unittest
-from collections.abc import Mapping
 from unittest.mock import patch
 
 import pytest
