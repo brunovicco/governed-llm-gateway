@@ -55,7 +55,9 @@ Gateway Console foundation as a read-only consumer of those two already-reviewed
 PC-26 adds the first OR-6 prerequisite: a credential-free real-container proof that a metadata-only
 Gateway span traverses the local Collector and is both retrievable and TraceQL-queryable from Tempo.
 PC-27 adds the first bounded OR-6 visualization: a credential-free real-container proof of a
-file-provisioned read-only Grafana dashboard backed by the provisioned Tempo datasource.
+file-provisioned read-only Grafana dashboard backed by the provisioned Tempo datasource. PC-28 adds one
+local-demo-only Console navigation path to that already-reviewed dashboard without introducing a new
+backend endpoint, trace-history source or Grafana/Tempo API dependency.
 
 The audit also found documentation drift: the previous observability document still described Phase 9
 runtime tracing as future work even though Phase 9 is already complete.
@@ -112,8 +114,8 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 | process activation | optional process-owned OTel lifecycle | complete in PC-17 |
 | OR-3 | typed read-only operations read model | typed foundation + service-graph composition complete in PC-18/PC-19 |
 | OR-4 | read-only Operations API | authenticated overview, evidence binding and deployment catalog implemented in PC-20..PC-24; broader read surfaces deferred |
-| OR-5 | React/TypeScript/Vite Gateway Console | read-only overview + deployment-catalog foundation implemented in PC-25; broader console surfaces deferred |
-| OR-6 | Grafana dashboards + trace correlation/deep links | PC-26 Tempo queryability + PC-27 bounded Grafana trace dashboard implemented; correlation/deep links deferred |
+| OR-5 | React/TypeScript/Vite Gateway Console | read-only overview + deployment catalog in PC-25; bounded local Grafana navigation in PC-28; broader console surfaces deferred |
+| OR-6 | Grafana dashboards + trace correlation/deep links | PC-26 Tempo queryability + PC-27 bounded Grafana trace dashboard + PC-28 local dashboard navigation implemented; per-trace correlation deferred |
 | OR-7 | optional Langfuse OTLP fan-out | optional / not started |
 | OR-8 | one-command deterministic local demo | not started |
 | OR-9 | broader authentication/security hardening for operational surfaces | not started; minimum OR-4 access prerequisite pulled forward |
@@ -130,10 +132,12 @@ boundaries for the first authenticated read-only endpoint. PC-23 adds explicit d
 binding, and PC-24 adds the bounded deployment catalog. PC-25 consumes only those certified read surfaces
 for the first console foundation. PC-26 proves the previously unverified Collector-to-Tempo hop with the
 real pinned containers and a bounded downstream query. PC-27 consumes that proof for one reviewed,
-file-provisioned Grafana trace table and does not introduce a broader dashboard framework. None of these
-increments implies that deployment detail, evidence detail, routing-history persistence, broader Grafana
-dashboards, Console trace correlation/deep links, production browser identity/session handling or later
-admin surfaces are complete.
+file-provisioned Grafana trace table and does not introduce a broader dashboard framework. PC-28 links the
+local Console to that dashboard only after validating the exact reviewed Console origin; it does not add
+trace IDs, routing history, direct Grafana/Tempo calls or an arbitrary external observability URL.
+None of these increments implies that deployment detail, evidence detail, routing-history persistence,
+broader Grafana dashboards, per-trace Console correlation, production browser identity/session handling
+or later admin surfaces are complete.
 
 ## Read-only operations boundary
 
@@ -241,8 +245,14 @@ No fake metrics, fake traces, fake costs, fake evidence, inferred authorization 
 decisions are rendered. The console contains no mutation control and makes no direct provider, PDP, Tempo,
 Grafana or Langfuse call.
 
-See `docs/project/GATEWAY_CONSOLE.md` for the local execution, credential, runtime-validation and CI
-contract.
+PC-28 adds navigation, not a data integration. Only the exact local Console origin
+`http://127.0.0.1:5173` can derive a link to the PC-27 dashboard on loopback Grafana port `3000`. The
+builder rejects malformed/unreviewed origins and never receives the Operations credential or response
+data. The generated URL carries no query, fragment, userinfo or token; the Console still does not fetch
+Grafana/Tempo or use their state for readiness.
+
+See `docs/project/GATEWAY_CONSOLE.md` for the local execution, credential, runtime-validation, navigation
+and CI contract.
 
 ## Local observability target
 
@@ -278,6 +288,9 @@ is read-only, and the dashboard contains exactly one table target using
 Grafana also joins the `grafana-host-access` bridge so `127.0.0.1:3000` remains reachable from the host.
 See `docs/project/GRAFANA_TRACE_DASHBOARD.md` for the exact boundary and non-claims.
 
+PC-28 consumes only that already-reviewed local dashboard identity for navigation. It does not introduce
+a new Grafana datasource/query, Tempo API surface, observability proxy or remote-backend configuration.
+
 Observability is disabled by default. Explicit endpoint/environment process arguments enable it. A
 runtime configuration failure degrades to null telemetry; a configured facade is shut down best-effort
 when the runner returns or activation/runner fails. No telemetry backend is probed for startup or
@@ -302,8 +315,9 @@ claims in the first UI rather than deriving stronger semantics in the browser. C
 the gateway has real cost evidence. Routing visualization must display gateway-produced reason codes
 rather than deriving authorization or health reasons in the frontend.
 
-Trace views in later Gateway Console increments remain a correlation surface, not a replacement for
-Tempo/Grafana or another trace explorer.
+PC-28 does not claim trace correlation: it links only to the reviewed dashboard. A future per-trace
+Console view remains a correlation surface, not a replacement for Tempo/Grafana or another trace
+explorer, and requires an explicit reviewed correlation source before trace IDs are displayed or linked.
 
 ## CI boundary
 
@@ -345,9 +359,13 @@ provider, PDP call, or external secret/backend is required by the Operations req
 
 PC-25 adds the credential-free, path-scoped `console-quality` workflow. On Node.js 24 LTS it requires a
 locked install, strict TypeScript checking, deterministic unit tests, a console security-boundary scan and
-a production Vite build. The boundary scan rejects browser persistence APIs, mutation request literals and
-unreviewed `/v1/ops/*` paths in console source. Frontend CI does not replace or weaken the Python quality,
-collector-receipt or observability-compose gates.
+a production Vite build. The boundary scan rejects browser persistence APIs, mutation request literals,
+arbitrary absolute HTTP URLs and unreviewed `/v1/ops/*` paths in console source. Frontend CI does not
+replace or weaken the Python quality, collector-receipt or observability-compose gates.
+
+PC-28 reuses that same Console gate. Its deterministic tests require exact local-origin acceptance,
+unreviewed-origin rejection, credential-free URL shape and dashboard-UID agreement with the checked-in
+PC-27 Grafana JSON. No new external service or credential is added to frontend CI.
 
 PC-26 adds the credential-free, path-scoped `tempo-query` workflow. It validates the base-plus-test
 Compose model, starts only the real pinned Tempo and Collector services, performs bounded readiness,
@@ -366,17 +384,16 @@ SHAs; none of these CI checks require provider, PDP, SaaS or secret access.
 
 ## Next slice
 
-PC-27 is deliberately the smallest OR-6 visualization increment: one reviewed file-provisioned Grafana
-trace dashboard, not a dashboard platform. It is not complete until its reviewed head is squash-merged
-and the corresponding post-merge `main` gates are green. Only after that certification should the real
-`main` be re-audited before choosing the next gap, such as trace correlation/deep links or another
-strictly bounded operational-read surface.
+PC-28 is deliberately a navigation increment, not trace correlation. It is not complete until its
+reviewed head is squash-merged and the corresponding post-merge `main` gates are green. Only after that
+certification should the real `main` be re-audited before choosing the next gap.
 
-Deployment detail, evidence detail and recent routing history still require separate information-
-disclosure, completeness or persistence contracts before an endpoint or screen is added. Recent routing
-history must not be fabricated from current health or ranking configuration. Fleet aggregation, external
-IAM and mutations remain separate increments. Phase 14 consumer integrations remain frozen by their
-sequencing guard.
+Per-trace correlation, deployment detail, evidence detail and recent routing history still require
+separate information-disclosure, completeness or persistence contracts before an endpoint or screen is
+added. Recent routing history must not be fabricated from current health or ranking configuration. Fleet
+aggregation, external IAM, production observability URL discovery and mutations remain separate
+increments. Phase 14 consumer integrations remain frozen by their sequencing guard while OpsLens is under
+active independent development.
 
 ## Completion rule
 
