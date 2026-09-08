@@ -74,7 +74,7 @@ export class OperationsApiClient {
         credentials: "omit",
         redirect: "error",
         referrerPolicy: "no-referrer",
-        signal,
+        signal: signal ?? null,
       });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
