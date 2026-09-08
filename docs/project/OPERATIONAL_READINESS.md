@@ -41,8 +41,11 @@ The September 2026 audit established the following baseline before product-readi
 PC-15 subsequently added the pinned local Collector + Tempo + Grafana foundation. PC-16 added the
 credential-free positive Collector receipt proof. PC-17 added optional executable-process ownership of
 `Observability.configure()` / injection / shutdown while preserving the original metadata-only and
-non-authoritative boundaries. PC-18 begins OR-3 with a typed application-layer operations projection
-that has no HTTP or control-plane authority.
+non-authoritative boundaries. PC-18 introduced the typed application-layer operations projection.
+PC-19 composes that projection from the exact active registry, ranking policy and shared process-local
+health state. PC-20 begins the OR-4 security prerequisite by separating authenticated Gateway identity
+from workload authorization and adding an explicit secret-free operations-read grant boundary before
+any operations HTTP route is exposed.
 
 The audit also found documentation drift: the previous observability document still described Phase 9
 runtime tracing as future work even though Phase 9 is already complete.
@@ -75,6 +78,7 @@ Keep in the gateway:
 - operational evidence/completeness;
 - process composition and the decision to enable/inject the observability facade;
 - operations read models/APIs;
+- operations-surface authentication/authorization;
 - Gateway Console.
 
 The dependency direction remains:
@@ -96,22 +100,24 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 | OR-1 | telemetry vocabulary hardening | active |
 | OR-2 | local OTel Collector + Tempo + Grafana foundation | foundation + positive receipt complete |
 | process activation | optional process-owned OTel lifecycle | complete in PC-17 |
-| OR-3 | typed read-only operations read model | typed foundation in PC-18; process/API wiring deferred |
-| OR-4 | read-only Operations API | not started |
+| OR-3 | typed read-only operations read model | typed foundation + service-graph composition complete in PC-18/PC-19 |
+| OR-4 | read-only Operations API | access prerequisite active in PC-20; HTTP not started |
 | OR-5 | React/TypeScript/Vite Gateway Console | not started |
 | OR-6 | Grafana dashboards + trace correlation/deep links | not started |
 | OR-7 | optional Langfuse OTLP fan-out | optional / not started |
 | OR-8 | one-command deterministic local demo | not started |
-| OR-9 | authentication/security hardening for operational surfaces | not started |
+| OR-9 | broader authentication/security hardening for operational surfaces | not started; minimum OR-4 access prerequisite pulled forward |
 | OR-10 | final docs, screenshots, demo and product-readiness validation | not started |
 
 OR-1 is split into small increments. Issue #83 declares the compatibility vocabulary and updates the
 Phase 9 documentation before any external observability stack is added.
 
 PC-15 and PC-16 are bounded OR-2 increments. PC-17 closes the separate process-owned observability
-lifecycle prerequisite. PC-18 is the first bounded OR-3 increment. None of these increments implicitly
-completes an Operations API, Tempo query verification, Grafana visualization, dashboards or any later
-operations surface.
+lifecycle prerequisite. PC-18 and PC-19 close the typed/read-model and service-composition prerequisites
+for OR-3. PC-20 deliberately pulls forward only the minimum access-control primitive needed to prevent
+OR-4 from becoming a global unauthenticated catalog. None of these increments implicitly completes an
+Operations API, Tempo query verification, Grafana visualization, dashboards or any later operations
+surface.
 
 ## Read-only operations boundary
 
@@ -123,12 +129,24 @@ PC-18 introduces `OperationsReadModelService` and an immutable `OperationsSnapsh
 `RankingPolicy`, an explicit read-only health inspection port and an optional already-verified
 `OperationalEvidenceSnapshot`.
 
+PC-19 binds one `OperationsReadModelService` into `GovernedGatewayServices` using the exact active
+registry and effective ranking policy already used by request execution. It wraps the same live
+`InMemoryHealthTracker` in `InMemoryHealthInspectionAdapter`, so descriptive reads observe current
+process state without creating another tracker or advancing the live circuit breaker.
+
 The health view is explicitly `process_local`. `InMemoryHealthInspectionAdapter` evaluates health on an
 isolated replica of the in-memory tracker so dashboard-style reads cannot materialize live state or
 advance the live circuit breaker. Operational-evidence absence is represented as `not_supplied`; it is
 never converted to zero requests, zero errors or a healthy-fleet claim.
 
-See `docs/project/OPERATIONS_READ_MODEL.md` for the typed projection and non-claims.
+PC-20 adds the minimum visibility authorization prerequisite before transport is attached. The existing
+Gateway credential resolver can now authenticate a `GatewayClientIdentity` without constructing a
+synthetic workload request. `OperationsReadAccessPolicy` then requires an exact secret-free
+`(client_id, environment)` grant. Workload allowlists do not imply administrative visibility, and an
+operations-read grant does not imply model/deployment execution authority. Empty grants deny all.
+
+See `docs/project/OPERATIONS_READ_MODEL.md` for the typed projection/non-claims and
+`docs/project/OPERATIONS_ACCESS.md` for the operations visibility boundary.
 
 Candidate future endpoints include:
 
@@ -207,9 +225,13 @@ PC-17 lifecycle contracts do not open a socket or require a Collector. They inje
 doubles at the process boundary to prove default-disabled behavior, explicit settings, degradation,
 injection and shutdown semantics.
 
-PC-18 read-model contracts are also credential-free and network-free. They prove deterministic
-projection, explicit evidence absence, exact ranking/registry provenance and non-mutating inspection of
-process-local health.
+PC-18 read-model contracts are credential-free and network-free. They prove deterministic projection,
+explicit evidence absence, exact ranking/registry provenance and non-mutating inspection of
+process-local health. PC-19 service-composition contracts prove that the projection consumes the active
+registry/ranking and same process-local health tracker without new secret reads or an HTTP route.
+PC-20 operations-access contracts reuse already-materialized test credentials, prove no request-time
+secret re-resolution, preserve workload authorization semantics and verify fail-closed deny-all and
+ungranted-principal behavior without network or PDP/provider access.
 
 Changes to the shared observability/readiness documentation trigger both the positive-receipt and local
 Compose validation workflows so the documented contract and the executable infrastructure are
@@ -217,11 +239,15 @@ validated on the same candidate SHA.
 
 ## Next slice
 
-Before OR-4 exposes an HTTP surface, the next OR-3 dependency audit must decide how the typed read model
-is composed with the already-materialized application/process state without giving the API a new path
-to secrets, provider SDK internals, Policy Router calls or mutable resilience controls. Recent routing
-history remains a separate persistence/read-model concern and must not be fabricated from current
-health or ranking configuration.
+Before OR-4 attaches an HTTP endpoint, the next bounded dependency is a deployment-owned, secret-free
+operations-access artifact/loader and bootstrap binding that selects the explicitly granted
+`GatewayClientIdentity` principals. It must validate that configured principals correspond to the
+already-loaded Gateway client-auth identities without resolving credentials a second time.
+
+Only after that configuration boundary is validated should a first read-only endpoint such as
+`GET /v1/ops/overview` be attached to the PC-19 `OperationsReadModelService` behind the PC-20
+`OperationsReadAccessService`. Recent routing history remains a separate persistence/read-model concern
+and must not be fabricated from current health or ranking configuration.
 
 ## Completion rule
 

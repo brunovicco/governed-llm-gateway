@@ -60,6 +60,19 @@ class GatewayClientSecretResolver(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class GatewayClientIdentity:
+    """Authenticated Gateway client identity without workload or model authority."""
+
+    client_id: str
+    environment: str
+
+    def __post_init__(self) -> None:
+        """Require the same normalized identity vocabulary as auth bindings."""
+        _require_identifier(self.client_id, "client_id")
+        _require_identifier(self.environment, "environment")
+
+
+@dataclass(frozen=True, slots=True)
 class GatewayClientAuthBinding:
     """Secret-free authoritative identity and workload trust configuration."""
 
@@ -136,11 +149,19 @@ class _ResolvedGatewayClientBinding:
 
 
 class StaticGatewayClientContextResolver:
-    """Authenticate one Gateway key and produce authoritative policy context."""
+    """Authenticate Gateway keys and produce trusted client or workload context."""
 
     def __init__(self, bindings: tuple[_ResolvedGatewayClientBinding, ...]) -> None:
         """Bind a validated immutable credential-to-identity lookup set."""
         self._bindings = bindings
+
+    async def authenticate(self, *, api_key: str) -> GatewayClientIdentity:
+        """Authenticate one credential without assigning workload or model authority."""
+        binding = self._authenticate_binding(api_key)
+        return GatewayClientIdentity(
+            client_id=binding.client_id,
+            environment=binding.environment,
+        )
 
     async def resolve(
         self,
@@ -149,16 +170,7 @@ class StaticGatewayClientContextResolver:
         request: GatewayRequest,
     ) -> EffectivePolicyContext:
         """Authenticate, authorize workload scope, and reconcile stricter caller claims."""
-        if not _valid_api_key(api_key):
-            raise ClientAuthenticationError("gateway credential rejected")
-
-        matches = tuple(
-            item for item in self._bindings if hmac.compare_digest(api_key, item.credential)
-        )
-        if len(matches) != 1:
-            raise ClientAuthenticationError("gateway credential rejected")
-
-        binding = matches[0].binding
+        binding = self._authenticate_binding(api_key)
         if request.workload not in binding.allowed_workloads:
             raise GatewayClientAuthorizationError()
 
@@ -172,6 +184,18 @@ class StaticGatewayClientContextResolver:
                 binding.minimum_data_classification,
             ),
         )
+
+    def _authenticate_binding(self, api_key: str) -> GatewayClientAuthBinding:
+        """Return exactly one credential binding or fail with the stable auth error."""
+        if not _valid_api_key(api_key):
+            raise ClientAuthenticationError("gateway credential rejected")
+
+        matches = tuple(
+            item for item in self._bindings if hmac.compare_digest(api_key, item.credential)
+        )
+        if len(matches) != 1:
+            raise ClientAuthenticationError("gateway credential rejected")
+        return matches[0].binding
 
 
 def build_static_gateway_client_context_resolver(
