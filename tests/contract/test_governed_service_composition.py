@@ -274,6 +274,7 @@ def test_operational_composition_reuses_runtime_without_new_secret_reads(tmp_pat
 
     assert tuple(events) == before
     assert services.health is health
+    assert services.operations_read_access is runtime.operations_read_access
     assert services.complexity_enabled is False
     assert services.complexity_route_service is None
     assert services.complexity_route_explain_coordinator is None
@@ -358,6 +359,7 @@ def test_evidence_driven_complexity_composes_complete_post_authorization_path(
     )
 
     assert tuple(events) == before
+    assert services.operations_read_access is runtime.operations_read_access
     assert services.complexity_enabled is True
     assert services.complexity_route_service is not None
     assert services.complexity_route_explain_coordinator is not None

@@ -47,6 +47,14 @@ from .operations_access import (
     OperationsReadAccessService,
     OperationsReadAuthorizationError,
 )
+from .operations_access_json import (
+    DuplicateOperationsReadAccessKeyError,
+    OperationsReadAccessDocument,
+    OperationsReadAccessDocumentError,
+    load_operations_read_access_document,
+    load_operations_read_access_document_text,
+    validate_operations_access_client_auth,
+)
 from .policy_router_bootstrap import (
     PolicyRouterClientAuthMismatchError,
     PolicyRouterRuntimeBootstrapBundle,
@@ -113,6 +121,7 @@ __all__ = [
     "ComplexityRouteExplainCoordinator",
     "ComplexityRouteExplainResponseModel",
     "DuplicateGatewayClientAuthKeyError",
+    "DuplicateOperationsReadAccessKeyError",
     "EffectiveContextResolver",
     "EnvironmentGatewayClientSecretResolver",
     "GatewayClientAuthBinding",
@@ -138,6 +147,8 @@ __all__ = [
     "GovernedServerSettings",
     "GovernedServiceCompositionError",
     "OperationsReadAccessConfigurationError",
+    "OperationsReadAccessDocument",
+    "OperationsReadAccessDocumentError",
     "OperationsReadAccessPolicy",
     "OperationsReadAccessService",
     "OperationsReadAuthorizationError",
@@ -173,10 +184,13 @@ __all__ = [
     "load_gateway_client_auth_document_text",
     "load_governed_application_artifacts",
     "load_governed_process_artifacts",
+    "load_operations_read_access_document",
+    "load_operations_read_access_document_text",
     "materialize_governed_application_services",
     "materialize_governed_process_runtime",
     "parse_server_args",
     "run_governed_server",
     "validate_governed_routing_inputs",
+    "validate_operations_access_client_auth",
     "validate_policy_router_client_auth",
 ]
