@@ -269,7 +269,9 @@ def test_invalid_artifact_fails_before_environment_secret_lookup(tmp_path: Path)
     assert environment.lookups == []
 
 
-def test_unknown_operations_principal_fails_before_environment_secret_lookup(tmp_path: Path) -> None:
+def test_unknown_operations_principal_fails_before_environment_secret_lookup(
+    tmp_path: Path,
+) -> None:
     root = tmp_path.resolve()
     _write_valid_static_deployment(root)
     _write_operations_access(root, environment="production")
@@ -301,9 +303,7 @@ def test_omitted_operations_access_materializes_deny_all_policy(tmp_path: Path) 
     )
 
     with pytest.raises(OperationsReadAuthorizationError, match="operations read access denied"):
-        asyncio.run(
-            services.operations_read_access.authorize(api_key="pc12-client-opaque")
-        )
+        asyncio.run(services.operations_read_access.authorize(api_key="pc12-client-opaque"))
 
 
 def test_configured_operations_access_authorizes_exact_runtime_principal(tmp_path: Path) -> None:
