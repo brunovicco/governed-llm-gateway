@@ -170,7 +170,7 @@ Validation recorded before deferral:
 
 ### Case 4 — RAGForge — NOT STARTED
 
-Do not start Case 4 while Case 3 is intentionally deferred unless the integration order is explicitly revised. Issue #18 records this sequencing guard.
+Do not start Case 4 while Case 3 is intentionally deferred unless the integration order is explicitly revised. This sequencing guard is versioned directly in `SOURCE_ROADMAP.txt`, this roadmap and `CURRENT_STATE.md`; it does not depend on an issue remaining open.
 
 ### Case 5 — Verifiable AI Governance — NOT STARTED
 
@@ -178,31 +178,39 @@ Remains after the preceding consumer cases.
 
 ## Operational-readiness checkpoint
 
-The consumer-independent readiness track has now certified the bounded local demo path through PC-30:
-PC-26 proves real Collector → Tempo queryability, PC-27 provisions the read-only Grafana trace dashboard,
-PC-28 adds local-only Console navigation, PC-29 adds the operations-only local Gateway bootstrap, and
-PC-30 provides deterministic one-command startup/readiness/teardown for that bootstrap, the Console and
-the pinned local observability stack.
+The consumer-independent readiness track has certified the bounded local demo through PC-30 and then advanced the governed live-development/Console path through PC-39 without changing Phase 14 ordering.
 
-This does not change the Phase 14 order and does not claim live inference or production readiness. OR-9
-broader authentication/security hardening, OR-10 final product/demo validation, and per-trace correlation
-remain separate future work.
+Certified post-PC-30 increments relevant to readiness and security:
+
+- PC-33 — explicit governed live-development repository profile;
+- PC-34 — non-storable `/v1/ops/*` responses;
+- PC-35 — thin-client plaintext HTTP only on literal loopback addresses;
+- PC-36 — explicit opt-in provider-neutral live-development smoke harness;
+- PC-37 — explicit secret-free Operations visibility for the reviewed live-development identity;
+- PC-38 — bounded provider-neutral Console inference via only relative `POST /v1/generate`;
+- PC-39 — immutable routing provenance across repeated Console SSE evidence.
+
+Latest certified repository baseline:
+
+`99bbbf1f98605695935a89befc873b8c6a4296d4` (PR #191 / PC-39).
+
+Post-merge `main` gates:
+
+- `quality` run `34291142714` — PASS;
+- `console-quality` run `34291142715` — PASS;
+- `local-demo-smoke` run `34291142723` — PASS.
+
+OR-8 is complete only at the bounded operations-only local-demo scope. OR-9 is **IN PROGRESS** through bounded security hardening; production IAM/TLS/SSO, production browser identity/session handling, rate limiting, CSRF policy and future mutation authority remain separate increments. OR-10 remains pending.
+
+Credential-free CI does not establish live-provider proof. The explicit live-development profile and smoke harness are repository/protocol proofs until an operator executes the reviewed path with real local/server-side PDP/provider credentials.
 
 ## Current gateway baseline
 
 Latest runtime-bearing and post-merge validated baseline:
 
-`594b8609634b54eec60f75a733e6aa90846face9` (PR #172 / PC-30).
+`99bbbf1f98605695935a89befc873b8c6a4296d4` (PR #191 / PC-39).
 
-Post-merge `main` gates:
-
-- `quality` run `34273364638` — PASS;
-- `local-demo-smoke` run `34273364740` — PASS.
-
-The local-demo smoke proof uses no provider, Policy Router, SaaS or production credential. It proves only
-the bounded operations-only local stack, real readiness and deterministic teardown. Documentation-only
-checkpoint commits may advance `main` without changing this runtime-bearing baseline; all new work still
-starts from the then-current `main`.
+The default checked-in runtime remains credential-free and fail-closed. All new work starts from the then-current `main`.
 
 ## Next boundary
 
@@ -212,9 +220,10 @@ Until OpsLens is ready for reconciliation:
 2. do not start a second consumer migration in parallel;
 3. perform only upstream gateway hardening or evaluation work that is independently justified and consumer-agnostic;
 4. do not create benchmark-only routing/model-selection bypasses to force a nominal target;
-5. keep live-provider benchmark execution explicitly separated from credential-free default CI and normal authorization semantics;
+5. keep live-provider benchmark/execution proof explicitly separated from credential-free default CI and normal authorization semantics;
 6. do not treat benchmark completion or runtime provenance as permission to bypass the Phase 14 order;
-7. add further roadmap evaluation classes only through separately reviewed deterministic contracts rather than silently expanding existing workload semantics;
-8. when OpsLens stabilizes, rebase/reconcile its integration against the then-current gateway commit and rerun its full native Python and Terraform CI before merge.
+7. continue OR-9 only through separately reviewed bounded security increments; do not infer production identity/session/TLS/rate-limit/CSRF guarantees from the local demo;
+8. do not add per-trace Console correlation until a real backend trace-correlation source is exposed and reviewed;
+9. when OpsLens stabilizes, rebase/reconcile its integration against the then-current gateway commit and rerun its full native Python and Terraform CI before merge.
 
 Do not pull work forward when doing so weakens an authority boundary, creates parallel consumer migrations or depends on an unstable consumer contract.
