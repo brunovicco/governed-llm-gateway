@@ -20,7 +20,7 @@ from governed_llm_gateway_core.domain.model_registry import ModelRegistryError
 from governed_llm_gateway_core.domain.operational_evidence import (
     OperationalEvidenceError,
     OperationalEvidenceRecord,
-    OperationalEvidenceState,
+    OperationalEvidenceSnapshot,
     canonical_operational_evidence_json,
     create_operational_evidence_snapshot,
 )
@@ -197,7 +197,7 @@ def _write_operational_evidence(
     root: Path,
     *,
     deployment_id: str = "openai-primary",
-):
+) -> OperationalEvidenceSnapshot:
     window_start = datetime(2026, 9, 7, 12, 0, tzinfo=UTC)
     window_end = window_start + timedelta(minutes=5)
     snapshot = create_operational_evidence_snapshot(
@@ -278,7 +278,10 @@ def test_operational_evidence_path_cannot_escape_deployment_root(tmp_path: Path)
         operational_evidence_path=Path("../operational-evidence.json"),
     )
 
-    with pytest.raises(ValueError, match="operational_evidence_path must not escape deployment_root"):
+    with pytest.raises(
+        ValueError,
+        match="operational_evidence_path must not escape deployment_root",
+    ):
         _ = settings.bootstrap_paths
 
 
@@ -476,8 +479,9 @@ def test_configured_operational_evidence_is_bound_to_authenticated_overview(
     bound = services.operations_snapshot_reader.operational_evidence
     assert bound is not None
     assert bound.evidence_id == expected.evidence_id
-    assert services.operations_snapshot_reader.snapshot().operational_evidence.state is (
-        OperationalEvidenceState.AVAILABLE
+    assert (
+        services.operations_snapshot_reader.snapshot().operational_evidence.state.value
+        == "available"
     )
 
     response = TestClient(services.app).get(
