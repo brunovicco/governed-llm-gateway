@@ -24,6 +24,21 @@ Frontend CI uses Node.js 24 LTS and a committed npm lockfile.
 Development traffic remains same-origin from the browser perspective. Vite proxies `/v1` to the local
 Gateway process at `http://127.0.0.1:8000`. Production hosting/BFF/session architecture is deferred.
 
+## Local development
+
+Start an already-configured governed Gateway process on loopback port `8000`, then run the console in a
+separate shell:
+
+```text
+cd apps/gateway-console
+npm ci --ignore-scripts
+npm run dev
+```
+
+Vite serves the console on `http://127.0.0.1:5173` and proxies only `/v1` requests to the local Gateway.
+The operator must explicitly enter an identity that has the deployment-owned Operations read grant. No
+credential is embedded in the build or supplied through a Vite environment variable.
+
 ## Credential handling
 
 The existing Operations transport still requires:
