@@ -7,6 +7,7 @@ on:
       - compose.tempo-query.yml
       - deploy/observability/**
       - tests/contract/test_tempo_query_foundation.py
+      - tests/integration/tempo-query.yaml
       - tests/integration/test_tempo_query.py
       - docs/project/TEMPO_QUERY_PROOF.md
       - docs/project/OBSERVABILITY.md
@@ -21,6 +22,7 @@ on:
       - compose.tempo-query.yml
       - deploy/observability/**
       - tests/contract/test_tempo_query_foundation.py
+      - tests/integration/tempo-query.yaml
       - tests/integration/test_tempo_query.py
       - docs/project/TEMPO_QUERY_PROOF.md
       - docs/project/OBSERVABILITY.md
