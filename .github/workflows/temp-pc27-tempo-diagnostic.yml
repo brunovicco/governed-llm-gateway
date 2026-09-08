@@ -28,15 +28,16 @@ jobs:
           docker run --rm grafana/tempo:3.0.3 -help 2>&1 | grep -E 'config\.(file|verify)|backend-worker|compaction' | head -80 || true
           for config in deploy/observability/tempo.yaml tests/integration/tempo-query.yaml; do
             echo "=== $config ==="
-            set +e
-            timeout 5s docker run --rm \
+            cid="$(docker run -d \
               --mount "type=bind,src=$PWD/$config,dst=/etc/tempo/tempo.yaml,readonly" \
-              grafana/tempo:3.0.3 -config.file=/etc/tempo/tempo.yaml >/tmp/tempo.out 2>&1
-            status=$?
-            set -e
-            cat /tmp/tempo.out
-            echo "STATUS=$status"
-            if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
-              exit "$status"
+              grafana/tempo:3.0.3 -config.file=/etc/tempo/tempo.yaml)"
+            sleep 3
+            running="$(docker inspect "$cid" --format '{{.State.Running}}')"
+            exit_code="$(docker inspect "$cid" --format '{{.State.ExitCode}}')"
+            docker logs "$cid" || true
+            echo "RUNNING=$running EXIT_CODE=$exit_code"
+            docker rm -f "$cid" >/dev/null 2>&1 || true
+            if [ "$running" != true ] && [ "$exit_code" -ne 0 ]; then
+              exit "$exit_code"
             fi
           done
