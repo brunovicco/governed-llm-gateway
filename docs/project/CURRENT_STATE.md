@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-09-06
+Last updated: 2026-09-08
 
 ## Phase status
 
@@ -188,6 +188,32 @@ Shared ingestion, fleet/source-membership completeness, production backend adapt
 
 See `docs/evaluation/OPERATIONAL_EVIDENCE.md`.
 
+## Operational readiness checkpoint — PC-30 certified
+
+The consumer-independent operational-readiness track advanced without changing Phase 14 sequencing or
+the permanent authorization boundary. The latest certified sequence is:
+
+- PC-26 — real Collector → Tempo trace-by-ID + TraceQL queryability proof;
+- PC-27 — first file-provisioned read-only Grafana Tempo dashboard;
+- PC-28 — local-only Console navigation to that dashboard;
+- PC-29 — operations-only local Gateway bootstrap with no provider/PDP materialization;
+- PC-30 — deterministic one-command orchestration for the operations-only Gateway, Console and local
+  Collector + Tempo + Grafana stack, with bounded readiness and deterministic cleanup.
+
+PC-30 squash merge / current certified baseline:
+
+`594b8609634b54eec60f75a733e6aa90846face9` (PR #172).
+
+Post-merge `main` evidence:
+
+- `quality` run `34273364638` — PASS;
+- `local-demo-smoke` run `34273364740` — PASS, including real startup/readiness and post-return cleanup.
+
+OR-8 is complete only at this bounded operations-only local-demo scope. Live inference, provider
+credentials, a live Policy Router/PDP, production IAM/TLS/SSO, per-trace Console correlation and final
+product-readiness validation remain outside PC-30. Evidence, dashboards and readiness remain descriptive
+and cannot authorize execution.
+
 ## Phase 14 — Real Project Integrations
 
 Normative order:
@@ -263,7 +289,7 @@ Remains after the preceding integration cases.
 
 ## Current working boundary
 
-1. Keep `governed-llm-gateway/main` stable at the validated post-PR #79 operational-evidence source-instance batch-handoff baseline.
+1. Keep `governed-llm-gateway/main` stable at the certified post-PC-30 baseline `594b8609634b54eec60f75a733e6aa90846face9`; further work must remain independently justified and consumer-agnostic while OpsLens is deferred.
 2. Do not modify OpsLens until its independent development state is ready for reconciliation.
 3. Do not begin RAGForge in parallel unless the roadmap order is explicitly revised.
 4. Accept further upstream gateway changes only when they are consumer-agnostic, independently justified and preserve the permanent authorization invariant.
