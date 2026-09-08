@@ -41,6 +41,9 @@ def test_compose_mounts_read_only_grafana_dashboard_provisioning() -> None:
     assert compose.count("127.0.0.1:3000:3000") == 1
     assert "0.0.0.0:3000:3000" not in compose
     assert "3200:3200" not in compose
+    assert "  observability:\n    internal: true" in compose
+    assert compose.count("      - grafana-host-access") == 1
+    assert "  grafana-host-access:\n    driver: bridge" in compose
 
 
 def test_dashboard_provider_is_file_backed_and_disallows_ui_updates() -> None:
@@ -109,7 +112,9 @@ def test_grafana_dashboard_workflow_is_credential_free_and_fails_closed() -> Non
     assert (
         "http://127.0.0.1:3000/api/dashboards/uid/governed-llm-gateway-traces" in workflow
     )
-    assert 'target.get("query") != \'{ span:name = "llm.gateway.request" }\'' in workflow
+    assert (
+        'target.get("query") != \'{ span:name = "llm.gateway.request" }\'' in workflow
+    )
     assert "metadata.get(\"provisioned\") is not True" in workflow
     assert "down --volumes --remove-orphans" in workflow
     assert "secrets." not in workflow
