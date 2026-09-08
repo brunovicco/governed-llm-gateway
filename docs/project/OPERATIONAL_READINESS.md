@@ -20,7 +20,7 @@ Evidence is not authority. Telemetry is not authority. Health is not authority.
 
 ## OR-0 foundation audit
 
-The September 2026 audit established the following current baseline before product-readiness changes:
+The September 2026 audit established the following baseline before product-readiness changes:
 
 - Phase 9 OpenTelemetry instrumentation already exists on top of `a2a-otel-kit`;
 - `gateway-core` pins `a2a-otel-kit==0.6.0`;
@@ -32,11 +32,15 @@ The September 2026 audit established the following current baseline before produ
   authorization;
 - process-local health, process-local attempt recording, content-addressed sample batches and reviewed
   operational snapshots are intentionally distinct abstractions;
-- the gateway repository does not yet contain a local Collector + Tempo + Grafana stack;
-- the gateway repository does not yet contain a dedicated operations read model/API or React Gateway
+- the gateway repository did not yet contain a local Collector + Tempo + Grafana stack;
+- the gateway repository did not yet contain a dedicated operations read model/API or React Gateway
   Console;
-- Collector receipt verification exists as a reusable pattern in `a2a-otel-kit` but is not yet a
+- Collector receipt verification existed as a reusable pattern in `a2a-otel-kit` but not yet as a
   gateway integration/e2e proof.
+
+PC-15 subsequently added the pinned local Collector + Tempo + Grafana foundation. PC-16 adds the
+credential-free positive Collector receipt proof while preserving the original metadata-only and
+non-authoritative boundaries.
 
 The audit also found documentation drift: the previous observability document still described Phase 9
 runtime tracing as future work even though Phase 9 is already complete.
@@ -83,11 +87,11 @@ Do not add a Langfuse SDK to the gateway or to `a2a-otel-kit` for this track.
 The sequence is intentionally incremental; later items may be reordered when a concrete dependency
 requires it, but authority/security boundaries take precedence over visual/demo convenience.
 
-| Track | Scope | Initial state |
+| Track | Scope | Current state |
 | --- | --- | --- |
-| OR-0 | current observability/product-readiness audit | current baseline recorded |
+| OR-0 | current observability/product-readiness audit | baseline recorded |
 | OR-1 | telemetry vocabulary hardening | active |
-| OR-2 | local OTel Collector + Tempo + Grafana foundation | not started |
+| OR-2 | local OTel Collector + Tempo + Grafana foundation | foundation + positive receipt complete |
 | OR-3 | typed read-only operations read model | not started |
 | OR-4 | read-only Operations API | not started |
 | OR-5 | React/TypeScript/Vite Gateway Console | not started |
@@ -99,6 +103,10 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 
 OR-1 is split into small increments. Issue #83 declares the compatibility vocabulary and updates the
 Phase 9 documentation before any external observability stack is added.
+
+PC-15 and PC-16 are bounded OR-2 increments. They do not implicitly complete process-owned
+observability lifecycle wiring, Tempo query verification, Grafana visualization, dashboards or any
+later operations surface.
 
 ## Read-only operations boundary
 
@@ -125,23 +133,26 @@ or APIs for deployment disablement, circuit reset, registry/policy changes, or e
 
 ## Local observability target
 
-The target local topology is:
+The local infrastructure foundation is now:
 
 ```text
 gateway-api
     │
-    ├── gateway-console (read-only)
-    │
     └── a2a-otel-kit -> OTLP/HTTP -> otel-collector -> tempo -> grafana
 ```
+
+PC-15 provides the checked-in Collector, Tempo and Grafana Compose topology. PC-16 separately proves
+that a known metadata-only Gateway span can reach an isolated Collector receipt surface. That receipt
+proof does not assert that the executable Gateway process currently owns `Observability.configure()`
+or shutdown lifecycle wiring.
 
 Langfuse may be added later as an optional downstream Collector/OTLP destination when its current
 integration contract is reviewed. Its availability must never affect gateway inference.
 
-The local stack should prefer pinned image versions/digests, loopback host bindings,
-`no-new-privileges`, dropped Linux capabilities where compatible, read-only configuration mounts and no
-hardcoded secrets. Demo-only Grafana authentication relaxations must be documented explicitly as local
-only and must not be presented as a production configuration.
+The local stack uses pinned image versions, loopback host bindings, `no-new-privileges`, dropped Linux
+capabilities where compatible, read-only configuration mounts and no hardcoded secrets. Demo-only
+Grafana authentication relaxations are documented as local only and must not be presented as a
+production configuration.
 
 ## Evidence presentation rules
 
@@ -165,9 +176,10 @@ Default CI remains deterministic and credential-free:
 - no Langfuse Cloud dependency;
 - live-provider tests remain opt-in.
 
-Docker-based receipt verification may be introduced as an explicit integration/e2e job when runner
-support and execution cost are acceptable. Exporter `flush()` success alone is not sufficient proof of
-Collector receipt.
+PC-16 adds an explicit Docker-based `collector-receipt` integration workflow. It starts only a local
+receipt Collector, performs a bounded startup probe, emits one metadata-only span through
+`a2a-otel-kit`, requires positive appended receipt evidence and always tears the Collector down.
+Exporter `flush()` success alone is not sufficient proof of Collector receipt.
 
 ## Completion rule
 
