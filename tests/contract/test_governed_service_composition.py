@@ -320,7 +320,8 @@ def test_operational_composition_reuses_runtime_without_new_secret_reads(tmp_pat
     paths = {route.path for route in services.app.routes if isinstance(route, APIRoute)}
     assert "/v1/route/explain" in paths
     assert "/v1/generate" in paths
-    assert not any(path.startswith("/v1/ops") for path in paths)
+    operations_paths = {path for path in paths if path.startswith("/v1/ops")}
+    assert operations_paths == {"/v1/ops/overview"}
 
 
 def test_complexity_configuration_rejects_static_ranking_without_secret_reads(
