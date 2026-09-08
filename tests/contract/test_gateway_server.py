@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 import uvicorn
+from a2a_otel_kit.entrypoints.observability import Observability
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from governed_llm_gateway_api import server as server_module
@@ -84,6 +85,7 @@ def test_static_cli_parsing_is_deterministic_and_defaults_to_loopback(tmp_path: 
     assert first == second
     assert first.host == "127.0.0.1"
     assert first.port == 8000
+    assert first.observability is None
     assert first.deployment.deployment_root == root
     assert first.deployment.ranking_policy_path == Path("config/ranking.yaml")
     assert first.deployment.approved_ranking_artifact_path is None
@@ -113,8 +115,19 @@ def test_approved_cli_requires_exact_expected_artifact_identity(tmp_path: Path) 
     assert settings.deployment.expected_ranking_artifact_id == expected_id
 
 
-def test_secret_values_are_not_accepted_as_cli_arguments(tmp_path: Path) -> None:
-    argv = [*_static_argv(tmp_path.resolve()), "--provider-api-key", "secret"]
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ["--provider-api-key", "secret"],
+        ["--otel-headers", "Authorization=secret"],
+        ["--otel-api-key", "secret"],
+    ],
+)
+def test_secret_values_are_not_accepted_as_cli_arguments(
+    tmp_path: Path,
+    extra: list[str],
+) -> None:
+    argv = [*_static_argv(tmp_path.resolve()), *extra]
 
     with pytest.raises(SystemExit):
         parse_server_args(argv)
@@ -137,21 +150,23 @@ def test_injected_runner_receives_composed_app_without_socket_binding(
     runner = RecordingRunner()
     deployment = _deployment(tmp_path.resolve())
     settings = GovernedServerSettings(deployment=deployment, host="localhost", port=8123)
-    seen: list[GovernedDeploymentSettings] = []
+    seen: list[tuple[GovernedDeploymentSettings, Observability | None]] = []
 
     def fake_activate(
         value: GovernedDeploymentSettings,
         *,
         environ: object = None,
+        observability: Observability | None = None,
     ) -> SimpleNamespace:
-        seen.append(value)
+        del environ
+        seen.append((value, observability))
         return SimpleNamespace(app=app)
 
     monkeypatch.setattr(server_module, "activate_governed_deployment", fake_activate)
 
     run_governed_server(settings, environ={}, runner=runner)
 
-    assert seen == [deployment]
+    assert seen == [(deployment, None)]
     assert runner.app is app
     assert runner.host == "localhost"
     assert runner.port == 8123

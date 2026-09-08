@@ -38,8 +38,9 @@ The September 2026 audit established the following baseline before product-readi
 - Collector receipt verification existed as a reusable pattern in `a2a-otel-kit` but not yet as a
   gateway integration/e2e proof.
 
-PC-15 subsequently added the pinned local Collector + Tempo + Grafana foundation. PC-16 adds the
-credential-free positive Collector receipt proof while preserving the original metadata-only and
+PC-15 subsequently added the pinned local Collector + Tempo + Grafana foundation. PC-16 added the
+credential-free positive Collector receipt proof. PC-17 adds optional executable-process ownership of
+`Observability.configure()` / injection / shutdown while preserving the original metadata-only and
 non-authoritative boundaries.
 
 The audit also found documentation drift: the previous observability document still described Phase 9
@@ -71,6 +72,7 @@ Keep in the gateway:
 - retry/fallback semantics;
 - benchmark evidence;
 - operational evidence/completeness;
+- process composition and the decision to enable/inject the observability facade;
 - operations read models/APIs;
 - Gateway Console.
 
@@ -92,6 +94,7 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 | OR-0 | current observability/product-readiness audit | baseline recorded |
 | OR-1 | telemetry vocabulary hardening | active |
 | OR-2 | local OTel Collector + Tempo + Grafana foundation | foundation + positive receipt complete |
+| process activation | optional process-owned OTel lifecycle | complete in PC-17 |
 | OR-3 | typed read-only operations read model | not started |
 | OR-4 | read-only Operations API | not started |
 | OR-5 | React/TypeScript/Vite Gateway Console | not started |
@@ -104,9 +107,9 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 OR-1 is split into small increments. Issue #83 declares the compatibility vocabulary and updates the
 Phase 9 documentation before any external observability stack is added.
 
-PC-15 and PC-16 are bounded OR-2 increments. They do not implicitly complete process-owned
-observability lifecycle wiring, Tempo query verification, Grafana visualization, dashboards or any
-later operations surface.
+PC-15 and PC-16 are bounded OR-2 increments. PC-17 closes the separate process-owned observability
+lifecycle prerequisite. None of these increments implicitly completes Tempo query verification,
+Grafana visualization, dashboards or any later operations surface.
 
 ## Read-only operations boundary
 
@@ -142,9 +145,14 @@ gateway-api
 ```
 
 PC-15 provides the checked-in Collector, Tempo and Grafana Compose topology. PC-16 separately proves
-that a known metadata-only Gateway span can reach an isolated Collector receipt surface. That receipt
-proof does not assert that the executable Gateway process currently owns `Observability.configure()`
-or shutdown lifecycle wiring.
+that a known metadata-only Gateway span can reach an isolated Collector receipt surface. PC-17 owns
+optional observability configuration at the executable process boundary and injects the configured
+facade through the existing deployment/service composition path.
+
+Observability is disabled by default. Explicit endpoint/environment process arguments enable it. A
+runtime configuration failure degrades to null telemetry; a configured facade is shut down best-effort
+when the runner returns or activation/runner fails. No telemetry backend is probed for startup or
+readiness.
 
 Langfuse may be added later as an optional downstream Collector/OTLP destination when its current
 integration contract is reviewed. Its availability must never affect gateway inference.
@@ -181,9 +189,20 @@ receipt Collector, performs a bounded startup probe, emits one metadata-only spa
 `a2a-otel-kit`, requires positive appended receipt evidence and always tears the Collector down.
 Exporter `flush()` success alone is not sufficient proof of Collector receipt.
 
+PC-17 lifecycle contracts do not open a socket or require a Collector. They inject deterministic test
+doubles at the process boundary to prove default-disabled behavior, explicit settings, degradation,
+injection and shutdown semantics.
+
 Changes to the shared observability/readiness documentation trigger both the positive-receipt and local
 Compose validation workflows so the documented contract and the executable infrastructure are
 validated on the same candidate SHA.
+
+## Next slice
+
+With the local observability foundation, positive receipt proof and optional process lifecycle bounded,
+the next product-readiness slice is the typed read-only operations read model. That work must first
+audit the existing registry, routing, health, benchmark and operational-evidence sources and define
+explicit absence/completeness semantics before exposing an API or UI.
 
 ## Completion rule
 
