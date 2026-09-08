@@ -42,12 +42,8 @@ def _settings() -> GovernedDeploymentSettings:
 
 def test_profile_has_exact_bounded_provider_and_authority_shape() -> None:
     registry = load_model_registry(_PROFILE / "model_registry.yaml")
-    provider_runtime = load_provider_runtime_document(
-        _PROFILE / "provider_runtime.json"
-    )
-    policy_runtime = load_policy_router_runtime_document(
-        _PROFILE / "policy_router.json"
-    )
+    provider_runtime = load_provider_runtime_document(_PROFILE / "provider_runtime.json")
+    policy_runtime = load_policy_router_runtime_document(_PROFILE / "policy_router.json")
     ranking = load_ranking_policy(_PROFILE / "ranking_policy.yaml")
 
     validate_provider_runtime_registry(provider_runtime, registry)
@@ -62,8 +58,7 @@ def test_profile_has_exact_bounded_provider_and_authority_shape() -> None:
         for deployment in registry.deployments
     )
     assert all(
-        deployment.max_data_classification.value == "public"
-        for deployment in registry.deployments
+        deployment.max_data_classification.value == "public" for deployment in registry.deployments
     )
     assert policy_runtime.runtime.enabled is True
     assert policy_runtime.runtime.endpoint == "http://127.0.0.1:8001/route"
