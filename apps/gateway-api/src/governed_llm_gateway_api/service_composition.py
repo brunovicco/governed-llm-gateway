@@ -7,7 +7,9 @@ from fastapi import FastAPI
 from governed_llm_gateway_core.adapters import ComplexityRoutingDocument
 from governed_llm_gateway_core.application import (
     ComplexityRouteExplainService,
+    InMemoryHealthInspectionAdapter,
     InMemoryHealthTracker,
+    OperationsReadModelService,
     PolicyEnforcementService,
     PolicyProjectionDefaults,
     RouteExplainService,
@@ -35,6 +37,7 @@ class GovernedGatewayServices:
 
     app: FastAPI
     health: InMemoryHealthTracker
+    operations_read_model: OperationsReadModelService
     policy_enforcement: PolicyEnforcementService
     route_service: RouteExplainService
     streaming_service: StreamingExecutionService
@@ -114,6 +117,11 @@ def compose_governed_gateway_services(
     )
 
     registry = runtime.artifacts.registry
+    operations_read_model = OperationsReadModelService(
+        registry=registry,
+        ranking_policy=ranking_policy,
+        health=InMemoryHealthInspectionAdapter(active_health),
+    )
     context_resolver = runtime.client_context_resolver
     route_explain_coordinator = RouteExplainCoordinator(
         context_resolver=context_resolver,
@@ -175,6 +183,7 @@ def compose_governed_gateway_services(
     return GovernedGatewayServices(
         app=app,
         health=active_health,
+        operations_read_model=operations_read_model,
         policy_enforcement=policy_enforcement,
         route_service=route_service,
         streaming_service=streaming_service,
