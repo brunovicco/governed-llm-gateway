@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - compose.collector-receipt.yml
+      - tests/contract/test_collector_receipt_foundation.py
       - tests/integration/test_collector_receipt.py
       - tests/integration/otel-collector-receipt.yaml
       - docs/project/OBSERVABILITY.md
@@ -15,6 +16,7 @@ on:
       - feat/**
     paths:
       - compose.collector-receipt.yml
+      - tests/contract/test_collector_receipt_foundation.py
       - tests/integration/test_collector_receipt.py
       - tests/integration/otel-collector-receipt.yaml
       - docs/project/OBSERVABILITY.md
@@ -62,7 +64,7 @@ jobs:
           GATEWAY_COLLECTOR_RECEIPT_FILE: .collector-receipts/traces.jsonl
         run: >-
           uv run --frozen --python 3.13 --all-packages --with pytest==8.4.1
-          pytest --no-cov -m integration tests/integration/test_collector_receipt.py
+          pytest -m integration tests/integration/test_collector_receipt.py
       - name: Stop receipt Collector
         if: always()
         run: docker compose -f compose.collector-receipt.yml down --volumes --remove-orphans
