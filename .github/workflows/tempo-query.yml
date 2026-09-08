@@ -1,0 +1,83 @@
+name: tempo-query
+
+on:
+  pull_request:
+    paths:
+      - compose.observability.yml
+      - compose.tempo-query.yml
+      - deploy/observability/**
+      - tests/contract/test_tempo_query_foundation.py
+      - tests/integration/test_tempo_query.py
+      - docs/project/TEMPO_QUERY_PROOF.md
+      - docs/project/OBSERVABILITY.md
+      - docs/project/OPERATIONAL_READINESS.md
+      - .github/workflows/tempo-query.yml
+  push:
+    branches:
+      - main
+      - feat/**
+    paths:
+      - compose.observability.yml
+      - compose.tempo-query.yml
+      - deploy/observability/**
+      - tests/contract/test_tempo_query_foundation.py
+      - tests/integration/test_tempo_query.py
+      - docs/project/TEMPO_QUERY_PROOF.md
+      - docs/project/OBSERVABILITY.md
+      - docs/project/OPERATIONAL_READINESS.md
+      - .github/workflows/tempo-query.yml
+
+permissions:
+  contents: read
+
+jobs:
+  tempo-query:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Validate Tempo query Compose model
+        run: docker compose -f compose.observability.yml -f compose.tempo-query.yml config --quiet
+      - name: Start Tempo query integration stack
+        run: |
+          docker compose -f compose.observability.yml -f compose.tempo-query.yml up -d tempo otel-collector
+          for attempt in {1..30}; do
+            tempo_ready=false
+            collector_ready=false
+            if curl --fail --silent --show-error http://127.0.0.1:3200/ready >/dev/null; then
+              tempo_ready=true
+            fi
+            if curl --fail --silent --show-error \
+              --header "Content-Type: application/x-protobuf" \
+              --data-binary "" \
+              http://127.0.0.1:4318/v1/traces >/dev/null; then
+              collector_ready=true
+            fi
+            if [ "$tempo_ready" = true ] && [ "$collector_ready" = true ]; then
+              exit 0
+            fi
+            running_services="$(docker compose -f compose.observability.yml -f compose.tempo-query.yml ps --status running --services)"
+            if ! grep --quiet --line-regexp tempo <<<"$running_services" || \
+               ! grep --quiet --line-regexp otel-collector <<<"$running_services"; then
+              docker compose -f compose.observability.yml -f compose.tempo-query.yml logs tempo otel-collector
+              exit 1
+            fi
+            sleep 1
+          done
+          docker compose -f compose.observability.yml -f compose.tempo-query.yml logs tempo otel-collector
+          exit 1
+      - name: Require positive Tempo query evidence
+        env:
+          GATEWAY_TEMPO_QUERY_COLLECTOR_ENDPOINT: http://127.0.0.1:4318/v1/traces
+          GATEWAY_TEMPO_QUERY_ENDPOINT: http://127.0.0.1:3200
+        run: >-
+          uv run --frozen --python 3.13 --all-packages --with pytest==8.4.1
+          pytest -m integration tests/integration/test_tempo_query.py
+      - name: Stop Tempo query integration stack
+        if: always()
+        run: docker compose -f compose.observability.yml -f compose.tempo-query.yml down --volumes --remove-orphans
