@@ -58,7 +58,7 @@ def test_gateway_metadata_trace_is_queryable_from_tempo() -> None:
         observability.shutdown(5)
 
     service_clause = f'resource.service.name = "{_EXPECTED_SERVICE}"'
-    span_clause = f'name = "{_EXPECTED_SPAN}"'
+    span_clause = f'span:name = "{_EXPECTED_SPAN}"'
     traceql = f"{{ {service_clause} && {span_clause} }}"
     deadline = time.monotonic() + _QUERY_TIMEOUT_SECONDS
     last_payload: dict[str, Any] | None = None
