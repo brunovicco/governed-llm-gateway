@@ -10,6 +10,10 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+node_modules/
+.npm/
+*.tsbuildinfo
+apps/gateway-console/coverage/
 .env
 .env.*
 !.env.example
