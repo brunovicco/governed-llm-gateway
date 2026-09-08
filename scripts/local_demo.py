@@ -175,9 +175,7 @@ class SystemDemoRuntime:
                 start_new_session=True,
             )
         except OSError:
-            raise LocalDemoCommandError(
-                f"local demo child could not start: {command[0]}"
-            ) from None
+            raise LocalDemoCommandError(f"local demo child could not start: {command[0]}") from None
 
     def stop(self, process: DemoProcess) -> None:
         """Terminate an owned process session with bounded escalation."""
