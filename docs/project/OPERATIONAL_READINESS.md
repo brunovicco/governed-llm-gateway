@@ -50,7 +50,8 @@ authorization service into the governed service graph. PC-22 then exposes the fi
 Operations HTTP endpoint, `GET /v1/ops/overview`, with authorization before snapshot reads and a reduced
 aggregate response. PC-23 binds an optional explicit reviewed operational-evidence artifact during
 secret-free startup. PC-24 adds the authenticated read-only `GET /v1/ops/deployments` catalog without
-introducing mutation authority or detailed runtime counters.
+introducing mutation authority or detailed runtime counters. PC-25 adds the first React/TypeScript/Vite
+Gateway Console foundation as a read-only consumer of those two already-reviewed Operations endpoints.
 
 The audit also found documentation drift: the previous observability document still described Phase 9
 runtime tracing as future work even though Phase 9 is already complete.
@@ -107,7 +108,7 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 | process activation | optional process-owned OTel lifecycle | complete in PC-17 |
 | OR-3 | typed read-only operations read model | typed foundation + service-graph composition complete in PC-18/PC-19 |
 | OR-4 | read-only Operations API | authenticated overview, evidence binding and deployment catalog implemented in PC-20..PC-24; broader read surfaces deferred |
-| OR-5 | React/TypeScript/Vite Gateway Console | not started |
+| OR-5 | React/TypeScript/Vite Gateway Console | read-only overview + deployment-catalog foundation implemented in PC-25; broader console surfaces deferred |
 | OR-6 | Grafana dashboards + trace correlation/deep links | not started |
 | OR-7 | optional Langfuse OTLP fan-out | optional / not started |
 | OR-8 | one-command deterministic local demo | not started |
@@ -122,9 +123,10 @@ lifecycle prerequisite. PC-18 and PC-19 close the typed/read-model and service-c
 for OR-3. PC-20 and PC-21 deliberately pull forward only the minimum authentication/configuration
 boundary needed to prevent OR-4 from becoming a global unauthenticated catalog. PC-22 consumes those
 boundaries for the first authenticated read-only endpoint. PC-23 adds explicit deployment-owned evidence
-binding, and PC-24 adds the bounded deployment catalog. None of these increments implies that deployment
-detail, evidence detail, routing-history persistence, Tempo query verification, Grafana visualization,
-dashboards or later admin surfaces are complete.
+binding, and PC-24 adds the bounded deployment catalog. PC-25 consumes only those certified read surfaces
+for the first console foundation. None of these increments implies that deployment detail, evidence detail,
+routing-history persistence, Tempo query verification, Grafana visualization, dashboards, production
+browser identity/session handling or later admin surfaces are complete.
 
 ## Read-only operations boundary
 
@@ -206,6 +208,35 @@ GET /v1/ops/system
 No direct mutation endpoint belongs in the first version. In particular, do not add unaudited buttons
 or APIs for deployment disablement, circuit reset, registry/policy changes, or evidence promotion.
 
+## Gateway Console boundary
+
+PC-25 introduces `apps/gateway-console` as a bounded browser consumer of the two existing Operations GET
+endpoints. It uses React, strict TypeScript and Vite with a committed npm lockfile and Node.js 24 LTS in
+frontend CI.
+
+The browser sends `X-Gateway-API-Key` only after an operator explicitly connects. The credential remains
+in React component memory for the active page lifetime and is cleared on disconnect; the console does not
+persist it to `localStorage`, `sessionStorage`, cookies, URLs/query strings, generated configuration or
+repository files.
+
+Development requests remain same-origin from the browser perspective through the Vite `/v1` proxy to
+the local Gateway process. PC-25 does not introduce a BFF, token exchange, session service or production
+identity architecture.
+
+The console performs closed-shape runtime validation before treating Operations JSON as trusted display
+data. Unexpected fields, unsupported enum values, invalid counts/dates/context sizes, or disagreement
+between overview and deployment-catalog sizes fail closed into bounded operator-facing errors. Sanitized
+backend 401/403/503 codes are mapped without rendering raw server exceptions.
+
+The UI displays registry/ranking provenance, aggregate health, operational-evidence availability and the
+bounded deployment catalog. `process_local` remains visible and is not relabeled as fleet/global state.
+No fake metrics, fake traces, fake costs, fake evidence, inferred authorization reasons or inferred routing
+decisions are rendered. The console contains no mutation control and makes no direct provider, PDP, Tempo,
+Grafana or Langfuse call.
+
+See `docs/project/GATEWAY_CONSOLE.md` for the local execution, credential, runtime-validation and CI
+contract.
+
 ## Local observability target
 
 The local infrastructure foundation is now:
@@ -236,17 +267,17 @@ production configuration.
 
 ## Evidence presentation rules
 
-The future console/dashboard must not fabricate metrics or reason codes.
+The console/dashboard must not fabricate metrics or reason codes.
 
 When data is absent, the backend read model must represent absence explicitly. Process-local samples
 must not be labeled fleet-complete. PC-23 evidence binding does not establish freshness or fleet
-completeness, and PC-24 deployment health remains explicitly `process_local`. Cost is shown only when
-the gateway has real cost evidence. Routing
-visualization must display gateway-produced reason codes rather than deriving authorization or health
-reasons in the frontend.
+completeness, and PC-24 deployment health remains explicitly `process_local`. PC-25 preserves those
+claims in the first UI rather than deriving stronger semantics in the browser. Cost is shown only when
+the gateway has real cost evidence. Routing visualization must display gateway-produced reason codes
+rather than deriving authorization or health reasons in the frontend.
 
-Trace views in the Gateway Console remain a correlation surface, not a replacement for Tempo/Grafana
-or another trace explorer.
+Trace views in later Gateway Console increments remain a correlation surface, not a replacement for
+Tempo/Grafana or another trace explorer.
 
 ## CI boundary
 
@@ -286,21 +317,31 @@ fields plus coarse process-local health, excludes mutable counters/secrets/evide
 to sanitized 503, and fails route composition before partial attachment on owned-path conflicts. No live
 provider, PDP call, or external secret/backend is required by the Operations request path.
 
+PC-25 adds the credential-free, path-scoped `console-quality` workflow. On Node.js 24 LTS it requires a
+locked install, strict TypeScript checking, deterministic unit tests, a console security-boundary scan and
+a production Vite build. The boundary scan rejects browser persistence APIs, mutation request literals and
+unreviewed `/v1/ops/*` paths in console source. Frontend CI does not replace or weaken the Python quality,
+collector-receipt or observability-compose gates.
+
 Changes to the shared observability/readiness documentation trigger both the positive-receipt and local
 Compose validation workflows so the documented contract and the executable infrastructure are
 validated on the same candidate SHA.
 
 ## Next slice
 
-With the authenticated overview, explicit reviewed-evidence binding and bounded deployment catalog now
-established, the next OR-4 increment must be selected from a concrete product gap rather than expanding
-the admin surface speculatively. Deployment detail, evidence detail and recent routing history each require
-separate information-disclosure, completeness or persistence contracts before an endpoint is added.
+With the authenticated overview, explicit reviewed-evidence binding, bounded deployment catalog and first
+read-only Gateway Console foundation established, the next product-readiness increment must be selected
+from a concrete remaining gap rather than by adding speculative admin capabilities.
+
+Likely candidates now sit outside the basic console foundation: OR-6 trace correlation/Grafana dashboard
+work or OR-8 deterministic demo orchestration. Each requires a fresh audit of the existing trace/query and
+local-process topology before an issue is opened. Deployment detail, evidence detail and recent routing
+history still require separate information-disclosure, completeness or persistence contracts before an
+endpoint or screen is added.
 
 Recent routing history remains a separate persistence/read-model concern and must not be fabricated
-from current health or ranking configuration. Fleet aggregation, external IAM, mutations and the React
-console remain separate increments. Phase 14 consumer integrations remain frozen by their sequencing
-guard.
+from current health or ranking configuration. Fleet aggregation, external IAM and mutations remain
+separate increments. Phase 14 consumer integrations remain frozen by their sequencing guard.
 
 ## Completion rule
 
