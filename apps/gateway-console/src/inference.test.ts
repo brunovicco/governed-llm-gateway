@@ -113,6 +113,66 @@ describe("GovernedInferenceClient", () => {
     >({ kind: "protocol_error" });
   });
 
+  it("rejects drift in non-identity routing provenance", async () => {
+    const fetcher = vi.fn().mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestBody(init);
+      const changedRouting = { ...ROUTING, ranking_policy_digest: "sha256:changed-ranking" };
+      return Promise.resolve(
+        sseResponse([
+          event(request.request_id, 1, "response.started", { routing: ROUTING }),
+          event(request.request_id, 2, "content.delta", { delta: "hello" }),
+          event(request.request_id, 3, "usage.completed", { usage: USAGE }),
+          event(request.request_id, 4, "response.completed", {
+            routing: changedRouting,
+            execution: EXECUTION,
+          }),
+        ]),
+      );
+    });
+
+    await expect(new GovernedInferenceClient(fetcher).generate("demo-key", "hello")).rejects.toMatchObject<
+      Partial<InferenceApiError>
+    >({
+      kind: "protocol_error",
+      message: "Gateway routing provenance changed during the inference stream.",
+    });
+  });
+
+  it("treats rejected-candidate order as immutable routing evidence", async () => {
+    const fetcher = vi.fn().mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestBody(init);
+      const routing = {
+        ...ROUTING,
+        rejected_candidates: [
+          { deployment: "candidate-a", reason: "cost_limit", detail: null },
+          { deployment: "candidate-b", reason: "latency_limit", detail: null },
+        ],
+      };
+      const changedRouting = {
+        ...routing,
+        rejected_candidates: [...routing.rejected_candidates].reverse(),
+      };
+      return Promise.resolve(
+        sseResponse([
+          event(request.request_id, 1, "response.started", { routing }),
+          event(request.request_id, 2, "content.delta", { delta: "hello" }),
+          event(request.request_id, 3, "usage.completed", { usage: USAGE }),
+          event(request.request_id, 4, "response.completed", {
+            routing: changedRouting,
+            execution: EXECUTION,
+          }),
+        ]),
+      );
+    });
+
+    await expect(new GovernedInferenceClient(fetcher).generate("demo-key", "hello")).rejects.toMatchObject<
+      Partial<InferenceApiError>
+    >({
+      kind: "protocol_error",
+      message: "Gateway routing provenance changed during the inference stream.",
+    });
+  });
+
   it("rejects duplicate normalized usage", async () => {
     const fetcher = vi.fn().mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
       const request = requestBody(init);
