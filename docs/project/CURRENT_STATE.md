@@ -188,60 +188,46 @@ Shared ingestion, fleet/source-membership completeness, production backend adapt
 
 See `docs/evaluation/OPERATIONAL_EVIDENCE.md`.
 
-## Operational readiness checkpoint — PC-30 certified
+## Operational readiness checkpoint — PC-39 certified
 
-The consumer-independent operational-readiness track advanced without changing Phase 14 sequencing or
-the permanent authorization boundary. The latest certified sequence is:
+The consumer-independent operational-readiness track advanced without changing Phase 14 sequencing or the permanent authorization boundary. The currently certified sequence includes:
 
 - PC-26 — real Collector → Tempo trace-by-ID + TraceQL queryability proof;
 - PC-27 — first file-provisioned read-only Grafana Tempo dashboard;
 - PC-28 — local-only Console navigation to that dashboard;
 - PC-29 — operations-only local Gateway bootstrap with no provider/PDP materialization;
-- PC-30 — deterministic one-command orchestration for the operations-only Gateway, Console and local
-  Collector + Tempo + Grafana stack, with bounded readiness and deterministic cleanup.
+- PC-30 — deterministic one-command orchestration for the bounded operations-only local stack;
+- PC-33 — explicit governed live-development repository profile with loopback-only PDP HTTP exception;
+- PC-34 — `/v1/ops/*` responses are explicitly non-storable with `Cache-Control: no-store`;
+- PC-35 — the thin Gateway client accepts plaintext HTTP only on literal loopback addresses;
+- PC-36 — opt-in provider-neutral live-development smoke harness with metadata-only output;
+- PC-37 — explicit secret-free Operations visibility grant for `gateway-demo/development` in the live-development profile;
+- PC-38 — bounded provider-neutral governed inference in the Console through only relative `POST /v1/generate`, with fail-closed normalized SSE validation and in-memory state;
+- PC-39 — repeated Console routing evidence must remain immutable across the normalized stream.
 
-PC-30 squash merge / latest certified operations-only baseline:
+Latest certified repository baseline:
 
-`594b8609634b54eec60f75a733e6aa90846face9` (PR #172).
+`99bbbf1f98605695935a89befc873b8c6a4296d4` (PR #191 / PC-39).
 
-Post-merge `main` evidence:
+Post-merge `main` evidence for PC-39:
 
-- `quality` run `34273364638` — PASS;
-- `local-demo-smoke` run `34273364740` — PASS, including real startup/readiness and post-return cleanup.
+- `quality` run `34291142714` — PASS;
+- `console-quality` run `34291142715` — PASS;
+- `local-demo-smoke` run `34291142723` — PASS.
 
-OR-8 is complete only at this bounded operations-only local-demo scope. Production IAM/TLS/SSO,
-per-trace Console correlation and final product-readiness validation remain outside PC-30. Evidence,
-dashboards and readiness remain descriptive and cannot authorize execution.
+OR-8 remains complete only at the bounded operations-only local-demo scope. OR-9 is now **IN PROGRESS** through bounded security increments PC-34, PC-35, PC-37, PC-38 and PC-39; none of those increments completes production IAM/TLS/SSO, production browser identity/session handling, rate limiting, CSRF policy or future mutation authority. OR-10 remains pending.
+
+Credential-free CI proves repository/configuration/protocol behavior only. It does not prove a credential-backed provider/PDP request. A real provider/PDP execution must still be run explicitly with local/server-side credentials before the live inference path is described as portfolio/demo-ready.
 
 ## Governed live-inference development profile — PC-33 certified repository profile
 
-PR #179 introduced the first explicit opt-in development profile that composes the real governed serving
-path without changing the checked-in fail-closed defaults. The profile lives under
-`config/profiles/live-development/` and is bounded to one `development` / `public` / `rag.answer` client,
-an external Policy Model Router decision, the authorized logical group `balanced`, deterministic ranking,
-and native Gemini/OpenAI provider execution.
+PR #179 introduced the first explicit opt-in development profile that composes the real governed serving path without changing the checked-in fail-closed defaults. The profile lives under `config/profiles/live-development/` and is bounded to one `development` / `public` / `rag.answer` client, an external Policy Model Router decision, the authorized logical group `balanced`, deterministic ranking, and native Gemini/OpenAI provider execution.
 
-The profile does not contain raw credentials. Gateway-client, PDP and provider credentials remain separate
-server-side references, and default CI remains credential-free. Provider credentials alone still cannot
-activate inference because registry, provider runtime, trusted client identity and PDP configuration must
-materialize coherently.
+The profile does not contain raw credentials. Gateway-client, PDP and provider credentials remain separate server-side references, and default CI remains credential-free. Provider credentials alone still cannot activate inference because registry, provider runtime, trusted client identity and PDP configuration must materialize coherently.
 
-PC-33 also adds a narrow local-development transport exception: plaintext Policy Router HTTP is accepted
-only for a literal loopback IP address and is revalidated immediately before the connection is opened.
-`localhost`, private-LAN and remote HTTP endpoints remain rejected; non-loopback PDP deployments continue
-to require HTTPS. This exception supplies connectivity only and cannot widen PDP authorization.
+PC-33 also adds a narrow local-development transport exception: plaintext Policy Router HTTP is accepted only for a literal loopback IP address and is revalidated immediately before the connection is opened. `localhost`, private-LAN and remote HTTP endpoints remain rejected; non-loopback PDP deployments continue to require HTTPS. This exception supplies connectivity only and cannot widen PDP authorization.
 
-The two checked-in ranking entries intentionally use equal neutral static component inputs. They exercise
-the existing deterministic tie-break and are not represented as observed quality, reliability,
-availability, latency or benchmark evidence.
-
-Final validated PR head:
-
-`fb6890286e03ef348a0737b2b4dfd2eecf573a71`
-
-Required PR quality run:
-
-`34281707262` — PASS.
+The two checked-in ranking entries intentionally use equal neutral static component inputs. They exercise the existing deterministic tie-break and are not represented as observed quality, reliability, availability, latency or benchmark evidence.
 
 Squash merge / certified repository profile baseline:
 
@@ -251,58 +237,53 @@ Post-merge `main` evidence:
 
 `34281851561` — PASS.
 
-Validation:
+This is a credential-free repository/configuration proof, not a live-provider certification.
 
-- 1,139 tests passed, 2 skipped;
-- aggregate coverage 83.66%;
-- strict mypy passed across 264 source files;
-- Ruff lint/format passed across 264 files;
-- Bandit reported 0 findings across 23,624 lines of code;
-- pip-audit reported no known vulnerabilities;
-- architecture check, secret scan and Phase 0 gate passed.
+## OR-9 bounded hardening — PC-34 through PC-39
 
-This is a credential-free repository/configuration proof, not a live-provider certification. A real
-provider/PDP request must still be executed and recorded opt-in with local/server-side credentials before
-the live path is called portfolio/demo-ready. Production OAuth/OIDC/workload identity, TLS termination,
-production secret-manager adapters and broader OR-9 hardening also remain outside PC-33.
+PC-34 / PR #181 was the first bounded OR-9 hardening increment after the minimum authenticated Operations access prerequisite. Every HTTP response under the owned `/v1/ops/` namespace is explicitly non-storable with `Cache-Control: no-store`, including success, sanitized failures and unknown Operations paths. The middleware does not buffer or alter inference/SSE responses.
 
-Phase 14 ordering is unchanged by PC-33: OpsLens remains deferred and RAGForge remains blocked unless the
-normative sequence is explicitly revised.
+PC-34 squash merge:
 
-## Operations cache hardening — PC-34 pre-merge validation record
+`ea6180c33374824bc99ab07d38402d3f0482fd0c`
 
-PC-34 / PR #181 is the first bounded OR-9 hardening increment after the minimum authenticated Operations
-access prerequisite. It makes every HTTP response under the owned `/v1/ops/` namespace explicitly
-non-storable with `Cache-Control: no-store`, including successful projections, sanitized 401/403/503
-responses and unknown Operations paths.
+Post-merge quality run `34282957304` — PASS.
 
-The policy is implemented as raw ASGI middleware with an early non-Operations pass-through, so the
-increment does not introduce response buffering into the Gateway inference/SSE paths. The middleware is
-attached only after Operations route-conflict validation succeeds. Authentication, authorization,
-snapshot ordering, response bodies and inference authority are unchanged.
+PC-35 / PR #184 reconciled the canonical thin client with the live-development profile by allowing plaintext HTTP only on literal loopback IP addresses. `localhost`, private-LAN, link-local, DNS/public HTTP and non-loopback plaintext remain rejected. HTTPS behavior is unchanged.
 
-Validated implementation head:
+PC-35 squash merge:
 
-`067bca57f607eb3fe9477107ead92cc56759b0f5`
+`aac737d8aa1a58c1364b4a89cfc60a1212fe5b09`
 
-Required quality run:
+PC-36 / PR #185 added an explicit `--live` opt-in smoke harness over the canonical thin client. The consumer sees only `GOVERNED_LLM_GATEWAY_URL` and `GOVERNED_LLM_GATEWAY_API_KEY`; provider and Policy Router credentials remain server-side. The harness never forces provider/model/deployment and emits metadata-only execution provenance rather than prompt/completion content.
 
-`34282415747` — PASS.
+PC-36 squash merge:
 
-Validation:
+`74f826f490fb51cf23a9bdbe4533783dc1baa952`
 
-- 1,141 tests passed, 2 skipped;
-- aggregate coverage 83.68%;
-- strict mypy passed across 265 source files;
-- Ruff lint/format passed across 265 files;
-- Bandit reported 0 findings across 23,647 lines of code;
-- pip-audit reported no known vulnerabilities;
-- architecture check, secret scan and Phase 0 gate passed.
+Post-merge quality run `34284584354` — PASS.
 
-PC-34 does not complete OR-9. Production browser identity/session handling, OAuth/OIDC/workload identity,
-TLS termination, rate limiting, CSRF policy and any future mutation authority remain separate reviewable
-security concerns. The cache policy is descriptive-surface hardening only and cannot authorize or widen
-model execution.
+PC-37 / PR #187 added the explicit secret-free Operations visibility artifact for exactly `gateway-demo/development` to the live-development profile. Authentication is shared, but inference authorization and Operations visibility remain distinct policy decisions.
+
+PC-37 squash merge:
+
+`545153a25ac32589e34ca0d51827bb5caaacdbcd`
+
+PC-38 / PR #189 added bounded governed inference to the Gateway Console. The browser can submit only the reviewed provider-neutral `rag.answer` request to relative `POST /v1/generate`; it has no provider/model/deployment/fallback selector. Credential, prompt, completion and evidence remain in memory only. The SSE consumer enforces request binding, contiguous sequence, reviewed event types, byte ceilings, normalized usage, terminal execution evidence and routing/execution consistency fail closed.
+
+PC-38 squash merge:
+
+`9c161841d9416f8631ebf71daaf133bb9361b044`
+
+Post-merge `quality`, `console-quality` and `local-demo-smoke` all passed.
+
+PC-39 / PR #191 hardened the Console consumer so repeated routing evidence must remain semantically identical across all decoded provenance fields, including evidence-bearing array ordering.
+
+PC-39 squash merge / latest certified baseline:
+
+`99bbbf1f98605695935a89befc873b8c6a4296d4`
+
+These increments do not complete OR-9. Production browser identity/session handling, OAuth/OIDC/workload identity, TLS termination, rate limiting, CSRF policy and any future mutation authority remain separate reviewable concerns. None of the hardening increments may authorize or widen model execution.
 
 ## Phase 14 — Real Project Integrations
 
@@ -371,7 +352,7 @@ Authority boundary in that candidate remained correct: the model produces only a
 
 ### Case 4 — RAGForge — NOT STARTED
 
-Not started because Case 3 is deliberately deferred. Issue #18 explicitly preserves the sequencing guard and prohibits starting RAGForge in parallel unless the normative order is revised.
+Not started because Case 3 is deliberately deferred. The sequencing guard is versioned directly in `SOURCE_ROADMAP.txt`, `ROADMAP.md` and this checkpoint: do not start RAGForge in parallel unless the normative order is explicitly revised.
 
 ### Case 5 — Verifiable AI Governance — NOT STARTED
 
@@ -379,16 +360,17 @@ Remains after the preceding integration cases.
 
 ## Current working boundary
 
-1. PC-33 is the certified live-development repository profile baseline. Live-provider execution remains a separate opt-in proof and must not be inferred from credential-free CI. OR-9 remains in progress; PC-34 addresses Operations response caching only and does not complete broader operational security hardening.
-2. Do not modify OpsLens until its independent development state is ready for reconciliation.
-3. Do not begin RAGForge in parallel unless the roadmap order is explicitly revised.
-4. Accept further upstream gateway changes only when they are consumer-agnostic, independently justified and preserve the permanent authorization invariant.
-5. Do not create a model-forcing benchmark bypass: benchmark target identity must never become an authorization or routing override.
-6. Treat `rag-ptbr-v2` `pt_br_quality` strictly as bounded reviewer-authored Brazilian Portuguese locale/terminology evidence; do not generalize it into arbitrary fluency, grammar, style or cultural-quality claims.
-7. Keep benchmark quality components and recent operational evidence outside new ranking semantics until separate explicit versioned contracts review such use.
-8. A future operational-evidence increment may add shared ingestion and an explicit fleet/source-membership completeness model over validated source-instance batches; it must not make remote evidence delivery part of inference availability or invent online score normalization/adaptive policy.
-9. A future live gateway-backed benchmark executor must use an already-authorized gateway path, preserve target/effective-execution integrity checks, and remain outside credential-free default CI.
-10. When OpsLens is resumed, reconcile against the then-current gateway commit and rerun the full OpsLens Python and Terraform gates before merge.
+1. `main@99bbbf1f98605695935a89befc873b8c6a4296d4` is the latest certified repository baseline. Live-provider execution remains a separate opt-in proof and must not be inferred from credential-free CI.
+2. OR-9 is in progress through bounded hardening PC-34..PC-39; it is not complete. Continue only with separately justified, consumer-independent security increments that preserve existing serving semantics.
+3. Do not modify OpsLens until its independent development state is ready for reconciliation.
+4. Do not begin RAGForge in parallel unless the normative roadmap order is explicitly revised.
+5. Accept further upstream gateway changes only when they are consumer-agnostic, independently justified and preserve the permanent authorization invariant.
+6. Do not create a model-forcing benchmark bypass: benchmark target identity must never become an authorization or routing override.
+7. Treat `rag-ptbr-v2` `pt_br_quality` strictly as bounded reviewer-authored Brazilian Portuguese locale/terminology evidence; do not generalize it into arbitrary fluency, grammar, style or cultural-quality claims.
+8. Keep benchmark quality components and recent operational evidence outside new ranking semantics until separate explicit versioned contracts review such use.
+9. A future operational-evidence increment may add shared ingestion and an explicit fleet/source-membership completeness model over validated source-instance batches; it must not make remote evidence delivery part of inference availability or invent online score normalization/adaptive policy.
+10. A future live gateway-backed benchmark executor must use an already-authorized gateway path, preserve target/effective-execution integrity checks, and remain outside credential-free default CI.
+11. When OpsLens is resumed, reconcile against the then-current gateway commit and rerun the full OpsLens Python and Terraform gates before merge.
 
 ## Explicitly deferred
 
