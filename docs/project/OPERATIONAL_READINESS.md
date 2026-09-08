@@ -54,6 +54,8 @@ introducing mutation authority or detailed runtime counters. PC-25 adds the firs
 Gateway Console foundation as a read-only consumer of those two already-reviewed Operations endpoints.
 PC-26 adds the first OR-6 prerequisite: a credential-free real-container proof that a metadata-only
 Gateway span traverses the local Collector and is both retrievable and TraceQL-queryable from Tempo.
+PC-27 adds the first bounded OR-6 visualization: a credential-free real-container proof of a
+file-provisioned read-only Grafana dashboard backed by the provisioned Tempo datasource.
 
 The audit also found documentation drift: the previous observability document still described Phase 9
 runtime tracing as future work even though Phase 9 is already complete.
@@ -111,7 +113,7 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 | OR-3 | typed read-only operations read model | typed foundation + service-graph composition complete in PC-18/PC-19 |
 | OR-4 | read-only Operations API | authenticated overview, evidence binding and deployment catalog implemented in PC-20..PC-24; broader read surfaces deferred |
 | OR-5 | React/TypeScript/Vite Gateway Console | read-only overview + deployment-catalog foundation implemented in PC-25; broader console surfaces deferred |
-| OR-6 | Grafana dashboards + trace correlation/deep links | PC-26 Tempo queryability prerequisite implemented; visualization/deep links deferred |
+| OR-6 | Grafana dashboards + trace correlation/deep links | PC-26 Tempo queryability + PC-27 bounded Grafana trace dashboard implemented; correlation/deep links deferred |
 | OR-7 | optional Langfuse OTLP fan-out | optional / not started |
 | OR-8 | one-command deterministic local demo | not started |
 | OR-9 | broader authentication/security hardening for operational surfaces | not started; minimum OR-4 access prerequisite pulled forward |
@@ -127,9 +129,11 @@ boundary needed to prevent OR-4 from becoming a global unauthenticated catalog. 
 boundaries for the first authenticated read-only endpoint. PC-23 adds explicit deployment-owned evidence
 binding, and PC-24 adds the bounded deployment catalog. PC-25 consumes only those certified read surfaces
 for the first console foundation. PC-26 proves the previously unverified Collector-to-Tempo hop with the
-real pinned containers and a bounded downstream query. None of these increments implies that deployment
-detail, evidence detail, routing-history persistence, Grafana visualization, dashboards, production
-browser identity/session handling or later admin surfaces are complete.
+real pinned containers and a bounded downstream query. PC-27 consumes that proof for one reviewed,
+file-provisioned Grafana trace table and does not introduce a broader dashboard framework. None of these
+increments implies that deployment detail, evidence detail, routing-history persistence, broader Grafana
+dashboards, Console trace correlation/deep links, production browser identity/session handling or later
+admin surfaces are complete.
 
 ## Read-only operations boundary
 
@@ -267,6 +271,13 @@ preserved. Integration-only recent-query settings remain outside the reusable Te
 Tempo HTTP test client is stdlib-only and validates the exact loopback boundary before request creation
 or connection opening.
 
+PC-27 adds the first real Grafana visualization proof without publishing Tempo from the reusable base
+stack. The dashboard provider is file-backed with UI updates disabled, the provisioned Tempo datasource
+is read-only, and the dashboard contains exactly one table target using
+`{ span:name = "llm.gateway.request" }`. The reusable `observability` network remains internal; only
+Grafana also joins the `grafana-host-access` bridge so `127.0.0.1:3000` remains reachable from the host.
+See `docs/project/GRAFANA_TRACE_DASHBOARD.md` for the exact boundary and non-claims.
+
 Observability is disabled by default. Explicit endpoint/environment process arguments enable it. A
 runtime configuration failure degrades to null telemetry; a configured facade is shut down best-effort
 when the runner returns or activation/runner fails. No telemetry backend is probed for startup or
@@ -344,16 +355,22 @@ emits through Collector OTLP/HTTP, requires trace-by-ID plus TraceQL evidence fr
 diagnostics, and always tears down containers and volumes. Exporter flush is necessary but is not treated
 as downstream query evidence.
 
+PC-27 adds the credential-free, path-scoped `grafana-dashboard` workflow. It validates the reusable
+Compose model, starts the real pinned Tempo and Grafana services, performs bounded Grafana readiness,
+retrieves the dashboard by its stable UID, requires Grafana to report file provisioning, and verifies the
+single reviewed Tempo/TraceQL target before teardown. No provider, PDP, SaaS or secret is required.
+
 Changes to the shared observability/readiness documentation trigger the Tempo query workflow. Existing
 observability workflows continue to validate their own path-scoped contracts on applicable candidate
 SHAs; none of these CI checks require provider, PDP, SaaS or secret access.
 
 ## Next slice
 
-PC-26 is deliberately the prerequisite for OR-6 visualization rather than the dashboard increment
-itself. No PC-27 issue should be opened until PC-26 is merged and its post-merge `main` gates are green.
-After that certification, re-audit the real `main` before deciding whether Grafana dashboard provisioning
-is the next smallest concrete gap.
+PC-27 is deliberately the smallest OR-6 visualization increment: one reviewed file-provisioned Grafana
+trace dashboard, not a dashboard platform. It is not complete until its reviewed head is squash-merged
+and the corresponding post-merge `main` gates are green. Only after that certification should the real
+`main` be re-audited before choosing the next gap, such as trace correlation/deep links or another
+strictly bounded operational-read surface.
 
 Deployment detail, evidence detail and recent routing history still require separate information-
 disclosure, completeness or persistence contracts before an endpoint or screen is added. Recent routing

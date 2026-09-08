@@ -1,0 +1,124 @@
+# Grafana Tempo Dashboard Proof
+
+PC-27 adds the first bounded Grafana visualization proof for the Governed LLM Gateway operational-evidence track.
+
+The capability is deliberately narrow: a file-provisioned, read-only Grafana dashboard queries the already-provisioned local Tempo datasource for real traces containing the stable `llm.gateway.request` span. Grafana remains an evidence surface only. It does not participate in authorization, ranking, health, retry, fallback, provider execution, startup readiness, or inference availability.
+
+Permanent invariant:
+
+```text
+Gateway allowed set ⊆ Policy Router authorized set
+```
+
+## Implemented capability
+
+The checked-in local stack provides:
+
+- the existing provisioned Tempo datasource with UID `tempo` and `editable: false`;
+- a file-backed dashboard provider with `allowUiUpdates: false`;
+- one dashboard with UID `governed-llm-gateway-traces` and title `Governed LLM Gateway — Traces`;
+- exactly one read-only table panel, `Recent gateway request traces`;
+- exactly one TraceQL query:
+
+```traceql
+{ span:name = "llm.gateway.request" }
+```
+
+The dashboard is intentionally small. PC-27 does not introduce a general dashboard framework, synthetic metrics, cost estimates, mutation controls, provider calls, Policy Router calls, or a second operational source of truth.
+
+## Local topology and network boundary
+
+The reusable local path remains:
+
+```text
+Gateway / a2a-otel-kit
+        │ OTLP/HTTP
+        ▼
+OpenTelemetry Collector
+        │
+        ▼
+      Tempo
+        │ internal Compose network
+        ▼
+     Grafana
+        │
+        └── 127.0.0.1:3000
+```
+
+The `observability` Compose network remains `internal: true`. Tempo is not host-published by the reusable base Compose file. Grafana is attached to both the internal `observability` network and a separate `grafana-host-access` bridge so its explicitly loopback-bound `127.0.0.1:3000` port remains reachable from the local host while Collector-to-Tempo traffic stays on the internal evidence network.
+
+The extra bridge is not an authorization or provider network and does not publish Tempo. The contract test protects this topology so a future change cannot silently replace the local-only boundary with `0.0.0.0` exposure or remove the internal observability network.
+
+## Run locally
+
+To start only the components required to inspect the provisioned dashboard:
+
+```bash
+docker compose -f compose.observability.yml up -d tempo grafana
+```
+
+Open:
+
+```text
+http://127.0.0.1:3000
+```
+
+The checked-in Grafana configuration enables anonymous `Viewer` access and disables the login form for this local demonstration only. It must not be presented as a production authentication configuration.
+
+To run the complete local observability path, including the OpenTelemetry Collector:
+
+```bash
+docker compose -f compose.observability.yml up -d
+```
+
+The dashboard displays real Tempo query results. An empty table means no matching trace is currently available in the selected Grafana time window; the UI does not fabricate sample traces or synthetic metrics.
+
+Stop the stack with:
+
+```bash
+docker compose -f compose.observability.yml down --volumes --remove-orphans
+```
+
+## Automated proof
+
+The credential-free `grafana-dashboard` workflow:
+
+1. validates the checked-in Compose model;
+2. starts the real pinned Tempo and Grafana containers;
+3. waits for the loopback Grafana health endpoint within a bounded window while requiring both services to remain running;
+4. retrieves dashboard UID `governed-llm-gateway-traces` from the Grafana API;
+5. requires Grafana to report `meta.provisioned == true`;
+6. requires the expected title and exactly one reviewed panel;
+7. requires that panel to use datasource UID `tempo`;
+8. requires exactly one target using `queryType == "traceql"` and the exact stable-span query;
+9. emits container logs on failure and always tears the stack down.
+
+The workflow requires no provider credential, Policy Router credential, Grafana credential, Tempo credential, SaaS account, or application secret. It does not create the dashboard through the Grafana API; provisioning must come from the checked-in files.
+
+The static contract test additionally rejects broad Grafana host exposure, Tempo host exposure in the reusable base Compose file, fake operational backends, mutation-oriented dashboard terms, credentials in the workflow, and drift from the reviewed network boundary.
+
+## Status semantics
+
+PC-27 uses three distinct states:
+
+- **implemented** — the reviewed provisioning, dashboard, Compose topology, contract test, and CI workflow exist on the branch;
+- **proven in CI** — the branch workflow has successfully booted the real containers and verified the provisioned dashboard contract;
+- **certified** — only after the reviewed branch is squash-merged with its validated immutable head SHA and all required post-merge `main` gates are green.
+
+Branch success must not be described as post-merge certification.
+
+## Non-claims
+
+PC-27 does **not** prove or provide:
+
+- production Grafana authentication, authorization, TLS, HA, backup, durability, or retention design;
+- fleet-complete telemetry or a telemetry freshness SLA;
+- production observability readiness;
+- provider or Policy Router reachability;
+- gateway inference readiness;
+- authorization, routing, ranking, health, retry, fallback, or circuit-breaker authority from Grafana or Tempo;
+- prompt, completion, tool argument/result, document, credential, or customer-payload capture;
+- a Gateway Console deep link or trace-correlation contract unless introduced by a later reviewed increment;
+- Langfuse or another SaaS observability dependency.
+
+Telemetry remains metadata-only by default, and evidence remains descriptive rather than authoritative.

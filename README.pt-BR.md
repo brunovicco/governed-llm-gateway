@@ -77,17 +77,18 @@ O gateway pode restringir o conjunto autorizado por capacidade, ambiente, govern
 - **Migração de projetos reais:** Phase 14 em andamento; `controlled-autonomy-lab` e `getnet-multi-agent-support-v2` estão concluídos, enquanto OpsLens permanece deliberadamente deferido.
 - **Avaliação:** todas as classes de benchmark listadas no roadmap estão representadas por contratos determinísticos revisados.
 - **Evidência operacional:** materialização limitada, gravação best-effort em runtime e handoff content-addressed por instância de origem estão implementados; completude compartilhada/de frota e policy de scoring operacional online não estão ativas.
+- **Evidência local de observabilidade:** receipt do Collector, queryability no Tempo e um dashboard de traces Grafana read-only provisionado por arquivo possuem provas de CI sem credenciais; isso não é uma afirmação de observabilidade pronta para produção.
 
 Para o checkpoint autoritativo do projeto e o sequenciamento da Phase 14, veja [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
 
 ## Baseline de qualidade
 
-O `main` atual está validado com:
+O quality gate validado mais recente reporta:
 
-- **782 testes passando**;
-- **82,52% de cobertura agregada**;
+- **1107 testes passando** e 2 skipped;
+- **83,70% de cobertura agregada**;
 - verificações strict de **mypy** e **Ruff**;
-- **Bandit: 0 findings** em 17.632 LOC;
+- **Bandit: 0 findings** em 22.842 LOC;
 - **pip-audit: nenhuma vulnerabilidade conhecida**;
 - architecture check, secret scan e Phase 0 gate passando.
 
@@ -99,6 +100,18 @@ uv run python scripts/quality_gate.py
 ```
 
 O caminho padrão de qualidade é determinístico e não exige credenciais.
+
+## Visualização local de traces
+
+A stack de observabilidade versionada no repositório fornece um dashboard Grafana read-only apoiado pelo datasource Tempo local provisionado:
+
+```bash
+docker compose -f compose.observability.yml up -d tempo grafana
+```
+
+Abra `http://127.0.0.1:3000`. O demo local vincula o Grafana ao loopback, mantém o Tempo sem exposição de host no Compose base reutilizável e não exige credencial do Grafana, provider ou Policy Router. A configuração de acesso anônimo como `Viewer` é apenas para o demo local e não representa uma arquitetura de autenticação para produção.
+
+O dashboard usa a query TraceQL estável `{ span:name = "llm.gateway.request" }` e exibe resultados reais do Tempo, sem fabricar traces ou métricas. Veja [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) para provisioning, prova de CI, fronteira de rede e non-claims exatos.
 
 ## Mapa do repositório
 
@@ -118,6 +131,7 @@ O caminho padrão de qualidade é determinístico e não exige credenciais.
 - [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — checkpoint autoritativo do projeto
 - [`docs/project/ROADMAP.md`](docs/project/ROADMAP.md) — roadmap de implementação e ledger de fases
 - [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — arquitetura de benchmark e evidência
+- [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) — prova local read-only de traces com Grafana/Tempo
 - [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — fronteira de autorização
 - [`docs/evaluation/OPERATIONAL_EVIDENCE.md`](docs/evaluation/OPERATIONAL_EVIDENCE.md) — modelo de evidência operacional recente
 - [`docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md`](docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md) — fronteira de structured output e autoridade de tools
