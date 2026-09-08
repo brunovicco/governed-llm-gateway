@@ -70,5 +70,3 @@ jobs:
       - name: Stop receipt Collector
         if: always()
         run: docker compose -f compose.collector-receipt.yml down --volumes --remove-orphans
-
-# pc24 validation trigger
