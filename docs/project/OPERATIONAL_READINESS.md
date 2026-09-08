@@ -181,6 +181,10 @@ receipt Collector, performs a bounded startup probe, emits one metadata-only spa
 `a2a-otel-kit`, requires positive appended receipt evidence and always tears the Collector down.
 Exporter `flush()` success alone is not sufficient proof of Collector receipt.
 
+Changes to the shared observability/readiness documentation trigger both the positive-receipt and local
+Compose validation workflows so the documented contract and the executable infrastructure are
+validated on the same candidate SHA.
+
 ## Completion rule
 
 No OR increment is considered complete until its pull request is merged and the corresponding
