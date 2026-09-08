@@ -52,14 +52,11 @@ def test_profile_has_exact_bounded_provider_and_authority_shape() -> None:
 
     validate_provider_runtime_registry(provider_runtime, registry)
 
+    providers = {deployment.provider for deployment in registry.deployments}
+    model_groups = {deployment.model_group for deployment in registry.deployments}
     assert len(registry.deployments) == 2
-    assert {deployment.provider for deployment in registry.deployments} == {
-        "google",
-        "openai",
-    }
-    assert {deployment.model_group for deployment in registry.deployments} == {
-        "balanced"
-    }
+    assert providers == {"google", "openai"}
+    assert model_groups == {"balanced"}
     assert all(
         deployment.allowed_environments == frozenset({"development"})
         for deployment in registry.deployments
