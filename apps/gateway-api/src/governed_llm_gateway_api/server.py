@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -11,6 +12,8 @@ from pathlib import Path
 from typing import Protocol
 
 import uvicorn
+from a2a_otel_kit.application.settings import ObservabilitySettings
+from a2a_otel_kit.entrypoints.observability import Observability
 from fastapi import FastAPI
 
 from .deployment_activation import GovernedDeploymentSettings, activate_governed_deployment
@@ -19,6 +22,13 @@ from .process_health import attach_process_health_routes
 _DEFAULT_HOST = "127.0.0.1"
 _DEFAULT_PORT = 8000
 _MAX_HOST_LENGTH = 253
+_GATEWAY_SERVICE_NAME = "governed-llm-gateway"
+_GATEWAY_SERVICE_VERSION = "0.1.0"
+_DEFAULT_OTLP_TIMEOUT_SECONDS = 10.0
+_OBSERVABILITY_SHUTDOWN_TIMEOUT_SECONDS = 5.0
+_OBSERVABILITY_LOG_LEVEL = "INFO"
+_OBSERVABILITY_LOG_FORMAT = "json"
+_LOGGER = logging.getLogger(__name__)
 
 
 class ServerRunner(Protocol):
@@ -44,6 +54,7 @@ class GovernedServerSettings:
     deployment: GovernedDeploymentSettings
     host: str = _DEFAULT_HOST
     port: int = _DEFAULT_PORT
+    observability: ObservabilitySettings | None = None
 
     def __post_init__(self) -> None:
         """Validate bounded server settings without reading artifacts or secrets."""
@@ -61,6 +72,19 @@ class GovernedServerSettings:
             raise TypeError("port must be an integer")
         if not 1 <= self.port <= 65_535:
             raise ValueError("port must be between 1 and 65535")
+        if self.observability is not None:
+            if not isinstance(self.observability, ObservabilitySettings):
+                raise TypeError("observability must use ObservabilitySettings")
+            if not self.observability.enabled:
+                raise ValueError("process-owned observability must be enabled or omitted")
+            if self.observability.service_name != _GATEWAY_SERVICE_NAME:
+                raise ValueError("observability service_name must use the Gateway process identity")
+            if self.observability.service_version != _GATEWAY_SERVICE_VERSION:
+                raise ValueError("observability service_version must use the Gateway process version")
+            if self.observability.log_level != _OBSERVABILITY_LOG_LEVEL:
+                raise ValueError("observability log_level is owned by the Gateway process")
+            if self.observability.log_format != _OBSERVABILITY_LOG_FORMAT:
+                raise ValueError("observability log_format is owned by the Gateway process")
 
 
 def parse_server_args(argv: Sequence[str]) -> GovernedServerSettings:
@@ -84,6 +108,7 @@ def parse_server_args(argv: Sequence[str]) -> GovernedServerSettings:
         deployment=deployment,
         host=args.host,
         port=args.port,
+        observability=_parse_observability_settings(args),
     )
 
 
@@ -93,18 +118,76 @@ def run_governed_server(
     environ: Mapping[str, str] | None = None,
     runner: ServerRunner | None = None,
 ) -> None:
-    """Compose the governed application first, then hand it to one ASGI runner."""
+    """Compose the governed application, serve it, and own optional telemetry lifecycle."""
     if not isinstance(settings, GovernedServerSettings):
         raise TypeError("settings must use GovernedServerSettings")
-    services = activate_governed_deployment(settings.deployment, environ=environ)
-    attach_process_health_routes(services.app)
-    selected_runner = UvicornServerRunner() if runner is None else runner
-    selected_runner.run(services.app, host=settings.host, port=settings.port)
+    observability = _configure_observability_best_effort(settings.observability)
+    try:
+        services = activate_governed_deployment(
+            settings.deployment,
+            environ=environ,
+            observability=observability,
+        )
+        attach_process_health_routes(services.app)
+        selected_runner = UvicornServerRunner() if runner is None else runner
+        selected_runner.run(services.app, host=settings.host, port=settings.port)
+    finally:
+        _shutdown_observability_best_effort(observability)
 
 
 def main() -> None:
     """Installed console-script entrypoint for the governed Gateway process."""
     run_governed_server(parse_server_args(sys.argv[1:]))
+
+
+def _parse_observability_settings(args: argparse.Namespace) -> ObservabilitySettings | None:
+    endpoint = args.otel_endpoint
+    environment = args.otel_environment
+    timeout_seconds = args.otel_timeout_seconds
+    if endpoint is None and environment is None and timeout_seconds is None:
+        return None
+    if endpoint is None or environment is None:
+        raise ValueError("--otel-endpoint and --otel-environment must be supplied together")
+    _require_normalized_observability_value(endpoint, name="--otel-endpoint")
+    _require_normalized_observability_value(environment, name="--otel-environment")
+    return ObservabilitySettings(
+        service_name=_GATEWAY_SERVICE_NAME,
+        service_version=_GATEWAY_SERVICE_VERSION,
+        environment=environment,
+        enabled=True,
+        otlp_endpoint=endpoint,
+        otlp_timeout_seconds=(
+            _DEFAULT_OTLP_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+        ),
+        log_level=_OBSERVABILITY_LOG_LEVEL,
+        log_format=_OBSERVABILITY_LOG_FORMAT,
+    )
+
+
+def _require_normalized_observability_value(value: str, *, name: str) -> None:
+    if not value or value.strip() != value or any(character.isspace() for character in value):
+        raise ValueError(f"{name} must be a non-empty normalized value without whitespace")
+
+
+def _configure_observability_best_effort(
+    settings: ObservabilitySettings | None,
+) -> Observability | None:
+    if settings is None:
+        return None
+    try:
+        return Observability.configure(settings)
+    except Exception:
+        _LOGGER.warning("Gateway observability configuration failed; continuing without telemetry")
+        return None
+
+
+def _shutdown_observability_best_effort(observability: Observability | None) -> None:
+    if observability is None:
+        return
+    try:
+        observability.shutdown(_OBSERVABILITY_SHUTDOWN_TIMEOUT_SECONDS)
+    except Exception:
+        _LOGGER.warning("Gateway observability shutdown failed; process termination continues")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -128,4 +211,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--default-max-cost-usd", required=True, type=Decimal)
     parser.add_argument("--host", default=_DEFAULT_HOST)
     parser.add_argument("--port", default=_DEFAULT_PORT, type=int)
+    parser.add_argument("--otel-endpoint")
+    parser.add_argument("--otel-environment")
+    parser.add_argument("--otel-timeout-seconds", type=float)
     return parser
