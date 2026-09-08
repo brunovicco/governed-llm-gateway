@@ -9,6 +9,8 @@ import pytest
 from governed_llm_gateway_api import (
     GovernedProcessArtifacts,
     GovernedProcessBootstrapPaths,
+    OperationsReadAccessDocumentError,
+    OperationsReadAuthorizationError,
     PolicyRouterClientAuthMismatchError,
     bootstrap_governed_process_runtime,
     load_gateway_client_auth_document_text,
@@ -141,12 +143,28 @@ def _policy_router_json(*, client_id: str = "service-a") -> str:
     )
 
 
+def _operations_access_json(*, environment: str = "development") -> str:
+    return json.dumps(
+        {
+            "schema_version": "1.0",
+            "config_version": "pc21-test",
+            "principals": [
+                {
+                    "client_id": "service-a",
+                    "environment": environment,
+                }
+            ],
+        }
+    )
+
+
 def _paths(
     tmp_path: Path,
     *,
     provider_runtime_text: str | None = None,
     client_auth_text: str | None = None,
     policy_router_text: str | None = None,
+    operations_access_text: str | None = None,
 ) -> GovernedProcessBootstrapPaths:
     registry_path = tmp_path / "model_registry.yaml"
     provider_runtime_path = tmp_path / "provider_runtime.json"
@@ -162,11 +180,16 @@ def _paths(
         policy_router_text or _policy_router_json(),
         encoding="utf-8",
     )
+    operations_access_path: Path | None = None
+    if operations_access_text is not None:
+        operations_access_path = tmp_path / "operations_access.json"
+        operations_access_path.write_text(operations_access_text, encoding="utf-8")
     return GovernedProcessBootstrapPaths(
         model_registry_path=registry_path,
         provider_runtime_path=provider_runtime_path,
         client_auth_path=client_auth_path,
         policy_router_path=policy_router_path,
+        operations_access_path=operations_access_path,
     )
 
 
@@ -211,7 +234,12 @@ def test_checked_in_defaults_finish_both_stages_without_secret_reads() -> None:
     assert artifacts.provider_runtime_document.bindings == ()
     assert artifacts.client_auth_document.bindings == ()
     assert artifacts.policy_router_runtime_document.runtime.enabled is False
+    assert artifacts.operations_access_document is None
+    assert artifacts.operations_access_policy.principals == ()
+    assert artifacts.operations_access_digest is None
+    assert artifacts.operations_access_config_version is None
     assert bundle.policy_router_adapter is None
+    assert bundle.operations_access_digest is None
     assert events == []
     assert artifacts.provider_runtime_config_version == "pc1-empty"
     assert artifacts.client_auth_config_version == "pc4-empty"
@@ -251,6 +279,30 @@ def test_provider_registry_mismatch_fails_before_all_secret_resolvers(tmp_path: 
     )
 
     with pytest.raises(ProviderRuntimeRegistryMismatchError):
+        bootstrap_governed_process_runtime(
+            paths,
+            client_secrets=client,
+            policy_router_secrets=policy,
+            provider_secrets=provider,
+        )
+
+    assert events == []
+    assert client.calls == []
+    assert policy.calls == []
+    assert provider.calls == []
+
+
+def test_operations_access_mismatch_fails_before_all_secret_resolvers(tmp_path: Path) -> None:
+    client, policy, provider, events = _secrets()
+    paths = _paths(
+        tmp_path,
+        operations_access_text=_operations_access_json(environment="production"),
+    )
+
+    with pytest.raises(
+        OperationsReadAccessDocumentError,
+        match="must reference configured Gateway client identities",
+    ):
         bootstrap_governed_process_runtime(
             paths,
             client_secrets=client,
@@ -305,9 +357,46 @@ def test_valid_staged_runtime_resolves_once_in_least_privilege_order(tmp_path: P
     assert context.environment == "development"
     assert context.risk_level is RiskLevel.HIGH
     assert context.data_classification is DataClassification.CONFIDENTIAL
+    with pytest.raises(OperationsReadAuthorizationError):
+        asyncio.run(bundle.operations_read_access.authorize(api_key="pc8-client-opaque"))
     assert client.calls == ["GATEWAY_CLIENT_A_KEY"]
     assert policy.calls == ["POLICY_SERVICE_A_KEY"]
     assert provider.calls == ["OPENAI_API_KEY"]
+
+
+def test_configured_operations_access_reuses_materialized_client_authenticator(
+    tmp_path: Path,
+) -> None:
+    client, policy, provider, events = _secrets()
+    artifacts = load_governed_process_artifacts(
+        _paths(tmp_path, operations_access_text=_operations_access_json())
+    )
+
+    assert events == []
+    bundle = materialize_governed_process_runtime(
+        artifacts,
+        client_secrets=client,
+        policy_router_secrets=policy,
+        provider_secrets=provider,
+    )
+
+    identity = asyncio.run(
+        bundle.operations_read_access.authorize(api_key="pc8-client-opaque")
+    )
+
+    assert identity.client_id == "service-a"
+    assert identity.environment == "development"
+    assert artifacts.operations_access_document is not None
+    assert artifacts.operations_access_config_version == "pc21-test"
+    assert artifacts.operations_access_digest == bundle.operations_access_digest
+    assert artifacts.operations_access_digest is not None
+    assert len(artifacts.operations_access_digest) == 64
+    assert events == [
+        "client:GATEWAY_CLIENT_A_KEY",
+        "policy:POLICY_SERVICE_A_KEY",
+        "provider:OPENAI_API_KEY",
+    ]
+    assert client.calls == ["GATEWAY_CLIENT_A_KEY"]
 
 
 def test_artifact_bundle_direct_construction_revalidates_policy_client_boundary() -> None:
