@@ -1,5 +1,6 @@
 """Contract tests for deployment-owned activation settings above the staged bootstrap."""
 
+import asyncio
 import json
 from collections.abc import Iterator, Mapping
 from decimal import Decimal
@@ -7,7 +8,12 @@ from pathlib import Path
 
 import pytest
 from fastapi.routing import APIRoute
-from governed_llm_gateway_api import GovernedDeploymentSettings, activate_governed_deployment
+from governed_llm_gateway_api import (
+    GovernedDeploymentSettings,
+    OperationsReadAccessDocumentError,
+    OperationsReadAuthorizationError,
+    activate_governed_deployment,
+)
 from governed_llm_gateway_core.domain.model_registry import ModelRegistryError
 
 
@@ -39,6 +45,7 @@ def _settings(
     approved_ranking_artifact_path: Path | None = None,
     expected_ranking_artifact_id: str | None = None,
     complexity_routing_path: Path | None = None,
+    operations_access_path: Path | None = None,
     default_max_latency_ms: int = 5_000,
     default_max_cost_usd: Decimal = Decimal("1.25"),
 ) -> GovernedDeploymentSettings:
@@ -52,6 +59,7 @@ def _settings(
         approved_ranking_artifact_path=approved_ranking_artifact_path,
         expected_ranking_artifact_id=expected_ranking_artifact_id,
         complexity_routing_path=complexity_routing_path,
+        operations_access_path=operations_access_path,
         default_max_latency_ms=default_max_latency_ms,
         default_max_cost_usd=default_max_cost_usd,
     )
@@ -156,9 +164,31 @@ workloads: {}
     )
 
 
+def _write_operations_access(root: Path, *, environment: str = "development") -> None:
+    (root / "config/operations-access.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "config_version": "pc21-test",
+                "principals": [
+                    {
+                        "client_id": "service-a",
+                        "environment": environment,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_settings_resolve_relative_paths_deterministically(tmp_path: Path) -> None:
     root = tmp_path.resolve()
-    settings = _settings(root, complexity_routing_path=Path("config/complexity.json"))
+    settings = _settings(
+        root,
+        complexity_routing_path=Path("config/complexity.json"),
+        operations_access_path=Path("config/operations-access.json"),
+    )
 
     first = settings.bootstrap_paths
     second = settings.bootstrap_paths
@@ -168,6 +198,7 @@ def test_settings_resolve_relative_paths_deterministically(tmp_path: Path) -> No
     assert first.process.provider_runtime_path == root / "config/provider-runtime.json"
     assert first.process.client_auth_path == root / "config/client-auth.json"
     assert first.process.policy_router_path == root / "config/policy-router.json"
+    assert first.process.operations_access_path == root / "config/operations-access.json"
     assert first.ranking_policy_path == root / "config/ranking.yaml"
     assert first.complexity_routing_path == root / "config/complexity.json"
     assert settings.projection_defaults.max_latency_ms == 5_000
@@ -178,6 +209,16 @@ def test_relative_artifact_path_cannot_escape_deployment_root(tmp_path: Path) ->
     settings = _settings(tmp_path.resolve(), model_registry_path=Path("../registry.yaml"))
 
     with pytest.raises(ValueError, match="model_registry_path must not escape deployment_root"):
+        _ = settings.bootstrap_paths
+
+
+def test_operations_access_path_cannot_escape_deployment_root(tmp_path: Path) -> None:
+    settings = _settings(
+        tmp_path.resolve(),
+        operations_access_path=Path("../operations-access.json"),
+    )
+
+    with pytest.raises(ValueError, match="operations_access_path must not escape deployment_root"):
         _ = settings.bootstrap_paths
 
 
@@ -226,6 +267,69 @@ def test_invalid_artifact_fails_before_environment_secret_lookup(tmp_path: Path)
         activate_governed_deployment(settings, environ=environment)
 
     assert environment.lookups == []
+
+
+def test_unknown_operations_principal_fails_before_environment_secret_lookup(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    _write_valid_static_deployment(root)
+    _write_operations_access(root, environment="production")
+    environment = RecordingEnvironment()
+    settings = _settings(
+        root,
+        operations_access_path=Path("config/operations-access.json"),
+    )
+
+    with pytest.raises(
+        OperationsReadAccessDocumentError,
+        match="must reference configured Gateway client identities",
+    ):
+        activate_governed_deployment(settings, environ=environment)
+
+    assert environment.lookups == []
+
+
+def test_omitted_operations_access_materializes_deny_all_policy(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    _write_valid_static_deployment(root)
+    services = activate_governed_deployment(
+        _settings(root),
+        environ={
+            "GATEWAY_CLIENT_A_KEY": "pc12-client-opaque",
+            "POLICY_SERVICE_A_KEY": "pc12-policy-opaque",
+            "OPENAI_API_KEY": "pc12-provider-opaque",
+        },
+    )
+
+    with pytest.raises(OperationsReadAuthorizationError, match="operations read access denied"):
+        asyncio.run(
+            services.operations_read_access.authorize(api_key="pc12-client-opaque")
+        )
+
+
+def test_configured_operations_access_authorizes_exact_runtime_principal(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    _write_valid_static_deployment(root)
+    _write_operations_access(root)
+    services = activate_governed_deployment(
+        _settings(
+            root,
+            operations_access_path=Path("config/operations-access.json"),
+        ),
+        environ={
+            "GATEWAY_CLIENT_A_KEY": "pc12-client-opaque",
+            "POLICY_SERVICE_A_KEY": "pc12-policy-opaque",
+            "OPENAI_API_KEY": "pc12-provider-opaque",
+        },
+    )
+
+    identity = asyncio.run(
+        services.operations_read_access.authorize(api_key="pc12-client-opaque")
+    )
+
+    assert identity.client_id == "service-a"
+    assert identity.environment == "development"
+    route_paths = {route.path for route in services.app.routes if isinstance(route, APIRoute)}
+    assert not any(path.startswith("/v1/ops") for path in route_paths)
 
 
 def test_valid_settings_delegate_to_existing_governed_service_graph(tmp_path: Path) -> None:
