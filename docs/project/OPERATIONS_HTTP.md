@@ -1,20 +1,21 @@
-# Authenticated Operations Overview HTTP Contract
+# Authenticated Operations HTTP Contract
 
 ## Purpose
 
-PC-22 / OR-4C exposes the first read-only Operations HTTP surface after the typed read model (PC-18/PC-19) and the independent authenticated visibility boundary plus deployment-owned grants (PC-20/PC-21) are already in place. PC-23 optionally binds one already-reviewed deployment-owned operational-evidence snapshot into that same read path.
+PC-22 / OR-4C introduced the first read-only Operations HTTP surface after the typed read model (PC-18/PC-19) and the independent authenticated visibility boundary plus deployment-owned grants (PC-20/PC-21) were already in place. PC-23 optionally binds one already-reviewed deployment-owned operational-evidence snapshot into that same read path. PC-24 adds a second bounded read-only projection for the active deployment catalog.
 
-The only implemented endpoint remains:
+The implemented endpoints are:
 
 ```text
 GET /v1/ops/overview
+GET /v1/ops/deployments
 ```
 
-It is an intentionally bounded overview, not a model catalog, deployment-detail API, evidence-detail API, control plane, or inference authorization surface.
+They are descriptive operator surfaces, not deployment-detail APIs, evidence-detail APIs, control-plane mutation APIs, or inference authorization surfaces.
 
 ## Authentication and authorization order
 
-The endpoint reuses the existing Gateway credential header:
+Both endpoints reuse the existing Gateway credential header:
 
 ```text
 X-Gateway-API-Key
@@ -29,12 +30,12 @@ OperationsReadAccessService.authorize(...)
         ↓ exact authenticated (client_id, environment) grant
 DeploymentOperationsSnapshotReader.snapshot()
         ↓ already-composed OperationsReadModelService
-bounded overview projection
+bounded HTTP projection
 ```
 
-Authorization MUST complete before the operations snapshot is read. Missing/invalid credentials and authenticated-but-ungranted callers therefore cannot observe registry, ranking, health, or operational-evidence state.
+Authorization MUST complete before the operations snapshot is read. Missing/invalid credentials and authenticated-but-ungranted callers therefore cannot observe registry, ranking, health, operational-evidence state, or the deployment catalog.
 
-The endpoint does not construct a synthetic workload, call the Policy Router, resolve a provider, execute inference, resolve another credential, reopen evidence files, or discover artifacts. `OperationsReadAccessService` continues to reuse the already-materialized `StaticGatewayClientContextResolver` established at process startup.
+The endpoints do not construct a synthetic workload, call the Policy Router, resolve a provider, execute inference, resolve another credential, reopen evidence files, or discover artifacts. `OperationsReadAccessService` continues to reuse the already-materialized `StaticGatewayClientContextResolver` established at process startup.
 
 ## HTTP failures
 
@@ -44,13 +45,13 @@ The adapter emits stable sanitized failures:
 | --- | --- | --- |
 | 401 | `invalid_gateway_credential` | credential is missing or authentication failed |
 | 403 | `operations_read_access_denied` | authenticated principal has no exact operations-read grant |
-| 503 | `operations_snapshot_unavailable` | the read model or bounded overview invariant failed |
+| 503 | `operations_snapshot_unavailable` | the read model or bounded projection cannot be produced safely |
 
 Raw exceptions, principal identifiers, grant contents, credentials, secret references, provider errors, and internal snapshot details are not serialized.
 
-## Response boundary
+## Overview response boundary
 
-The response contains only four bounded sections:
+`GET /v1/ops/overview` contains only four bounded sections:
 
 - `registry`: schema/catalog provenance, source date, digest, and deployment count;
 - `ranking`: policy provenance, score snapshot identity, and optional ranking-evidence provenance identifiers;
@@ -59,37 +60,52 @@ The response contains only four bounded sections:
 
 The aggregate health count must exactly equal the active registry deployment count. A mismatch fails closed with the sanitized 503 response rather than returning a partial or misleading overview.
 
-PC-23 does not widen the operational-evidence HTTP projection. A configured valid artifact changes only `operational_evidence.state` to `available`; the response still excludes individual evidence records and provenance fields.
+PC-23 does not widen the operational-evidence HTTP projection. A configured valid artifact changes only `operational_evidence.state` to `available`; the overview still excludes individual evidence records and provenance fields.
 
-The response intentionally excludes:
+The overview intentionally excludes authenticated principal identity, operations grant metadata, deployment/model/provider identities, per-deployment counters and latency, evidence records, workload authorization, secret/config references, raw provider/Policy Router state, and mutable resilience internals.
 
-- authenticated principal identity;
-- operations grant metadata;
-- deployment IDs;
-- provider names;
-- model IDs;
-- API families;
-- per-deployment counters or latency;
-- operational-evidence records, collector identity, timestamps, or `evidence_id`;
-- workload authorization;
-- secret/config references;
-- raw provider/Policy Router state;
-- mutable resilience internals.
+## Deployment catalog response boundary
+
+`GET /v1/ops/deployments` exposes the deterministic deployment ordering already supplied by the typed `OperationsSnapshot`. The response declares:
+
+```text
+health_scope = process_local
+```
+
+Each deployment contains only the approved catalog fields already projected by `OperationsDeploymentSummary`:
+
+- `deployment_id`;
+- `provider`;
+- `model_id`;
+- `model_group`;
+- `api_family`;
+- `enabled`;
+- `capabilities`;
+- `modalities`;
+- `context_tokens`;
+- `max_data_classification`;
+- `allowed_environments`;
+- `pricing_snapshot_version`;
+- coarse process-local health: `status` and `circuit_state`.
+
+PC-24 deliberately excludes mutable execution counters and detailed runtime measurements, including request/success/failure counts, transient failure counts, timeout/rate-limit/server-error counts, consecutive-failure counts, and last latency. It also excludes provider endpoints, credential references, secrets, operations principal/grant metadata, operational-evidence records, and raw SDK state.
+
+`process_local` is a scope claim, not fleet completeness. A deployment health value must not be presented as global or fleet-complete state.
 
 ## Composition
 
-`compose_governed_gateway_services(...)` attaches the endpoint to the existing FastAPI application using the exact already-composed access service plus one immutable snapshot reader:
+`compose_governed_gateway_services(...)` attaches both endpoints to the existing FastAPI application using the exact already-composed access service plus one immutable snapshot reader:
 
 ```text
 GovernedGatewayServices.operations_read_access
 GovernedGatewayServices.operations_snapshot_reader
 ```
 
-The snapshot reader wraps the exact active `OperationsReadModelService` and the optional `OperationalEvidenceSnapshot` that was loaded and validated during secret-free application startup. It does not perform artifact I/O per request.
+The snapshot reader wraps the exact active `OperationsReadModelService` and the optional `OperationalEvidenceSnapshot` loaded and validated during secret-free application startup. It does not perform artifact I/O per request.
 
-No new secret resolver, network client, PDP adapter, provider adapter, health tracker, or ranking authority is created for the HTTP surface.
+No new secret resolver, network client, PDP adapter, provider adapter, health tracker, or ranking authority is created for the HTTP surfaces.
 
-Duplicate route attachment fails before a second `/v1/ops/overview` route is registered.
+Operations route attachment owns both `/v1/ops/overview` and `/v1/ops/deployments`. The composition checks both paths before registering either route, so a conflict fails closed before partial attachment. Re-attaching the owned Operations surface also fails closed.
 
 See `docs/project/OPERATIONAL_EVIDENCE_BINDING.md` for the PC-23 startup/binding and non-authority contract.
 
@@ -101,15 +117,16 @@ The permanent inference invariant remains unchanged:
 Gateway allowed set ⊆ Policy Router authorized set
 ```
 
-Operations visibility is descriptive and independently granted. Reading the overview cannot authorize models, widen or restore PDP output, change eligibility/complexity/ranking, mutate health/circuit state, affect retry/fallback, execute providers, or mutate runtime configuration.
+Operations visibility is descriptive and independently granted. Reading either endpoint cannot authorize models, widen or restore PDP output, change eligibility/complexity/ranking, mutate health/circuit state, affect retry/fallback, execute providers, or mutate runtime configuration.
 
 Health and evidence remain descriptive signals, not authority.
 
 ## Deferred
 
-PC-22/PC-23 do not add:
+PC-24 does not add:
 
-- `/v1/ops/deployments` or deployment detail;
+- `GET /v1/ops/deployments/{deployment_id}`;
+- detailed per-deployment counters or latency;
 - operational-evidence detail serialization;
 - operational-evidence automatic refresh/discovery or freshness policy;
 - recent routing-history persistence or API;
@@ -119,4 +136,4 @@ PC-22/PC-23 do not add:
 - React Gateway Console;
 - Phase 14 consumer integrations.
 
-Each remains a separate reviewable increment so visibility, evidence lifecycle, persistence, fleet semantics, external identity, and mutation authority are not collapsed into one admin surface.
+Each remains a separate reviewable increment so catalog visibility, evidence lifecycle, persistence, fleet semantics, external identity, and mutation authority are not collapsed into one admin surface.
