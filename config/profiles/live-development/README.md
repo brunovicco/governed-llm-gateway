@@ -228,7 +228,8 @@ The SSE stream is backend evidence. Inspect the terminal routing/execution field
 After the Policy Router and Gateway are already running, and after exporting only the two consumer variables from step 4, run:
 
 ```bash
-uv run --frozen python scripts/live_development_smoke.py --live
+uv run --frozen --package governed-llm-gateway-client \
+  python scripts/live_development_smoke.py --live
 ```
 
 The `--live` flag is mandatory. Omitting it exits before any network call. The harness uses `GatewayClient.from_env()` and therefore reads only:
