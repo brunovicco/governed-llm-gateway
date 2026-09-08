@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "config_version": "pc37-live-development-ops-v1",
+  "principals": [
+    {
+      "client_id": "gateway-demo",
+      "environment": "development"
+    }
+  ]
+}

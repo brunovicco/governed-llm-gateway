@@ -100,6 +100,7 @@ uv run --frozen --package governed-llm-gateway-api governed-llm-gateway \
   --model-registry-path config/profiles/live-development/model_registry.yaml \
   --provider-runtime-path config/profiles/live-development/provider_runtime.json \
   --client-auth-path config/profiles/live-development/client_auth.json \
+  --operations-access-path config/profiles/live-development/operations_access.json \
   --policy-router-path config/profiles/live-development/policy_router.json \
   --ranking-policy-path config/profiles/live-development/ranking_policy.yaml \
   --default-max-latency-ms 60000 \
@@ -112,7 +113,25 @@ To export metadata-only traces into the optional local observability stack, add 
 
 Startup validates all no-secret artifacts and cross-artifact invariants before resolving Gateway, PDP, or provider credentials. A missing required credential fails closed.
 
-## 4. Execute one governed request with the thin SDK
+`operations_access.json` is a separate secret-free visibility policy. It grants Operations read visibility only to the authenticated `gateway-demo/development` identity and is cross-validated against `client_auth.json`. The same presented `GATEWAY_DEMO_API_KEY` is authenticated once, but Operations visibility and inference authorization remain independent policy decisions. Operations access cannot widen PDP-authorized model groups, deployment eligibility, ranking, retry, fallback, or provider execution.
+
+## 4. Optional: connect the existing Gateway Console
+
+The current Console is read-only Operations UI. It does not yet submit inference requests.
+
+With the Gateway from step 3 running, start the Vite Console from the repository root:
+
+```bash
+cd apps/gateway-console
+npm ci
+npm run dev
+```
+
+Open `http://127.0.0.1:5173` and enter the current value of `GATEWAY_DEMO_API_KEY` into the `X-Gateway-API-Key` field. The Vite development server proxies only relative `/v1` requests to `http://127.0.0.1:8000`; the credential stays in the page's React state and is cleared on disconnect. Do not place the credential in frontend configuration, URLs, browser storage, or source files.
+
+A successful connection proves only the explicit Operations visibility grant for the authenticated identity. It does not prove or create inference authorization.
+
+## 5. Execute one governed request with the thin SDK
 
 The canonical consumer contract contains only the Gateway URL and Gateway credential:
 
@@ -223,9 +242,9 @@ curl --no-buffer \
 
 The SSE stream is backend evidence. Inspect the terminal routing/execution fields rather than inferring provider selection in the client. Retry/fallback may move only to another eligible deployment already inside the PDP-authorized `balanced` group.
 
-## 5. Run the repeatable opt-in smoke harness
+## 6. Run the repeatable opt-in smoke harness
 
-After the Policy Router and Gateway are already running, and after exporting only the two consumer variables from step 4, run:
+After the Policy Router and Gateway are already running, and after exporting only the two consumer variables from step 5, run:
 
 ```bash
 uv run --frozen --package governed-llm-gateway-client \
@@ -245,7 +264,7 @@ A successful run prints exactly one metadata-only JSON object containing the req
 
 The harness implementation and credential-free unit tests do not by themselves certify live-provider execution. Record a successful explicit operator run separately before claiming portfolio/demo-ready live inference.
 
-## 6. Teardown
+## 7. Teardown
 
 Stop the Gateway and Policy Router processes with `Ctrl+C`. If you started the observability stack:
 

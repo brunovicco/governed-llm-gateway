@@ -8,6 +8,11 @@ from governed_llm_gateway_api import (
     GovernedDeploymentSettings,
     activate_governed_deployment,
 )
+from governed_llm_gateway_api.client_auth_json import load_gateway_client_auth_document
+from governed_llm_gateway_api.operations_access_json import (
+    load_operations_read_access_document,
+    validate_operations_access_client_auth,
+)
 from governed_llm_gateway_core.adapters import (
     load_model_registry,
     load_policy_router_runtime_document,
@@ -35,6 +40,7 @@ def _settings() -> GovernedDeploymentSettings:
         client_auth_path=_PROFILE_REL / "client_auth.json",
         policy_router_path=_PROFILE_REL / "policy_router.json",
         ranking_policy_path=_PROFILE_REL / "ranking_policy.yaml",
+        operations_access_path=_PROFILE_REL / "operations_access.json",
         default_max_latency_ms=60_000,
         default_max_cost_usd=Decimal("0.05"),
     )
@@ -45,8 +51,11 @@ def test_profile_has_exact_bounded_provider_and_authority_shape() -> None:
     provider_runtime = load_provider_runtime_document(_PROFILE / "provider_runtime.json")
     policy_runtime = load_policy_router_runtime_document(_PROFILE / "policy_router.json")
     ranking = load_ranking_policy(_PROFILE / "ranking_policy.yaml")
+    client_auth = load_gateway_client_auth_document(_PROFILE / "client_auth.json")
+    operations_access = load_operations_read_access_document(_PROFILE / "operations_access.json")
 
     validate_provider_runtime_registry(provider_runtime, registry)
+    validate_operations_access_client_auth(operations_access, client_auth)
 
     providers = {deployment.provider for deployment in registry.deployments}
     model_groups = {deployment.model_group for deployment in registry.deployments}
@@ -65,6 +74,11 @@ def test_profile_has_exact_bounded_provider_and_authority_shape() -> None:
     assert tuple(binding.client_id for binding in policy_runtime.runtime.bindings) == (
         "gateway-demo",
     )
+    assert operations_access.config_version == "pc37-live-development-ops-v1"
+    assert tuple(
+        (principal.client_id, principal.environment)
+        for principal in operations_access.policy.principals
+    ) == (("gateway-demo", "development"),)
 
     workload = ranking.for_workload("rag.answer")
     google_score = workload.score_for("google-gemini-3-8-flash-dev")
@@ -94,6 +108,8 @@ def test_profile_materializes_without_network_calls() -> None:
     paths = {getattr(route, "path", None) for route in services.app.routes}
     assert "/v1/generate" in paths
     assert "/v1/route/explain" in paths
+    assert "/v1/ops/overview" in paths
+    assert "/v1/ops/deployments" in paths
     assert services.complexity_enabled is False
 
 
