@@ -55,6 +55,17 @@ def test_tempo_query_proof_emits_through_collector_and_queries_tempo() -> None:
     assert "4317" not in integration
 
 
+def test_tempo_query_http_client_is_stdlib_and_loopback_validated() -> None:
+    integration = _text(_INTEGRATION_TEST_PATH)
+
+    assert "from urllib.request import Request, urlopen" in integration
+    assert "from urllib.parse import urlencode, urlsplit" in integration
+    assert "_require_reviewed_tempo_endpoint" in integration
+    assert 'parsed.hostname != "127.0.0.1"' in integration
+    assert 'parsed.port != 3200' in integration
+    assert "httpx" not in integration
+
+
 def test_tempo_query_workflow_is_credential_free_and_always_tears_down() -> None:
     workflow = _text(_QUERY_WORKFLOW_PATH)
 
