@@ -6,13 +6,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+from governed_llm_gateway_api.client_auth import GatewayClientIdentity
 from governed_llm_gateway_api.operations_access import OperationsReadAuthorizationError
 from governed_llm_gateway_api.operations_http import (
     OperationsHttpCompositionError,
     attach_operations_routes,
 )
 from governed_llm_gateway_api.route_explain import ClientAuthenticationError
-from governed_llm_gateway_api.client_auth import GatewayClientIdentity
 from governed_llm_gateway_core.application import (
     OperationalEvidenceNotSupplied,
     OperationsDeploymentSummary,
