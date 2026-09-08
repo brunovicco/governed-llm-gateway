@@ -1,0 +1,108 @@
+name: local-demo-smoke
+
+on:
+  pull_request:
+    paths:
+      - scripts/local_demo.py
+      - scripts/__init__.py
+      - tests/contract/test_local_demo_orchestration.py
+      - apps/gateway-api/pyproject.toml
+      - apps/gateway-api/src/governed_llm_gateway_api/operations_demo.py
+      - examples/local-demo/**
+      - apps/gateway-console/**
+      - compose.observability.yml
+      - deploy/observability/**
+      - docs/project/LOCAL_DEMO_ORCHESTRATION.md
+      - .github/workflows/local-demo-smoke.yml
+  push:
+    branches:
+      - main
+      - feat/**
+    paths:
+      - scripts/local_demo.py
+      - scripts/__init__.py
+      - tests/contract/test_local_demo_orchestration.py
+      - apps/gateway-api/pyproject.toml
+      - apps/gateway-api/src/governed_llm_gateway_api/operations_demo.py
+      - examples/local-demo/**
+      - apps/gateway-console/**
+      - compose.observability.yml
+      - deploy/observability/**
+      - docs/project/LOCAL_DEMO_ORCHESTRATION.md
+      - .github/workflows/local-demo-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  local-demo-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.20.0
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Sync locked Python dependencies
+        run: uv sync --frozen
+      - name: Generate ephemeral local demo credential
+        run: |
+          demo_key="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          echo "::add-mask::$demo_key"
+          printf 'GATEWAY_LOCAL_DEMO_API_KEY=%s\n' "$demo_key" >> "$GITHUB_ENV"
+      - name: Run real local demo smoke test
+        run: uv run --frozen --python 3.13 python scripts/local_demo.py --smoke-test
+      - name: Require deterministic smoke-test cleanup
+        run: |
+          running_services="$(
+            env -u GATEWAY_LOCAL_DEMO_API_KEY \
+              docker compose \
+              --project-name governed-llm-gateway-demo \
+              -f compose.observability.yml \
+              ps --status running --services
+          )"
+          if [ -n "$running_services" ]; then
+            printf 'local demo Compose services still running after smoke test:\n%s\n' \
+              "$running_services" >&2
+            exit 1
+          fi
+          python3 - <<'PY'
+          import socket
+          import time
+
+          ports = (3000, 4318, 5173, 8000)
+          deadline = time.monotonic() + 5.0
+          while True:
+              open_ports = []
+              for port in ports:
+                  with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+                      probe.settimeout(0.2)
+                      if probe.connect_ex(("127.0.0.1", port)) == 0:
+                          open_ports.append(port)
+              if not open_ports:
+                  break
+              if time.monotonic() >= deadline:
+                  raise SystemExit(
+                      f"local demo listeners still open after smoke-test cleanup: {open_ports}"
+                  )
+              time.sleep(0.1)
+          PY
+      - name: Preserve sanitized failure diagnostics
+        if: failure()
+        run: |
+          env -u GATEWAY_LOCAL_DEMO_API_KEY \
+            docker compose \
+            --project-name governed-llm-gateway-demo \
+            -f compose.observability.yml \
+            ps -a || true
+      - name: Enforce final Compose cleanup
+        if: always()
+        run: |
+          env -u GATEWAY_LOCAL_DEMO_API_KEY \
+            docker compose \
+            --project-name governed-llm-gateway-demo \
+            -f compose.observability.yml \
+            down --volumes --remove-orphans
