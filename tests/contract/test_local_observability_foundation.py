@@ -61,12 +61,13 @@ def test_collector_exports_only_metadata_traces_to_internal_tempo() -> None:
     collector = _text(_COLLECTOR_PATH)
 
     assert "endpoint: 0.0.0.0:4318" in collector
-    assert collector.count("otlp/tempo") == 2
+    assert collector.count("otlp_grpc/tempo") == 2
+    assert "otlp/tempo" not in collector
     assert "endpoint: tempo:4317" in collector
     assert "processors:\n  batch: {}" in collector
     assert "      receivers:\n        - otlp" in collector
     assert "      processors:\n        - batch" in collector
-    assert "      exporters:\n        - otlp/tempo" in collector
+    assert "      exporters:\n        - otlp_grpc/tempo" in collector
 
 
 def test_tempo_uses_internal_otlp_local_storage_and_tempo3_retention() -> None:
