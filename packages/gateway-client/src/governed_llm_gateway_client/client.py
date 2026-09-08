@@ -332,9 +332,7 @@ def _validated_base_url(value: str) -> str:
         except ValueError:
             loopback_http = False
     if parsed.scheme != "https" and not loopback_http:
-        raise GatewayConfigurationError(
-            "gateway base URL must use HTTPS or literal loopback HTTP"
-        )
+        raise GatewayConfigurationError("gateway base URL must use HTTPS or literal loopback HTTP")
     if parsed.username is not None or parsed.password is not None:
         raise GatewayConfigurationError("gateway base URL must not contain userinfo")
     if parsed.query or parsed.fragment:
