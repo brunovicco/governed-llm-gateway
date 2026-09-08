@@ -113,6 +113,36 @@ credential.
 A remote observability backend must never become an inference-availability dependency. Export or
 flush failure cannot change an otherwise valid provider result.
 
+## Process-owned observability lifecycle
+
+PC-17 owns optional `a2a-otel-kit` lifecycle at the executable Gateway process boundary without moving
+telemetry into authorization or readiness.
+
+Observability remains disabled by default. Explicit process opt-in requires both:
+
+```text
+--otel-endpoint <http-or-https-OTLP-HTTP-endpoint>
+--otel-environment <normalized-environment>
+```
+
+The process supplies the complete `ObservabilitySettings` contract explicitly, including the fixed
+service identity/version, timeout, log level and log format. Ambient `A2A_OTEL_*` values therefore do
+not override process-owned settings. No CLI path exists for OTLP credentials, Authorization headers,
+Langfuse configuration or content capture.
+
+Structurally invalid observability settings fail before deployment activation. Operational
+`Observability.configure()` failure is different: the process emits a static warning and continues
+activation with `observability=None`, preserving `NullGatewayTelemetry`. No Collector reachability
+probe is performed.
+
+When configuration succeeds, that exact instance is injected through the existing deployment and
+service composition path. The process owns it until the runner exits and performs best-effort
+`shutdown()` in a `finally` boundary. Shutdown failure is suppressed with a static warning so it cannot
+mask activation/runner behavior or become an inference dependency.
+
+`/livez` and `/readyz` remain derived from successful bootstrap only. Exporter state, Collector
+availability, flush success and shutdown success do not participate in either endpoint.
+
 ## Routing and authorization evidence
 
 Metadata-only routing evidence can include:
@@ -223,17 +253,20 @@ The receipt Collector exports only to a local test file. It does not require a p
 Tempo, Grafana, Langfuse, SaaS backend, API key or application secret. See
 `docs/project/COLLECTOR_RECEIPT.md` for the complete boundary and non-claims.
 
-Positive receipt proves Collector delivery only. It does not prove Tempo persistence/queryability,
-Grafana visualization, executable-process observability lifecycle, fleet completeness or production
-readiness.
+Positive receipt proves Collector delivery only. It does not itself prove Tempo persistence/queryability,
+Grafana visualization, process lifecycle correctness, fleet completeness or production readiness.
+PC-17 separately proves the executable-process lifecycle contract with deterministic contract tests;
+it does not change the narrower meaning of the PC-16 receipt evidence.
 
 ## Next operational increment
 
-PC-15 established the local Collector + Tempo + Grafana foundation and PC-16 established deterministic
-positive Collector receipt evidence. Before binding observability lifecycle into the executable
-Gateway process, the process composition boundary must be audited explicitly so configuration,
-flush/shutdown failure and backend availability cannot become authorization, readiness or inference
-dependencies.
+PC-15 established the local Collector + Tempo + Grafana foundation, PC-16 established deterministic
+positive Collector receipt evidence, and PC-17 established optional process-owned observability
+configuration/injection/shutdown without making telemetry an availability dependency.
+
+The next product-readiness slice should return to the read-only operations track and audit the typed
+operations read model boundary before introducing new API or UI surfaces. Tempo query verification,
+Grafana dashboards and Langfuse remain separate later increments.
 
 Langfuse remains optional and, if introduced later, must integrate downstream of OTLP/Collector rather
 than through a Gateway SDK dependency.
