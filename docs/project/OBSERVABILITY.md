@@ -82,7 +82,7 @@ The Phase 9 contract preserves W3C Trace Context across the gateway boundary and
 HTTP/SSE transports. Current contract tests verify that provider attempts remain on the gateway trace
 and that outbound transports inject the active `traceparent` without leaking provider credentials.
 
-The target local topology for the Operational Readiness track is:
+The local Operational Readiness topology established by PC-15 is:
 
 ```text
 Application / Agent
@@ -98,10 +98,17 @@ Governed LLM Gateway
         │ OTLP/HTTP
         ▼
 OpenTelemetry Collector
-   ├── Tempo
-   ├── Grafana
-   └── optional future OTLP-compatible backends
+        │
+        ▼
+      Tempo
+        │
+        ▼
+     Grafana
 ```
+
+The checked-in local stack pins Collector, Tempo and Grafana versions, binds host-published ports to
+loopback, keeps Tempo internal to the Compose network and contains no SaaS exporter or hardcoded
+credential.
 
 A remote observability backend must never become an inference-availability dependency. Export or
 flush failure cannot change an otherwise valid provider result.
@@ -198,18 +205,35 @@ completeness.
 
 ## Collector receipt verification
 
-The Operational Readiness stack should reuse the positive-receipt pattern already proven by
-`a2a-otel-kit`: exporter flush alone is not proof that a Collector received the expected trace. The
-integration/e2e boundary should verify that expected gateway span/service identities actually appear
-in Collector output or another deterministic receipt surface.
+PC-16 implements the positive-receipt pattern already proven by `a2a-otel-kit`: exporter flush alone
+is not proof that a Collector received the expected trace.
 
-Default CI must remain credential-free and must not require a SaaS backend. Docker-based observability
-verification may live in an explicit integration/e2e job when its runtime cost and runner support are
-acceptable.
+The dedicated credential-free integration boundary:
+
+- starts an isolated OpenTelemetry Collector Contrib `0.160.0` on loopback;
+- emits one metadata-only `llm.gateway.request` span through `a2a-otel-kit`;
+- records the receipt-file size before emission;
+- requires exporter flush to succeed;
+- reads only bytes appended after the recorded offset;
+- requires both the stable Gateway span name and the integration service identity to appear within a
+  bounded polling window;
+- always tears down the Collector after the job.
+
+The receipt Collector exports only to a local test file. It does not require a provider, Policy Router,
+Tempo, Grafana, Langfuse, SaaS backend, API key or application secret. See
+`docs/project/COLLECTOR_RECEIPT.md` for the complete boundary and non-claims.
+
+Positive receipt proves Collector delivery only. It does not prove Tempo persistence/queryability,
+Grafana visualization, executable-process observability lifecycle, fleet completeness or production
+readiness.
 
 ## Next operational increment
 
-The next independent Operational Readiness increment should add the local Collector + Tempo + Grafana
-foundation, with pinned images, loopback-only host bindings, least-privilege container settings and no
-hardcoded secrets. Langfuse remains optional and must integrate downstream of OTLP/Collector rather
-than through a gateway SDK dependency.
+PC-15 established the local Collector + Tempo + Grafana foundation and PC-16 established deterministic
+positive Collector receipt evidence. Before binding observability lifecycle into the executable
+Gateway process, the process composition boundary must be audited explicitly so configuration,
+flush/shutdown failure and backend availability cannot become authorization, readiness or inference
+dependencies.
+
+Langfuse remains optional and, if introduced later, must integrate downstream of OTLP/Collector rather
+than through a Gateway SDK dependency.
