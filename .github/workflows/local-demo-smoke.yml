@@ -49,11 +49,14 @@ jobs:
       - name: Sync locked Python dependencies
         run: uv sync --frozen
       - name: Generate ephemeral local demo credential
+        id: demo-key
         run: |
           demo_key="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
           echo "::add-mask::$demo_key"
-          printf 'GATEWAY_LOCAL_DEMO_API_KEY=%s\n' "$demo_key" >> "$GITHUB_ENV"
+          printf 'value=%s\n' "$demo_key" >> "$GITHUB_OUTPUT"
       - name: Run real local demo smoke test
+        env:
+          GATEWAY_LOCAL_DEMO_API_KEY: ${{ steps.demo-key.outputs.value }}
         run: uv run --frozen --python 3.13 python scripts/local_demo.py --smoke-test
       - name: Require deterministic smoke-test cleanup
         run: |

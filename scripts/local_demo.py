@@ -21,8 +21,6 @@ from pathlib import Path
 from typing import Protocol
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-_CONSOLE_ROOT = _REPOSITORY_ROOT / "apps/gateway-console"
-_COMPOSE_FILE = _REPOSITORY_ROOT / "compose.observability.yml"
 _COMPOSE_PROJECT = "governed-llm-gateway-demo"
 _DEMO_KEY_NAME = "GATEWAY_LOCAL_DEMO_API_KEY"
 _GATEWAY_READY_URL = "http://127.0.0.1:8000/readyz"
@@ -33,6 +31,8 @@ _EXPECTED_COMPOSE_SERVICES = frozenset({"otel-collector", "tempo", "grafana"})
 _ALLOWED_HTTP_PORTS = frozenset({3000, 5173, 8000})
 _STARTUP_TIMEOUT_SECONDS = 90.0
 _READINESS_INTERVAL_SECONDS = 1.0
+_PROCESS_STOP_TIMEOUT_SECONDS = 5.0
+_PROCESS_GROUP_POLL_SECONDS = 0.05
 
 
 class LocalDemoError(RuntimeError):
@@ -138,14 +138,19 @@ class SystemDemoRuntime:
         capture_output: bool = False,
     ) -> str:
         """Run a repository-owned argv command without a shell."""
-        completed = subprocess.run(  # nosec B603
-            tuple(command),
-            cwd=cwd,
-            env=dict(env),
-            check=False,
-            text=True,
-            capture_output=capture_output,
-        )
+        try:
+            completed = subprocess.run(  # nosec B603
+                tuple(command),
+                cwd=cwd,
+                env=dict(env),
+                check=False,
+                text=True,
+                capture_output=capture_output,
+            )
+        except OSError:
+            raise LocalDemoCommandError(
+                f"local demo command could not start: {command[0]}"
+            ) from None
         if completed.returncode != 0:
             raise LocalDemoCommandError(
                 f"local demo command failed: {command[0]} (exit {completed.returncode})"
@@ -160,38 +165,75 @@ class SystemDemoRuntime:
         env: Mapping[str, str],
     ) -> subprocess.Popen[str]:
         """Start one repository-owned foreground child in its own process session."""
-        return subprocess.Popen(  # nosec B603
-            tuple(command),
-            cwd=cwd,
-            env=dict(env),
-            text=True,
-            start_new_session=True,
-        )
+        try:
+            return subprocess.Popen(  # nosec B603
+                tuple(command),
+                cwd=cwd,
+                env=dict(env),
+                text=True,
+                start_new_session=True,
+            )
+        except OSError:
+            raise LocalDemoCommandError(
+                f"local demo child could not start: {command[0]}"
+            ) from None
 
     def stop(self, process: DemoProcess) -> None:
-        """Terminate an owned process group, escalating only after a bounded wait."""
-        if process.poll() is not None:
-            return
+        """Terminate an owned process session with bounded escalation."""
         if not isinstance(process, subprocess.Popen):
             raise TypeError("system runtime can only stop subprocess.Popen instances")
+        if os.name == "posix":
+            self._stop_posix_process_group(process)
+            return
+        self._stop_single_process(process)
+
+    def _stop_posix_process_group(self, process: subprocess.Popen[str]) -> None:
+        """Stop the owned group even when its original leader already exited."""
+        process.poll()
         try:
-            self._signal_process_group(process, signal.SIGTERM)
-            process.wait(timeout=5.0)
-        except subprocess.TimeoutExpired:
-            self._signal_process_group(process, signal.SIGKILL)
-            process.wait(timeout=5.0)
+            os.killpg(process.pid, signal.SIGTERM)
         except ProcessLookupError:
             return
 
+        deadline = time.monotonic() + _PROCESS_STOP_TIMEOUT_SECONDS
+        while self._process_group_exists(process.pid):
+            process.poll()
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(_PROCESS_GROUP_POLL_SECONDS)
+
+        if self._process_group_exists(process.pid):
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if process.poll() is None:
+            try:
+                process.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=1.0)
+
     @staticmethod
-    def _signal_process_group(process: subprocess.Popen[str], sig: signal.Signals) -> None:
-        if os.name == "posix":
-            os.killpg(process.pid, sig)
+    def _process_group_exists(process_group_id: int) -> bool:
+        try:
+            os.killpg(process_group_id, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+
+    @staticmethod
+    def _stop_single_process(process: subprocess.Popen[str]) -> None:
+        if process.poll() is not None:
             return
-        if sig == signal.SIGTERM:
-            process.terminate()
-        else:
+        process.terminate()
+        try:
+            process.wait(timeout=_PROCESS_STOP_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
             process.kill()
+            process.wait(timeout=1.0)
 
     def get_json(
         self,
@@ -273,7 +315,8 @@ class LocalDemoLauncher:
             raise TypeError("settings must use LocalDemoSettings")
         self._settings = settings
         self._runtime = SystemDemoRuntime() if runtime is None else runtime
-        self._environments = _build_child_environments(os.environ if environ is None else environ)
+        source_environ = os.environ if environ is None else environ
+        self._environments = _build_child_environments(source_environ)
         self._children: list[DemoProcess] = []
         self._compose_attempted = False
 
@@ -308,27 +351,7 @@ class LocalDemoLauncher:
                 cwd=root,
                 env=self._environments.shared,
             )
-            self._children.append(
-                self._runtime.start(
-                    (
-                        "uv",
-                        "run",
-                        "--frozen",
-                        "--package",
-                        "governed-llm-gateway-api",
-                        "governed-llm-gateway-operations-demo",
-                    ),
-                    cwd=root,
-                    env=self._environments.gateway,
-                )
-            )
-            self._children.append(
-                self._runtime.start(
-                    ("npm", "run", "dev"),
-                    cwd=console_root,
-                    env=self._environments.shared,
-                )
-            )
+            self._start_children(root, console_root)
             self._wait_until_ready(root, compose_file)
             self._print_ready_summary()
             if not self._settings.smoke_test:
@@ -337,6 +360,29 @@ class LocalDemoLauncher:
             return
         finally:
             self._cleanup(root, compose_file)
+
+    def _start_children(self, root: Path, console_root: Path) -> None:
+        self._children.append(
+            self._runtime.start(
+                (
+                    "uv",
+                    "run",
+                    "--frozen",
+                    "--package",
+                    "governed-llm-gateway-api",
+                    "governed-llm-gateway-operations-demo",
+                ),
+                cwd=root,
+                env=self._environments.gateway,
+            )
+        )
+        self._children.append(
+            self._runtime.start(
+                ("npm", "run", "dev"),
+                cwd=console_root,
+                env=self._environments.shared,
+            )
+        )
 
     def _require_prerequisites(
         self,
@@ -367,33 +413,26 @@ class LocalDemoLauncher:
         raise LocalDemoReadinessError("local demo readiness deadline expired")
 
     def _is_ready(self, root: Path, compose_file: Path) -> bool:
-        gateway_ready = self._runtime.get_json(_GATEWAY_READY_URL)
-        if gateway_ready != {"status": "ready"}:
+        if self._runtime.get_json(_GATEWAY_READY_URL) != {"status": "ready"}:
             return False
-
         overview = self._runtime.get_json(
             _OPERATIONS_OVERVIEW_URL,
             headers={"X-Gateway-API-Key": self._environments.credential},
         )
         if not _is_expected_empty_operations_overview(overview):
             return False
-
         grafana_health = self._runtime.get_json(_GRAFANA_HEALTH_URL)
         if not isinstance(grafana_health, dict) or grafana_health.get("database") != "ok":
             return False
-
-        console_html = self._runtime.get_text(_CONSOLE_URL)
-        if '<div id="root"></div>' not in console_html:
+        if '<div id="root"></div>' not in self._runtime.get_text(_CONSOLE_URL):
             return False
-
         running = self._runtime.run(
             _compose_command(compose_file, "ps", "--status", "running", "--services"),
             cwd=root,
             env=self._environments.shared,
             capture_output=True,
         )
-        running_services = frozenset(running.splitlines())
-        return running_services.issuperset(_EXPECTED_COMPOSE_SERVICES)
+        return frozenset(running.splitlines()).issuperset(_EXPECTED_COMPOSE_SERVICES)
 
     def _require_owned_children_running(self) -> None:
         for process in self._children:
@@ -417,15 +456,16 @@ class LocalDemoLauncher:
                     f"local demo cleanup warning: owned child stop failed ({type(exc).__name__})",
                     file=sys.stderr,
                 )
-        if self._compose_attempted:
-            try:
-                self._runtime.run(
-                    _compose_command(compose_file, "down", "--volumes", "--remove-orphans"),
-                    cwd=root,
-                    env=self._environments.shared,
-                )
-            except LocalDemoError as exc:
-                print(f"local demo cleanup warning: {exc}", file=sys.stderr)
+        if not self._compose_attempted:
+            return
+        try:
+            self._runtime.run(
+                _compose_command(compose_file, "down", "--volumes", "--remove-orphans"),
+                cwd=root,
+                env=self._environments.shared,
+            )
+        except LocalDemoError as exc:
+            print(f"local demo cleanup warning: {exc}", file=sys.stderr)
 
     @staticmethod
     def _print_ready_summary() -> None:
@@ -456,11 +496,7 @@ def _build_child_environments(environ: Mapping[str, str]) -> ChildEnvironments:
     shared.pop(_DEMO_KEY_NAME, None)
     gateway = dict(shared)
     gateway[_DEMO_KEY_NAME] = credential
-    return ChildEnvironments(
-        credential=credential,
-        gateway=gateway,
-        shared=shared,
-    )
+    return ChildEnvironments(credential=credential, gateway=gateway, shared=shared)
 
 
 def _is_expected_empty_operations_overview(payload: object) -> bool:
@@ -482,10 +518,14 @@ def _is_expected_empty_operations_overview(payload: object) -> bool:
 
 def _require_reviewed_loopback_url(url: str) -> None:
     parsed = urllib.parse.urlsplit(url)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise LocalDemoProbeUnavailable("local HTTP probe URL has an invalid port") from exc
     if (
         parsed.scheme != "http"
         or parsed.hostname != "127.0.0.1"
-        or parsed.port not in _ALLOWED_HTTP_PORTS
+        or port not in _ALLOWED_HTTP_PORTS
         or parsed.username is not None
         or parsed.password is not None
         or parsed.query
