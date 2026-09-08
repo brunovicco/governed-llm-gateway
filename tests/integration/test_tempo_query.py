@@ -32,7 +32,9 @@ def test_gateway_metadata_trace_is_queryable_from_tempo() -> None:
         )
 
     if collector_endpoint != _EXPECTED_COLLECTOR_ENDPOINT:
-        pytest.fail("Tempo query integration Collector endpoint must use the reviewed loopback address")
+        pytest.fail(
+            "Tempo query integration Collector endpoint must use the reviewed loopback address"
+        )
     if tempo_endpoint != _EXPECTED_TEMPO_ENDPOINT:
         pytest.fail("Tempo query integration endpoint must use the reviewed loopback address")
 
