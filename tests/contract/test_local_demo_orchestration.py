@@ -27,9 +27,7 @@ class FakeRuntime:
 
     def __init__(self, *, second_child_exit_code: int | None = None) -> None:
         self.required: list[str] = []
-        self.run_calls: list[
-            tuple[tuple[str, ...], Path, dict[str, str], bool]
-        ] = []
+        self.run_calls: list[tuple[tuple[str, ...], Path, dict[str, str], bool]] = []
         self.start_calls: list[tuple[tuple[str, ...], Path, dict[str, str]]] = []
         self.stopped: list[FakeProcess] = []
         self.clock = 0.0
