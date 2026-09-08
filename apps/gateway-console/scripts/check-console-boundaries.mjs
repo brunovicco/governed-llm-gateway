@@ -1,5 +1,5 @@
 import { readdir, readFile } from "node:fs/promises";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 
 const defaultRoot = new URL("../src/", import.meta.url);
 const forbiddenPatterns = [
@@ -58,7 +58,7 @@ async function collectSourceFiles(directoryUrl) {
 }
 
 const invokedPath = process.argv[1];
-if (invokedPath !== undefined && import.meta.url === pathToFileURL(fileURLToPath(pathToFileURL(invokedPath))).href) {
+if (invokedPath !== undefined && import.meta.url === pathToFileURL(invokedPath).href) {
   const filesChecked = await checkConsoleBoundaries();
   console.log(`console_boundary_check: PASS (${filesChecked} source files)`);
 }
