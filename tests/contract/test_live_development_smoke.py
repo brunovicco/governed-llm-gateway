@@ -14,11 +14,7 @@ from governed_llm_gateway_contracts import (
     RoutingProvenance,
     Usage,
 )
-from scripts.live_development_smoke import (
-    LiveDevelopmentSmokeError,
-    _validate_response,
-    main,
-)
+from scripts import live_development_smoke
 
 _REQUEST_ID = UUID("44444444-4444-4444-8444-444444444444")
 
@@ -76,14 +72,14 @@ class LiveDevelopmentSmokeTests(unittest.TestCase):
             patch("scripts.live_development_smoke.asyncio.run") as run,
             contextlib.redirect_stderr(stderr),
         ):
-            exit_code = main([])
+            exit_code = live_development_smoke.main([])
 
         self.assertEqual(exit_code, 2)
         run.assert_not_called()
         self.assertIn("pass --live", stderr.getvalue())
 
     def test_valid_terminal_evidence_produces_metadata_only_summary(self) -> None:
-        summary = _validate_response(_response())
+        summary = live_development_smoke._validate_response(_response())
         payload = summary.as_dict()
 
         self.assertEqual(payload["authorized_model_group"], "balanced")
@@ -98,12 +94,20 @@ class LiveDevelopmentSmokeTests(unittest.TestCase):
         self.assertNotIn("api_key", payload)
 
     def test_unexpected_authorized_group_fails_closed(self) -> None:
-        with self.assertRaisesRegex(LiveDevelopmentSmokeError, "authorized model group"):
-            _validate_response(_response(authorized_model_group="reasoning-strong"))
+        with self.assertRaisesRegex(
+            live_development_smoke.LiveDevelopmentSmokeError,
+            "authorized model group",
+        ):
+            live_development_smoke._validate_response(
+                _response(authorized_model_group="reasoning-strong")
+            )
 
     def test_unreviewed_deployment_fails_closed(self) -> None:
-        with self.assertRaisesRegex(LiveDevelopmentSmokeError, "outside the reviewed profile"):
-            _validate_response(
+        with self.assertRaisesRegex(
+            live_development_smoke.LiveDevelopmentSmokeError,
+            "outside the reviewed profile",
+        ):
+            live_development_smoke._validate_response(
                 _response(
                     deployment="unreviewed-deployment",
                     provider="openai",
@@ -112,8 +116,11 @@ class LiveDevelopmentSmokeTests(unittest.TestCase):
             )
 
     def test_contradictory_profile_identity_fails_closed(self) -> None:
-        with self.assertRaisesRegex(LiveDevelopmentSmokeError, "contradicts"):
-            _validate_response(
+        with self.assertRaisesRegex(
+            live_development_smoke.LiveDevelopmentSmokeError,
+            "contradicts",
+        ):
+            live_development_smoke._validate_response(
                 _response(
                     deployment="openai-gpt-5-6-luna-dev",
                     provider="google",
@@ -122,8 +129,11 @@ class LiveDevelopmentSmokeTests(unittest.TestCase):
             )
 
     def test_empty_completion_is_rejected_without_emitting_content(self) -> None:
-        with self.assertRaisesRegex(LiveDevelopmentSmokeError, "without model content"):
-            _validate_response(_response(content=None))
+        with self.assertRaisesRegex(
+            live_development_smoke.LiveDevelopmentSmokeError,
+            "without model content",
+        ):
+            live_development_smoke._validate_response(_response(content=None))
 
 
 if __name__ == "__main__":
