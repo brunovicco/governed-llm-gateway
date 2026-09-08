@@ -39,6 +39,7 @@ class GovernedDeploymentSettings:
     expected_ranking_artifact_id: str | None = None
     complexity_routing_path: Path | None = None
     operations_access_path: Path | None = None
+    operational_evidence_path: Path | None = None
 
     def __post_init__(self) -> None:
         """Validate settings without reading artifacts, secrets, or process environment."""
@@ -59,6 +60,7 @@ class GovernedDeploymentSettings:
             ("approved_ranking_artifact_path", self.approved_ranking_artifact_path),
             ("complexity_routing_path", self.complexity_routing_path),
             ("operations_access_path", self.operations_access_path),
+            ("operational_evidence_path", self.operational_evidence_path),
         ):
             if optional_value is not None and not isinstance(optional_value, Path):
                 raise TypeError(f"{name} must be a pathlib.Path or None")
@@ -127,6 +129,11 @@ class GovernedDeploymentSettings:
             expected_ranking_artifact_id=self.expected_ranking_artifact_id,
             complexity_routing_path=_resolve_optional_deployment_path(
                 root, self.complexity_routing_path, "complexity_routing_path"
+            ),
+            operational_evidence_path=_resolve_optional_deployment_path(
+                root,
+                self.operational_evidence_path,
+                "operational_evidence_path",
             ),
         )
 

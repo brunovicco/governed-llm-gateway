@@ -7,6 +7,7 @@ from .application_bootstrap import (
     bootstrap_governed_application_services,
     load_governed_application_artifacts,
     materialize_governed_application_services,
+    validate_operational_evidence_registry,
 )
 from .client_auth import (
     EnvironmentGatewayClientSecretResolver,
@@ -66,6 +67,7 @@ from .operations_http import (
     OperationsSnapshotReader,
     attach_operations_routes,
 )
+from .operations_snapshot import DeploymentOperationsSnapshotReader
 from .policy_router_bootstrap import (
     PolicyRouterClientAuthMismatchError,
     PolicyRouterRuntimeBootstrapBundle,
@@ -131,6 +133,7 @@ __all__ = [
     "ComplexityNarrowingExplainModel",
     "ComplexityRouteExplainCoordinator",
     "ComplexityRouteExplainResponseModel",
+    "DeploymentOperationsSnapshotReader",
     "DuplicateGatewayClientAuthKeyError",
     "DuplicateOperationsReadAccessKeyError",
     "EffectiveContextResolver",
@@ -211,6 +214,7 @@ __all__ = [
     "parse_server_args",
     "run_governed_server",
     "validate_governed_routing_inputs",
+    "validate_operational_evidence_registry",
     "validate_operations_access_client_auth",
     "validate_policy_router_client_auth",
 ]

@@ -17,6 +17,7 @@ from governed_llm_gateway_core.application import (
 from governed_llm_gateway_core.application.streaming import StreamingExecutionService
 from governed_llm_gateway_core.domain.complexity import DeterministicComplexityEvaluator
 from governed_llm_gateway_core.domain.evidence_ranking import EvidenceDrivenRankingPolicy
+from governed_llm_gateway_core.domain.operational_evidence import OperationalEvidenceSnapshot
 from governed_llm_gateway_core.domain.ranking import RankingPolicy
 from governed_llm_gateway_core.domain.resilience import RetryPolicy
 
@@ -24,6 +25,7 @@ from .application import create_gateway_app
 from .complexity_generate import ComplexityGenerateCoordinator
 from .operations_access import OperationsReadAccessService
 from .operations_http import attach_operations_routes
+from .operations_snapshot import DeploymentOperationsSnapshotReader
 from .process_bootstrap import GovernedProcessRuntimeBundle
 from .route_explain import ComplexityRouteExplainCoordinator, RouteExplainCoordinator
 from .stream_generate import GenerateCoordinator
@@ -40,6 +42,7 @@ class GovernedGatewayServices:
     app: FastAPI
     health: InMemoryHealthTracker
     operations_read_model: OperationsReadModelService
+    operations_snapshot_reader: DeploymentOperationsSnapshotReader
     operations_read_access: OperationsReadAccessService
     policy_enforcement: PolicyEnforcementService
     route_service: RouteExplainService
@@ -82,6 +85,7 @@ def compose_governed_gateway_services(
     ranking_policy: RankingPolicy,
     defaults: PolicyProjectionDefaults,
     complexity_routing: ComplexityRoutingDocument | None = None,
+    operational_evidence: OperationalEvidenceSnapshot | None = None,
     observability: Observability | None = None,
     retry_policy: RetryPolicy | None = None,
     health: InMemoryHealthTracker | None = None,
@@ -95,6 +99,11 @@ def compose_governed_gateway_services(
         ranking_policy=ranking_policy,
         complexity_routing=complexity_routing,
     )
+    if operational_evidence is not None and not isinstance(
+        operational_evidence,
+        OperationalEvidenceSnapshot,
+    ):
+        raise TypeError("operational_evidence must use OperationalEvidenceSnapshot or None")
     if retry_policy is not None and not isinstance(retry_policy, RetryPolicy):
         raise TypeError("retry_policy must use RetryPolicy")
     if health is not None and not isinstance(health, InMemoryHealthTracker):
@@ -124,6 +133,10 @@ def compose_governed_gateway_services(
         registry=registry,
         ranking_policy=ranking_policy,
         health=InMemoryHealthInspectionAdapter(active_health),
+    )
+    operations_snapshot_reader = DeploymentOperationsSnapshotReader(
+        read_model=operations_read_model,
+        operational_evidence=operational_evidence,
     )
     context_resolver = runtime.client_context_resolver
     route_explain_coordinator = RouteExplainCoordinator(
@@ -186,12 +199,13 @@ def compose_governed_gateway_services(
     attach_operations_routes(
         app,
         access=runtime.operations_read_access,
-        read_model=operations_read_model,
+        read_model=operations_snapshot_reader,
     )
     return GovernedGatewayServices(
         app=app,
         health=active_health,
         operations_read_model=operations_read_model,
+        operations_snapshot_reader=operations_snapshot_reader,
         operations_read_access=runtime.operations_read_access,
         policy_enforcement=policy_enforcement,
         route_service=route_service,

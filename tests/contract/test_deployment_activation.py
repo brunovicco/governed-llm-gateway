@@ -3,6 +3,7 @@
 import asyncio
 import json
 from collections.abc import Iterator, Mapping
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -16,6 +17,13 @@ from governed_llm_gateway_api import (
     activate_governed_deployment,
 )
 from governed_llm_gateway_core.domain.model_registry import ModelRegistryError
+from governed_llm_gateway_core.domain.operational_evidence import (
+    OperationalEvidenceError,
+    OperationalEvidenceRecord,
+    OperationalEvidenceSnapshot,
+    canonical_operational_evidence_json,
+    create_operational_evidence_snapshot,
+)
 
 
 class RecordingEnvironment(Mapping[str, str]):
@@ -47,6 +55,7 @@ def _settings(
     expected_ranking_artifact_id: str | None = None,
     complexity_routing_path: Path | None = None,
     operations_access_path: Path | None = None,
+    operational_evidence_path: Path | None = None,
     default_max_latency_ms: int = 5_000,
     default_max_cost_usd: Decimal = Decimal("1.25"),
 ) -> GovernedDeploymentSettings:
@@ -61,6 +70,7 @@ def _settings(
         expected_ranking_artifact_id=expected_ranking_artifact_id,
         complexity_routing_path=complexity_routing_path,
         operations_access_path=operations_access_path,
+        operational_evidence_path=operational_evidence_path,
         default_max_latency_ms=default_max_latency_ms,
         default_max_cost_usd=default_max_cost_usd,
     )
@@ -183,12 +193,50 @@ def _write_operations_access(root: Path, *, environment: str = "development") ->
     )
 
 
+def _write_operational_evidence(
+    root: Path,
+    *,
+    deployment_id: str = "openai-primary",
+) -> OperationalEvidenceSnapshot:
+    window_start = datetime(2026, 9, 7, 12, 0, tzinfo=UTC)
+    window_end = window_start + timedelta(minutes=5)
+    snapshot = create_operational_evidence_snapshot(
+        snapshot_version="pc23-evidence-v1",
+        collector_id="gateway-operational-evidence",
+        collector_version="pc23-test",
+        window_start=window_start,
+        window_end=window_end,
+        captured_at=window_end + timedelta(minutes=1),
+        records=(
+            OperationalEvidenceRecord(
+                runtime_workload="rag.answer",
+                deployment_id=deployment_id,
+                gateway_request_count=1,
+                provider_attempt_count=1,
+                successful_provider_attempt_count=1,
+                provider_error_count=0,
+                rate_limit_error_count=0,
+                timeout_count=0,
+                fallback_request_count=0,
+                provider_latency_p50_ms=120,
+                provider_latency_p95_ms=120,
+            ),
+        ),
+    )
+    (root / "config/operational-evidence.json").write_text(
+        canonical_operational_evidence_json(snapshot),
+        encoding="utf-8",
+    )
+    return snapshot
+
+
 def test_settings_resolve_relative_paths_deterministically(tmp_path: Path) -> None:
     root = tmp_path.resolve()
     settings = _settings(
         root,
         complexity_routing_path=Path("config/complexity.json"),
         operations_access_path=Path("config/operations-access.json"),
+        operational_evidence_path=Path("config/operational-evidence.json"),
     )
 
     first = settings.bootstrap_paths
@@ -202,6 +250,7 @@ def test_settings_resolve_relative_paths_deterministically(tmp_path: Path) -> No
     assert first.process.operations_access_path == root / "config/operations-access.json"
     assert first.ranking_policy_path == root / "config/ranking.yaml"
     assert first.complexity_routing_path == root / "config/complexity.json"
+    assert first.operational_evidence_path == root / "config/operational-evidence.json"
     assert settings.projection_defaults.max_latency_ms == 5_000
     assert settings.projection_defaults.max_cost_usd == Decimal("1.25")
 
@@ -220,6 +269,19 @@ def test_operations_access_path_cannot_escape_deployment_root(tmp_path: Path) ->
     )
 
     with pytest.raises(ValueError, match="operations_access_path must not escape deployment_root"):
+        _ = settings.bootstrap_paths
+
+
+def test_operational_evidence_path_cannot_escape_deployment_root(tmp_path: Path) -> None:
+    settings = _settings(
+        tmp_path.resolve(),
+        operational_evidence_path=Path("../operational-evidence.json"),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="operational_evidence_path must not escape deployment_root",
+    ):
         _ = settings.bootstrap_paths
 
 
@@ -291,6 +353,46 @@ def test_unknown_operations_principal_fails_before_environment_secret_lookup(
     assert environment.lookups == []
 
 
+def test_malformed_operational_evidence_fails_before_environment_secret_lookup(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path.resolve()
+    _write_valid_static_deployment(root)
+    (root / "config/operational-evidence.json").write_text("not-json", encoding="utf-8")
+    environment = RecordingEnvironment()
+
+    with pytest.raises(OperationalEvidenceError, match="not valid JSON"):
+        activate_governed_deployment(
+            _settings(
+                root,
+                operational_evidence_path=Path("config/operational-evidence.json"),
+            ),
+            environ=environment,
+        )
+
+    assert environment.lookups == []
+
+
+def test_unknown_evidence_deployment_fails_before_environment_secret_lookup(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path.resolve()
+    _write_valid_static_deployment(root)
+    _write_operational_evidence(root, deployment_id="retired-deployment")
+    environment = RecordingEnvironment()
+
+    with pytest.raises(OperationalEvidenceError, match="active model registry"):
+        activate_governed_deployment(
+            _settings(
+                root,
+                operational_evidence_path=Path("config/operational-evidence.json"),
+            ),
+            environ=environment,
+        )
+
+    assert environment.lookups == []
+
+
 def test_omitted_operations_access_materializes_deny_all_policy(tmp_path: Path) -> None:
     root = tmp_path.resolve()
     _write_valid_static_deployment(root)
@@ -351,6 +453,43 @@ def test_configured_operations_access_authorizes_exact_runtime_principal(tmp_pat
         "degraded": 0,
         "unhealthy": 0,
     }
+    assert response.json()["operational_evidence"] == {"state": "not_supplied"}
+
+
+def test_configured_operational_evidence_is_bound_to_authenticated_overview(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path.resolve()
+    _write_valid_static_deployment(root)
+    _write_operations_access(root)
+    expected = _write_operational_evidence(root)
+    services = activate_governed_deployment(
+        _settings(
+            root,
+            operations_access_path=Path("config/operations-access.json"),
+            operational_evidence_path=Path("config/operational-evidence.json"),
+        ),
+        environ={
+            "GATEWAY_CLIENT_A_KEY": "pc12-client-opaque",
+            "POLICY_SERVICE_A_KEY": "pc12-policy-opaque",
+            "OPENAI_API_KEY": "pc12-provider-opaque",
+        },
+    )
+
+    bound = services.operations_snapshot_reader.operational_evidence
+    assert bound is not None
+    assert bound.evidence_id == expected.evidence_id
+    assert (
+        services.operations_snapshot_reader.snapshot().operational_evidence.state.value
+        == "available"
+    )
+
+    response = TestClient(services.app).get(
+        "/v1/ops/overview",
+        headers={"X-Gateway-API-Key": "pc12-client-opaque"},
+    )
+    assert response.status_code == 200
+    assert response.json()["operational_evidence"] == {"state": "available"}
 
 
 def test_valid_settings_delegate_to_existing_governed_service_graph(tmp_path: Path) -> None:

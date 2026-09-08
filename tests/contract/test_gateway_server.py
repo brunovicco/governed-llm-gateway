@@ -90,6 +90,7 @@ def test_static_cli_parsing_is_deterministic_and_defaults_to_loopback(tmp_path: 
     assert first.deployment.ranking_policy_path == Path("config/ranking.yaml")
     assert first.deployment.approved_ranking_artifact_path is None
     assert first.deployment.operations_access_path is None
+    assert first.deployment.operational_evidence_path is None
     assert first.deployment.default_max_latency_ms == 5_000
     assert first.deployment.default_max_cost_usd == Decimal("1.25")
 
@@ -104,6 +105,18 @@ def test_operations_access_cli_accepts_only_explicit_artifact_path(tmp_path: Pat
     settings = parse_server_args(argv)
 
     assert settings.deployment.operations_access_path == Path("config/operations-access.json")
+
+
+def test_operational_evidence_cli_accepts_only_explicit_artifact_path(tmp_path: Path) -> None:
+    argv = [
+        *_static_argv(tmp_path.resolve()),
+        "--operational-evidence-path",
+        "config/operational-evidence.json",
+    ]
+
+    settings = parse_server_args(argv)
+
+    assert settings.deployment.operational_evidence_path == Path("config/operational-evidence.json")
 
 
 def test_approved_cli_requires_exact_expected_artifact_identity(tmp_path: Path) -> None:
@@ -134,6 +147,8 @@ def test_approved_cli_requires_exact_expected_artifact_identity(tmp_path: Path) 
         ["--provider-api-key", "secret"],
         ["--operations-access-api-key", "secret"],
         ["--operations-admin", "service-a"],
+        ["--operational-evidence-json", "{}"],
+        ["--operational-evidence-api-key", "secret"],
         ["--otel-headers", "Authorization=secret"],
         ["--otel-api-key", "secret"],
     ],

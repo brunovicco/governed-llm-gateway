@@ -104,6 +104,7 @@ def parse_server_args(argv: Sequence[str]) -> GovernedServerSettings:
         expected_ranking_artifact_id=args.expected_ranking_artifact_id,
         complexity_routing_path=args.complexity_routing_path,
         operations_access_path=args.operations_access_path,
+        operational_evidence_path=args.operational_evidence_path,
         default_max_latency_ms=args.default_max_latency_ms,
         default_max_cost_usd=args.default_max_cost_usd,
     )
@@ -204,6 +205,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--client-auth-path", required=True, type=Path)
     parser.add_argument("--policy-router-path", required=True, type=Path)
     parser.add_argument("--operations-access-path", type=Path)
+    parser.add_argument("--operational-evidence-path", type=Path)
 
     ranking = parser.add_mutually_exclusive_group(required=True)
     ranking.add_argument("--ranking-policy-path", type=Path)
