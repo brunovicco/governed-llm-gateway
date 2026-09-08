@@ -19,5 +19,7 @@ jobs:
         run: uv python install 3.13
       - name: Sync locked dependencies
         run: uv sync --frozen
+      - name: Show Grafana contract Ruff format diff
+        run: uvx --python 3.13 --from ruff==0.12.11 ruff format --diff tests/contract/test_grafana_trace_dashboard.py
       - name: Quality gate
         run: uv run python scripts/quality_gate.py
