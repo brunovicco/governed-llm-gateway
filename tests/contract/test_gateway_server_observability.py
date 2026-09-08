@@ -7,6 +7,7 @@ from typing import cast
 
 import pytest
 from a2a_otel_kit.application.settings import ObservabilitySettings
+from a2a_otel_kit.domain.errors import InvalidObservabilityConfigurationError
 from a2a_otel_kit.entrypoints.observability import Observability
 from fastapi import FastAPI
 from governed_llm_gateway_api import server as server_module
@@ -122,11 +123,11 @@ def test_invalid_observability_values_fail_during_cli_parsing(tmp_path: Path) ->
     invalid_timeout = _otel_argv(root)
     invalid_timeout[-1] = "0"
 
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidObservabilityConfigurationError):
         parse_server_args(invalid_endpoint)
     with pytest.raises(ValueError, match="normalized value"):
         parse_server_args(invalid_environment)
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidObservabilityConfigurationError):
         parse_server_args(invalid_timeout)
 
 
