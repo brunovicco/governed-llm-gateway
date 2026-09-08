@@ -48,7 +48,9 @@ explicit operations-read grant boundary. PC-21 binds that boundary to a deployme
 artifact, validates its principals against client-auth before secret resolution, and carries the same
 authorization service into the governed service graph. PC-22 then exposes the first bounded authenticated
 Operations HTTP endpoint, `GET /v1/ops/overview`, with authorization before snapshot reads and a reduced
-aggregate response.
+aggregate response. PC-23 binds an optional explicit reviewed operational-evidence artifact during
+secret-free startup. PC-24 adds the authenticated read-only `GET /v1/ops/deployments` catalog without
+introducing mutation authority or detailed runtime counters.
 
 The audit also found documentation drift: the previous observability document still described Phase 9
 runtime tracing as future work even though Phase 9 is already complete.
@@ -104,7 +106,7 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 | OR-2 | local OTel Collector + Tempo + Grafana foundation | foundation + positive receipt complete |
 | process activation | optional process-owned OTel lifecycle | complete in PC-17 |
 | OR-3 | typed read-only operations read model | typed foundation + service-graph composition complete in PC-18/PC-19 |
-| OR-4 | read-only Operations API | authenticated overview slice implemented in PC-20..PC-22; broader read surfaces deferred |
+| OR-4 | read-only Operations API | authenticated overview, evidence binding and deployment catalog implemented in PC-20..PC-24; broader read surfaces deferred |
 | OR-5 | React/TypeScript/Vite Gateway Console | not started |
 | OR-6 | Grafana dashboards + trace correlation/deep links | not started |
 | OR-7 | optional Langfuse OTLP fan-out | optional / not started |
@@ -119,9 +121,10 @@ PC-15 and PC-16 are bounded OR-2 increments. PC-17 closes the separate process-o
 lifecycle prerequisite. PC-18 and PC-19 close the typed/read-model and service-composition prerequisites
 for OR-3. PC-20 and PC-21 deliberately pull forward only the minimum authentication/configuration
 boundary needed to prevent OR-4 from becoming a global unauthenticated catalog. PC-22 consumes those
-boundaries for the first authenticated read-only endpoint without implying that the broader Operations
-API, Tempo query verification, Grafana visualization, dashboards, persistence or later admin surfaces are
-complete.
+boundaries for the first authenticated read-only endpoint. PC-23 adds explicit deployment-owned evidence
+binding, and PC-24 adds the bounded deployment catalog. None of these increments implies that deployment
+detail, evidence detail, routing-history persistence, Tempo query verification, Grafana visualization,
+dashboards or later admin surfaces are complete.
 
 ## Read-only operations boundary
 
@@ -165,21 +168,33 @@ not expose principal/grant data, individual deployment/model/provider identities
 credential references, PDP/provider internals, or mutable runtime state. PC-22 introduces no `POST`,
 `PUT`, `PATCH`, or `DELETE` operation under `/v1/ops/*`; mutation authority remains absent.
 
+PC-23 binds an optional explicit `OperationalEvidenceSnapshot` during the secret-free startup stage,
+cross-validates its deployment IDs against the active registry and fixes that exact snapshot into the
+Operations snapshot reader for the process lifetime. Omission remains explicit `not_supplied`; configured
+valid evidence changes only the bounded overview availability state to `available`. Evidence remains
+descriptive and is not consumed by authorization, ranking, health, retry/fallback or readiness.
+
+PC-24 attaches `GET /v1/ops/deployments` through the same Operations access service and snapshot reader.
+It returns deterministic registry metadata plus coarse process-local `status`/`circuit_state`, while
+excluding mutable execution counters, latency, provider endpoints, credential references, principal/grant
+metadata and operational-evidence records.
+
 See `docs/project/OPERATIONS_READ_MODEL.md` for the typed projection/non-claims,
 `docs/project/OPERATIONS_ACCESS.md` for the operations visibility boundary,
-`docs/project/OPERATIONS_ACCESS_ARTIFACT.md` for the deployment artifact/bootstrap contract, and
-`docs/project/OPERATIONS_HTTP.md` for the first HTTP transport/response contract.
+`docs/project/OPERATIONS_ACCESS_ARTIFACT.md` for the deployment artifact/bootstrap contract,
+`docs/project/OPERATIONAL_EVIDENCE_BINDING.md` for PC-23 evidence binding, and
+`docs/project/OPERATIONS_HTTP.md` for the HTTP transport/response contracts.
 
-The only implemented Operations endpoint at PC-22 is:
+The implemented Operations endpoints at PC-24 are:
 
 ```text
 GET /v1/ops/overview
+GET /v1/ops/deployments
 ```
 
 Possible later endpoints remain product-readiness targets rather than contracts:
 
 ```text
-GET /v1/ops/deployments
 GET /v1/ops/deployments/{deployment_id}
 GET /v1/ops/evidence
 GET /v1/ops/evidence/operational
@@ -224,7 +239,9 @@ production configuration.
 The future console/dashboard must not fabricate metrics or reason codes.
 
 When data is absent, the backend read model must represent absence explicitly. Process-local samples
-must not be labeled fleet-complete. Cost is shown only when the gateway has real cost evidence. Routing
+must not be labeled fleet-complete. PC-23 evidence binding does not establish freshness or fleet
+completeness, and PC-24 deployment health remains explicitly `process_local`. Cost is shown only when
+the gateway has real cost evidence. Routing
 visualization must display gateway-produced reason codes rather than deriving authorization or health
 reasons in the frontend.
 
@@ -260,9 +277,14 @@ ungranted-principal behavior without network or PDP/provider access. PC-21 artif
 prove closed-schema deterministic grants, cross-artifact rejection before all secret resolvers,
 deployment-root path containment, omitted deny-all behavior and exact runtime service-instance reuse.
 PC-22 HTTP contracts prove missing/invalid/ungranted callers cannot read a snapshot, authorization occurs
-before successful reads, bounded aggregation excludes deployment/principal details, mismatched aggregates
-fail closed, and deployment activation exposes only the intended `/v1/ops/overview` route. No live
-provider, PDP call, or external secret/backend is required by the operations request path.
+before successful reads, bounded aggregation excludes deployment/principal details, and mismatched
+aggregates fail closed. PC-23 activation contracts prove malformed or registry-incompatible evidence
+fails before secret lookup, omission remains `not_supplied`, and configured evidence reaches the real
+overview as `available` without request-time rediscovery. PC-24 contracts prove the deployment catalog
+uses the same authorization-before-snapshot order, preserves typed ordering, exposes only approved catalog
+fields plus coarse process-local health, excludes mutable counters/secrets/evidence, maps snapshot failures
+to sanitized 503, and fails route composition before partial attachment on owned-path conflicts. No live
+provider, PDP call, or external secret/backend is required by the Operations request path.
 
 Changes to the shared observability/readiness documentation trigger both the positive-receipt and local
 Compose validation workflows so the documented contract and the executable infrastructure are
@@ -270,10 +292,10 @@ validated on the same candidate SHA.
 
 ## Next slice
 
-With a bounded authenticated overview now established, the next OR-4 increment must be selected from a
-concrete product gap rather than expanding the admin surface speculatively. Candidates include a typed
-deployment-detail read projection or operational-evidence source binding, but each requires its own
-information-disclosure and completeness review before an endpoint is added.
+With the authenticated overview, explicit reviewed-evidence binding and bounded deployment catalog now
+established, the next OR-4 increment must be selected from a concrete product gap rather than expanding
+the admin surface speculatively. Deployment detail, evidence detail and recent routing history each require
+separate information-disclosure, completeness or persistence contracts before an endpoint is added.
 
 Recent routing history remains a separate persistence/read-model concern and must not be fabricated
 from current health or ranking configuration. Fleet aggregation, external IAM, mutations and the React
