@@ -1,0 +1,68 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Read-only local view of real Governed LLM Gateway request traces stored in Tempo. Telemetry is descriptive only and is never an authorization, routing, health, or readiness input.",
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "description": "Recent traces containing the stable llm.gateway.request span. Results come from the provisioned Tempo datasource and are not fabricated metrics or fleet-completeness evidence.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "limit": 20,
+          "query": "{ span:name = \"llm.gateway.request\" }",
+          "queryType": "traceql",
+          "refId": "A",
+          "tableType": "traces"
+        }
+      ],
+      "title": "Recent gateway request traces",
+      "type": "table"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 41,
+  "tags": [
+    "governed-llm-gateway",
+    "tempo",
+    "traces"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Governed LLM Gateway — Traces",
+  "uid": "governed-llm-gateway-traces",
+  "version": 1,
+  "weekStart": ""
+}
