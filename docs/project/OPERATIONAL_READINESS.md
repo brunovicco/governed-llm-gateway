@@ -52,6 +52,8 @@ aggregate response. PC-23 binds an optional explicit reviewed operational-eviden
 secret-free startup. PC-24 adds the authenticated read-only `GET /v1/ops/deployments` catalog without
 introducing mutation authority or detailed runtime counters. PC-25 adds the first React/TypeScript/Vite
 Gateway Console foundation as a read-only consumer of those two already-reviewed Operations endpoints.
+PC-26 adds the first OR-6 prerequisite: a credential-free real-container proof that a metadata-only
+Gateway span traverses the local Collector and is both retrievable and TraceQL-queryable from Tempo.
 
 The audit also found documentation drift: the previous observability document still described Phase 9
 runtime tracing as future work even though Phase 9 is already complete.
@@ -109,7 +111,7 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 | OR-3 | typed read-only operations read model | typed foundation + service-graph composition complete in PC-18/PC-19 |
 | OR-4 | read-only Operations API | authenticated overview, evidence binding and deployment catalog implemented in PC-20..PC-24; broader read surfaces deferred |
 | OR-5 | React/TypeScript/Vite Gateway Console | read-only overview + deployment-catalog foundation implemented in PC-25; broader console surfaces deferred |
-| OR-6 | Grafana dashboards + trace correlation/deep links | not started |
+| OR-6 | Grafana dashboards + trace correlation/deep links | PC-26 Tempo queryability prerequisite implemented; visualization/deep links deferred |
 | OR-7 | optional Langfuse OTLP fan-out | optional / not started |
 | OR-8 | one-command deterministic local demo | not started |
 | OR-9 | broader authentication/security hardening for operational surfaces | not started; minimum OR-4 access prerequisite pulled forward |
@@ -124,8 +126,9 @@ for OR-3. PC-20 and PC-21 deliberately pull forward only the minimum authenticat
 boundary needed to prevent OR-4 from becoming a global unauthenticated catalog. PC-22 consumes those
 boundaries for the first authenticated read-only endpoint. PC-23 adds explicit deployment-owned evidence
 binding, and PC-24 adds the bounded deployment catalog. PC-25 consumes only those certified read surfaces
-for the first console foundation. None of these increments implies that deployment detail, evidence detail,
-routing-history persistence, Tempo query verification, Grafana visualization, dashboards, production
+for the first console foundation. PC-26 proves the previously unverified Collector-to-Tempo hop with the
+real pinned containers and a bounded downstream query. None of these increments implies that deployment
+detail, evidence detail, routing-history persistence, Grafana visualization, dashboards, production
 browser identity/session handling or later admin surfaces are complete.
 
 ## Read-only operations boundary
@@ -252,6 +255,18 @@ that a known metadata-only Gateway span can reach an isolated Collector receipt 
 optional observability configuration at the executable process boundary and injects the configured
 facade through the existing deployment/service composition path.
 
+PC-26 closes the next downstream observability gap with a real local persistence/query proof. Its
+test-only Compose overlay exposes Tempo HTTP only on `127.0.0.1:3200`, while the reusable base Compose
+still keeps Tempo internal. The integration emits `llm.gateway.request` through the Collector at
+`127.0.0.1:4318/v1/traces`, requires the exact trace by ID from Tempo, and then requires that same trace
+to be discoverable by TraceQL using the integration `resource.service.name` and span name.
+
+The proof also runs the real pinned configuration rather than validating YAML shape only. Tempo `3.0.3`
+uses the Tempo 3.x `backend_worker.compaction` retention contract; the local 24-hour retention intent is
+preserved. Integration-only recent-query settings remain outside the reusable Tempo configuration. The
+Tempo HTTP test client is stdlib-only and validates the exact loopback boundary before request creation
+or connection opening.
+
 Observability is disabled by default. Explicit endpoint/environment process arguments enable it. A
 runtime configuration failure degrades to null telemetry; a configured facade is shut down best-effort
 when the runner returns or activation/runner fails. No telemetry backend is probed for startup or
@@ -323,25 +338,28 @@ a production Vite build. The boundary scan rejects browser persistence APIs, mut
 unreviewed `/v1/ops/*` paths in console source. Frontend CI does not replace or weaken the Python quality,
 collector-receipt or observability-compose gates.
 
-Changes to the shared observability/readiness documentation trigger both the positive-receipt and local
-Compose validation workflows so the documented contract and the executable infrastructure are
-validated on the same candidate SHA.
+PC-26 adds the credential-free, path-scoped `tempo-query` workflow. It validates the base-plus-test
+Compose model, starts only the real pinned Tempo and Collector services, performs bounded readiness,
+emits through Collector OTLP/HTTP, requires trace-by-ID plus TraceQL evidence from Tempo, records failure
+diagnostics, and always tears down containers and volumes. Exporter flush is necessary but is not treated
+as downstream query evidence.
+
+Changes to the shared observability/readiness documentation trigger the Tempo query workflow. Existing
+observability workflows continue to validate their own path-scoped contracts on applicable candidate
+SHAs; none of these CI checks require provider, PDP, SaaS or secret access.
 
 ## Next slice
 
-With the authenticated overview, explicit reviewed-evidence binding, bounded deployment catalog and first
-read-only Gateway Console foundation established, the next product-readiness increment must be selected
-from a concrete remaining gap rather than by adding speculative admin capabilities.
+PC-26 is deliberately the prerequisite for OR-6 visualization rather than the dashboard increment
+itself. No PC-27 issue should be opened until PC-26 is merged and its post-merge `main` gates are green.
+After that certification, re-audit the real `main` before deciding whether Grafana dashboard provisioning
+is the next smallest concrete gap.
 
-Likely candidates now sit outside the basic console foundation: OR-6 trace correlation/Grafana dashboard
-work or OR-8 deterministic demo orchestration. Each requires a fresh audit of the existing trace/query and
-local-process topology before an issue is opened. Deployment detail, evidence detail and recent routing
-history still require separate information-disclosure, completeness or persistence contracts before an
-endpoint or screen is added.
-
-Recent routing history remains a separate persistence/read-model concern and must not be fabricated
-from current health or ranking configuration. Fleet aggregation, external IAM and mutations remain
-separate increments. Phase 14 consumer integrations remain frozen by their sequencing guard.
+Deployment detail, evidence detail and recent routing history still require separate information-
+disclosure, completeness or persistence contracts before an endpoint or screen is added. Recent routing
+history must not be fabricated from current health or ranking configuration. Fleet aggregation, external
+IAM and mutations remain separate increments. Phase 14 consumer integrations remain frozen by their
+sequencing guard.
 
 ## Completion rule
 
