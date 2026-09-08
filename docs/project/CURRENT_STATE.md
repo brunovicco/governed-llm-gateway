@@ -200,7 +200,7 @@ the permanent authorization boundary. The latest certified sequence is:
 - PC-30 — deterministic one-command orchestration for the operations-only Gateway, Console and local
   Collector + Tempo + Grafana stack, with bounded readiness and deterministic cleanup.
 
-PC-30 squash merge / latest certified runtime-bearing baseline:
+PC-30 squash merge / latest certified operations-only baseline:
 
 `594b8609634b54eec60f75a733e6aa90846face9` (PR #172).
 
@@ -209,10 +209,57 @@ Post-merge `main` evidence:
 - `quality` run `34273364638` — PASS;
 - `local-demo-smoke` run `34273364740` — PASS, including real startup/readiness and post-return cleanup.
 
-OR-8 is complete only at this bounded operations-only local-demo scope. Live inference, provider
-credentials, a live Policy Router/PDP, production IAM/TLS/SSO, per-trace Console correlation and final
-product-readiness validation remain outside PC-30. Evidence, dashboards and readiness remain descriptive
-and cannot authorize execution.
+OR-8 is complete only at this bounded operations-only local-demo scope. Production IAM/TLS/SSO,
+per-trace Console correlation and final product-readiness validation remain outside PC-30. Evidence,
+dashboards and readiness remain descriptive and cannot authorize execution.
+
+## Governed live-inference development profile — PC-33 validated candidate
+
+PR #179 introduces the first explicit opt-in development profile that composes the real governed serving
+path without changing the checked-in fail-closed defaults. The profile lives under
+`config/profiles/live-development/` and is bounded to one `development` / `public` / `rag.answer` client,
+an external Policy Model Router decision, the authorized logical group `balanced`, deterministic ranking,
+and native Gemini/OpenAI provider execution.
+
+The profile does not contain raw credentials. Gateway-client, PDP and provider credentials remain separate
+server-side references, and default CI remains credential-free. Provider credentials alone still cannot
+activate inference because registry, provider runtime, trusted client identity and PDP configuration must
+materialize coherently.
+
+PC-33 also adds a narrow local-development transport exception: plaintext Policy Router HTTP is accepted
+only for a literal loopback IP address and is revalidated immediately before the connection is opened.
+`localhost`, private-LAN and remote HTTP endpoints remain rejected; non-loopback PDP deployments continue
+to require HTTPS. This exception supplies connectivity only and cannot widen PDP authorization.
+
+The two checked-in ranking entries intentionally use equal neutral static component inputs. They exercise
+the existing deterministic tie-break and are not represented as observed quality, reliability,
+availability, latency or benchmark evidence.
+
+Validated pre-merge head:
+
+`0cd543ad46fda272cc6a0c34a83ba42ac593d3dc`
+
+Required PR quality run:
+
+`34281338068` — PASS.
+
+Validation:
+
+- 1,139 tests passed, 2 skipped;
+- aggregate coverage 83.66%;
+- strict mypy passed across 264 source files;
+- Ruff lint/format passed across 264 files;
+- Bandit reported 0 findings across 23,624 lines of code;
+- pip-audit reported no known vulnerabilities;
+- architecture check, secret scan and Phase 0 gate passed.
+
+This is a credential-free repository/configuration proof, not yet a live-provider certification. A real
+provider/PDP request must still be executed and recorded opt-in with local/server-side credentials before
+the live path is called portfolio/demo-ready. Production OAuth/OIDC/workload identity, TLS termination,
+production secret-manager adapters and broader OR-9 hardening also remain outside PC-33.
+
+Phase 14 ordering is unchanged by PC-33: OpsLens remains deferred and RAGForge remains blocked unless the
+normative sequence is explicitly revised.
 
 ## Phase 14 — Real Project Integrations
 
@@ -289,7 +336,7 @@ Remains after the preceding integration cases.
 
 ## Current working boundary
 
-1. Treat `594b8609634b54eec60f75a733e6aa90846face9` as the latest certified runtime-bearing baseline. Documentation-only checkpoints may advance `main` without changing runtime behavior; any further functional change must still start from the then-current `main` and remain independently justified and consumer-agnostic while OpsLens is deferred.
+1. Treat PC-33 PR #179's exact validated head as the current runtime-bearing candidate until its protected merge and post-merge `main` quality evidence are recorded. PC-30 remains the certified operations-only baseline. Live-provider execution remains a separate opt-in proof and must not be inferred from credential-free CI.
 2. Do not modify OpsLens until its independent development state is ready for reconciliation.
 3. Do not begin RAGForge in parallel unless the roadmap order is explicitly revised.
 4. Accept further upstream gateway changes only when they are consumer-agnostic, independently justified and preserve the permanent authorization invariant.
