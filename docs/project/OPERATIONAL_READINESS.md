@@ -39,9 +39,10 @@ The September 2026 audit established the following baseline before product-readi
   gateway integration/e2e proof.
 
 PC-15 subsequently added the pinned local Collector + Tempo + Grafana foundation. PC-16 added the
-credential-free positive Collector receipt proof. PC-17 adds optional executable-process ownership of
+credential-free positive Collector receipt proof. PC-17 added optional executable-process ownership of
 `Observability.configure()` / injection / shutdown while preserving the original metadata-only and
-non-authoritative boundaries.
+non-authoritative boundaries. PC-18 begins OR-3 with a typed application-layer operations projection
+that has no HTTP or control-plane authority.
 
 The audit also found documentation drift: the previous observability document still described Phase 9
 runtime tracing as future work even though Phase 9 is already complete.
@@ -95,7 +96,7 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 | OR-1 | telemetry vocabulary hardening | active |
 | OR-2 | local OTel Collector + Tempo + Grafana foundation | foundation + positive receipt complete |
 | process activation | optional process-owned OTel lifecycle | complete in PC-17 |
-| OR-3 | typed read-only operations read model | not started |
+| OR-3 | typed read-only operations read model | typed foundation in PC-18; process/API wiring deferred |
 | OR-4 | read-only Operations API | not started |
 | OR-5 | React/TypeScript/Vite Gateway Console | not started |
 | OR-6 | Grafana dashboards + trace correlation/deep links | not started |
@@ -108,13 +109,26 @@ OR-1 is split into small increments. Issue #83 declares the compatibility vocabu
 Phase 9 documentation before any external observability stack is added.
 
 PC-15 and PC-16 are bounded OR-2 increments. PC-17 closes the separate process-owned observability
-lifecycle prerequisite. None of these increments implicitly completes Tempo query verification,
-Grafana visualization, dashboards or any later operations surface.
+lifecycle prerequisite. PC-18 is the first bounded OR-3 increment. None of these increments implicitly
+completes an Operations API, Tempo query verification, Grafana visualization, dashboards or any later
+operations surface.
 
 ## Read-only operations boundary
 
 The first operations surface must be read-only and explicitly composed from typed gateway-owned data.
 A UI must not inspect arbitrary internal objects or provider SDK state.
+
+PC-18 introduces `OperationsReadModelService` and an immutable `OperationsSnapshot` in
+`gateway-core/application`. The projection is built only from the validated `ModelRegistry`, effective
+`RankingPolicy`, an explicit read-only health inspection port and an optional already-verified
+`OperationalEvidenceSnapshot`.
+
+The health view is explicitly `process_local`. `InMemoryHealthInspectionAdapter` evaluates health on an
+isolated replica of the in-memory tracker so dashboard-style reads cannot materialize live state or
+advance the live circuit breaker. Operational-evidence absence is represented as `not_supplied`; it is
+never converted to zero requests, zero errors or a healthy-fleet claim.
+
+See `docs/project/OPERATIONS_READ_MODEL.md` for the typed projection and non-claims.
 
 Candidate future endpoints include:
 
@@ -193,16 +207,21 @@ PC-17 lifecycle contracts do not open a socket or require a Collector. They inje
 doubles at the process boundary to prove default-disabled behavior, explicit settings, degradation,
 injection and shutdown semantics.
 
+PC-18 read-model contracts are also credential-free and network-free. They prove deterministic
+projection, explicit evidence absence, exact ranking/registry provenance and non-mutating inspection of
+process-local health.
+
 Changes to the shared observability/readiness documentation trigger both the positive-receipt and local
 Compose validation workflows so the documented contract and the executable infrastructure are
 validated on the same candidate SHA.
 
 ## Next slice
 
-With the local observability foundation, positive receipt proof and optional process lifecycle bounded,
-the next product-readiness slice is the typed read-only operations read model. That work must first
-audit the existing registry, routing, health, benchmark and operational-evidence sources and define
-explicit absence/completeness semantics before exposing an API or UI.
+Before OR-4 exposes an HTTP surface, the next OR-3 dependency audit must decide how the typed read model
+is composed with the already-materialized application/process state without giving the API a new path
+to secrets, provider SDK internals, Policy Router calls or mutable resilience controls. Recent routing
+history remains a separate persistence/read-model concern and must not be fabricated from current
+health or ranking configuration.
 
 ## Completion rule
 
