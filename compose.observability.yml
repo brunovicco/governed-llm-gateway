@@ -48,6 +48,8 @@ services:
       GF_PLUGINS_CHECK_FOR_UPDATES: "false"
     volumes:
       - ./deploy/observability/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/tempo.yaml:ro
+      - ./deploy/observability/grafana-dashboard-provider.yaml:/etc/grafana/provisioning/dashboards/gateway.yaml:ro
+      - ./deploy/observability/gateway-traces-dashboard.json:/etc/grafana/dashboards/gateway-traces.json:ro
       - grafana-data:/var/lib/grafana
     ports:
       - 127.0.0.1:3000:3000
