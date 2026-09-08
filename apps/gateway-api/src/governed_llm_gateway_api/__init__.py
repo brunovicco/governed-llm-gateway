@@ -57,6 +57,9 @@ from .operations_access_json import (
     validate_operations_access_client_auth,
 )
 from .operations_http import (
+    OperationsDeploymentHealthModel,
+    OperationsDeploymentModel,
+    OperationsDeploymentsResponseModel,
     OperationsEvidenceOverviewModel,
     OperationsHealthOverviewModel,
     OperationsHttpCompositionError,
@@ -160,6 +163,9 @@ __all__ = [
     "GovernedProcessRuntimeBundle",
     "GovernedServerSettings",
     "GovernedServiceCompositionError",
+    "OperationsDeploymentHealthModel",
+    "OperationsDeploymentModel",
+    "OperationsDeploymentsResponseModel",
     "OperationsEvidenceOverviewModel",
     "OperationsHealthOverviewModel",
     "OperationsHttpCompositionError",

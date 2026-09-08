@@ -1,4 +1,4 @@
-"""Authenticated bounded HTTP projection for read-only Gateway operations metadata."""
+"""Authenticated bounded HTTP projections for read-only Gateway operations metadata."""
 
 from datetime import date
 from typing import Annotated, Literal, Protocol
@@ -14,6 +14,7 @@ from .operations_access import OperationsReadAuthorizationError
 from .route_explain import ClientAuthenticationError
 
 _OPERATIONS_OVERVIEW_PATH = "/v1/ops/overview"
+_OPERATIONS_DEPLOYMENTS_PATH = "/v1/ops/deployments"
 
 
 class OperationsHttpCompositionError(RuntimeError):
@@ -85,7 +86,7 @@ class OperationsEvidenceOverviewModel(BaseModel):
 
 
 class OperationsOverviewResponseModel(BaseModel):
-    """First bounded read-only operations API response."""
+    """Bounded aggregate read-only operations API response."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -95,18 +96,60 @@ class OperationsOverviewResponseModel(BaseModel):
     operational_evidence: OperationsEvidenceOverviewModel
 
 
+class OperationsDeploymentHealthModel(BaseModel):
+    """Coarse process-local health without mutable execution counters."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    status: Literal["healthy", "degraded", "unhealthy"]
+    circuit_state: Literal["closed", "open", "half_open"]
+
+
+class OperationsDeploymentModel(BaseModel):
+    """Bounded operator-visible metadata for one active registry deployment."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    deployment_id: str
+    provider: str
+    model_id: str
+    model_group: str
+    api_family: str
+    enabled: bool
+    capabilities: tuple[str, ...]
+    modalities: tuple[str, ...]
+    context_tokens: int = Field(gt=0)
+    max_data_classification: str
+    allowed_environments: tuple[str, ...]
+    pricing_snapshot_version: str | None
+    health: OperationsDeploymentHealthModel
+
+
+class OperationsDeploymentsResponseModel(BaseModel):
+    """Authenticated deterministic deployment catalog for operator visibility."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    health_scope: Literal["process_local"] = "process_local"
+    deployments: tuple[OperationsDeploymentModel, ...]
+
+
 def attach_operations_routes(
     app: FastAPI,
     *,
     access: OperationsReadAuthorizer,
     read_model: OperationsSnapshotReader,
 ) -> None:
-    """Attach the authenticated operations overview exactly once."""
+    """Attach the owned authenticated Operations routes atomically and exactly once."""
     if not isinstance(app, FastAPI):
         raise TypeError("app must be a FastAPI application")
     existing_paths = {route.path for route in app.routes if isinstance(route, APIRoute)}
-    if _OPERATIONS_OVERVIEW_PATH in existing_paths:
-        raise OperationsHttpCompositionError("operations overview route already attached")
+    owned_paths = {_OPERATIONS_OVERVIEW_PATH, _OPERATIONS_DEPLOYMENTS_PATH}
+    conflicts = sorted(existing_paths & owned_paths)
+    if conflicts:
+        raise OperationsHttpCompositionError(
+            f"operations route already attached: {', '.join(conflicts)}"
+        )
 
     @app.get(
         _OPERATIONS_OVERVIEW_PATH,
@@ -119,32 +162,70 @@ def attach_operations_routes(
             Header(alias="X-Gateway-API-Key"),
         ] = None,
     ) -> OperationsOverviewResponseModel:
-        if gateway_api_key is None:
-            raise _invalid_gateway_credential()
+        snapshot = await _authorize_and_read_snapshot(
+            gateway_api_key=gateway_api_key,
+            access=access,
+            read_model=read_model,
+        )
         try:
-            await access.authorize(api_key=gateway_api_key)
-        except ClientAuthenticationError as exc:
-            raise _invalid_gateway_credential() from exc
-        except OperationsReadAuthorizationError as exc:
-            raise HTTPException(
-                status_code=403,
-                detail={"code": "operations_read_access_denied"},
-            ) from exc
-
-        try:
-            snapshot = read_model.snapshot()
             return _overview_response(snapshot)
         except RuntimeError as exc:
-            raise HTTPException(
-                status_code=503,
-                detail={"code": "operations_snapshot_unavailable"},
-            ) from exc
+            raise _snapshot_unavailable() from exc
+
+    @app.get(
+        _OPERATIONS_DEPLOYMENTS_PATH,
+        response_model=OperationsDeploymentsResponseModel,
+        tags=["operations"],
+    )
+    async def operations_deployments(
+        gateway_api_key: Annotated[
+            str | None,
+            Header(alias="X-Gateway-API-Key"),
+        ] = None,
+    ) -> OperationsDeploymentsResponseModel:
+        snapshot = await _authorize_and_read_snapshot(
+            gateway_api_key=gateway_api_key,
+            access=access,
+            read_model=read_model,
+        )
+        return _deployments_response(snapshot)
+
+
+async def _authorize_and_read_snapshot(
+    *,
+    gateway_api_key: str | None,
+    access: OperationsReadAuthorizer,
+    read_model: OperationsSnapshotReader,
+) -> OperationsSnapshot:
+    if gateway_api_key is None:
+        raise _invalid_gateway_credential()
+    try:
+        await access.authorize(api_key=gateway_api_key)
+    except ClientAuthenticationError as exc:
+        raise _invalid_gateway_credential() from exc
+    except OperationsReadAuthorizationError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "operations_read_access_denied"},
+        ) from exc
+
+    try:
+        return read_model.snapshot()
+    except RuntimeError as exc:
+        raise _snapshot_unavailable() from exc
 
 
 def _invalid_gateway_credential() -> HTTPException:
     return HTTPException(
         status_code=401,
         detail={"code": "invalid_gateway_credential"},
+    )
+
+
+def _snapshot_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail={"code": "operations_snapshot_unavailable"},
     )
 
 
@@ -190,4 +271,32 @@ def _overview_response(snapshot: OperationsSnapshot) -> OperationsOverviewRespon
         operational_evidence=OperationsEvidenceOverviewModel(
             state=snapshot.operational_evidence.state.value,
         ),
+    )
+
+
+def _deployments_response(snapshot: OperationsSnapshot) -> OperationsDeploymentsResponseModel:
+    deployments = tuple(
+        OperationsDeploymentModel(
+            deployment_id=deployment.deployment_id,
+            provider=deployment.provider,
+            model_id=deployment.model_id,
+            model_group=deployment.model_group,
+            api_family=deployment.api_family,
+            enabled=deployment.enabled,
+            capabilities=deployment.capabilities,
+            modalities=deployment.modalities,
+            context_tokens=deployment.context_tokens,
+            max_data_classification=deployment.max_data_classification,
+            allowed_environments=deployment.allowed_environments,
+            pricing_snapshot_version=deployment.pricing_snapshot_version,
+            health=OperationsDeploymentHealthModel(
+                status=deployment.health.status.value,
+                circuit_state=deployment.health.circuit_state.value,
+            ),
+        )
+        for deployment in snapshot.deployments
+    )
+    return OperationsDeploymentsResponseModel(
+        health_scope=snapshot.health_scope.value,
+        deployments=deployments,
     )
