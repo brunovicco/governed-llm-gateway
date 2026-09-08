@@ -61,15 +61,16 @@ def test_collector_exports_only_metadata_traces_to_internal_tempo() -> None:
     collector = _text(_COLLECTOR_PATH)
 
     assert "endpoint: 0.0.0.0:4318" in collector
-    assert collector.count("otlp/tempo") == 2
+    assert collector.count("otlp_grpc/tempo") == 2
+    assert "otlp/tempo" not in collector
     assert "endpoint: tempo:4317" in collector
     assert "processors:\n  batch: {}" in collector
     assert "      receivers:\n        - otlp" in collector
     assert "      processors:\n        - batch" in collector
-    assert "      exporters:\n        - otlp/tempo" in collector
+    assert "      exporters:\n        - otlp_grpc/tempo" in collector
 
 
-def test_tempo_uses_internal_otlp_and_local_storage_only() -> None:
+def test_tempo_uses_internal_otlp_local_storage_and_tempo3_retention() -> None:
     tempo = _text(_TEMPO_PATH)
 
     assert "http_listen_port: 3200" in tempo
@@ -77,6 +78,8 @@ def test_tempo_uses_internal_otlp_and_local_storage_only() -> None:
     assert "backend: local" in tempo
     assert "path: /var/tempo/traces" in tempo
     assert "path: /var/tempo/wal" in tempo
+    assert "backend_worker:\n  compaction:\n    block_retention: 24h\n" in tempo
+    assert "\ncompactor:" not in tempo
     assert "backend: s3" not in tempo
     assert "backend: gcs" not in tempo
     assert "backend: azure" not in tempo

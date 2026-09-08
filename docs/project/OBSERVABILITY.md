@@ -258,15 +258,38 @@ Grafana visualization, process lifecycle correctness, fleet completeness or prod
 PC-17 separately proves the executable-process lifecycle contract with deterministic contract tests;
 it does not change the narrower meaning of the PC-16 receipt evidence.
 
+## Tempo persistence and queryability verification
+
+PC-26 adds the next bounded downstream proof without making Tempo part of readiness or inference.
+The credential-free `tempo-query` integration starts the real pinned Collector and Tempo containers,
+emits one metadata-only `llm.gateway.request` span through the Collector OTLP/HTTP boundary, and then
+requires the exact emitted trace to be both retrievable by trace ID and discoverable through Tempo
+TraceQL search.
+
+The reusable Compose stack keeps Tempo internal. A test-only overlay publishes `127.0.0.1:3200` solely
+for the bounded query proof. The Python integration uses stdlib `urllib` and validates the complete
+Tempo URL as reviewed loopback HTTP before constructing or opening a request.
+
+Real startup validation also protects the pinned-version configuration contract. Tempo `3.0.3` uses the
+Tempo 3.x backend compaction/retention shape under `backend_worker.compaction`; the local 24-hour
+retention intent remains explicit. Integration-only recent-query settings are isolated from the reusable
+base configuration so the test can query the span it just emitted without changing local-demo defaults.
+
+See `docs/project/TEMPO_QUERY_PROOF.md` for the exact path, failure semantics and non-claims.
+
+Tempo query success proves only the checked-in local Collector-to-Tempo delivery/query path. It does not
+establish Grafana dashboard correctness, fleet completeness, production authentication/durability,
+telemetry freshness guarantees, provider reachability, inference readiness, or any authorization,
+ranking, health, retry or fallback authority.
+
 ## Next operational increment
 
-PC-15 established the local Collector + Tempo + Grafana foundation, PC-16 established deterministic
-positive Collector receipt evidence, and PC-17 established optional process-owned observability
-configuration/injection/shutdown without making telemetry an availability dependency.
+PC-15 established the local observability stack, PC-16 proved positive Collector receipt, PC-17 bound
+optional observability lifecycle to the executable process, PC-18 through PC-24 established the bounded
+Operations read path, and PC-25 added the first read-only Gateway Console. PC-26 now supplies the
+Collector-to-Tempo queryability proof required before Grafana visualization work is justified.
 
-The next product-readiness slice should return to the read-only operations track and audit the typed
-operations read model boundary before introducing new API or UI surfaces. Tempo query verification,
-Grafana dashboards and Langfuse remain separate later increments.
-
-Langfuse remains optional and, if introduced later, must integrate downstream of OTLP/Collector rather
-than through a Gateway SDK dependency.
+Grafana dashboards, trace correlation/deep links and any Console trace-link work remain separate later
+increments and must be re-audited only after PC-26 is certified post-merge. Langfuse remains optional
+and, if introduced later, must integrate downstream of OTLP/Collector rather than through a Gateway SDK
+dependency.
