@@ -21,9 +21,7 @@ class DeploymentOperationsSnapshotReader:
             self.operational_evidence,
             OperationalEvidenceSnapshot,
         ):
-            raise TypeError(
-                "operational_evidence must use OperationalEvidenceSnapshot or None"
-            )
+            raise TypeError("operational_evidence must use OperationalEvidenceSnapshot or None")
 
     def snapshot(self) -> OperationsSnapshot:
         """Read current process state with the exact startup-bound evidence snapshot."""

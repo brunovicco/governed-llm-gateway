@@ -116,9 +116,7 @@ def test_operational_evidence_cli_accepts_only_explicit_artifact_path(tmp_path: 
 
     settings = parse_server_args(argv)
 
-    assert settings.deployment.operational_evidence_path == Path(
-        "config/operational-evidence.json"
-    )
+    assert settings.deployment.operational_evidence_path == Path("config/operational-evidence.json")
 
 
 def test_approved_cli_requires_exact_expected_artifact_identity(tmp_path: Path) -> None:

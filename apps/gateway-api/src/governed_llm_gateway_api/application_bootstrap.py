@@ -112,9 +112,7 @@ class GovernedApplicationArtifacts:
                 )
         if self.operational_evidence is not None:
             if not isinstance(self.operational_evidence, OperationalEvidenceSnapshot):
-                raise TypeError(
-                    "operational_evidence must use OperationalEvidenceSnapshot or None"
-                )
+                raise TypeError("operational_evidence must use OperationalEvidenceSnapshot or None")
             validate_operational_evidence_registry(
                 self.operational_evidence,
                 self.process.registry,
