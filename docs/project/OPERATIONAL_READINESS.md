@@ -43,9 +43,10 @@ credential-free positive Collector receipt proof. PC-17 added optional executabl
 `Observability.configure()` / injection / shutdown while preserving the original metadata-only and
 non-authoritative boundaries. PC-18 introduced the typed application-layer operations projection.
 PC-19 composes that projection from the exact active registry, ranking policy and shared process-local
-health state. PC-20 begins the OR-4 security prerequisite by separating authenticated Gateway identity
-from workload authorization and adding an explicit secret-free operations-read grant boundary before
-any operations HTTP route is exposed.
+health state. PC-20 separates authenticated Gateway identity from workload authorization and adds an
+explicit operations-read grant boundary. PC-21 binds that boundary to a deployment-owned secret-free
+artifact, validates its principals against client-auth before secret resolution, and carries the same
+authorization service into the governed service graph. No operations HTTP route exists yet.
 
 The audit also found documentation drift: the previous observability document still described Phase 9
 runtime tracing as future work even though Phase 9 is already complete.
@@ -101,7 +102,7 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 | OR-2 | local OTel Collector + Tempo + Grafana foundation | foundation + positive receipt complete |
 | process activation | optional process-owned OTel lifecycle | complete in PC-17 |
 | OR-3 | typed read-only operations read model | typed foundation + service-graph composition complete in PC-18/PC-19 |
-| OR-4 | read-only Operations API | access prerequisite active in PC-20; HTTP not started |
+| OR-4 | read-only Operations API | access boundary + deployment binding complete in PC-20/PC-21; HTTP not started |
 | OR-5 | React/TypeScript/Vite Gateway Console | not started |
 | OR-6 | Grafana dashboards + trace correlation/deep links | not started |
 | OR-7 | optional Langfuse OTLP fan-out | optional / not started |
@@ -114,10 +115,10 @@ Phase 9 documentation before any external observability stack is added.
 
 PC-15 and PC-16 are bounded OR-2 increments. PC-17 closes the separate process-owned observability
 lifecycle prerequisite. PC-18 and PC-19 close the typed/read-model and service-composition prerequisites
-for OR-3. PC-20 deliberately pulls forward only the minimum access-control primitive needed to prevent
-OR-4 from becoming a global unauthenticated catalog. None of these increments implicitly completes an
-Operations API, Tempo query verification, Grafana visualization, dashboards or any later operations
-surface.
+for OR-3. PC-20 and PC-21 deliberately pull forward only the minimum authentication/configuration
+boundary needed to prevent OR-4 from becoming a global unauthenticated catalog. None of these
+increments implicitly completes an Operations API, Tempo query verification, Grafana visualization,
+dashboards or any later operations surface.
 
 ## Read-only operations boundary
 
@@ -140,13 +141,22 @@ advance the live circuit breaker. Operational-evidence absence is represented as
 never converted to zero requests, zero errors or a healthy-fleet claim.
 
 PC-20 adds the minimum visibility authorization prerequisite before transport is attached. The existing
-Gateway credential resolver can now authenticate a `GatewayClientIdentity` without constructing a
-synthetic workload request. `OperationsReadAccessPolicy` then requires an exact secret-free
+Gateway credential resolver can authenticate a `GatewayClientIdentity` without constructing a synthetic
+workload request. `OperationsReadAccessPolicy` then requires an exact secret-free
 `(client_id, environment)` grant. Workload allowlists do not imply administrative visibility, and an
 operations-read grant does not imply model/deployment execution authority. Empty grants deny all.
 
-See `docs/project/OPERATIONS_READ_MODEL.md` for the typed projection/non-claims and
-`docs/project/OPERATIONS_ACCESS.md` for the operations visibility boundary.
+PC-21 makes the grant deployment-owned without adding a new secret path. `OperationsReadAccessDocument`
+is a closed JSON artifact containing only schema/config provenance and ordered exact principals. It is
+loaded during the existing secret-free process stage and every principal is cross-validated against the
+already-loaded Gateway client-auth identities before any client, Policy Router or provider credential
+is read. Omitting the artifact is explicit deny-all. After validation, the runtime creates
+`OperationsReadAccessService` from the same already-materialized `StaticGatewayClientContextResolver`
+and carries that exact service instance into `GovernedGatewayServices`.
+
+See `docs/project/OPERATIONS_READ_MODEL.md` for the typed projection/non-claims,
+`docs/project/OPERATIONS_ACCESS.md` for the operations visibility boundary and
+`docs/project/OPERATIONS_ACCESS_ARTIFACT.md` for the deployment artifact/bootstrap contract.
 
 Candidate future endpoints include:
 
@@ -231,7 +241,9 @@ process-local health. PC-19 service-composition contracts prove that the project
 registry/ranking and same process-local health tracker without new secret reads or an HTTP route.
 PC-20 operations-access contracts reuse already-materialized test credentials, prove no request-time
 secret re-resolution, preserve workload authorization semantics and verify fail-closed deny-all and
-ungranted-principal behavior without network or PDP/provider access.
+ungranted-principal behavior without network or PDP/provider access. PC-21 artifact/bootstrap contracts
+prove closed-schema deterministic grants, cross-artifact rejection before all secret resolvers,
+deployment-root path containment, omitted deny-all behavior and exact runtime service-instance reuse.
 
 Changes to the shared observability/readiness documentation trigger both the positive-receipt and local
 Compose validation workflows so the documented contract and the executable infrastructure are
@@ -239,15 +251,15 @@ validated on the same candidate SHA.
 
 ## Next slice
 
-Before OR-4 attaches an HTTP endpoint, the next bounded dependency is a deployment-owned, secret-free
-operations-access artifact/loader and bootstrap binding that selects the explicitly granted
-`GatewayClientIdentity` principals. It must validate that configured principals correspond to the
-already-loaded Gateway client-auth identities without resolving credentials a second time.
+With the PC-20/PC-21 visibility boundary and deployment binding in place, the next bounded OR-4 slice
+may attach the first authenticated read-only endpoint, `GET /v1/ops/overview`. The HTTP adapter must
+authorize through the already-composed `OperationsReadAccessService` before reading the PC-19
+`OperationsReadModelService` snapshot, return sanitized 401/403 failures, and expose no secret,
+credential, provider SDK or mutable resilience internals.
 
-Only after that configuration boundary is validated should a first read-only endpoint such as
-`GET /v1/ops/overview` be attached to the PC-19 `OperationsReadModelService` behind the PC-20
-`OperationsReadAccessService`. Recent routing history remains a separate persistence/read-model concern
-and must not be fabricated from current health or ranking configuration.
+Recent routing history remains a separate persistence/read-model concern and must not be fabricated
+from current health or ranking configuration. Operational-evidence source binding, fleet aggregation,
+external IAM, mutations and the React console remain separate increments.
 
 ## Completion rule
 
