@@ -55,7 +55,7 @@ export class OperationsApiClient {
         throw new OperationsApiError(
           "invalid_response",
           "Gateway returned Operations data that did not match the trusted contract.",
-        ) from error;
+        );
       }
       throw error;
     }
@@ -83,7 +83,7 @@ export class OperationsApiClient {
       throw new OperationsApiError(
         "network_error",
         "Gateway Operations API could not be reached.",
-      ) from error;
+      );
     }
 
     if (!response.ok) {
@@ -92,12 +92,12 @@ export class OperationsApiClient {
 
     try {
       return await response.json();
-    } catch (error) {
+    } catch {
       throw new OperationsApiError(
         "invalid_response",
         "Gateway returned a non-JSON Operations response.",
         response.status,
-      ) from error;
+      );
     }
   }
 }
