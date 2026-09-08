@@ -59,9 +59,7 @@ def test_every_host_published_port_is_loopback_only() -> None:
     compose = _load_yaml(_COMPOSE_PATH)
 
     published_ports = [
-        str(port)
-        for service in compose["services"].values()
-        for port in service.get("ports", [])
+        str(port) for service in compose["services"].values() for port in service.get("ports", [])
     ]
 
     assert published_ports == ["127.0.0.1:4318:4318", "127.0.0.1:3000:3000"]
@@ -85,9 +83,7 @@ def test_collector_exports_only_metadata_traces_to_internal_tempo() -> None:
     collector = _load_yaml(_COLLECTOR_PATH)
     traces = collector["service"]["pipelines"]["traces"]
 
-    assert (
-        collector["receivers"]["otlp"]["protocols"]["http"]["endpoint"] == "0.0.0.0:4318"
-    )
+    assert collector["receivers"]["otlp"]["protocols"]["http"]["endpoint"] == "0.0.0.0:4318"
     assert set(collector["exporters"]) == {"otlp/tempo"}
     assert collector["exporters"]["otlp/tempo"]["endpoint"] == "tempo:4317"
     assert traces == {
