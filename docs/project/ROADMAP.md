@@ -208,7 +208,7 @@ starts from the then-current `main`.
 
 Until OpsLens is ready for reconciliation:
 
-1. keep the gateway `main` baseline stable;
+1. start every new increment from the then-current `main` and preserve the certified runtime-bearing behavior unless a separately justified increment changes it;
 2. do not start a second consumer migration in parallel;
 3. perform only upstream gateway hardening or evaluation work that is independently justified and consumer-agnostic;
 4. do not create benchmark-only routing/model-selection bypasses to force a nominal target;
