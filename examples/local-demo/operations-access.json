@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "config_version": "pc29-local-demo",
+  "principals": [
+    {
+      "client_id": "local-operations-demo",
+      "environment": "development"
+    }
+  ]
+}

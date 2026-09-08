@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 governed-llm-gateway = "governed_llm_gateway_api.server:main"
+governed-llm-gateway-operations-demo = "governed_llm_gateway_api.operations_demo:main"
 
 [tool.uv.sources]
 governed-llm-gateway-contracts = { workspace = true }

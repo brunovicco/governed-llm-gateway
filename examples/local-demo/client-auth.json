@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "config_version": "pc29-local-demo",
+  "bindings": [
+    {
+      "client_id": "local-operations-demo",
+      "environment": "development",
+      "credential_reference": "GATEWAY_LOCAL_DEMO_API_KEY",
+      "allowed_workloads": [
+        "demo.operations"
+      ],
+      "minimum_risk_level": "low",
+      "minimum_data_classification": "public"
+    }
+  ]
+}
