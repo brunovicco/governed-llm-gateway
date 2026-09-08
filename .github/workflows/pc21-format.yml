@@ -1,0 +1,33 @@
+name: pc21-format
+
+on:
+  push:
+    branches:
+      - feat/pc21-operations-access-artifact
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Install Python
+        run: uv python install 3.13
+      - name: Format PC-21 contract tests
+        run: >-
+          uvx --python 3.13 --from ruff==0.12.11 ruff format
+          tests/contract/test_deployment_activation.py
+          tests/contract/test_governed_process_bootstrap.py
+      - name: Commit formatted files and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/pc21-format.yml
+          git add tests/contract/test_deployment_activation.py tests/contract/test_governed_process_bootstrap.py
+          git commit -m "style: format PC-21 contract tests"
+          git push origin HEAD:feat/pc21-operations-access-artifact
