@@ -164,6 +164,7 @@ def test_missing_deployments_credential_returns_401_without_snapshot() -> None:
     response = TestClient(app).get("/v1/ops/deployments")
 
     assert response.status_code == 401
+    assert response.headers["cache-control"] == "no-store"
     assert response.json() == {"detail": {"code": "invalid_gateway_credential"}}
     assert authorizer.calls == []
     assert reader.calls == 0
@@ -190,6 +191,7 @@ def test_rejected_deployments_callers_cannot_read_snapshot(
     )
 
     assert response.status_code == status
+    assert response.headers["cache-control"] == "no-store"
     assert response.json() == {"detail": {"code": code}}
     assert authorizer.calls == ["opaque-credential"]
     assert reader.calls == 0
@@ -205,6 +207,7 @@ def test_granted_deployments_catalog_preserves_typed_order_and_bounded_fields() 
     )
 
     assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
     assert response.json() == {
         "health_scope": "process_local",
         "deployments": [
@@ -270,6 +273,7 @@ def test_deployments_snapshot_runtime_failure_is_sanitized_as_503() -> None:
     )
 
     assert response.status_code == 503
+    assert response.headers["cache-control"] == "no-store"
     assert response.json() == {"detail": {"code": "operations_snapshot_unavailable"}}
     assert "private snapshot failure" not in response.text
     assert reader.calls == 1
