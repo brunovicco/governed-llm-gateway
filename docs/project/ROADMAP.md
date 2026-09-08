@@ -176,25 +176,31 @@ Do not start Case 4 while Case 3 is intentionally deferred unless the integratio
 
 Remains after the preceding consumer cases.
 
+## Operational-readiness checkpoint
+
+The consumer-independent readiness track has now certified the bounded local demo path through PC-30:
+PC-26 proves real Collector → Tempo queryability, PC-27 provisions the read-only Grafana trace dashboard,
+PC-28 adds local-only Console navigation, PC-29 adds the operations-only local Gateway bootstrap, and
+PC-30 provides deterministic one-command startup/readiness/teardown for that bootstrap, the Console and
+the pinned local observability stack.
+
+This does not change the Phase 14 order and does not claim live inference or production readiness. OR-9
+broader authentication/security hardening, OR-10 final product/demo validation, and per-trace correlation
+remain separate future work.
+
 ## Current gateway baseline
 
-Latest merged and validated baseline:
+Latest merged and post-merge validated baseline:
 
-`d012a5ec0581f636b758f613634ef76da773e82d` (PR #45)
+`594b8609634b54eec60f75a733e6aa90846face9` (PR #172 / PC-30).
 
-Post-merge `main` quality run:
+Post-merge `main` gates:
 
-`33999903061` — PASS.
+- `quality` run `34273364638` — PASS;
+- `local-demo-smoke` run `34273364740` — PASS.
 
-Validation:
-
-- 569 tests passed;
-- aggregate coverage 82.05%;
-- strict mypy passed across 155 source files;
-- Ruff lint/format passed across 155 files;
-- Bandit reported no issues across 14,193 LOC;
-- pip-audit reported no known vulnerabilities;
-- architecture check, secret scan and Phase 0 gate passed.
+The local-demo smoke proof uses no provider, Policy Router, SaaS or production credential. It proves only
+the bounded operations-only local stack, real readiness and deterministic teardown.
 
 ## Next boundary
 

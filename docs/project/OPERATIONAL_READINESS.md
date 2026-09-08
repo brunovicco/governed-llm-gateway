@@ -57,7 +57,10 @@ Gateway span traverses the local Collector and is both retrievable and TraceQL-q
 PC-27 adds the first bounded OR-6 visualization: a credential-free real-container proof of a
 file-provisioned read-only Grafana dashboard backed by the provisioned Tempo datasource. PC-28 adds one
 local-demo-only Console navigation path to that already-reviewed dashboard without introducing a new
-backend endpoint, trace-history source or Grafana/Tempo API dependency.
+backend endpoint, trace-history source or Grafana/Tempo API dependency. PC-29 adds the operations-only
+local bootstrap without materializing provider or Policy Router execution authority. PC-30 closes the
+bounded OR-8 orchestration path by coordinating that bootstrap, the Console and the existing local
+Collector + Tempo + Grafana stack with real readiness evidence and deterministic teardown.
 
 The audit also found documentation drift: the previous observability document still described Phase 9
 runtime tracing as future work even though Phase 9 is already complete.
@@ -117,7 +120,7 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 | OR-5 | React/TypeScript/Vite Gateway Console | read-only overview + deployment catalog in PC-25; bounded local Grafana navigation in PC-28; broader console surfaces deferred |
 | OR-6 | Grafana dashboards + trace correlation/deep links | PC-26 Tempo queryability + PC-27 bounded Grafana trace dashboard + PC-28 local dashboard navigation implemented; per-trace correlation deferred |
 | OR-7 | optional Langfuse OTLP fan-out | optional / not started |
-| OR-8 | one-command deterministic local demo | not started |
+| OR-8 | one-command deterministic local demo | complete in PC-29/PC-30 at the bounded operations-only local-demo scope; not production-ready |
 | OR-9 | broader authentication/security hardening for operational surfaces | not started; minimum OR-4 access prerequisite pulled forward |
 | OR-10 | final docs, screenshots, demo and product-readiness validation | not started |
 
@@ -134,10 +137,15 @@ for the first console foundation. PC-26 proves the previously unverified Collect
 real pinned containers and a bounded downstream query. PC-27 consumes that proof for one reviewed,
 file-provisioned Grafana trace table and does not introduce a broader dashboard framework. PC-28 links the
 local Console to that dashboard only after validating the exact reviewed Console origin; it does not add
-trace IDs, routing history, direct Grafana/Tempo calls or an arbitrary external observability URL.
+trace IDs, routing history, direct Grafana/Tempo calls or an arbitrary external observability URL. PC-29
+then adds the operations-only local Gateway bootstrap over explicit secret-free artifacts, and PC-30 adds
+the repository-owned one-command orchestrator plus a real-container smoke proof. The launcher passes the
+runtime-only demo credential only to the operations-only Gateway child, sanitizes Docker/npm/Vite child
+environments, requires real Gateway/Operations/Grafana/Console/Compose readiness, and tears down owned
+process groups and the dedicated Compose project deterministically.
 None of these increments implies that deployment detail, evidence detail, routing-history persistence,
-broader Grafana dashboards, per-trace Console correlation, production browser identity/session handling
-or later admin surfaces are complete.
+broader Grafana dashboards, per-trace Console correlation, production browser identity/session handling,
+production IAM/TLS/SSO or later admin surfaces are complete.
 
 ## Read-only operations boundary
 
@@ -378,22 +386,33 @@ Compose model, starts the real pinned Tempo and Grafana services, performs bound
 retrieves the dashboard by its stable UID, requires Grafana to report file provisioning, and verifies the
 single reviewed Tempo/TraceQL target before teardown. No provider, PDP, SaaS or secret is required.
 
+PC-30 adds the credential-free, path-scoped `local-demo-smoke` workflow. It generates and masks
+a fresh test-only Operations credential, scopes that value only to the launcher step, starts the real
+operations-only Gateway + Console + pinned observability stack, requires the bounded readiness contract,
+then verifies that the dedicated Compose services and reviewed loopback listeners are gone after return.
+The post-merge run `34273364740` passed on certified `main@594b8609634b54eec60f75a733e6aa90846face9`.
+
 Changes to the shared observability/readiness documentation trigger the Tempo query workflow. Existing
 observability workflows continue to validate their own path-scoped contracts on applicable candidate
 SHAs; none of these CI checks require provider, PDP, SaaS or secret access.
 
 ## Next slice
 
-PC-28 is deliberately a navigation increment, not trace correlation. It is not complete until its
-reviewed head is squash-merged and the corresponding post-merge `main` gates are green. Only after that
-certification should the real `main` be re-audited before choosing the next gap.
+PC-30 is certified at `main@594b8609634b54eec60f75a733e6aa90846face9`. OR-8 is therefore complete
+for the bounded local operations demo: one repository-owned command can start, prove readiness and tear
+down the already-reviewed operations-only Gateway, Console and local observability components. This does
+not create provider/PDP execution authority and is not a production-readiness claim.
 
-Per-trace correlation, deployment detail, evidence detail and recent routing history still require
-separate information-disclosure, completeness or persistence contracts before an endpoint or screen is
-added. Recent routing history must not be fabricated from current health or ranking configuration. Fleet
-aggregation, external IAM, production observability URL discovery and mutations remain separate
-increments. Phase 14 consumer integrations remain frozen by their sequencing guard while OpsLens is under
-active independent development.
+The next operational-readiness work must be selected independently. OR-9 broader authentication/security
+hardening and OR-10 final product/demo documentation remain not started. Per-trace Console correlation,
+deployment detail, evidence detail and recent routing history still require separate information-disclosure,
+completeness or persistence contracts before an endpoint or screen is added. Recent routing history must
+not be fabricated from current health or ranking configuration. Fleet aggregation, external IAM, production
+observability URL discovery and mutations remain separate increments.
+
+Phase 14 consumer integrations remain frozen by issue #18 while OpsLens is under active independent
+development. RAGForge must not start in parallel unless the normative integration order is explicitly
+revised.
 
 ## Completion rule
 
