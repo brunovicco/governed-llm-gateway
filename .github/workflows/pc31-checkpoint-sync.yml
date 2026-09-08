@@ -1,0 +1,107 @@
+name: pc31-checkpoint-sync
+
+on:
+  push:
+    branches:
+      - docs/pc31-post-or8-checkpoint
+    paths:
+      - .github/workflows/pc31-checkpoint-sync.yml
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconcile certified post-OR-8 checkpoints
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file_path = Path(path)
+              text = file_path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected exactly one match, found {count}")
+              file_path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          def insert_before_once(path: str, marker: str, addition: str) -> None:
+              replace_once(path, marker, addition + marker)
+
+          def replace_section(path: str, start: str, end: str, replacement: str) -> None:
+              file_path = Path(path)
+              text = file_path.read_text(encoding="utf-8")
+              if text.count(start) != 1 or text.count(end) != 1:
+                  raise SystemExit(f"{path}: section markers are not unique")
+              start_index = text.index(start)
+              end_index = text.index(end, start_index)
+              file_path.write_text(
+                  text[:start_index] + replacement + text[end_index:],
+                  encoding="utf-8",
+              )
+
+          operational = "docs/project/OPERATIONAL_READINESS.md"
+          replace_once(
+              operational,
+              "PC-28 adds one\nlocal-demo-only Console navigation path to that already-reviewed dashboard without introducing a new\nbackend endpoint, trace-history source or Grafana/Tempo API dependency.\n",
+              "PC-28 adds one\nlocal-demo-only Console navigation path to that already-reviewed dashboard without introducing a new\nbackend endpoint, trace-history source or Grafana/Tempo API dependency. PC-29 adds the operations-only\nlocal bootstrap without materializing provider or Policy Router execution authority. PC-30 closes the\nbounded OR-8 orchestration path by coordinating that bootstrap, the Console and the existing local\nCollector + Tempo + Grafana stack with real readiness evidence and deterministic teardown.\n",
+          )
+          replace_once(
+              operational,
+              "| OR-8 | one-command deterministic local demo | not started |",
+              "| OR-8 | one-command deterministic local demo | complete in PC-29/PC-30 at the bounded operations-only local-demo scope; not production-ready |",
+          )
+          replace_once(
+              operational,
+              "PC-28 links the\nlocal Console to that dashboard only after validating the exact reviewed Console origin; it does not add\ntrace IDs, routing history, direct Grafana/Tempo calls or an arbitrary external observability URL.\nNone of these increments implies that deployment detail, evidence detail, routing-history persistence,\nbroader Grafana dashboards, per-trace Console correlation, production browser identity/session handling\nor later admin surfaces are complete.\n",
+              "PC-28 links the\nlocal Console to that dashboard only after validating the exact reviewed Console origin; it does not add\ntrace IDs, routing history, direct Grafana/Tempo calls or an arbitrary external observability URL. PC-29\nthen adds the operations-only local Gateway bootstrap over explicit secret-free artifacts, and PC-30 adds\nthe repository-owned one-command orchestrator plus a real-container smoke proof. The launcher passes the\nruntime-only demo credential only to the operations-only Gateway child, sanitizes Docker/npm/Vite child\nenvironments, requires real Gateway/Operations/Grafana/Console/Compose readiness, and tears down owned\nprocess groups and the dedicated Compose project deterministically.\nNone of these increments implies that deployment detail, evidence detail, routing-history persistence,\nbroader Grafana dashboards, per-trace Console correlation, production browser identity/session handling,\nproduction IAM/TLS/SSO or later admin surfaces are complete.\n",
+          )
+          insert_before_once(
+              operational,
+              "Changes to the shared observability/readiness documentation trigger the Tempo query workflow.",
+              "PC-30 adds the credential-free, path-scoped `local-demo-smoke` workflow. It generates and masks\na fresh test-only Operations credential, scopes that value only to the launcher step, starts the real\noperations-only Gateway + Console + pinned observability stack, requires the bounded readiness contract,\nthen verifies that the dedicated Compose services and reviewed loopback listeners are gone after return.\nThe post-merge run `34273364740` passed on certified `main@594b8609634b54eec60f75a733e6aa90846face9`.\n\n",
+          )
+          replace_section(
+              operational,
+              "## Next slice\n",
+              "## Completion rule\n",
+              "## Next slice\n\nPC-30 is certified at `main@594b8609634b54eec60f75a733e6aa90846face9`. OR-8 is therefore complete\nfor the bounded local operations demo: one repository-owned command can start, prove readiness and tear\ndown the already-reviewed operations-only Gateway, Console and local observability components. This does\nnot create provider/PDP execution authority and is not a production-readiness claim.\n\nThe next operational-readiness work must be selected independently. OR-9 broader authentication/security\nhardening and OR-10 final product/demo documentation remain not started. Per-trace Console correlation,\ndeployment detail, evidence detail and recent routing history still require separate information-disclosure,\ncompleteness or persistence contracts before an endpoint or screen is added. Recent routing history must\nnot be fabricated from current health or ranking configuration. Fleet aggregation, external IAM, production\nobservability URL discovery and mutations remain separate increments.\n\nPhase 14 consumer integrations remain frozen by issue #18 while OpsLens is under active independent\ndevelopment. RAGForge must not start in parallel unless the normative integration order is explicitly\nrevised.\n\n",
+          )
+
+          current_state = "docs/project/CURRENT_STATE.md"
+          replace_once(current_state, "Last updated: 2026-09-06", "Last updated: 2026-09-08")
+          insert_before_once(
+              current_state,
+              "## Phase 14 — Real Project Integrations\n",
+              "## Operational readiness checkpoint — PC-30 certified\n\nThe consumer-independent operational-readiness track advanced without changing Phase 14 sequencing or\nthe permanent authorization boundary. The latest certified sequence is:\n\n- PC-26 — real Collector → Tempo trace-by-ID + TraceQL queryability proof;\n- PC-27 — first file-provisioned read-only Grafana Tempo dashboard;\n- PC-28 — local-only Console navigation to that dashboard;\n- PC-29 — operations-only local Gateway bootstrap with no provider/PDP materialization;\n- PC-30 — deterministic one-command orchestration for the operations-only Gateway, Console and local\n  Collector + Tempo + Grafana stack, with bounded readiness and deterministic cleanup.\n\nPC-30 squash merge / current certified baseline:\n\n`594b8609634b54eec60f75a733e6aa90846face9` (PR #172).\n\nPost-merge `main` evidence:\n\n- `quality` run `34273364638` — PASS;\n- `local-demo-smoke` run `34273364740` — PASS, including real startup/readiness and post-return cleanup.\n\nOR-8 is complete only at this bounded operations-only local-demo scope. Live inference, provider\ncredentials, a live Policy Router/PDP, production IAM/TLS/SSO, per-trace Console correlation and final\nproduct-readiness validation remain outside PC-30. Evidence, dashboards and readiness remain descriptive\nand cannot authorize execution.\n\n",
+          )
+          replace_once(
+              current_state,
+              "1. Keep `governed-llm-gateway/main` stable at the validated post-PR #79 operational-evidence source-instance batch-handoff baseline.",
+              "1. Keep `governed-llm-gateway/main` stable at the certified post-PC-30 baseline `594b8609634b54eec60f75a733e6aa90846face9`; further work must remain independently justified and consumer-agnostic while OpsLens is deferred.",
+          )
+
+          roadmap = "docs/project/ROADMAP.md"
+          insert_before_once(
+              roadmap,
+              "## Current gateway baseline\n",
+              "## Operational-readiness checkpoint\n\nThe consumer-independent readiness track has now certified the bounded local demo path through PC-30:\nPC-26 proves real Collector → Tempo queryability, PC-27 provisions the read-only Grafana trace dashboard,\nPC-28 adds local-only Console navigation, PC-29 adds the operations-only local Gateway bootstrap, and\nPC-30 provides deterministic one-command startup/readiness/teardown for that bootstrap, the Console and\nthe pinned local observability stack.\n\nThis does not change the Phase 14 order and does not claim live inference or production readiness. OR-9\nbroader authentication/security hardening, OR-10 final product/demo validation, and per-trace correlation\nremain separate future work.\n\n",
+          )
+          replace_section(
+              roadmap,
+              "## Current gateway baseline\n",
+              "## Next boundary\n",
+              "## Current gateway baseline\n\nLatest merged and post-merge validated baseline:\n\n`594b8609634b54eec60f75a733e6aa90846face9` (PR #172 / PC-30).\n\nPost-merge `main` gates:\n\n- `quality` run `34273364638` — PASS;\n- `local-demo-smoke` run `34273364740` — PASS.\n\nThe local-demo smoke proof uses no provider, Policy Router, SaaS or production credential. It proves only\nthe bounded operations-only local stack, real readiness and deterministic teardown.\n\n",
+          )
+          PY
+
+          git rm .github/workflows/pc31-checkpoint-sync.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/project/OPERATIONAL_READINESS.md docs/project/CURRENT_STATE.md docs/project/ROADMAP.md
+          git commit -m "docs: reconcile post-OR-8 project checkpoint"
+          git push origin HEAD:docs/pc31-post-or8-checkpoint
