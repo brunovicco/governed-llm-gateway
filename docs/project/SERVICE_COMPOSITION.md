@@ -2,7 +2,7 @@
 
 ## Purpose
 
-PC-9 composes the Gateway's request-time services from an already-materialized PC-8 runtime bundle.
+PC-9 composes the Gateway's request-time services from an already-materialized PC-8 runtime bundle. PC-19 extends that same composition root with the typed read-only operations model introduced by PC-18.
 
 This layer is intentionally pure composition. It does not load files, resolve environment variables, read secrets, call providers, contact the Policy Router, mutate policy, or start an HTTP server.
 
@@ -18,10 +18,12 @@ RouteExplainService
 optional ComplexityRouteExplainService
         ↓
 shared InMemoryHealthTracker
-        ↓
-StreamingExecutionService
-        ↓
-operational + optional complexity coordinators
+        ├───────────────┐
+        ↓               ↓
+StreamingExecutionService    InMemoryHealthInspectionAdapter
+        ↓               ↓
+operational + optional       OperationsReadModelService
+complexity coordinators
         ↓
 create_gateway_app(...)
 ```
@@ -64,6 +66,8 @@ streaming execution
 
 Complexity never authorizes, widens, or resurrects a rejected candidate.
 
+The PC-19 operations read model is descriptive only. It consumes already-active registry/ranking state plus a non-mutating view of process-local health; it has no path back into authorization, routing, provider resolution or retry/fallback decisions.
+
 ## Operational versus complexity mode
 
 Operational composition accepts any validated `RankingPolicy`.
@@ -77,17 +81,20 @@ Supplying complexity configuration with a static Phase 5 ranking policy fails at
 
 The `DeterministicComplexityEvaluator` is constructed from the versioned assessment policy in the complexity-routing artifact, and the same artifact supplies the complexity quality thresholds.
 
+The operations read model receives the exact effective ranking policy used by the composed service graph. Static ranking therefore stays static in the descriptive projection; evidence-driven ranking preserves its exact benchmark/promotion provenance rather than reloading or inferring evidence.
+
 ## Shared runtime state
 
 One `InMemoryHealthTracker` instance is shared by:
 
 - operational generation preflight;
 - complexity-aware generation preflight;
-- `StreamingExecutionService`.
+- `StreamingExecutionService`;
+- the PC-19 operations model through `InMemoryHealthInspectionAdapter`.
 
-This prevents preflight routing from consulting one health state while execution updates another process-local state.
+This prevents preflight routing from consulting one health state while execution updates another process-local state. The operations model observes the same live tracker but evaluates health on an isolated replica, so opening an operations view cannot materialize unseen state or advance the live circuit breaker.
 
-The same `StaticProviderResolver` from PC-8 is reused by streaming execution. PC-9 never reconstructs provider adapters and therefore never re-reads provider credentials.
+The same `StaticProviderResolver` from PC-8 is reused by streaming execution. PC-9/PC-19 never reconstruct provider adapters and therefore never re-read provider credentials.
 
 A caller may inject an already-created health tracker or bounded `RetryPolicy`. When omitted, per-process defaults are created without external I/O.
 
@@ -97,23 +104,26 @@ An optional `a2a-otel-kit` `Observability` instance is threaded through the PEP,
 
 Observability remains metadata-only and non-authoritative. Backend availability cannot change authorization, candidate eligibility, complexity assessment, ranking, or fallback eligibility.
 
+The operations read model does not depend on observability or an exporter and therefore cannot turn telemetry availability into readiness or execution authority.
+
 ## Output bundle
 
-`GovernedGatewayServices` exposes the composed objects needed for verification and later process activation:
+`GovernedGatewayServices` exposes the composed objects needed for verification and process activation:
 
 - FastAPI app;
 - shared health tracker;
+- typed `OperationsReadModelService`;
 - policy enforcement service;
 - operational route service;
 - streaming execution service;
 - operational route/generation coordinators;
 - optional complexity route service and coordinators.
 
-Exposing these objects keeps composition testable without module globals or hidden runtime state.
+Exposing these objects keeps composition testable without module globals or hidden runtime state. PC-19 adds no `/v1/ops/*` route; transport and authentication for operations surfaces remain separately reviewable.
 
 ## No secret reads
 
-PC-9 accepts only an already-materialized `GovernedProcessRuntimeBundle`. No secret resolver is part of the API.
+PC-9/PC-19 accept only an already-materialized `GovernedProcessRuntimeBundle`. No secret resolver is part of the API.
 
 The intended lifecycle is:
 
@@ -125,20 +135,24 @@ PC-8: build runtime adapters
         ↓
 PC-9: compose request-time services
         ↓
-future: explicit process/server activation
+PC-19: bind the read-only operations projection to the active service graph
+        ↓
+process/server activation
 ```
 
-## Deferred activation
+## Deferred operations surface
 
-PC-9 still does not add:
+PC-19 still does not add:
 
-- a module-level `app` singleton;
-- `uvicorn.run(...)`;
-- a Docker/CMD process entrypoint;
-- real credentials or production activation;
-- ranking-policy/evidence compilation from deployment artifacts;
-- cloud secret-manager integration;
-- OAuth/OIDC/JWT/mTLS;
+- `/v1/ops/*` HTTP routes;
+- operational-surface authentication or authorization;
+- operator mutation endpoints;
+- operational-evidence source binding;
+- shared/fleet health aggregation;
+- fleet completeness claims;
+- Tempo query verification;
+- Grafana dashboards/deep links;
+- React/TypeScript Gateway Console;
 - Phase 14 integration changes.
 
-A later process-activation increment can choose deployment-owned paths, load routing artifacts, invoke PC-8 once, invoke PC-9 once, and expose the resulting FastAPI application to an ASGI server. That step must not bypass either composition boundary or introduce a second secret-loading path.
+Those remain separate increments so descriptive operations state, transport security, fleet semantics, and operator authority are not collapsed into one change.
