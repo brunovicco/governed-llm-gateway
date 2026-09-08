@@ -1,0 +1,32 @@
+name: observability-compose
+
+on:
+  pull_request:
+    paths:
+      - compose.observability.yml
+      - deploy/observability/**
+      - docs/project/LOCAL_OBSERVABILITY.md
+      - tests/contract/test_local_observability_foundation.py
+      - .github/workflows/observability-compose.yml
+  push:
+    branches:
+      - main
+      - feat/**
+    paths:
+      - compose.observability.yml
+      - deploy/observability/**
+      - docs/project/LOCAL_OBSERVABILITY.md
+      - tests/contract/test_local_observability_foundation.py
+      - .github/workflows/observability-compose.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate-compose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate observability Compose model
+        run: docker compose -f compose.observability.yml config --quiet
