@@ -220,6 +220,18 @@ function isoDate(value: unknown, path: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new OperationsResponseValidationError(`${path} must be an ISO date`);
   }
+
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7));
+  const day = Number(date.slice(8, 10));
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() + 1 !== month ||
+    parsed.getUTCDate() !== day
+  ) {
+    throw new OperationsResponseValidationError(`${path} must be a valid calendar date`);
+  }
   return date;
 }
 
