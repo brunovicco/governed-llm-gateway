@@ -162,7 +162,8 @@ PC-22 attaches `GET /v1/ops/overview` from the service composition root. The ada
 returns sanitized 401/403/503 failures. Its response intentionally exposes only registry/ranking
 provenance, aggregate process-local health counts, and operational-evidence availability state. It does
 not expose principal/grant data, individual deployment/model/provider identities, per-deployment counters,
-credential references, PDP/provider internals, or mutable runtime state.
+credential references, PDP/provider internals, or mutable runtime state. PC-22 introduces no `POST`,
+`PUT`, `PATCH`, or `DELETE` operation under `/v1/ops/*`; mutation authority remains absent.
 
 See `docs/project/OPERATIONS_READ_MODEL.md` for the typed projection/non-claims,
 `docs/project/OPERATIONS_ACCESS.md` for the operations visibility boundary,
