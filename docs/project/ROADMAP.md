@@ -190,7 +190,7 @@ remain separate future work.
 
 ## Current gateway baseline
 
-Latest merged and post-merge validated baseline:
+Latest runtime-bearing and post-merge validated baseline:
 
 `594b8609634b54eec60f75a733e6aa90846face9` (PR #172 / PC-30).
 
@@ -200,13 +200,15 @@ Post-merge `main` gates:
 - `local-demo-smoke` run `34273364740` — PASS.
 
 The local-demo smoke proof uses no provider, Policy Router, SaaS or production credential. It proves only
-the bounded operations-only local stack, real readiness and deterministic teardown.
+the bounded operations-only local stack, real readiness and deterministic teardown. Documentation-only
+checkpoint commits may advance `main` without changing this runtime-bearing baseline; all new work still
+starts from the then-current `main`.
 
 ## Next boundary
 
 Until OpsLens is ready for reconciliation:
 
-1. keep the gateway `main` baseline stable;
+1. start every new increment from the then-current `main` and preserve the certified runtime-bearing behavior unless a separately justified increment changes it;
 2. do not start a second consumer migration in parallel;
 3. perform only upstream gateway hardening or evaluation work that is independently justified and consumer-agnostic;
 4. do not create benchmark-only routing/model-selection bypasses to force a nominal target;
