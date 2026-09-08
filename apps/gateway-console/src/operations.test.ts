@@ -73,6 +73,15 @@ describe("Operations response decoders", () => {
     ).toThrow("overview deployment counts are inconsistent");
   });
 
+  it("fails closed on syntactically valid but impossible calendar dates", () => {
+    expect(() =>
+      decodeOverview({
+        ...OVERVIEW,
+        registry: { ...OVERVIEW.registry, source_date: "2026-02-30" },
+      }),
+    ).toThrow("must be a valid calendar date");
+  });
+
   it("accepts the bounded deployment catalog and process-local scope", () => {
     expect(decodeDeployments(DEPLOYMENTS)).toEqual(DEPLOYMENTS);
   });
