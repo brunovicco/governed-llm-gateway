@@ -263,10 +263,11 @@ def test_operational_composition_reuses_runtime_without_new_secret_reads(tmp_pat
     runtime, events = _runtime(tmp_path)
     before = tuple(events)
     health = InMemoryHealthTracker()
+    ranking = _static_ranking_policy()
 
     services = compose_governed_gateway_services(
         runtime,
-        ranking_policy=_static_ranking_policy(),
+        ranking_policy=ranking,
         defaults=_defaults(),
         health=health,
     )
@@ -279,9 +280,46 @@ def test_operational_composition_reuses_runtime_without_new_secret_reads(tmp_pat
     assert services.complexity_generate_coordinator is None
     assert services.streaming_service._health is health
     assert services.generate_coordinator._health is health
+
+    health.record_success("openai-primary", latency_ms=123)
+    live_state = health._states["openai-primary"]
+    state_before_snapshot = (
+        live_state.request_count,
+        live_state.success_count,
+        live_state.last_latency_ms,
+        live_state.circuit_state,
+        live_state.opened_at,
+    )
+
+    snapshot = services.operations_read_model.snapshot()
+
+    state_after_snapshot = (
+        live_state.request_count,
+        live_state.success_count,
+        live_state.last_latency_ms,
+        live_state.circuit_state,
+        live_state.opened_at,
+    )
+    assert state_after_snapshot == state_before_snapshot
+    assert snapshot.registry.digest == runtime.artifacts.registry.digest
+    assert snapshot.registry.catalog_version == runtime.artifacts.registry.catalog_version
+    assert snapshot.ranking.digest == ranking.digest
+    assert snapshot.ranking.policy_version == ranking.policy_version
+    assert snapshot.ranking.score_snapshot_id == ranking.score_snapshot_id
+    assert snapshot.ranking.score_provenance_mode is None
+    assert snapshot.ranking.benchmark_snapshot_id is None
+    assert snapshot.ranking.promotion_evidence_id is None
+    assert snapshot.ranking.manual_override_id is None
+    assert len(snapshot.deployments) == 1
+    assert snapshot.deployments[0].deployment_id == "openai-primary"
+    assert snapshot.deployments[0].health.request_count == 1
+    assert snapshot.deployments[0].health.success_count == 1
+    assert snapshot.deployments[0].health.last_latency_ms == 123
+
     paths = {route.path for route in services.app.routes if isinstance(route, APIRoute)}
     assert "/v1/route/explain" in paths
     assert "/v1/generate" in paths
+    assert not any(path.startswith("/v1/ops") for path in paths)
 
 
 def test_complexity_configuration_rejects_static_ranking_without_secret_reads(
@@ -309,10 +347,11 @@ def test_evidence_driven_complexity_composes_complete_post_authorization_path(
     before = tuple(events)
     health = InMemoryHealthTracker()
     complexity = load_complexity_routing_document(_ROOT / "config/routing/complexity.json")
+    ranking = _evidence_ranking_policy()
 
     services = compose_governed_gateway_services(
         runtime,
-        ranking_policy=_evidence_ranking_policy(),
+        ranking_policy=ranking,
         defaults=_defaults(),
         complexity_routing=complexity,
         health=health,
@@ -325,3 +364,10 @@ def test_evidence_driven_complexity_composes_complete_post_authorization_path(
     assert services.complexity_generate_coordinator is not None
     assert services.streaming_service._health is health
     assert services.complexity_generate_coordinator._health is health
+
+    snapshot = services.operations_read_model.snapshot()
+    assert snapshot.ranking.digest == ranking.digest
+    assert snapshot.ranking.score_provenance_mode == "benchmark_hybrid"
+    assert snapshot.ranking.benchmark_snapshot_id == "sha256:" + "a" * 64
+    assert snapshot.ranking.promotion_evidence_id == "sha256:" + "b" * 64
+    assert snapshot.ranking.manual_override_id is None
