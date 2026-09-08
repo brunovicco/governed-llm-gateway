@@ -72,7 +72,7 @@ def test_gateway_metadata_trace_is_queryable_from_tempo() -> None:
         )
 
     service_clause = f'resource.service.name = "{_EXPECTED_SERVICE}"'
-    span_clause = f'name = "{_EXPECTED_SPAN}"'
+    span_clause = f'span:name = "{_EXPECTED_SPAN}"'
     traceql = f"{{ {service_clause} && {span_clause} }}"
     search_deadline = time.monotonic() + _QUERY_TIMEOUT_SECONDS
     last_payload: dict[str, Any] | None = None
@@ -100,7 +100,14 @@ def _tempo_trace_by_id(endpoint: str, trace_id: str) -> dict[str, Any] | None:
         return None
     if response.status_code != 200:
         pytest.fail(f"Tempo trace-by-ID returned HTTP {response.status_code}")
-    return _json_object(response, "Tempo trace-by-ID")
+
+    payload = _json_object(response, "Tempo trace-by-ID")
+    trace = payload.get("trace")
+    if trace == {}:
+        return None
+    if not isinstance(trace, dict):
+        pytest.fail("Tempo trace-by-ID response must contain a trace object")
+    return payload
 
 
 def _tempo_search(endpoint: str, traceql: str) -> dict[str, Any]:
