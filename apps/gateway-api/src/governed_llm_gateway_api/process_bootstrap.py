@@ -25,6 +25,12 @@ from .client_auth import (
     build_static_gateway_client_context_resolver,
 )
 from .client_auth_json import GatewayClientAuthDocument, load_gateway_client_auth_document
+from .operations_access import OperationsReadAccessPolicy, OperationsReadAccessService
+from .operations_access_json import (
+    OperationsReadAccessDocument,
+    load_operations_read_access_document,
+    validate_operations_access_client_auth,
+)
 from .policy_router_bootstrap import validate_policy_router_client_auth
 
 
@@ -36,6 +42,7 @@ class GovernedProcessBootstrapPaths:
     provider_runtime_path: Path
     client_auth_path: Path
     policy_router_path: Path
+    operations_access_path: Path | None = None
 
     def __post_init__(self) -> None:
         """Reject implicit path coercion so startup inputs remain explicit and reviewable."""
@@ -47,6 +54,10 @@ class GovernedProcessBootstrapPaths:
         ):
             if not isinstance(value, Path):
                 raise TypeError(f"{name} must be a pathlib.Path")
+        if self.operations_access_path is not None and not isinstance(
+            self.operations_access_path, Path
+        ):
+            raise TypeError("operations_access_path must be a pathlib.Path or None")
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +68,7 @@ class GovernedProcessArtifacts:
     provider_runtime_document: ProviderRuntimeDocument
     client_auth_document: GatewayClientAuthDocument
     policy_router_runtime_document: PolicyRouterRuntimeDocument
+    operations_access_document: OperationsReadAccessDocument | None = None
 
     def __post_init__(self) -> None:
         """Revalidate cross-artifact invariants even for direct construction."""
@@ -68,12 +80,23 @@ class GovernedProcessArtifacts:
             raise TypeError("client_auth_document must use GatewayClientAuthDocument")
         if not isinstance(self.policy_router_runtime_document, PolicyRouterRuntimeDocument):
             raise TypeError("policy_router_runtime_document must use PolicyRouterRuntimeDocument")
+        if self.operations_access_document is not None and not isinstance(
+            self.operations_access_document, OperationsReadAccessDocument
+        ):
+            raise TypeError(
+                "operations_access_document must use OperationsReadAccessDocument or None"
+            )
 
         validate_provider_runtime_registry(self.provider_runtime_document, self.registry)
         validate_policy_router_client_auth(
             self.policy_router_runtime_document,
             self.client_auth_document,
         )
+        if self.operations_access_document is not None:
+            validate_operations_access_client_auth(
+                self.operations_access_document,
+                self.client_auth_document,
+            )
 
     @property
     def model_registry_digest(self) -> str:
@@ -110,6 +133,27 @@ class GovernedProcessArtifacts:
         """Return the Policy Router runtime configuration version."""
         return self.policy_router_runtime_document.config_version
 
+    @property
+    def operations_access_policy(self) -> OperationsReadAccessPolicy:
+        """Return configured grants or an explicit deny-all policy when omitted."""
+        if self.operations_access_document is None:
+            return OperationsReadAccessPolicy()
+        return self.operations_access_document.policy
+
+    @property
+    def operations_access_digest(self) -> str | None:
+        """Expose exact operations-access provenance when an artifact was supplied."""
+        if self.operations_access_document is None:
+            return None
+        return self.operations_access_document.digest
+
+    @property
+    def operations_access_config_version(self) -> str | None:
+        """Expose operations-access configuration identity when explicitly supplied."""
+        if self.operations_access_document is None:
+            return None
+        return self.operations_access_document.config_version
+
 
 @dataclass(frozen=True, slots=True)
 class GovernedProcessRuntimeBundle:
@@ -117,6 +161,7 @@ class GovernedProcessRuntimeBundle:
 
     artifacts: GovernedProcessArtifacts
     client_context_resolver: StaticGatewayClientContextResolver
+    operations_read_access: OperationsReadAccessService
     policy_router_adapter: PolicyRouterHttpAdapter | None
     provider_resolver: StaticProviderResolver
 
@@ -140,6 +185,11 @@ class GovernedProcessRuntimeBundle:
         """Expose Policy Router provenance without duplicating artifact state."""
         return self.artifacts.policy_router_runtime_digest
 
+    @property
+    def operations_access_digest(self) -> str | None:
+        """Expose operations-access provenance without duplicating artifact state."""
+        return self.artifacts.operations_access_digest
+
 
 def load_governed_process_artifacts(
     paths: GovernedProcessBootstrapPaths,
@@ -152,12 +202,18 @@ def load_governed_process_artifacts(
     provider_runtime_document = load_provider_runtime_document(paths.provider_runtime_path)
     client_auth_document = load_gateway_client_auth_document(paths.client_auth_path)
     policy_router_runtime_document = load_policy_router_runtime_document(paths.policy_router_path)
+    operations_access_document = (
+        load_operations_read_access_document(paths.operations_access_path)
+        if paths.operations_access_path is not None
+        else None
+    )
 
     return GovernedProcessArtifacts(
         registry=registry,
         provider_runtime_document=provider_runtime_document,
         client_auth_document=client_auth_document,
         policy_router_runtime_document=policy_router_runtime_document,
+        operations_access_document=operations_access_document,
     )
 
 
@@ -178,6 +234,10 @@ def materialize_governed_process_runtime(
         artifacts.client_auth_document.bindings,
         client_secrets,
     )
+    operations_read_access = OperationsReadAccessService(
+        authenticator=client_context_resolver,
+        policy=artifacts.operations_access_policy,
+    )
     policy_router_adapter = build_policy_router_adapter(
         artifacts.policy_router_runtime_document.runtime,
         policy_router_secrets,
@@ -190,6 +250,7 @@ def materialize_governed_process_runtime(
     return GovernedProcessRuntimeBundle(
         artifacts=artifacts,
         client_context_resolver=client_context_resolver,
+        operations_read_access=operations_read_access,
         policy_router_adapter=policy_router_adapter,
         provider_resolver=provider_resolver,
     )
