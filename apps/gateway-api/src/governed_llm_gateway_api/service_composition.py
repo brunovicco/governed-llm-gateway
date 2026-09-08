@@ -22,6 +22,7 @@ from governed_llm_gateway_core.domain.resilience import RetryPolicy
 
 from .application import create_gateway_app
 from .complexity_generate import ComplexityGenerateCoordinator
+from .operations_access import OperationsReadAccessService
 from .process_bootstrap import GovernedProcessRuntimeBundle
 from .route_explain import ComplexityRouteExplainCoordinator, RouteExplainCoordinator
 from .stream_generate import GenerateCoordinator
@@ -38,6 +39,7 @@ class GovernedGatewayServices:
     app: FastAPI
     health: InMemoryHealthTracker
     operations_read_model: OperationsReadModelService
+    operations_read_access: OperationsReadAccessService
     policy_enforcement: PolicyEnforcementService
     route_service: RouteExplainService
     streaming_service: StreamingExecutionService
@@ -184,6 +186,7 @@ def compose_governed_gateway_services(
         app=app,
         health=active_health,
         operations_read_model=operations_read_model,
+        operations_read_access=runtime.operations_read_access,
         policy_enforcement=policy_enforcement,
         route_service=route_service,
         streaming_service=streaming_service,
