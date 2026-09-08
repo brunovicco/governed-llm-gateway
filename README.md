@@ -2,136 +2,300 @@
 
 **English** | [Português (Brasil)](README.pt-BR.md)
 
-**A provider-neutral LLM execution gateway for governed AI platforms.**
+[![quality](https://github.com/brunovicco/governed-llm-gateway/actions/workflows/quality.yml/badge.svg)](https://github.com/brunovicco/governed-llm-gateway/actions/workflows/quality.yml)
+[![console-quality](https://github.com/brunovicco/governed-llm-gateway/actions/workflows/console-quality.yml/badge.svg)](https://github.com/brunovicco/governed-llm-gateway/actions/workflows/console-quality.yml)
+[![observability-compose](https://github.com/brunovicco/governed-llm-gateway/actions/workflows/observability-compose.yml/badge.svg)](https://github.com/brunovicco/governed-llm-gateway/actions/workflows/observability-compose.yml)
 
-It centralizes model authorization, selection, resilience, provider adaptation and runtime evidence so applications and agents do not need to own provider credentials, model choice, retry/fallback or routing policy.
+> A provider-neutral LLM execution gateway that keeps **authorization, model selection, provider credentials, resilience and runtime evidence** out of application code.
 
-## Why this project exists
-
-LLM execution becomes harder to govern as applications add more models, providers and agent workflows. This project separates **business/application logic** from **model execution policy** and keeps authorization ahead of optimization.
-
-The gateway is designed to provide one reusable boundary for:
-
-- provider-neutral model execution;
-- deterministic and explainable routing;
-- policy enforcement and fail-closed authorization;
-- runtime resilience and safe fallback;
-- structured output, tool-call normalization and streaming;
-- observability, provenance and auditable evidence;
-- benchmark-driven model evaluation without automatic policy mutation.
-
-## Core capabilities
-
-| Area | What the gateway provides |
-|---|---|
-| **Governance** | PDP/PEP separation, fail-closed authorization and optional governance integration |
-| **Routing** | Deterministic model registry, eligibility filters, ranking and route explainability |
-| **Resilience** | Runtime health, circuit breaking, bounded retry and safe fallback |
-| **Provider abstraction** | Provider-neutral contracts, request translation and normalized execution results |
-| **Model I/O** | Structured-output validation, tool-call normalization, streaming and cancellation |
-| **Observability** | OpenTelemetry integration, metadata-only defaults and terminal execution provenance |
-| **Evaluation** | Deterministic benchmark framework, immutable evidence, explicit promotion and rollback boundaries |
-| **Consumer integration** | Thin typed SDK without requiring provider SDKs or provider API keys in consumers |
-
-## Architecture
+Applications and agents call one governed execution boundary instead of embedding OpenAI, Anthropic, Gemini, NVIDIA, Groq or OpenRouter-specific credentials and routing logic in every service.
 
 ```text
 Application / Agent
-       │ workload + requirements + policy metadata
-       ▼
+        │
+        │ workload + requirements + Gateway credential
+        ▼
 Policy Model Router (PDP)
-       │ authorized logical model groups
-       ▼
+        │ authorized logical model groups
+        ▼
 Governed LLM Gateway (PEP)
-       ├─ eligibility
-       ├─ deterministic ranking
-       ├─ health / circuit breaker
-       ├─ retry / safe fallback
-       ├─ provider translation
-       └─ provenance / telemetry
-       ▼
-LLM Provider
+        ├─ eligibility + deterministic ranking
+        ├─ health / circuit breaker
+        ├─ bounded retry + safe fallback
+        ├─ provider translation
+        └─ provenance + OpenTelemetry
+        ▼
+LLM providers
 ```
 
-Business-tool execution and side effects remain outside the gateway. The gateway may normalize a tool call, but the application/agent runtime owns tool authorization and execution.
-
-### Permanent authorization invariant
+The permanent authority rule is:
 
 ```text
 Gateway allowed set ⊆ Policy Router authorized set
 ```
 
-The gateway may narrow the authorized set because of capability, environment, governance, cost, latency or runtime health. It may never broaden upstream authorization. Ranking, telemetry, benchmark evidence and runtime provenance are not authorization sources.
+The Gateway may narrow an authorized set. It may never widen upstream authorization.
 
-## Design principles
+## What this project demonstrates
 
-- **Authorization before optimization.** Ranking only operates inside the already-authorized and eligible candidate set.
-- **Fail closed on ambiguity.** Invalid policy, provenance, capability or evidence state does not silently degrade into permissive behavior.
-- **Evidence is descriptive, not authority.** Runtime and benchmark evidence cannot self-authorize or rewrite active policy.
-- **Provider failures are not model-quality failures.** Availability and quality evidence remain separate.
-- **Business side effects stay outside the gateway.** Tools and application actions remain owned by the consumer runtime.
+For recruiters, engineering managers and platform teams, the repository is a practical reference implementation of an AI Platform execution layer rather than a thin multi-provider proxy.
+
+| Area | Demonstrated capability |
+|---|---|
+| **AI Platform architecture** | Provider-neutral contracts, model registry, explicit composition roots and thin consumer SDK |
+| **Governed execution** | PDP/PEP separation, deterministic authorization boundary and fail-closed behavior |
+| **Model routing** | Capability/environment filtering, deterministic ranking and route explainability |
+| **Reliability** | Runtime health, circuit breaking, bounded retry, safe fallback, streaming and cancellation |
+| **LLM interoperability** | Native OpenAI Responses, Anthropic Messages, Gemini and explicit OpenAI-compatible adapters |
+| **Structured model I/O** | Structured-output validation and normalized tool-call contracts without taking ownership of tool execution |
+| **Observability** | Metadata-only OpenTelemetry, real Collector → Tempo proof and file-provisioned Grafana trace dashboard |
+| **Evaluation** | Deterministic benchmark contracts, immutable evidence and explicit promotion/rollback boundaries |
+| **Security** | Server-side provider secrets, client authentication boundaries, secret scanning and no allow-all fallback |
+| **Engineering quality** | Strict typing, architecture checks, security gates, automated tests and real-container CI proofs |
+
+## What you can run today
+
+### 1. Bounded local platform demo — ready now
+
+The repository includes a deterministic one-command **operations-only** local demo that starts:
+
+- the read-only Gateway Operations API;
+- the React/TypeScript Gateway Console;
+- OpenTelemetry Collector;
+- Tempo;
+- Grafana with the provisioned Gateway trace dashboard.
+
+It requires **no provider API key and no Policy Router credential** because it deliberately exposes no inference route. This makes the platform/control/evidence surfaces demonstrable without introducing a fake allow-all authorization path.
+
+### 2. Governed live inference — implemented foundation, not a copy/paste demo profile yet
+
+The provider adapters, governed routing, retry/fallback and executable Gateway process exist, but the checked-in deployment baseline intentionally ships fail-closed:
+
+- `config/model_registry.yaml` has no enabled deployments;
+- `config/providers/runtime.json` has no provider bindings;
+- `config/policy/router.json` is disabled;
+- checked-in client-auth artifacts contain no live principals/secrets.
+
+Therefore **adding `OPENAI_API_KEY` or another provider key by itself does not enable live inference**. A live deployment must explicitly configure the registry, provider runtime, client identity and Policy Router boundary together.
+
+This is intentional: operational availability never becomes authorization by accident.
+
+## Quick start: local demo
+
+### Prerequisites
+
+- Python **3.13+** (the workspace currently supports Python 3.13–3.14);
+- [uv](https://docs.astral.sh/uv/);
+- Docker with Docker Compose;
+- Node.js 24 + npm.
+
+### Start
+
+```bash
+git clone https://github.com/brunovicco/governed-llm-gateway.git
+cd governed-llm-gateway
+
+cp .env.example .env
+```
+
+Edit `.env` and set a random local-only value:
+
+```dotenv
+GATEWAY_LOCAL_DEMO_API_KEY=replace-with-a-random-local-value
+```
+
+The Python runtime does **not** automatically load `.env`. Export it into the process environment before starting:
+
+```bash
+set -a
+source .env
+set +a
+
+uv run --frozen python scripts/local_demo.py
+```
+
+When readiness succeeds, open:
+
+| Surface | URL | Purpose |
+|---|---|---|
+| Gateway Console | `http://127.0.0.1:5173` | Read-only operational view |
+| Gateway readiness | `http://127.0.0.1:8000/readyz` | Process readiness |
+| Operations API | `http://127.0.0.1:8000/v1/ops/overview` | Authenticated bounded operational state |
+| Grafana | `http://127.0.0.1:3000` | Local trace visualization |
+
+Press `Ctrl+C` to stop the interactive demo. The launcher owns cleanup of its child processes and dedicated Compose project.
+
+For an automated startup/readiness/teardown proof:
+
+```bash
+uv run --frozen python scripts/local_demo.py --smoke-test
+```
+
+## Where do API keys go?
+
+**Never put real API keys in `config/model_registry.yaml`, `config/providers/runtime.json`, README files, logs, traces or Git.**
+
+The repository uses a reference-based secret model:
+
+```text
+config/providers/runtime.json
+    credential_reference: "OPENAI_API_KEY"
+                         │
+                         ▼
+Gateway process environment / secret manager
+    OPENAI_API_KEY=<real secret>
+                         │
+                         ▼
+provider adapter
+```
+
+### Local demo credential
+
+The operations-only demo requires:
+
+```text
+GATEWAY_LOCAL_DEMO_API_KEY
+```
+
+Put it in your local `.env`, source/export the file, and then run the launcher. The launcher passes this credential only to the operations-only Gateway child; Docker, npm and Vite receive sanitized environments without it.
+
+### Provider API keys
+
+Provider credentials belong to the **Gateway deployment**, not consumer applications. The initial server-side resolver reads environment variables whose names are referenced by the provider runtime artifact.
+
+Common examples are included as comments in `.env.example`:
+
+```dotenv
+# OPENAI_API_KEY=
+# ANTHROPIC_API_KEY=
+# GEMINI_API_KEY=
+# NVIDIA_API_KEY=
+# GROQ_API_KEY=
+# OPENROUTER_API_KEY=
+```
+
+They become relevant only when a reviewed `config/providers/runtime.json` binding references them and a matching deployment exists in the Model Registry.
+
+For local development you may source `.env`. For a real deployment, inject the same environment references through your orchestrator or secret manager. The secret-resolution port is intentionally designed so AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault or another backend can replace the environment resolver without changing consumer contracts.
+
+### Consumer credentials
+
+A consumer should receive only:
+
+```text
+GOVERNED_LLM_GATEWAY_URL
+GOVERNED_LLM_GATEWAY_API_KEY
+```
+
+It should **not** receive provider API keys. Consumer applications also do not own provider/model selection or retry/fallback policy.
+
+See [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) and [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) for the detailed trust boundary.
+
+## How governed execution works
+
+A request does not simply choose the cheapest or fastest available model.
+
+1. The consumer authenticates to the Gateway.
+2. The Policy Model Router determines the logical model groups the workload is authorized to use.
+3. The Gateway intersects that authority with registry capability, environment, data/risk and runtime eligibility.
+4. Deterministic ranking operates only inside that remaining set.
+5. Retry/fallback may move only to another already-authorized eligible deployment.
+6. Provider-specific requests/responses are normalized behind adapters.
+7. Terminal execution provenance and metadata-safe telemetry describe what happened; they never authorize a future request.
+
+Business tool execution remains outside the Gateway. The Gateway can normalize a tool call, but the application/agent runtime owns tool authorization and side effects.
+
+## Architecture boundaries
+
+```text
+                    Governance authority (optional)
+                              │
+                              ▼
+                      Policy Model Router
+                              │ PDP
+                              ▼
+                     Governed LLM Gateway
+                              │ PEP
+          ┌───────────────────┼────────────────────┐
+          ▼                   ▼                    ▼
+   Model providers      a2a-otel-kit         Evidence / evals
+          │                   │
+          │                   ▼
+          │             OTel Collector
+          │                   │
+          │                   ▼
+          │                 Tempo
+          │                   │
+          │                   ▼
+          │                 Grafana
+          ▼
+ normalized execution
+```
+
+The Gateway is intentionally **not** an agent framework, RAG framework, MCP tool executor, prompt-management platform or general API-management product. Its responsibility is governed model resolution and execution.
 
 ## Current status
 
-- **Core platform:** Phases 0–13 complete.
-- **Real-project migration:** Phase 14 in progress; `controlled-autonomy-lab` and `getnet-multi-agent-support-v2` are complete, while OpsLens remains deliberately deferred.
-- **Evaluation:** all roadmap-listed benchmark classes are represented by reviewed deterministic contracts.
-- **Operational evidence:** bounded materialization, best-effort runtime recording and content-addressed source-instance batch handoff are implemented; fleet/shared completeness and online operational-score policy are not active.
-- **Local observability evidence:** Collector receipt, Tempo queryability and a file-provisioned read-only Grafana trace dashboard have credential-free CI proofs; this is not a claim of production observability readiness.
+| Track | Status |
+|---|---|
+| Core platform — Phases 0–13 | **Complete** |
+| Real-project integrations — Phase 14 | **In progress**: two integrations complete; OpsLens intentionally deferred |
+| Local operational demo — OR-8 | **Complete** at the bounded operations-only local-demo scope |
+| Live-inference copy/paste deployment profile | **Pending** |
+| Broader operational-surface auth/security — OR-9 | **Not started** |
+| Final screenshots/demo/product-readiness validation — OR-10 | **Not started** |
+| Per-trace Console correlation | **Deferred pending an explicit reviewed correlation source** |
 
-For the authoritative project checkpoint and Phase 14 sequencing, see [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
+The authoritative checkpoint is [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
 
-## Quality baseline
+### What remains before calling the application finished
 
-The latest validated quality gate reports:
+For a **portfolio/demo-ready live product path**, the main remaining work is:
 
-- **1107 tests passing** and 2 skipped;
-- **83.70% aggregate coverage**;
-- strict **mypy** and **Ruff** checks;
-- **Bandit: 0 findings** across 22,842 LOC;
-- **pip-audit: no known vulnerabilities**;
-- architecture, secret-scan and Phase 0 gates passing.
+1. add one reviewed development live-inference profile with a real Model Registry deployment, provider-runtime binding and Policy Router configuration;
+2. prove that profile with opt-in live-provider smoke tests while keeping default CI credential-free;
+3. complete the remaining OR-9 security hardening appropriate to operational surfaces;
+4. complete OR-10: final documentation, screenshots/demo flow and product-readiness validation;
+5. decide whether per-trace Console correlation is required for the final demo and, if so, add it only after a real correlation/persistence contract exists;
+6. add a repository license/release policy before presenting the repository as a reusable open-source package.
 
-## Validate locally
+For **full roadmap completion**, Phase 14 also remains sequentially gated: OpsLens must be reconciled before RAGForge and later integrations are started.
+
+## Validate the repository
+
+The default quality path is deterministic and credential-free:
 
 ```bash
 uv sync --frozen
 uv run python scripts/quality_gate.py
 ```
 
-The default quality path is deterministic and credential-free.
-
-## Local trace visualization
-
-The checked-in observability stack provides a read-only Grafana dashboard backed by the provisioned local Tempo datasource:
-
-```bash
-docker compose -f compose.observability.yml up -d tempo grafana
-```
-
-Open `http://127.0.0.1:3000`. The local demo binds Grafana to loopback, keeps Tempo unexposed from the reusable base Compose stack, and requires no Grafana, provider or Policy Router credential. The anonymous Viewer configuration is local-demo only and is not a production authentication design.
-
-The dashboard uses the stable TraceQL query `{ span:name = "llm.gateway.request" }` and displays real Tempo results rather than fabricated traces or metrics. See [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) for the exact provisioning, CI proof, network boundary and non-claims.
+Frontend, observability and integration proofs are also isolated in dedicated GitHub Actions workflows. Live-provider tests remain opt-in by design.
 
 ## Repository map
 
 | Path | Responsibility |
 |---|---|
-| `apps/gateway-api/` | HTTP composition root |
+| `apps/gateway-api/` | FastAPI composition root and executable Gateway processes |
+| `apps/gateway-console/` | Read-only React/TypeScript operational console |
 | `packages/gateway-contracts/` | Provider-neutral public contracts |
-| `packages/gateway-core/` | Domain, application services and adapters |
-| `packages/gateway-client/` | Thin typed client SDK |
-| `benchmarks/` | Deterministic evaluation, evidence and promotion |
-| `config/` | Model, ranking and provider configuration |
-| `tests/` | Contract, integration and end-to-end validation |
-| `docs/` | Architecture, roadmap, evaluation and project state |
+| `packages/gateway-core/` | Domain, application services and provider/runtime adapters |
+| `packages/gateway-client/` | Thin typed consumer SDK |
+| `config/` | Secret-free registry, provider, client, policy and routing artifacts |
+| `benchmarks/` | Deterministic evaluation and evidence |
+| `deploy/observability/` | Collector, Tempo and Grafana local provisioning |
+| `scripts/` | Quality, evidence and deterministic local-demo tooling |
+| `tests/` | Unit, contract, integration and end-to-end validation |
+| `docs/` | Architecture, security boundaries, roadmap and evidence contracts |
 
-## Deep dives
+## Recommended reading
 
-- [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — authoritative project checkpoint
-- [`docs/project/ROADMAP.md`](docs/project/ROADMAP.md) — implementation roadmap and phase ledger
-- [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — benchmark and evidence architecture
-- [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) — local read-only Grafana/Tempo trace proof
-- [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — authorization boundary
-- [`docs/evaluation/OPERATIONAL_EVIDENCE.md`](docs/evaluation/OPERATIONAL_EVIDENCE.md) — recent operational-evidence model
-- [`docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md`](docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md) — structured output and tool authority boundary
+If you are evaluating the repository, start here:
+
+- [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — authoritative current checkpoint;
+- [`docs/project/OPERATIONAL_READINESS.md`](docs/project/OPERATIONAL_READINESS.md) — local demo/operations readiness sequence;
+- [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — authorization boundary;
+- [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) — provider and secret model;
+- [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md) — Console boundary;
+- [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) — real local Grafana/Tempo proof;
+- [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — benchmark/evidence architecture.
