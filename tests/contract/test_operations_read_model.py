@@ -171,7 +171,7 @@ def test_health_inspection_does_not_materialize_unseen_live_state() -> None:
     assert snapshots[0].status is HealthStatus.HEALTHY
     assert snapshots[0].circuit_state is CircuitState.CLOSED
     assert snapshots[0].request_count == 0
-    assert getattr(health, "_states") == {}
+    assert health._states == {}
 
 
 def test_health_inspection_reports_effective_half_open_without_mutating_live_state() -> None:
@@ -181,14 +181,14 @@ def test_health_inspection_reports_effective_half_open_without_mutating_live_sta
         clock=clock,
     )
     health.record_failure("deployment-a", _server_error(), latency_ms=25)
-    assert getattr(health, "_states")["deployment-a"].circuit_state is CircuitState.OPEN
+    assert health._states["deployment-a"].circuit_state is CircuitState.OPEN
 
     clock.advance(30)
     inspected = InMemoryHealthInspectionAdapter(health).inspect(("deployment-a",))
 
     assert inspected[0].circuit_state is CircuitState.HALF_OPEN
     assert inspected[0].status is HealthStatus.DEGRADED
-    assert getattr(health, "_states")["deployment-a"].circuit_state is CircuitState.OPEN
+    assert health._states["deployment-a"].circuit_state is CircuitState.OPEN
 
 
 def test_static_operations_snapshot_is_deterministic_and_explicit_about_absence() -> None:
@@ -223,7 +223,7 @@ def test_static_operations_snapshot_is_deterministic_and_explicit_about_absence(
     ]
     assert isinstance(first.operational_evidence, OperationalEvidenceNotSupplied)
     assert first.operational_evidence.state is OperationalEvidenceState.NOT_SUPPLIED
-    assert getattr(health, "_states") == {}
+    assert health._states == {}
 
 
 def test_evidence_driven_ranking_provenance_is_projected_without_inference() -> None:
