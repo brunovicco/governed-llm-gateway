@@ -80,7 +80,9 @@ class GovernedServerSettings:
             if self.observability.service_name != _GATEWAY_SERVICE_NAME:
                 raise ValueError("observability service_name must use the Gateway process identity")
             if self.observability.service_version != _GATEWAY_SERVICE_VERSION:
-                raise ValueError("observability service_version must use the Gateway process version")
+                raise ValueError(
+                    "observability service_version must use the Gateway process version"
+                )
             if self.observability.log_level != _OBSERVABILITY_LOG_LEVEL:
                 raise ValueError("observability log_level is owned by the Gateway process")
             if self.observability.log_format != _OBSERVABILITY_LOG_FORMAT:
