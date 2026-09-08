@@ -48,7 +48,13 @@ class RecordingAuthorizer:
 class RecordingSnapshotReader:
     """Snapshot reader double proving authorization happens before catalog reads."""
 
-    def __init__(self, snapshot: OperationsSnapshot, events: list[str], *, fail: bool = False) -> None:
+    def __init__(
+        self,
+        snapshot: OperationsSnapshot,
+        events: list[str],
+        *,
+        fail: bool = False,
+    ) -> None:
         self._snapshot = snapshot
         self._events = events
         self._fail = fail
