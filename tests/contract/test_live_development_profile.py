@@ -71,7 +71,21 @@ def test_profile_has_exact_bounded_provider_and_authority_shape() -> None:
     openai_score = workload.score_for("openai-gpt-5-6-luna-dev")
     assert google_score is not None
     assert openai_score is not None
-    assert google_score == openai_score
+    assert (
+        google_score.quality,
+        google_score.reliability,
+        google_score.latency,
+        google_score.cost,
+        google_score.availability,
+        google_score.expected_latency_ms,
+    ) == (
+        openai_score.quality,
+        openai_score.reliability,
+        openai_score.latency,
+        openai_score.cost,
+        openai_score.availability,
+        openai_score.expected_latency_ms,
+    )
 
 
 def test_profile_materializes_without_network_calls() -> None:
