@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import shutil
+import signal
 
 # Security-reviewed: commands are fixed repository-owned argv sequences with shell disabled.
 import subprocess  # nosec B404
@@ -158,26 +159,39 @@ class SystemDemoRuntime:
         cwd: Path,
         env: Mapping[str, str],
     ) -> subprocess.Popen[str]:
-        """Start one repository-owned foreground child without a shell."""
+        """Start one repository-owned foreground child in its own process session."""
         return subprocess.Popen(  # nosec B603
             tuple(command),
             cwd=cwd,
             env=dict(env),
             text=True,
+            start_new_session=True,
         )
 
     def stop(self, process: DemoProcess) -> None:
-        """Terminate an owned subprocess, escalating only after a bounded wait."""
+        """Terminate an owned process group, escalating only after a bounded wait."""
         if process.poll() is not None:
             return
         if not isinstance(process, subprocess.Popen):
             raise TypeError("system runtime can only stop subprocess.Popen instances")
-        process.terminate()
         try:
+            self._signal_process_group(process, signal.SIGTERM)
             process.wait(timeout=5.0)
         except subprocess.TimeoutExpired:
-            process.kill()
+            self._signal_process_group(process, signal.SIGKILL)
             process.wait(timeout=5.0)
+        except ProcessLookupError:
+            return
+
+    @staticmethod
+    def _signal_process_group(process: subprocess.Popen[str], sig: signal.Signals) -> None:
+        if os.name == "posix":
+            os.killpg(process.pid, sig)
+            return
+        if sig == signal.SIGTERM:
+            process.terminate()
+        else:
+            process.kill()
 
     def get_json(
         self,
@@ -214,7 +228,10 @@ class SystemDemoRuntime:
                 request,
                 timeout=1.0,
             ) as response:
-                return response.read().decode("utf-8")
+                raw_body = response.read()
+                if not isinstance(raw_body, bytes):
+                    raise LocalDemoProbeUnavailable("local HTTP probe returned non-bytes body")
+                return raw_body.decode("utf-8")
         except (OSError, urllib.error.URLError, UnicodeDecodeError) as exc:
             raise LocalDemoProbeUnavailable("local HTTP probe is unavailable") from exc
 
