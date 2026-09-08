@@ -5,6 +5,7 @@ import os
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
+from ipaddress import ip_address
 from types import TracebackType
 from typing import cast
 from urllib.parse import urlsplit
@@ -321,8 +322,17 @@ def _validated_base_url(value: str) -> str:
         _ = parsed.port
     except ValueError as exc:
         raise GatewayConfigurationError("gateway base URL is invalid") from exc
-    if parsed.scheme != "https" or not parsed.hostname:
-        raise GatewayConfigurationError("gateway base URL must be an absolute HTTPS URL")
+    hostname = parsed.hostname
+    if hostname is None:
+        raise GatewayConfigurationError("gateway base URL must be absolute")
+    loopback_http = False
+    if parsed.scheme == "http":
+        try:
+            loopback_http = ip_address(hostname).is_loopback
+        except ValueError:
+            loopback_http = False
+    if parsed.scheme != "https" and not loopback_http:
+        raise GatewayConfigurationError("gateway base URL must use HTTPS or literal loopback HTTP")
     if parsed.username is not None or parsed.password is not None:
         raise GatewayConfigurationError("gateway base URL must not contain userinfo")
     if parsed.query or parsed.fragment:
