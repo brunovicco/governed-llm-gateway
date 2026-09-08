@@ -1,8 +1,8 @@
 """Contract tests for the authenticated read-only operations access boundary."""
 
 import asyncio
-from collections.abc import Sequence
 from typing import cast
+from uuid import UUID
 
 import pytest
 from governed_llm_gateway_api import (
@@ -14,6 +14,7 @@ from governed_llm_gateway_api import (
     OperationsReadAccessPolicy,
     OperationsReadAccessService,
     OperationsReadAuthorizationError,
+    StaticGatewayClientContextResolver,
     build_static_gateway_client_context_resolver,
 )
 from governed_llm_gateway_contracts import (
@@ -59,7 +60,7 @@ def _binding(
     )
 
 
-def _resolver() -> tuple[object, RecordingSecrets]:
+def _resolver() -> tuple[StaticGatewayClientContextResolver, RecordingSecrets]:
     secrets = RecordingSecrets()
     resolver = build_static_gateway_client_context_resolver(
         (
@@ -84,7 +85,7 @@ def _resolver() -> tuple[object, RecordingSecrets]:
 def _request(workload: str) -> GatewayRequest:
     return GatewayRequest(
         schema_version="1.0",
-        request_id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        request_id=UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
         workload=workload,
         risk_level=RiskLevel.LOW,
         data_classification=DataClassification.PUBLIC,
@@ -95,10 +96,9 @@ def _request(workload: str) -> GatewayRequest:
 
 def test_authenticate_returns_identity_without_synthetic_workload_request() -> None:
     resolver, secrets = _resolver()
-    typed_resolver = cast("StaticGatewayClientContextResolver", resolver)
     before = tuple(secrets.calls)
 
-    identity = asyncio.run(typed_resolver.authenticate(api_key=_KEY_A))
+    identity = asyncio.run(resolver.authenticate(api_key=_KEY_A))
 
     assert identity == GatewayClientIdentity(client_id="service-a", environment="development")
     assert tuple(secrets.calls) == before
@@ -106,11 +106,10 @@ def test_authenticate_returns_identity_without_synthetic_workload_request() -> N
 
 def test_operations_read_grant_reuses_materialized_authenticator_without_secret_reads() -> None:
     resolver, secrets = _resolver()
-    typed_resolver = cast("StaticGatewayClientContextResolver", resolver)
     policy = OperationsReadAccessPolicy(
         principals=(GatewayClientIdentity(client_id="service-a", environment="development"),)
     )
-    service = OperationsReadAccessService(authenticator=typed_resolver, policy=policy)
+    service = OperationsReadAccessService(authenticator=resolver, policy=policy)
     before = tuple(secrets.calls)
 
     identity = asyncio.run(service.authorize(api_key=_KEY_A))
@@ -122,11 +121,10 @@ def test_operations_read_grant_reuses_materialized_authenticator_without_secret_
 
 def test_valid_gateway_credential_without_operations_grant_fails_sanitized() -> None:
     resolver, _ = _resolver()
-    typed_resolver = cast("StaticGatewayClientContextResolver", resolver)
     policy = OperationsReadAccessPolicy(
         principals=(GatewayClientIdentity(client_id="service-a", environment="development"),)
     )
-    service = OperationsReadAccessService(authenticator=typed_resolver, policy=policy)
+    service = OperationsReadAccessService(authenticator=resolver, policy=policy)
 
     with pytest.raises(OperationsReadAuthorizationError) as captured:
         asyncio.run(service.authorize(api_key=_KEY_B))
@@ -139,9 +137,8 @@ def test_valid_gateway_credential_without_operations_grant_fails_sanitized() -> 
 
 def test_empty_operations_policy_denies_every_authenticated_client() -> None:
     resolver, _ = _resolver()
-    typed_resolver = cast("StaticGatewayClientContextResolver", resolver)
     service = OperationsReadAccessService(
-        authenticator=typed_resolver,
+        authenticator=resolver,
         policy=OperationsReadAccessPolicy(),
     )
 
@@ -151,9 +148,8 @@ def test_empty_operations_policy_denies_every_authenticated_client() -> None:
 
 def test_invalid_gateway_credential_preserves_authentication_failure() -> None:
     resolver, _ = _resolver()
-    typed_resolver = cast("StaticGatewayClientContextResolver", resolver)
     service = OperationsReadAccessService(
-        authenticator=typed_resolver,
+        authenticator=resolver,
         policy=OperationsReadAccessPolicy(
             principals=(GatewayClientIdentity(client_id="service-a", environment="development"),)
         ),
@@ -165,9 +161,8 @@ def test_invalid_gateway_credential_preserves_authentication_failure() -> None:
 
 def test_operations_grant_does_not_replace_workload_authorization() -> None:
     resolver, _ = _resolver()
-    typed_resolver = cast("StaticGatewayClientContextResolver", resolver)
     service = OperationsReadAccessService(
-        authenticator=typed_resolver,
+        authenticator=resolver,
         policy=OperationsReadAccessPolicy(
             principals=(GatewayClientIdentity(client_id="service-a", environment="development"),)
         ),
@@ -176,7 +171,7 @@ def test_operations_grant_does_not_replace_workload_authorization() -> None:
     assert asyncio.run(service.authorize(api_key=_KEY_A)).client_id == "service-a"
     with pytest.raises(GatewayClientAuthorizationError):
         asyncio.run(
-            typed_resolver.resolve(
+            resolver.resolve(
                 api_key=_KEY_A,
                 request=_request("code.review"),
             )
@@ -206,14 +201,15 @@ def test_operations_policy_rejects_duplicate_or_unsorted_principals(
 def test_operations_policy_rejects_non_tuple_or_non_identity_values() -> None:
     with pytest.raises(OperationsReadAccessConfigurationError, match="must use a tuple"):
         OperationsReadAccessPolicy(
-            principals=cast(tuple[GatewayClientIdentity, ...], [GatewayClientIdentity("a", "dev")])
+            principals=cast(
+                tuple[GatewayClientIdentity, ...],
+                [GatewayClientIdentity("a", "dev")],
+            )
         )
 
     malformed = cast(
-        Sequence[GatewayClientIdentity],
+        tuple[GatewayClientIdentity, ...],
         (GatewayClientIdentity("service-a", "development"), object()),
     )
     with pytest.raises(OperationsReadAccessConfigurationError, match="GatewayClientIdentity"):
-        OperationsReadAccessPolicy(
-            principals=cast(tuple[GatewayClientIdentity, ...], malformed)
-        )
+        OperationsReadAccessPolicy(principals=malformed)
