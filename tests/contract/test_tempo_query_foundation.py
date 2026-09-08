@@ -13,13 +13,18 @@ def _text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_tempo_query_overlay_exposes_only_loopback_http() -> None:
+def test_tempo_query_overlay_exposes_only_reviewed_loopback_ports() -> None:
     base = _text(_BASE_COMPOSE_PATH)
     overlay = _text(_QUERY_OVERLAY_PATH)
 
     assert "3200:3200" not in base
-    assert overlay == "services:\n  tempo:\n    ports:\n      - 127.0.0.1:3200:3200\n"
+    assert overlay.count("127.0.0.1:3200:3200") == 1
     assert "0.0.0.0:3200:3200" not in overlay
+    assert "127.0.0.1:4318:4318" not in overlay
+    assert "tempo-query-host: {}" in overlay
+    assert "internal: true" not in overlay
+    assert overlay.count("      - observability") == 2
+    assert overlay.count("      - tempo-query-host") == 2
 
 
 def test_tempo_query_proof_emits_through_collector_and_queries_tempo() -> None:
