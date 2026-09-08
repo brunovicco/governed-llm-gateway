@@ -50,6 +50,11 @@ jobs:
         run: |
           running_services="$(docker compose -f compose.observability.yml ps --status running --services)"
           grep --quiet --line-regexp grafana <<<"$running_services"
+      - name: Require Grafana localhost port published
+        run: |
+          grafana_container="$(docker compose -f compose.observability.yml ps -q grafana)"
+          published="$(docker port "$grafana_container" 3000/tcp)"
+          test "$published" = "127.0.0.1:3000"
       - name: Wait for Grafana readiness
         run: |
           for attempt in {1..30}; do
