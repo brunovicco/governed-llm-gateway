@@ -16,6 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -203,10 +204,8 @@ class SystemDemoRuntime:
             time.sleep(_PROCESS_GROUP_POLL_SECONDS)
 
         if self._process_group_exists(process.pid):
-            try:
+            with suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
         if process.poll() is None:
             try:
                 process.wait(timeout=1.0)
