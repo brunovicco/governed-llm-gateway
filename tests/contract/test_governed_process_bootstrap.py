@@ -380,9 +380,7 @@ def test_configured_operations_access_reuses_materialized_client_authenticator(
         provider_secrets=provider,
     )
 
-    identity = asyncio.run(
-        bundle.operations_read_access.authorize(api_key="pc8-client-opaque")
-    )
+    identity = asyncio.run(bundle.operations_read_access.authorize(api_key="pc8-client-opaque"))
 
     assert identity.client_id == "service-a"
     assert identity.environment == "development"

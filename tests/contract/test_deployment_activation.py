@@ -322,9 +322,7 @@ def test_configured_operations_access_authorizes_exact_runtime_principal(tmp_pat
         },
     )
 
-    identity = asyncio.run(
-        services.operations_read_access.authorize(api_key="pc12-client-opaque")
-    )
+    identity = asyncio.run(services.operations_read_access.authorize(api_key="pc12-client-opaque"))
 
     assert identity.client_id == "service-a"
     assert identity.environment == "development"
