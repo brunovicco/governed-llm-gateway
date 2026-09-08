@@ -2,7 +2,7 @@
 
 ## Purpose
 
-PC-18 / OR-3A establishes the first typed operations projection for the Governed LLM Gateway. It is deliberately an application-layer read model, not an HTTP API and not a control plane.
+PC-18 / OR-3A establishes the first typed operations projection for the Governed LLM Gateway. PC-19 / OR-3B composes one instance into the validated governed service graph without exposing an HTTP surface yet.
 
 The projection consumes only already-validated Gateway-owned state:
 
@@ -20,6 +20,20 @@ OperationsSnapshot
 ```
 
 No provider, Policy Router, secret resolver, filesystem loader, telemetry exporter or remote backend participates in snapshot construction.
+
+## Governed service composition
+
+`compose_governed_gateway_services(...)` owns the minimal safe binding point for the operations model because it already has the exact active objects used by request execution:
+
+- `runtime.artifacts.registry` is the validated active `ModelRegistry` already supplied to route and generation coordinators;
+- `ranking_policy` is the effective ranking policy already validated for the service graph;
+- `active_health` is the same process-local `InMemoryHealthTracker` used by generation preflight and streaming execution.
+
+PC-19 constructs `OperationsReadModelService` directly from those objects and exposes it through the immutable `GovernedGatewayServices` bundle. Health access is wrapped with `InMemoryHealthInspectionAdapter(active_health)` so reads observe current execution state without creating a second live tracker or mutating the one used by execution.
+
+Composition performs no additional secret resolution, artifact loading, filesystem access, provider call, Policy Router call, telemetry lookup or network request.
+
+PC-19 deliberately does **not** attach `/v1/ops/*` routes. Transport and operational-surface authentication remain separate reviewable increments.
 
 ## Authority boundary
 
@@ -117,11 +131,11 @@ When a verified `OperationalEvidenceSnapshot` is supplied, the projection preser
 - capture timestamp;
 - record count.
 
-PC-18 does not relabel that evidence as fleet-complete and does not re-run materialization inside the read path.
+PC-18 and PC-19 do not relabel that evidence as fleet-complete and do not re-run materialization inside the read path.
 
 ## Deliberately deferred
 
-PC-18 does not add:
+PC-18 and PC-19 do not add:
 
 - `/v1/ops/*` HTTP routes;
 - recent routing-history persistence;
