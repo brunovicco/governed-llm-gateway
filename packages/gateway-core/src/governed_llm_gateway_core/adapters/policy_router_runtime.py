@@ -9,6 +9,7 @@ from typing import Protocol, TypeGuard
 from urllib.parse import urlsplit
 
 from .policy_router import PolicyRouterHttpAdapter
+from .policy_router_loopback import LoopbackHttpPolicyTransport, is_literal_loopback_host
 
 _IDENTIFIER = re.compile(r"^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$")
 _ENV_REFERENCE = re.compile(r"^[A-Z][A-Z0-9_]{1,127}$")
@@ -140,9 +141,11 @@ def build_policy_router_adapter(
             )
         credentials[binding.client_id] = credential
 
+    transport = LoopbackHttpPolicyTransport() if urlsplit(endpoint).scheme == "http" else None
     return PolicyRouterHttpAdapter(
         endpoint=endpoint,
         api_keys_by_client=credentials,
+        transport=transport,
         timeout_seconds=config.timeout_seconds,
     )
 
@@ -191,16 +194,16 @@ def _validate_credential_reference(value: object) -> None:
 def _validate_endpoint(value: object) -> None:
     if not isinstance(value, str) or not value or value.strip() != value:
         raise PolicyRouterRuntimeConfigurationError(
-            "Policy Router endpoint must be a normalized absolute HTTPS URL"
+            "Policy Router endpoint must be an absolute HTTPS URL or literal loopback HTTP URL"
         )
     try:
         parsed = urlsplit(value)
         _ = parsed.port
     except ValueError as exc:
         raise PolicyRouterRuntimeConfigurationError("Policy Router endpoint is invalid") from exc
-    if parsed.scheme != "https" or not parsed.hostname:
+    if not parsed.hostname:
         raise PolicyRouterRuntimeConfigurationError(
-            "Policy Router endpoint must be a normalized absolute HTTPS URL"
+            "Policy Router endpoint must be an absolute HTTPS URL or literal loopback HTTP URL"
         )
     if parsed.username is not None or parsed.password is not None:
         raise PolicyRouterRuntimeConfigurationError(
@@ -210,6 +213,13 @@ def _validate_endpoint(value: object) -> None:
         raise PolicyRouterRuntimeConfigurationError(
             "Policy Router endpoint must not contain query or fragment"
         )
+    if parsed.scheme == "https":
+        return
+    if parsed.scheme == "http" and is_literal_loopback_host(parsed.hostname):
+        return
+    raise PolicyRouterRuntimeConfigurationError(
+        "Policy Router endpoint must use HTTPS unless HTTP targets a literal loopback address"
+    )
 
 
 def _validate_timeout(value: object) -> None:
