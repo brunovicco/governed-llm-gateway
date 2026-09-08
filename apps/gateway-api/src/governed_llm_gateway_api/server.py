@@ -9,7 +9,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
 import uvicorn
 from a2a_otel_kit.application.settings import ObservabilitySettings
@@ -27,7 +27,7 @@ _GATEWAY_SERVICE_VERSION = "0.1.0"
 _DEFAULT_OTLP_TIMEOUT_SECONDS = 10.0
 _OBSERVABILITY_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 _OBSERVABILITY_LOG_LEVEL = "INFO"
-_OBSERVABILITY_LOG_FORMAT = "json"
+_OBSERVABILITY_LOG_FORMAT: Literal["json", "console"] = "json"
 _LOGGER = logging.getLogger(__name__)
 
 
