@@ -16,5 +16,6 @@ build/
 .idea/
 .vscode/
 .DS_Store
+.collector-receipts/
 benchmarks/results/*
 !benchmarks/results/.gitkeep
