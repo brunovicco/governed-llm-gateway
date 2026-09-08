@@ -1,6 +1,7 @@
 import { type FormEvent, useRef, useState } from "react";
 
 import { OperationsApiClient, OperationsApiError } from "./api";
+import { buildLocalGrafanaDashboardUrl } from "./observability";
 import type { OperationsConsoleSnapshot, OperationsDeployment } from "./types";
 
 const operationsClient = new OperationsApiClient();
@@ -46,6 +47,7 @@ export function App() {
   }
 
   const connected = connection.kind === "connected" ? connection.snapshot : null;
+  const grafanaDashboardUrl = buildLocalGrafanaDashboardUrl(window.location.origin);
 
   return (
     <main className="shell">
@@ -124,12 +126,18 @@ export function App() {
         </section>
       )}
 
-      {connected && <ConsoleView snapshot={connected} />}
+      {connected && <ConsoleView snapshot={connected} grafanaDashboardUrl={grafanaDashboardUrl} />}
     </main>
   );
 }
 
-function ConsoleView({ snapshot }: { snapshot: OperationsConsoleSnapshot }) {
+function ConsoleView({
+  snapshot,
+  grafanaDashboardUrl,
+}: {
+  snapshot: OperationsConsoleSnapshot;
+  grafanaDashboardUrl: string | null;
+}) {
   const { overview, deployments } = snapshot;
   return (
     <div className="console-grid">
@@ -155,6 +163,27 @@ function ConsoleView({ snapshot }: { snapshot: OperationsConsoleSnapshot }) {
           detail="Availability only — no freshness claim"
         />
       </section>
+
+      {grafanaDashboardUrl && (
+        <section className="provenance-panel" aria-labelledby="trace-dashboard-title">
+          <div>
+            <p className="section-kicker">Trace evidence</p>
+            <h2 id="trace-dashboard-title">Local Grafana dashboard</h2>
+          </div>
+          <p className="muted table-note">
+            Opens the reviewed local Tempo-backed dashboard. The Console does not query Grafana directly or
+            send the Operations credential in this navigation.
+          </p>
+          <a
+            className="secondary"
+            href={grafanaDashboardUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open local trace dashboard
+          </a>
+        </section>
+      )}
 
       <section className="provenance-panel">
         <div>
