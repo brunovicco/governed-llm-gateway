@@ -144,7 +144,7 @@ def test_generate_endpoint_returns_normalized_deterministic_sse() -> None:
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
-    assert response.headers["cache-control"] == "no-cache"
+    assert response.headers["cache-control"] == "no-store"
     assert response.headers["x-accel-buffering"] == "no"
     assert fake.prepared_api_key == "gateway-key"
     assert fake.stream_calls == 1
