@@ -8,8 +8,8 @@ decides the authorized model group; the Gateway never self-authorizes:
 consumer (any project)
   -> Gateway client authentication
   -> Policy Model Router (PDP)
-  -> authorized model group: balanced
-  -> Gateway eligibility + deterministic ranking (NVIDIA cost-preferred)
+  -> authorized model group: balanced | fast-small | structured-fast | reasoning-strong | agentic-strong
+  -> Gateway eligibility + deterministic ranking (NVIDIA cost-preferred in balanced)
   -> provider execution
   -> normalized SSE + execution provenance
 ```
@@ -17,33 +17,56 @@ consumer (any project)
 ## Why this profile exists
 
 The point of this repository is that a consumer project never has to carry provider credentials,
-pick a provider, or pick a model. It declares a `workload` (currently `rag.answer`), a `risk_level`
-and a `data_classification`; the Policy Router decides the authorized model group, and the Gateway's
+pick a provider, or pick a model. It declares a `workload`, a `risk_level` and a
+`data_classification`; the Policy Router decides the authorized model group, and the Gateway's
 deterministic ranking picks one already-authorized deployment.
 
-This profile wires six deployments into the `balanced` group: NVIDIA (native `openai-compatible`),
-Google Gemini, OpenAI, Anthropic, Groq and OpenRouter. NVIDIA is the practical default because its
-configured tier has zero marginal cost (`pricing.input_usd_per_million_tokens` /
-`output_usd_per_million_tokens` are both `"0.00"`); its `cost` ranking score is set to `"1.00"` against
-`"0.50"` for the other five, so it wins the deterministic ranking under normal conditions
-(`0.60` total score vs `0.50` for everyone else at equal weights). This is a genuine, defensible
-preference — not the reproducible-tie-break neutral scoring used by the `live-development` profile.
+This profile wires 14 deployments across five model groups, reusing the same six provider bindings
+(NVIDIA, Google Gemini, OpenAI, Anthropic, Groq, OpenRouter — no new credentials needed for any of it):
 
-Fallback stays automatic and within Phase 6's existing bounded rules: if NVIDIA is disabled, missing
-its credential, unhealthy, or hits a retryable failure, ranking/fallback moves to the next
-already-authorized eligible deployment (Gemini, OpenAI, Anthropic, Groq, or OpenRouter, in ranking
-order) without ever widening authorization outside the PDP-granted `balanced` group.
+| Workload | Model group | Deployments |
+| --- | --- | --- |
+| `rag.answer` | `balanced` | NVIDIA (cost-preferred), Gemini, OpenAI, Anthropic, Groq, OpenRouter |
+| `classification.simple` | `fast-small` | Groq, NVIDIA |
+| `extraction.structured` | `structured-fast` | OpenAI, Gemini |
+| `reasoning.complex`, `security.analysis`, `code.generate`, `code.review` | `reasoning-strong` | Anthropic, OpenAI |
+| `agent.orchestration`, `agent.tool-use` | `agentic-strong` | OpenAI, Anthropic |
+
+`structured-fast`, `reasoning-strong` and `agentic-strong` only use OpenAI/Anthropic/Gemini — the
+three adapters with real, verified provider-native structured-output and tool-calling translation
+(`native_structured_output=True, native_tool_calling=True` in `openai_responses.py`,
+`anthropic.py`, `gemini.py`). Groq/NVIDIA/OpenRouter keep `supports_native_structured_output` and
+`supports_native_tool_calling` at `false` in `provider_runtime.json` because that has not been
+verified against those specific APIs; they only serve `fast-small`/`balanced`, which don't need it.
+
+Within `balanced`, NVIDIA is the practical default because its configured tier has zero marginal cost
+(`pricing.input_usd_per_million_tokens` / `output_usd_per_million_tokens` are both `"0.00"`); its
+`cost` ranking score is set to `"1.00"` against `"0.50"` for the other five, so it wins the
+deterministic ranking under normal conditions (`0.60` total score vs `0.50` for everyone else at
+equal weights). This is a genuine, defensible preference — not the reproducible-tie-break neutral
+scoring used elsewhere. The other four groups use plain neutral scores (like `live-development`)
+since there isn't yet a similar cost/quality basis to prefer one deployment over the other within
+them.
+
+Fallback stays automatic and within Phase 6's existing bounded rules: ranking/fallback moves only to
+the next already-authorized eligible deployment inside the *same* PDP-granted model group, and never
+after a permanent (non-retryable) failure.
 
 ## Current scope and known limitations
 
-- All six deployments currently sit in one model group, `balanced`, serving one workload,
-  `rag.answer`. The Policy Router's `examples/policies/gateway-generic.yaml` already defines several
-  other model groups/workloads (`fast-small`, `reasoning-strong`, `agentic-strong`,
-  `structured-fast`); this profile does not yet wire deployments into them. Extending to those is a
-  natural next increment, not something this profile claims today.
-- Individually proven with real operator credentials: NVIDIA, Gemini, OpenAI, Groq. Anthropic reached
-  the provider and failed closed on an account credit-balance issue (not a config defect); OpenRouter
-  is wired but unproven pending real request evidence. See `docs/project/CURRENT_STATE.md`.
+- Individually proven end to end (real operator credentials, through the full Policy Router + Gateway
+  chain): NVIDIA, Gemini, OpenAI and Groq in `balanced`; Groq/NVIDIA in `fast-small`; OpenAI/Gemini in
+  `structured-fast`; OpenAI in `reasoning-strong` and `agentic-strong`. Anthropic reaches the provider
+  and fails closed on an account credit-balance issue in every group it's wired into (not a config
+  defect — confirmed by direct API diagnosis). OpenRouter is wired but unproven pending
+  `OPENROUTER_API_KEY`. See `docs/project/CURRENT_STATE.md`.
+- `agent.tool-use` and the other `reasoning-strong` workloads (`security.analysis`, `code.generate`,
+  `code.review`) share deployments already proven under `reasoning.complex`/`agent.orchestration` in
+  the same model group, but each individual workload string was not separately exercised with a live
+  request.
+- No workload here actually declares `requirements.tool_calling=true` with a real `ToolDefinition` in
+  a live proof; the capability is registered as genuinely supported (see above) but tool-call
+  execution itself is not yet demonstrated through this profile.
 - This is still a local/loopback profile: the Policy Router and Gateway run as local processes on
   `127.0.0.1`. It is not a production TLS/IAM/SLA claim, and it does not change the repository's
   fail-closed default `config/` artifacts used by CI and by a fresh clone.
@@ -98,5 +121,5 @@ GOVERNED_LLM_GATEWAY_URL=http://127.0.0.1:8000
 GOVERNED_LLM_GATEWAY_API_KEY=<the same GATEWAY_DEMO_API_KEY>
 ```
 
-and calls `GatewayClient.from_env().generate(workload="rag.answer", ...)` — no provider, model, or
-deployment selection.
+and calls `GatewayClient.from_env().generate(workload="rag.answer", ...)` (or any of the other eight
+reviewed workloads listed above) — no provider, model, or deployment selection.

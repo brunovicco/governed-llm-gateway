@@ -277,6 +277,22 @@ Individually proven with real operator credentials:
 
 A full six-deployment boot proving this against all five alternatives simultaneously, including OpenRouter, remains deferred until `OPENROUTER_API_KEY` is available.
 
+## Personal-default profile extended to four additional model groups, executed 2026-09-09
+
+`personal-default` was extended from one workload (`rag.answer`/`balanced`) to nine workloads across five model groups, reusing the same six existing provider bindings (no new credentials required): `classification.simple`/`fast-small` (Groq, NVIDIA), `extraction.structured`/`structured-fast` (OpenAI, Gemini), `reasoning.complex`, `security.analysis`, `code.generate`, `code.review`/`reasoning-strong` (Anthropic, OpenAI), and `agent.orchestration`, `agent.tool-use`/`agentic-strong` (OpenAI, Anthropic). `client_auth.json`'s `allowed_workloads` was extended to all nine.
+
+`structured-fast`, `reasoning-strong` and `agentic-strong` only use OpenAI/Anthropic/Gemini deployments, because those are the three adapters with verified real native structured-output and tool-calling translation (`native_structured_output=True, native_tool_calling=True` in `openai_responses.py`, `anthropic.py`, `gemini.py`); Groq/NVIDIA/OpenRouter's `openai-compatible` bindings keep `supports_native_structured_output`/`supports_native_tool_calling` at `false` since that has not been verified for those specific APIs, so they remain scoped to `balanced`/`fast-small`.
+
+Individually proven with real operator credentials, through the full Policy Router + Gateway chain (OpenRouter disabled for lack of `OPENROUTER_API_KEY`, matching the existing constraint):
+
+- `classification.simple` — succeeded via Groq (`fast-small`), `latency_ms: 606`. A first attempt with a very small `max_output_tokens` failed because `openai/gpt-oss-120b` spends hidden reasoning tokens before visible content — a real model-behavior characteristic, not a wiring defect.
+- `extraction.structured` — succeeded via Gemini (`structured-fast`), `latency_ms: 1712`.
+- `reasoning.complex` and `agent.orchestration` — both initially routed to Anthropic (alphabetically first at equal neutral scores) and failed closed on the same pre-existing account credit-balance issue recorded above, with no fallback (a permanent, non-retryable failure never triggers cross-provider fallback by design). With Anthropic's two new deployments temporarily disabled to prove the group's other member, both succeeded via OpenAI: `reasoning.complex` `latency_ms: 3577`, `agent.orchestration` `latency_ms: 1748`.
+- `security.analysis`, `code.generate`, `code.review` (sharing the same `reasoning-strong` deployments as `reasoning.complex`) and `agent.tool-use` (sharing `agentic-strong` with `agent.orchestration`) are wired identically but were not individually exercised with a live request.
+- No workload was exercised with a real `ToolDefinition`/tool-call request; native tool-calling capability is registered as genuinely supported but tool-call execution itself remains unproven through this profile.
+
+This does not change the checked-in fail-closed default `config/` artifacts, and does not add or require any new provider credential beyond the six already in use.
+
 The full six-deployment `personal-default` profile requires all six provider credentials to resolve at once (adapter construction is eager at startup); a full-profile boot proving the NVIDIA-wins-ranking behavior end to end is deferred until `OPENROUTER_API_KEY` is available, matching the same constraint already recorded for the `live-development` extension above.
 
 ## Governed live-inference development profile — PC-33 certified repository profile
