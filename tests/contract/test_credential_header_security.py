@@ -2,6 +2,7 @@ import asyncio
 from typing import cast
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from governed_llm_gateway_api import (
     GenerateCoordinator,
@@ -134,7 +135,7 @@ def test_duplicate_gateway_credential_headers_fail_before_downstream_or_body_rea
     assert b"second-secret-value" not in _response_body(sent)
 
 
-def _full_gateway_app():  # type: ignore[no-untyped-def]
+def _full_gateway_app() -> FastAPI:
     return create_gateway_app(
         cast(RouteExplainCoordinator, object()),
         cast(GenerateCoordinator, object()),
