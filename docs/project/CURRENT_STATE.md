@@ -508,6 +508,33 @@ Not started because Case 3 is deliberately deferred. The sequencing guard is ver
 
 Remains after the preceding integration cases.
 
+## personal-default profile — full Anthropic and reasoning-strong workload proof coverage, executed 2026-09-09
+
+A full-repository gap analysis found two remaining proof gaps specific to `personal-default` (distinct
+from `live-development`, where Anthropic in `balanced` was already proven): Anthropic's three deployments
+in this profile (`anthropic-claude-sonnet-5-dev` in `balanced`, `-reasoning-dev` in `reasoning-strong`,
+`-agentic-dev` in `agentic-strong`) had never been individually exercised here, and `security.analysis`,
+`code.generate`, `code.review` (the three `reasoning-strong` siblings of the already-proven
+`reasoning.complex`) had never been individually exercised at all. Both closed the same day, using the
+account-level issue resolution already recorded above and the profile's own single-provider isolation
+procedure where needed:
+
+- `security.analysis`, `code.generate`, `code.review` — run with the full default profile (all 14
+  deployments enabled, nothing disabled): all three succeeded via `anthropic-claude-sonnet-5-reasoning-dev`
+  (alphabetically first at equal neutral scores, same tie-break behavior already documented for
+  `reasoning.complex`), `latency_ms` 7206 / 2780 / 1824 respectively. This closes the workload gap and
+  simultaneously proves Anthropic live in `reasoning-strong`.
+- `rag.answer` isolated to `anthropic-claude-sonnet-5-dev` only (the other five `balanced` deployments
+  temporarily disabled) — succeeded, `latency_ms: 2203`, proving Anthropic live in `balanced`.
+- `agent.orchestration` isolated to `anthropic-claude-sonnet-5-agentic-dev` only (`openai-gpt-5-6-luna-agentic-dev`
+  temporarily disabled) — succeeded, `latency_ms: 2448`, proving Anthropic live in `agentic-strong`.
+
+Every deployment in every model group `personal-default` wires (`balanced`, `fast-small`,
+`structured-fast`, `reasoning-strong`, `agentic-strong`) is now individually proven live in this profile
+specifically. Both local processes were stopped after each proof and the temporary isolation edits were
+reverted with no diff left behind (`git status --short config/profiles/personal-default/` clean before
+committing).
+
 ## Current working boundary
 
 1. `main@289f1de7ff3ca548ca013055c08ce09ec40d1c99` (PR #237 / PC-52) is the latest certified repository baseline. Every deployment in the PC-33 profile is individually proven live (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic); this still does not itself certify any production deployment and must not be inferred from credential-free CI alone.
