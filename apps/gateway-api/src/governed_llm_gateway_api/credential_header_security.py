@@ -28,9 +28,7 @@ class GatewayCredentialHeaderMiddleware:
             return
 
         credential_values = tuple(
-            value
-            for name, value in scope["headers"]
-            if name.lower() == _GATEWAY_API_KEY_HEADER
+            value for name, value in scope["headers"] if name.lower() == _GATEWAY_API_KEY_HEADER
         )
         if len(credential_values) > 1:
             response = JSONResponse(
