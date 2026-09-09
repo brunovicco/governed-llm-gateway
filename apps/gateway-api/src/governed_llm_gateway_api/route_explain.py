@@ -288,7 +288,13 @@ def create_app(
     observability: Observability | None = None,
 ) -> FastAPI:
     """Create authenticated route explanation with optional explicit complexity mode."""
-    app = FastAPI(title="Governed LLM Gateway", version="0.1.0")
+    app = FastAPI(
+        title="Governed LLM Gateway",
+        version="0.1.0",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
 
     @app.post(
         "/v1/route/explain",
