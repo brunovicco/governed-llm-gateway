@@ -246,6 +246,22 @@ The Policy Router accepted the request (`model_group: balanced`, `policy_id: gat
 
 This satisfies README item 1 of "What remains before calling the application finished": an explicit opt-in real-provider proof has now been executed and recorded, independent of the required credential-free CI. It does not certify the OpenAI deployment in the same profile, and it is not a production TLS/IAM/SLA claim; both processes were stopped after the proof and no long-running live deployment was left active.
 
+## Live-development profile extended to six providers — proofs executed 2026-09-09
+
+The PC-33 profile was extended from two to six deployments in the same authorized `balanced` group: `google-gemini-3-8-flash-dev`, `openai-gpt-5-6-luna-dev`, `anthropic-claude-sonnet-5-dev` (native Anthropic Messages), `nvidia-llama-3-3-70b-dev`, `groq-gpt-oss-120b-dev`, and `openrouter-llama-3-3-70b-dev` (all three via the existing `openai-compatible` adapter family). `scripts/live_development_smoke.py` was extended to recognize all six as reviewed identities.
+
+Booting the full six-deployment profile at once requires all six provider credentials to resolve, because adapter construction happens eagerly for every enabled deployment at startup. To prove one provider at a time without requiring every credential simultaneously, each proof below used a reduced local `model_registry.yaml` (only the target deployment `enabled: true`, the other five `enabled: false`) and a matching `provider_runtime.json` containing only that provider's binding; `provider_runtime.json` validation requires an exact match against currently-enabled registry deployments, and disabled deployments naturally surfaced as `deployment_disabled` rejected candidates rather than being silently dropped.
+
+Individually proven with real operator credentials against repository baseline `97cd0ce` (post PR #222):
+
+- `google-gemini-3-8-flash-dev` — succeeded, `latency_ms: 1598`;
+- `openai-gpt-5-6-luna-dev` — succeeded, `latency_ms: 3308`;
+- `groq-gpt-oss-120b-dev` — succeeded, `latency_ms: 580` (model corrected during this proof from the originally wired `llama-3.3-70b-versatile`, no longer served by Groq's catalog, to `openai/gpt-oss-120b`, confirmed against the account's live `/v1/models` listing);
+- `anthropic-claude-sonnet-5-dev` — reached the provider and failed closed with a sanitized `invalid_request` gateway error; direct diagnosis against the real Anthropic API confirmed the model/endpoint/version are correct and the cause is an account-level credit balance issue, not a configuration defect;
+- `nvidia-llama-3-3-70b-dev` and `openrouter-llama-3-3-70b-dev` — wired identically but not yet proven; `NVIDIA_API_KEY` and `OPENROUTER_API_KEY` were not available in the operator's environment for this session.
+
+NVIDIA/Groq/OpenRouter pricing in the registry is an approximate placeholder pending a separately reviewed catalog update; it does not affect authorization and only participates in cost-eligibility filtering within the already-authorized `balanced` group.
+
 ## Governed live-inference development profile — PC-33 certified repository profile
 
 PR #179 introduced the first explicit opt-in development profile that composes the real governed serving path without changing the checked-in fail-closed defaults. The profile lives under `config/profiles/live-development/` and is bounded to one `development` / `public` / `rag.answer` client, an external Policy Model Router decision, the authorized logical group `balanced`, deterministic ranking, and native Gemini/OpenAI provider execution.
