@@ -25,6 +25,12 @@ Frontend CI uses Node.js 24 LTS and a committed npm lockfile.
 Development traffic remains same-origin from the browser perspective. Vite proxies `/v1` to the local
 Gateway process at `http://127.0.0.1:8000`. Production hosting/BFF/session architecture is deferred.
 
+PC-51 hardens only the reviewed local Vite server response boundary. The Console emits
+`Content-Security-Policy: frame-ancestors 'none'` plus `X-Frame-Options: DENY` to reject framing, and also
+emits `Referrer-Policy: no-referrer` and `X-Content-Type-Options: nosniff`. No script, style or connect CSP
+directive is introduced, so this slice does not redefine Vite HMR/runtime connectivity or claim a
+production Content Security Policy. Production TLS and hosting headers remain deployment concerns.
+
 ## Local development
 
 Start an already-configured governed Gateway process on loopback port `8000`, then run the console in a
@@ -110,10 +116,11 @@ Console visibility is independently granted by `OperationsReadAccessService`. Th
 models, widen or restore PDP output, alter eligibility/complexity/ranking, mutate health/circuit state,
 change retry/fallback, execute a provider or edit runtime configuration.
 
-The Console contains no mutation control and the frontend boundary check rejects newly introduced
-POST/PUT/PATCH/DELETE request literals, arbitrary absolute HTTP URLs and unreviewed `/v1/ops/*` paths in
-source. PC-28 preserves that boundary by constructing the local Grafana target only after validating the
-runtime Console origin.
+The Console contains no control-plane mutation. The frontend boundary check permits only the already
+reviewed provider-neutral `POST /v1/generate` inference action and rejects unreviewed POST/PUT/PATCH/DELETE
+request literals, arbitrary absolute HTTP URLs and unreviewed `/v1/ops/*` paths in source. PC-28 preserves
+the navigation boundary by constructing the local Grafana target only after validating the runtime Console
+origin. PC-51 adds browser anti-framing headers without changing any Gateway request or authority surface.
 
 ## Local Grafana navigation
 
@@ -147,15 +154,17 @@ npm run build
 ```
 
 PC-28 extends deterministic frontend tests for the exact accepted/rejected origin contract and dashboard
-UID alignment. The existing security-surface check remains unchanged and continues to reject arbitrary
-absolute HTTP URLs in Console source.
+UID alignment. PC-51 adds a deterministic configuration contract for the exact local browser hardening
+headers while re-locking the loopback host, fixed port and relative `/v1` proxy. The existing
+security-surface check remains unchanged and continues to reject arbitrary absolute HTTP URLs in Console
+source.
 
 The workflow is separate from the Python quality gate so frontend toolchain concerns do not weaken or
 replace existing Python governance/security gates.
 
 ## Deferred
 
-PC-25/PC-28 do not add:
+PC-25/PC-28/PC-51 do not add:
 
 - production authentication or external IAM;
 - a BFF/session service;
@@ -166,6 +175,7 @@ PC-25/PC-28 do not add:
 - production Grafana URL discovery or arbitrary external observability URLs;
 - broader dashboard navigation;
 - control-plane mutations;
+- production TLS termination or hosting security policy;
 - console Docker packaging;
 - one-command demo orchestration;
 - Phase 14 consumer integrations.
