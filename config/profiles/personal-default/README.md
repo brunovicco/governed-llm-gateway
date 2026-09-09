@@ -55,15 +55,15 @@ after a permanent (non-retryable) failure.
 ## Current scope and known limitations
 
 - Individually proven end to end (real operator credentials, through the full Policy Router + Gateway
-  chain): NVIDIA, Gemini, OpenAI, Groq and OpenRouter in `balanced`; Groq/NVIDIA in `fast-small`;
-  OpenAI/Gemini in `structured-fast`; OpenAI in `reasoning-strong` and `agentic-strong`. Anthropic in
-  this profile was not yet individually proven at the time of writing; it is proven live in the
-  separate `live-development` profile — see `docs/project/CURRENT_STATE.md`. The full six-deployment
-  profile (all of `balanced` enabled at once, nothing disabled) has been booted end to end with
+  chain): NVIDIA, Gemini, OpenAI, Groq, OpenRouter and Anthropic in `balanced`; Groq/NVIDIA in
+  `fast-small`; OpenAI/Gemini in `structured-fast`; Anthropic and OpenAI in `reasoning-strong` and
+  `agentic-strong` — every deployment in every model group this profile wires has now been individually
+  proven live, in this profile specifically (not only in `live-development`). The full six-deployment
+  `balanced` group (all enabled at once, nothing disabled) has been booted end to end with
   `scripts/personal_default_launcher.py`, with NVIDIA winning against all five other providers
   simultaneously eligible (`rejected_candidates: null`). See `docs/project/CURRENT_STATE.md`.
-- `security.analysis`, `code.generate`, `code.review` (sharing `reasoning-strong`'s deployments) were
-  not individually exercised with a live request.
+- `security.analysis`, `code.generate`, `code.review` (sharing `reasoning-strong`'s deployments) have
+  each been individually exercised with a real live request, succeeding via Anthropic.
 - Real structured-output and real tool-calling requests were both proven end to end (a genuine JSON
   schema through `extraction.structured`/Gemini, and a real `ToolDefinition` + tool call through
   `agent.tool-use`/OpenAI). Two real constraints surfaced doing this, worth knowing before you build
