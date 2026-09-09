@@ -53,3 +53,179 @@ workloads:
         cost: "0.50"
         availability: "0.50"
         expected_latency_ms: 30000
+  classification.simple:
+    weights:
+      quality: "0.20"
+      reliability: "0.20"
+      latency: "0.20"
+      cost: "0.20"
+      availability: "0.20"
+    deployments:
+      groq-gpt-oss-120b-fast-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 2500
+      nvidia-nemotron-3-super-fast-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 2500
+  extraction.structured:
+    weights:
+      quality: "0.20"
+      reliability: "0.20"
+      latency: "0.20"
+      cost: "0.20"
+      availability: "0.20"
+    deployments:
+      openai-gpt-5-6-luna-structured-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 3000
+      google-gemini-3-8-flash-structured-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 3000
+  reasoning.complex:
+    weights:
+      quality: "0.20"
+      reliability: "0.20"
+      latency: "0.20"
+      cost: "0.20"
+      availability: "0.20"
+    deployments:
+      anthropic-claude-sonnet-5-reasoning-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 20000
+      openai-gpt-5-6-luna-reasoning-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 20000
+  security.analysis:
+    weights:
+      quality: "0.20"
+      reliability: "0.20"
+      latency: "0.20"
+      cost: "0.20"
+      availability: "0.20"
+    deployments:
+      anthropic-claude-sonnet-5-reasoning-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 20000
+      openai-gpt-5-6-luna-reasoning-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 20000
+  code.generate:
+    weights:
+      quality: "0.20"
+      reliability: "0.20"
+      latency: "0.20"
+      cost: "0.20"
+      availability: "0.20"
+    deployments:
+      anthropic-claude-sonnet-5-reasoning-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 20000
+      openai-gpt-5-6-luna-reasoning-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 20000
+  code.review:
+    weights:
+      quality: "0.20"
+      reliability: "0.20"
+      latency: "0.20"
+      cost: "0.20"
+      availability: "0.20"
+    deployments:
+      anthropic-claude-sonnet-5-reasoning-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 20000
+      openai-gpt-5-6-luna-reasoning-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 20000
+  agent.orchestration:
+    weights:
+      quality: "0.20"
+      reliability: "0.20"
+      latency: "0.20"
+      cost: "0.20"
+      availability: "0.20"
+    deployments:
+      openai-gpt-5-6-luna-agentic-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 15000
+      anthropic-claude-sonnet-5-agentic-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 15000
+  agent.tool-use:
+    weights:
+      quality: "0.20"
+      reliability: "0.20"
+      latency: "0.20"
+      cost: "0.20"
+      availability: "0.20"
+    deployments:
+      openai-gpt-5-6-luna-agentic-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 15000
+      anthropic-claude-sonnet-5-agentic-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 15000

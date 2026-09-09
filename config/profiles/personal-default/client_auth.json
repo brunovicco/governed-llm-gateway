@@ -6,7 +6,17 @@
       "client_id": "gateway-demo",
       "environment": "development",
       "credential_reference": "GATEWAY_DEMO_API_KEY",
-      "allowed_workloads": ["rag.answer"],
+      "allowed_workloads": [
+        "agent.orchestration",
+        "agent.tool-use",
+        "classification.simple",
+        "code.generate",
+        "code.review",
+        "extraction.structured",
+        "rag.answer",
+        "reasoning.complex",
+        "security.analysis"
+      ],
       "minimum_risk_level": "low",
       "minimum_data_classification": "public"
     }

@@ -13,6 +13,7 @@ from governed_llm_gateway_api.operations_access_json import (
     load_operations_read_access_document,
     validate_operations_access_client_auth,
 )
+from governed_llm_gateway_contracts import Capability
 from governed_llm_gateway_core.adapters import (
     load_model_registry,
     load_policy_router_runtime_document,
@@ -63,9 +64,15 @@ def test_profile_has_exact_bounded_provider_and_authority_shape() -> None:
 
     providers = {deployment.provider for deployment in registry.deployments}
     model_groups = {deployment.model_group for deployment in registry.deployments}
-    assert len(registry.deployments) == 6
+    assert len(registry.deployments) == 14
     assert providers == {"google", "openai", "anthropic", "nvidia", "groq", "openrouter"}
-    assert model_groups == {"balanced"}
+    assert model_groups == {
+        "balanced",
+        "fast-small",
+        "structured-fast",
+        "reasoning-strong",
+        "agentic-strong",
+    }
     assert all(
         deployment.allowed_environments == frozenset({"development"})
         for deployment in registry.deployments
@@ -109,6 +116,8 @@ def test_nvidia_has_a_genuine_cost_preference_and_wins_deterministic_ranking() -
 
     other_totals = []
     for deployment in registry.deployments:
+        if deployment.model_group != "balanced":
+            continue
         if deployment.deployment_id == _NVIDIA_DEPLOYMENT_ID:
             continue
         score = workload.score_for(deployment.deployment_id)
@@ -120,6 +129,58 @@ def test_nvidia_has_a_genuine_cost_preference_and_wins_deterministic_ranking() -
     assert len(other_totals) == 5
     assert len(set(other_totals)) == 1
     assert nvidia_total > other_totals[0]
+
+
+_WORKLOAD_MODEL_GROUPS = {
+    "rag.answer": "balanced",
+    "classification.simple": "fast-small",
+    "extraction.structured": "structured-fast",
+    "reasoning.complex": "reasoning-strong",
+    "security.analysis": "reasoning-strong",
+    "code.generate": "reasoning-strong",
+    "code.review": "reasoning-strong",
+    "agent.orchestration": "agentic-strong",
+    "agent.tool-use": "agentic-strong",
+}
+
+
+def test_every_workload_scores_exactly_its_own_model_group_deployments() -> None:
+    registry = load_model_registry(_PROFILE / "model_registry.yaml")
+    ranking = load_ranking_policy(_PROFILE / "ranking_policy.yaml")
+    client_auth = load_gateway_client_auth_document(_PROFILE / "client_auth.json")
+
+    assert set(client_auth.bindings[0].allowed_workloads) == set(_WORKLOAD_MODEL_GROUPS)
+
+    for workload_name, model_group in _WORKLOAD_MODEL_GROUPS.items():
+        workload = ranking.for_workload(workload_name)
+        expected_deployment_ids = {
+            deployment.deployment_id
+            for deployment in registry.deployments
+            if deployment.model_group == model_group
+        }
+        assert expected_deployment_ids, f"no registry deployments for model group {model_group}"
+        for deployment_id in expected_deployment_ids:
+            assert workload.score_for(deployment_id) is not None
+        for other_deployment in registry.deployments:
+            if other_deployment.deployment_id not in expected_deployment_ids:
+                assert workload.score_for(other_deployment.deployment_id) is None
+
+
+def test_reasoning_and_agentic_deployments_declare_real_native_capabilities() -> None:
+    registry = load_model_registry(_PROFILE / "model_registry.yaml")
+    for deployment in registry.deployments:
+        if deployment.model_group in {"reasoning-strong", "agentic-strong"}:
+            assert Capability.TOOL_CALLING in deployment.capabilities
+            assert Capability.STRUCTURED_OUTPUT in deployment.capabilities
+            # Only the native adapters (verified to support provider-native structured
+            # output and tool calling) are used for these two capability-heavy groups.
+            assert deployment.provider in {"openai", "anthropic"}
+        if deployment.model_group == "structured-fast":
+            assert Capability.STRUCTURED_OUTPUT in deployment.capabilities
+            assert Capability.TOOL_CALLING not in deployment.capabilities
+        if deployment.model_group == "fast-small":
+            assert Capability.STRUCTURED_OUTPUT not in deployment.capabilities
+            assert Capability.TOOL_CALLING not in deployment.capabilities
 
 
 def test_profile_materializes_without_network_calls() -> None:

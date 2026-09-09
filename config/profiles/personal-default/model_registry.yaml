@@ -140,3 +140,187 @@ deployments:
     enabled: true
     source_date: "2026-09-09"
     catalog_version: "personal-default-20260909"
+  groq-gpt-oss-120b-fast-dev:
+    provider: groq
+    model_id: openai/gpt-oss-120b
+    model_group: fast-small
+    api_family: openai-compatible
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: false
+      structured_output: false
+      streaming: true
+    context_tokens: 131072
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "0.15"
+      output_usd_per_million_tokens: "0.75"
+      source_date: "2026-09-09"
+      snapshot_version: "groq-gpt-oss-120b-20260909"
+    max_data_classification: public
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"
+  nvidia-nemotron-3-super-fast-dev:
+    provider: nvidia
+    model_id: nvidia/nemotron-3-super-120b-a12b
+    model_group: fast-small
+    api_family: openai-compatible
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: false
+      structured_output: false
+      streaming: true
+    context_tokens: 131072
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "0.00"
+      output_usd_per_million_tokens: "0.00"
+      source_date: "2026-09-09"
+      snapshot_version: "nvidia-nemotron-3-super-free-tier-20260909"
+    max_data_classification: public
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"
+  openai-gpt-5-6-luna-structured-dev:
+    provider: openai
+    model_id: gpt-5.6-luna
+    model_group: structured-fast
+    api_family: openai-responses
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: false
+      structured_output: true
+      streaming: true
+    context_tokens: 1000000
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "0.20"
+      output_usd_per_million_tokens: "1.20"
+      source_date: "2026-09-08"
+      snapshot_version: "openai-gpt-5-6-luna-20260908"
+    max_data_classification: public
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"
+  google-gemini-3-8-flash-structured-dev:
+    provider: google
+    model_id: gemini-3.8-flash
+    model_group: structured-fast
+    api_family: gemini-generate-content
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: false
+      structured_output: true
+      streaming: true
+    context_tokens: 1000000
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "0.75"
+      output_usd_per_million_tokens: "3.75"
+      source_date: "2026-09-08"
+      snapshot_version: "google-gemini-3-8-flash-20260908"
+    max_data_classification: public
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"
+  anthropic-claude-sonnet-5-reasoning-dev:
+    provider: anthropic
+    model_id: claude-sonnet-5
+    model_group: reasoning-strong
+    api_family: anthropic-messages
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: true
+      structured_output: true
+      streaming: true
+    context_tokens: 200000
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "3.00"
+      output_usd_per_million_tokens: "15.00"
+      source_date: "2026-09-08"
+      snapshot_version: "anthropic-claude-sonnet-5-20260908"
+    max_data_classification: public
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"
+  openai-gpt-5-6-luna-reasoning-dev:
+    provider: openai
+    model_id: gpt-5.6-luna
+    model_group: reasoning-strong
+    api_family: openai-responses
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: true
+      structured_output: true
+      streaming: true
+    context_tokens: 1000000
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "0.20"
+      output_usd_per_million_tokens: "1.20"
+      source_date: "2026-09-08"
+      snapshot_version: "openai-gpt-5-6-luna-20260908"
+    max_data_classification: public
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"
+  openai-gpt-5-6-luna-agentic-dev:
+    provider: openai
+    model_id: gpt-5.6-luna
+    model_group: agentic-strong
+    api_family: openai-responses
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: true
+      structured_output: true
+      streaming: true
+    context_tokens: 1000000
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "0.20"
+      output_usd_per_million_tokens: "1.20"
+      source_date: "2026-09-08"
+      snapshot_version: "openai-gpt-5-6-luna-20260908"
+    max_data_classification: public
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"
+  anthropic-claude-sonnet-5-agentic-dev:
+    provider: anthropic
+    model_id: claude-sonnet-5
+    model_group: agentic-strong
+    api_family: anthropic-messages
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: true
+      structured_output: true
+      streaming: true
+    context_tokens: 200000
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "3.00"
+      output_usd_per_million_tokens: "15.00"
+      source_date: "2026-09-08"
+      snapshot_version: "anthropic-claude-sonnet-5-20260908"
+    max_data_classification: public
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"
