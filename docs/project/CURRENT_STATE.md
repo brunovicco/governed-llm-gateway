@@ -275,7 +275,7 @@ Individually proven with real operator credentials:
 - `nvidia-nemotron-3-super-dev` alone — succeeded through the full Policy Router + Gateway chain, `latency_ms: 3571`.
 - `nvidia-nemotron-3-super-dev` competing against `google-gemini-3-8-flash-dev`, `openai-gpt-5-6-luna-dev`, `anthropic-claude-sonnet-5-dev`, and `groq-gpt-oss-120b-dev` simultaneously enabled (only `openrouter-llama-3-3-70b-dev` disabled, for lack of `OPENROUTER_API_KEY`) — NVIDIA won the deterministic ranking and was selected, confirming the `cost: "1.00"` preference actually decides routing rather than only working in isolation. `latency_ms: 1206`; `rejected_candidates` correctly showed only the disabled OpenRouter deployment, not the four healthy competing candidates.
 
-A full six-deployment boot proving this against all five alternatives simultaneously, including OpenRouter, remains deferred until `OPENROUTER_API_KEY` is available.
+A full six-deployment boot proving this against all five alternatives simultaneously, including OpenRouter, is recorded below once `OPENROUTER_API_KEY` became available.
 
 ## Personal-default profile extended to four additional model groups, executed 2026-09-09
 
@@ -292,7 +292,7 @@ Individually proven with real operator credentials, through the full Policy Rout
 
 This does not change the checked-in fail-closed default `config/` artifacts, and does not add or require any new provider credential beyond the six already in use.
 
-The full six-deployment `personal-default` profile requires all six provider credentials to resolve at once (adapter construction is eager at startup); a full-profile boot proving the NVIDIA-wins-ranking behavior end to end is deferred until `OPENROUTER_API_KEY` is available, matching the same constraint already recorded for the `live-development` extension above.
+The full six-deployment `personal-default` profile requires all six provider credentials to resolve at once (adapter construction is eager at startup); a full-profile boot proving the NVIDIA-wins-ranking behavior end to end is recorded below once `OPENROUTER_API_KEY` became available.
 
 ## Real structured-output and tool-calling proof, executed 2026-09-09
 
@@ -305,6 +305,14 @@ Two real constraints surfaced while proving this, not gateway defects:
 
 - `gemini-3.8-flash` spends a large, variable share of `max_output_tokens` on internal "thinking" before any visible/structured text, the same class of issue as `gpt-oss-120b` above. `max_output_tokens: 200` reliably left no budget for the actual JSON (`finishReason: MAX_TOKENS` after only a few visible tokens); `max_output_tokens: 2000` was reliable. Confirmed directly against the real Gemini API (both `generateContent` and `streamGenerateContent`), independent of the gateway.
 - OpenAI's strict tool/structured-output mode requires `additionalProperties: false` on every object node and every property listed in `required`. The gateway's `openai_responses.py`/`openai_responses_streaming.py` already enforce this locally (`_require_openai_strict_schema`) and fail closed in ~2ms with a clear `invalid_request` message before any network call when a caller's schema is missing it — this is the gateway working as designed, not a bug; a first attempt without `additionalProperties: false` correctly failed this way.
+
+## Full six-provider boot proven, executed 2026-09-09
+
+Once `OPENROUTER_API_KEY` became available, the full `personal-default` profile — all six deployments in `balanced` enabled simultaneously, nothing disabled — was booted for the first time end to end using `scripts/personal_default_launcher.py` (proving the launcher itself against the complete profile, not just a reduced one): the Policy Model Router and Gateway both started, resolved all six provider credentials, and reached `/readyz` together.
+
+A real `rag.answer` request through the launched services selected `nvidia-nemotron-3-super-dev` with `rejected_candidates: null` in the terminal routing provenance — all six candidates were eligible and ranked, none rejected, and NVIDIA won purely on its cost-preference score against the complete field rather than a partial one. `Ctrl+C` (SIGINT) cleanly stopped and tore down both owned processes afterward, confirmed with no orphaned processes left on ports 8000/8001.
+
+This closes the last deferred item from the two increments above: the full-field ranking preference and the launcher are now both proven against all six providers together, not a reduced set.
 
 ## Governed live-inference development profile — PC-33 certified repository profile
 

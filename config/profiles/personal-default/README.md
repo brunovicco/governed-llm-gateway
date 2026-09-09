@@ -55,11 +55,13 @@ after a permanent (non-retryable) failure.
 ## Current scope and known limitations
 
 - Individually proven end to end (real operator credentials, through the full Policy Router + Gateway
-  chain): NVIDIA, Gemini, OpenAI and Groq in `balanced`; Groq/NVIDIA in `fast-small`; OpenAI/Gemini in
-  `structured-fast`; OpenAI in `reasoning-strong` and `agentic-strong`. Anthropic reaches the provider
-  and fails closed on an account credit-balance issue in every group it's wired into (not a config
-  defect — confirmed by direct API diagnosis). OpenRouter is wired but unproven pending
-  `OPENROUTER_API_KEY`. See `docs/project/CURRENT_STATE.md`.
+  chain): NVIDIA, Gemini, OpenAI, Groq and OpenRouter in `balanced`; Groq/NVIDIA in `fast-small`;
+  OpenAI/Gemini in `structured-fast`; OpenAI in `reasoning-strong` and `agentic-strong`. Anthropic
+  reaches the provider and fails closed on an account credit-balance issue in every group it's wired
+  into (not a config defect — confirmed by direct API diagnosis). The full six-deployment profile
+  (all of `balanced` enabled at once, nothing disabled) has been booted end to end with
+  `scripts/personal_default_launcher.py`, with NVIDIA winning against all five other providers
+  simultaneously eligible (`rejected_candidates: null`). See `docs/project/CURRENT_STATE.md`.
 - `security.analysis`, `code.generate`, `code.review` (sharing `reasoning-strong`'s deployments) were
   not individually exercised with a live request.
 - Real structured-output and real tool-calling requests were both proven end to end (a genuine JSON
