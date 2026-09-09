@@ -10,6 +10,7 @@ from .route_explain import (
     RouteExplainCoordinator,
     create_app,
 )
+from .route_explain_request_security import RouteExplainRequestBodyLimitMiddleware
 from .route_explain_security import RouteExplainNoStoreMiddleware
 from .stream_generate import GenerateCoordinator, attach_generate_route
 
@@ -28,6 +29,7 @@ def create_gateway_app(
         complexity_coordinator=complexity_route_explain_coordinator,
         observability=observability,
     )
+    app.add_middleware(RouteExplainRequestBodyLimitMiddleware)
     app.add_middleware(RouteExplainNoStoreMiddleware)
     app.add_middleware(GenerationRequestBodyLimitMiddleware)
     attach_generate_route(
