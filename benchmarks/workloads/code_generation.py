@@ -1,7 +1,5 @@
 """Deterministic structural code-generation workload contract and scorer."""
 
-from __future__ import annotations
-
 import ast
 from decimal import Decimal
 from pathlib import Path

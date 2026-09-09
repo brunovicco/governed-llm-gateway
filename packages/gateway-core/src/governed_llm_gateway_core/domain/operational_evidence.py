@@ -5,8 +5,6 @@ change eligibility, or alter ranking until a separate reviewed policy explicitly
 consumes it.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 import re

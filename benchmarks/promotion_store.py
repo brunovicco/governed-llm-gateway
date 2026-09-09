@@ -1,7 +1,5 @@
 """Immutable persistence for explicitly promoted Phase 11 benchmark evidence."""
 
-from __future__ import annotations
-
 from pathlib import Path
 
 from .promotion import PromotedBenchmarkEvidence, canonical_promoted_evidence_json

@@ -1,7 +1,5 @@
 """Fail-closed regressions for the tool-use v1 benchmark contract."""
 
-from __future__ import annotations
-
 import json
 from dataclasses import replace
 from pathlib import Path

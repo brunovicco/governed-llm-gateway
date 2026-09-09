@@ -1,7 +1,5 @@
 """End-to-end queryability proof for Gateway metadata traces in local Tempo."""
 
-from __future__ import annotations
-
 import json
 import os
 import time

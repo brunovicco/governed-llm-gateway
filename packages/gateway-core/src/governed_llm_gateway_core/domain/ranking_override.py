@@ -6,8 +6,6 @@ Rollback selects a previously approved immutable ranking artifact by identity.
 Neither operation changes PDP authorization or gateway eligibility.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 from dataclasses import dataclass

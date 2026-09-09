@@ -1,7 +1,5 @@
 """Authenticated SSE generation surface for governed streaming execution."""
 
-from __future__ import annotations
-
 import asyncio
 import json
 from collections.abc import AsyncGenerator
@@ -303,7 +301,7 @@ def attach_generate_route(
     app: FastAPI,
     coordinator: GenerateCoordinator,
     *,
-    complexity_coordinator: ComplexityGenerateCoordinator | None = None,
+    complexity_coordinator: "ComplexityGenerateCoordinator | None" = None,
     observability: Observability | None = None,
 ) -> None:
     """Attach governed SSE generation with opt-in complexity routing and tracing."""
@@ -388,9 +386,9 @@ def attach_generate_route(
 def _select_generate_coordinator(
     coordinator: GenerateCoordinator,
     *,
-    complexity_coordinator: ComplexityGenerateCoordinator | None,
+    complexity_coordinator: "ComplexityGenerateCoordinator | None",
     mode: Literal["operational", "complexity"],
-) -> GenerateCoordinator | ComplexityGenerateCoordinator:
+) -> "GenerateCoordinator | ComplexityGenerateCoordinator":
     if mode == "complexity":
         if complexity_coordinator is None:
             raise HTTPException(
@@ -402,7 +400,7 @@ def _select_generate_coordinator(
 
 
 async def _prepare_generation(
-    coordinator: GenerateCoordinator | ComplexityGenerateCoordinator,
+    coordinator: "GenerateCoordinator | ComplexityGenerateCoordinator",
     *,
     api_key: str,
     payload: GenerateRequestModel,
@@ -460,7 +458,7 @@ async def _prepare_generation(
 
 
 async def _sse_body(
-    coordinator: GenerateCoordinator | ComplexityGenerateCoordinator,
+    coordinator: "GenerateCoordinator | ComplexityGenerateCoordinator",
     prepared: PreparedStreamingExecution,
     *,
     observability: Observability | None = None,

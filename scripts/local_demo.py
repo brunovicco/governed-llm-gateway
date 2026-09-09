@@ -1,7 +1,5 @@
 """Deterministic local orchestration for the bounded Gateway operations demo stack."""
 
-from __future__ import annotations
-
 import argparse
 import json
 import os

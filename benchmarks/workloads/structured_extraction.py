@@ -1,7 +1,5 @@
 """Deterministic structured-extraction workload contract and scorer."""
 
-from __future__ import annotations
-
 from collections.abc import Mapping
 from decimal import Decimal
 from pathlib import Path

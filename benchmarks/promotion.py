@@ -5,8 +5,6 @@ maps immutable Phase 10 scorecards to explicit deployment/workload evidence, but
 does not assign runtime ranking weights or mutate active configuration.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 from dataclasses import dataclass

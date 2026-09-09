@@ -1,7 +1,5 @@
 """Fail-closed regressions for the PT-BR RAG v1 benchmark contract."""
 
-from __future__ import annotations
-
 from dataclasses import replace
 from pathlib import Path
 

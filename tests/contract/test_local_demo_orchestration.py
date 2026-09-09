@@ -1,7 +1,5 @@
 """Contract tests for deterministic PC-30 local demo orchestration."""
 
-from __future__ import annotations
-
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 

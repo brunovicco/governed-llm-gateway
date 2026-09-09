@@ -1,7 +1,5 @@
 """Provider-neutral execution-plan materialization for multimodal benchmark cases."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from uuid import UUID
 

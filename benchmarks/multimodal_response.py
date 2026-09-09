@@ -1,7 +1,5 @@
 """Normalize terminal gateway responses into benchmark call evidence."""
 
-from __future__ import annotations
-
 import json
 from json import JSONDecodeError
 

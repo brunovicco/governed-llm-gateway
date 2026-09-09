@@ -1,7 +1,5 @@
 """Provider-neutral deterministic benchmark runner and aggregation."""
 
-from __future__ import annotations
-
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass

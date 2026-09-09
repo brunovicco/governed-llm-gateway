@@ -1,7 +1,5 @@
 """Structured-extraction v2 benchmark contract, scoring, and evidence tests."""
 
-from __future__ import annotations
-
 import asyncio
 import json
 from datetime import date

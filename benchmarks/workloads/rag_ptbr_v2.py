@@ -1,7 +1,5 @@
 """Deterministic PT-BR RAG v2 grounding and locale-quality contract."""
 
-from __future__ import annotations
-
 import re
 import unicodedata
 from dataclasses import dataclass

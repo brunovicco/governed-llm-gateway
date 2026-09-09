@@ -1,7 +1,5 @@
 """Contract tests for explicit benchmark target max-output attestation."""
 
-from __future__ import annotations
-
 import asyncio
 import json
 from dataclasses import replace

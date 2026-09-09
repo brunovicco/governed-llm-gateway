@@ -1,7 +1,5 @@
 """Contracts for the first read-only Grafana Tempo dashboard."""
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 from typing import Any
