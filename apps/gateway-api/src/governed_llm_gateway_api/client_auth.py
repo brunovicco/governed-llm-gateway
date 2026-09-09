@@ -5,19 +5,19 @@ import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Protocol, TypeGuard
+from typing import Protocol
 
 from fastapi import HTTPException
 from governed_llm_gateway_contracts import DataClassification, GatewayRequest, RiskLevel
 from governed_llm_gateway_core.domain import EffectivePolicyContext
 
+from .credential_shape import is_valid_gateway_api_key
 from .route_explain import ClientAuthenticationError
 
 _IDENTIFIER = re.compile(r"^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$")
 _WORKLOAD = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$")
 _SECRET_REFERENCE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$")
 _ENV_REFERENCE = re.compile(r"^[A-Z][A-Z0-9_]{1,127}$")
-_MAX_API_KEY_LENGTH = 4096
 _RISK_ORDER = {
     RiskLevel.LOW: 0,
     RiskLevel.MEDIUM: 1,
@@ -135,7 +135,7 @@ class EnvironmentGatewayClientSecretResolver:
                 "gateway client credential environment reference is invalid"
             )
         value = self._environ.get(reference)
-        if not _valid_api_key(value):
+        if not is_valid_gateway_api_key(value):
             raise GatewayClientSecretResolutionError(
                 "gateway client credential environment value is unavailable or malformed"
             )
@@ -187,7 +187,7 @@ class StaticGatewayClientContextResolver:
 
     def _authenticate_binding(self, api_key: str) -> GatewayClientAuthBinding:
         """Return exactly one credential binding or fail with the stable auth error."""
-        if not _valid_api_key(api_key):
+        if not is_valid_gateway_api_key(api_key):
             raise ClientAuthenticationError("gateway credential rejected")
 
         matches = tuple(
@@ -215,7 +215,7 @@ def build_static_gateway_client_context_resolver(
             raise GatewayClientSecretResolutionError(
                 "gateway client credential resolution failed"
             ) from None
-        if not _valid_api_key(credential):
+        if not is_valid_gateway_api_key(credential):
             raise GatewayClientSecretResolutionError(
                 "gateway client credential resolution returned a malformed value"
             )
@@ -267,15 +267,6 @@ def _require_identifier(value: object, field_name: str) -> None:
         raise GatewayClientAuthenticationConfigurationError(
             f"{field_name} must be a normalized identifier"
         )
-
-
-def _valid_api_key(value: object) -> TypeGuard[str]:
-    return (
-        isinstance(value, str)
-        and 0 < len(value) <= _MAX_API_KEY_LENGTH
-        and value.isascii()
-        and value.strip() == value
-    )
 
 
 def _stricter_risk(caller: RiskLevel, minimum: RiskLevel) -> RiskLevel:
