@@ -2,6 +2,7 @@
 name = "governed-llm-gateway-core"
 version = "0.1.0"
 description = "Domain and application core for Governed LLM Gateway"
+license = "Apache-2.0"
 requires-python = ">=3.13,<3.15"
 dependencies = [
     "a2a-otel-kit==0.6.0",

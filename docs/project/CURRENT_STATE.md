@@ -188,7 +188,7 @@ Shared ingestion, fleet/source-membership completeness, production backend adapt
 
 See `docs/evaluation/OPERATIONAL_EVIDENCE.md`.
 
-## Operational readiness checkpoint — PC-39 certified
+## Operational readiness checkpoint — PC-51 certified
 
 The consumer-independent operational-readiness track advanced without changing Phase 14 sequencing or the permanent authorization boundary. The currently certified sequence includes:
 
@@ -203,21 +203,48 @@ The consumer-independent operational-readiness track advanced without changing P
 - PC-36 — opt-in provider-neutral live-development smoke harness with metadata-only output;
 - PC-37 — explicit secret-free Operations visibility grant for `gateway-demo/development` in the live-development profile;
 - PC-38 — bounded provider-neutral governed inference in the Console through only relative `POST /v1/generate`, with fail-closed normalized SSE validation and in-memory state;
-- PC-39 — repeated Console routing evidence must remain immutable across the normalized stream.
+- PC-39 — repeated Console routing evidence must remain immutable across the normalized stream;
+- PC-41 — `POST /v1/generate` SSE responses are explicitly non-storable;
+- PC-42 — implicit OpenAPI/Swagger/ReDoc documentation surfaces are disabled by default;
+- PC-43 — governed generation request bodies are bounded before parsing;
+- PC-44 — `POST /v1/route/explain` responses are explicitly non-storable;
+- PC-45 — route-explanation request bodies are bounded before parsing;
+- PC-46 — the Uvicorn `Server` response header fingerprint is suppressed;
+- PC-47 — non-storability is extended to every generation response, not only the streaming path;
+- PC-48 — inbound requests require an explicit JSON media type before body parsing;
+- PC-49 — implicit Uvicorn forwarded-header/proxy trust is disabled pending a reviewed reverse-proxy boundary;
+- PC-50 — ambiguous duplicate `X-Gateway-API-Key` headers are rejected before credential resolution;
+- PC-51 — the local Gateway Console sends bounded anti-framing/browser-hardening response headers.
 
 Latest certified repository baseline:
 
-`99bbbf1f98605695935a89befc873b8c6a4296d4` (PR #191 / PC-39).
+`34d0e3fc5153022d2402808397ce93b3c19f2c7e` (PR #219 / PC-51).
 
-Post-merge `main` evidence for PC-39:
+Post-merge `main` evidence for PC-51:
 
-- `quality` run `34291142714` — PASS;
-- `console-quality` run `34291142715` — PASS;
-- `local-demo-smoke` run `34291142723` — PASS.
+- `quality` run `34303543270` — PASS;
+- `console-quality` run `34303543250` — PASS;
+- `local-demo-smoke` run `34303543251` — PASS.
 
-OR-8 remains complete only at the bounded operations-only local-demo scope. OR-9 is now **IN PROGRESS** through bounded security increments PC-34, PC-35, PC-37, PC-38 and PC-39; none of those increments completes production IAM/TLS/SSO, production browser identity/session handling, rate limiting, CSRF policy or future mutation authority. OR-10 remains pending.
+OR-8 remains complete only at the bounded operations-only local-demo scope. OR-9 is now **IN PROGRESS** through bounded security increments PC-34 through PC-51; none of those increments completes production IAM/TLS/SSO, production browser identity/session handling, rate limiting, CSRF policy or future mutation authority. OR-10 remains pending.
 
-Credential-free CI proves repository/configuration/protocol behavior only. It does not prove a credential-backed provider/PDP request. A real provider/PDP execution must still be run explicitly with local/server-side credentials before the live inference path is described as portfolio/demo-ready.
+Credential-free CI proves repository/configuration/protocol behavior only. It does not by itself prove a credential-backed provider/PDP request.
+
+## First live-provider inference proof — PC-33 profile, executed 2026-09-08
+
+An operator ran the PC-33 governed live-development profile end to end with real local processes and real provider credentials, from repository baseline `34d0e3fc5153022d2402808397ce93b3c19f2c7e`:
+
+1. `policy-model-router` (sibling repository, commit `889b41b3276c453c31fff125cff0397c6c0a4de6`) served `POST /route` on loopback port 8001 with the reviewed `examples/policies/gateway-generic.yaml` policy;
+2. the Gateway served `POST /v1/generate` on loopback port 8000 with the `config/profiles/live-development/` artifacts;
+3. `scripts/live_development_smoke.py --live` executed one `rag.answer` / `low` / `public` request through the thin client using only `GOVERNED_LLM_GATEWAY_URL` and `GOVERNED_LLM_GATEWAY_API_KEY`.
+
+The Policy Router accepted the request (`model_group: balanced`, `policy_id: gateway-generic-routing`, `policy_version: 1.0.0`) and the Gateway executed it against the native Gemini deployment. The harness printed exactly one metadata-only JSON object and no prompt/completion content:
+
+```json
+{"api_family":"gemini-generate-content","attempt_number":1,"authorized_model_group":"balanced","deployment":"google-gemini-3-8-flash-dev","fallback_index":0,"input_tokens":13,"latency_ms":1920,"model":"gemini-3.8-flash","output_tokens":6,"provider":"google","request_id":"66a3244a-463b-4088-9af5-894d6020c5ff","status":"succeeded"}
+```
+
+This satisfies README item 1 of "What remains before calling the application finished": an explicit opt-in real-provider proof has now been executed and recorded, independent of the required credential-free CI. It does not certify the OpenAI deployment in the same profile, and it is not a production TLS/IAM/SLA claim; both processes were stopped after the proof and no long-running live deployment was left active.
 
 ## Governed live-inference development profile — PC-33 certified repository profile
 
@@ -239,7 +266,7 @@ Post-merge `main` evidence:
 
 This is a credential-free repository/configuration proof, not a live-provider certification.
 
-## OR-9 bounded hardening — PC-34 through PC-39
+## OR-9 bounded hardening — PC-34 through PC-51
 
 PC-34 / PR #181 was the first bounded OR-9 hardening increment after the minimum authenticated Operations access prerequisite. Every HTTP response under the owned `/v1/ops/` namespace is explicitly non-storable with `Cache-Control: no-store`, including success, sanitized failures and unknown Operations paths. The middleware does not buffer or alter inference/SSE responses.
 
@@ -279,9 +306,15 @@ Post-merge `quality`, `console-quality` and `local-demo-smoke` all passed.
 
 PC-39 / PR #191 hardened the Console consumer so repeated routing evidence must remain semantically identical across all decoded provenance fields, including evidence-bearing array ordering.
 
-PC-39 squash merge / latest certified baseline:
+PC-39 squash merge:
 
 `99bbbf1f98605695935a89befc873b8c6a4296d4`
+
+PC-41 through PC-51 (PRs #197, #199, #201, #203, #205, #207, #209, #211, #215, #217, #219) continued the same bounded OR-9 sequence over the owned HTTP surfaces: non-storable SSE/generation/route-explanation responses (PC-41, PC-44, PC-47), disabled implicit API-documentation surfaces (PC-42), bounded request bodies for generation and route-explanation (PC-43, PC-45), a suppressed server fingerprint header (PC-46), a required explicit JSON media type (PC-48), disabled implicit forwarded-header/proxy trust (PC-49), rejection of ambiguous duplicate credential headers (PC-50), and anti-framing/browser-hardening headers on the local Console (PC-51). Each increment is scoped to the already-owned HTTP boundary and does not touch authorization, ranking, retry/fallback or provider execution.
+
+PC-51 squash merge / latest certified baseline:
+
+`34d0e3fc5153022d2402808397ce93b3c19f2c7e`
 
 These increments do not complete OR-9. Production browser identity/session handling, OAuth/OIDC/workload identity, TLS termination, rate limiting, CSRF policy and any future mutation authority remain separate reviewable concerns. None of the hardening increments may authorize or widen model execution.
 
@@ -360,8 +393,8 @@ Remains after the preceding integration cases.
 
 ## Current working boundary
 
-1. `main@99bbbf1f98605695935a89befc873b8c6a4296d4` is the latest certified repository baseline. Live-provider execution remains a separate opt-in proof and must not be inferred from credential-free CI.
-2. OR-9 is in progress through bounded hardening PC-34..PC-39; it is not complete. Continue only with separately justified, consumer-independent security increments that preserve existing serving semantics.
+1. `main@34d0e3fc5153022d2402808397ce93b3c19f2c7e` is the latest certified repository baseline. A first live-provider inference proof was executed and recorded against the PC-33 profile (Gemini deployment only); it does not itself certify OpenAI or any production deployment and must not be inferred from credential-free CI alone.
+2. OR-9 is in progress through bounded hardening PC-34..PC-51; it is not complete. Continue only with separately justified, consumer-independent security increments that preserve existing serving semantics.
 3. Do not modify OpsLens until its independent development state is ready for reconciliation.
 4. Do not begin RAGForge in parallel unless the normative roadmap order is explicitly revised.
 5. Accept further upstream gateway changes only when they are consumer-agnostic, independently justified and preserve the permanent authorization invariant.
