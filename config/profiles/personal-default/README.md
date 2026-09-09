@@ -68,11 +68,13 @@ after a permanent (non-retryable) failure.
   schema through `extraction.structured`/Gemini, and a real `ToolDefinition` + tool call through
   `agent.tool-use`/OpenAI). Two real constraints surfaced doing this, worth knowing before you build
   against this profile:
-  - `gemini-3.8-flash` spends a large, variable share of `max_output_tokens` on internal "thinking"
-    before any visible/structured text — the same class of issue already found with Groq's
-    `gpt-oss-120b` in `classification.simple` (see `docs/project/CURRENT_STATE.md`). A budget of `200`
-    reliably left no room for the actual JSON; `2000` was reliable. Give reasoning models real
-    headroom, not a token count sized for the answer alone.
+  - `gemini-3.8-flash`, `gpt-oss-120b` (Groq) and `nvidia/nemotron-3-super-120b-a12b` all spend a
+    large, variable share of `max_output_tokens` on internal "thinking" before any visible/structured
+    text (see `docs/project/CURRENT_STATE.md` for the reproduced measurements). NVIDIA's `rag.answer`
+    deployment measurably returned empty `response.content` in roughly 2 of 5 real calls at
+    `max_output_tokens: 128` and roughly half at `512`; `2000` was reliable across repeated calls. Give
+    reasoning models real headroom, not a token count sized for the answer alone — this is not a rare
+    edge case, it is common enough to hit on an ordinary first try.
   - OpenAI's strict tool/structured-output mode requires `additionalProperties: false` on every object
     node and every property listed in `required` (no optional properties) — the gateway enforces this
     locally before any network call, failing closed in milliseconds with a clear message rather than

@@ -240,7 +240,7 @@ async def main() -> None:
             risk_level=RiskLevel.LOW,
             data_classification=DataClassification.PUBLIC,
             context_tokens_estimated=128,
-            max_output_tokens=128,
+            max_output_tokens=2000,
             provider_timeout_seconds=30.0,
         )
 
@@ -252,6 +252,12 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
+
+`max_output_tokens: 2000` above is not arbitrary: NVIDIA, Gemini and Groq's deployments in this
+profile all spend a variable, sometimes large share of the budget on internal "thinking" before any
+visible text — a tight budget like `128` measurably returns empty `response.content` a meaningful
+fraction of the time (this was reproduced directly, not theoretical). Give reasoning-style models real
+headroom, not a token count sized for the answer alone.
 
 No provider SDK, no API key, and no `if provider == ...` branch belongs in your project. See
 [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) for the full
@@ -339,7 +345,7 @@ The Gateway is intentionally **not** an agent framework, RAG framework, MCP tool
 | Live-inference development profile | **Implemented in PC-33**, extended to six providers; individually proven with real credentials: Gemini, OpenAI, Groq, NVIDIA. Anthropic reached the provider and failed on an account credit issue (not a config defect); OpenRouter not yet proven — see `docs/project/CURRENT_STATE.md` |
 | Personal-default profile (your own projects) | **Implemented**; NVIDIA cost-preferred ranking proven against four other simultaneously-enabled competing providers — see `config/profiles/personal-default/README.md` |
 | Broader operational-surface auth/security — OR-9 | **In progress** through bounded increments PC-34..PC-51 (see `docs/project/CURRENT_STATE.md`); production IAM/TLS/SSO, session handling, rate limiting and CSRF remain separate |
-| Final screenshots/demo/product-readiness validation — OR-10 | **Not started** |
+| Final screenshots/demo/product-readiness validation — OR-10 | **In progress**: reproducible e2e validation started (operations-only demo, personal-default via launcher, README's own consumer install/code example all literally re-run — see `docs/project/CURRENT_STATE.md`); screenshots/assets, formal architecture/security review and consolidated non-claims not started |
 | Per-trace Console correlation | **Deferred pending an explicit reviewed correlation source** |
 
 The authoritative checkpoint is [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
@@ -351,7 +357,7 @@ For a **portfolio/demo-ready live product path**, the main remaining work is:
 1. ~~execute and record an opt-in real-provider proof through the PC-33 profile while keeping required CI credential-free~~ — done 2026-09-08 for the native Gemini deployment; the native OpenAI deployment in the same profile is not yet separately proven;
 2. decide whether the current Console should gain a bounded live-request/provenance view and per-trace navigation, based only on real backend evidence;
 3. complete the minimum OR-9 security hardening appropriate to the demonstrated operational surfaces and clearly separate production-only hardening;
-4. complete OR-10: reproducible end-to-end validation, final documentation, screenshots/assets where useful, architecture/security/CI review and explicit local/demo/production non-claims;
+4. complete OR-10: reproducible end-to-end validation started 2026-09-09 (see `docs/project/CURRENT_STATE.md`); final documentation, screenshots/assets where useful, architecture/security/CI review and explicit local/demo/production non-claims remain;
 5. decide and cut the `v1.0.0` release boundary before presenting the repository as a reusable open-source package (the repository license is now [Apache-2.0](LICENSE)).
 
 For **full roadmap completion**, Phase 14 also remains sequentially gated: OpsLens must be reconciled before RAGForge and later integrations are started unless that normative order is explicitly revised.

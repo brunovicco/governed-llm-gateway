@@ -241,7 +241,7 @@ async def main() -> None:
             risk_level=RiskLevel.LOW,
             data_classification=DataClassification.PUBLIC,
             context_tokens_estimated=128,
-            max_output_tokens=128,
+            max_output_tokens=2000,
             provider_timeout_seconds=30.0,
         )
 
@@ -253,6 +253,12 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
+
+O `max_output_tokens: 2000` acima não é arbitrário: os deployments de NVIDIA, Gemini e Groq neste
+perfil gastam uma parte variável, às vezes grande, do orçamento "pensando" internamente antes de
+qualquer texto visível — um orçamento apertado como `128` retorna `response.content` vazio numa
+fração real das vezes (isso foi reproduzido de fato, não é teórico). Dê espaço real de tokens para
+modelos com "reasoning", não uma contagem dimensionada só para a resposta.
 
 Nenhum SDK de provider, nenhuma API key e nenhum `if provider == ...` pertence ao seu projeto. Veja
 [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) para o
@@ -340,7 +346,7 @@ O Gateway propositalmente **não é** um agent framework, RAG framework, executo
 | Perfil de live-inference para desenvolvimento | **Implementado no PC-33**, estendido para seis providers; provado individualmente com credenciais reais: Gemini, OpenAI, Groq, NVIDIA. Anthropic chegou ao provider e falhou por problema de crédito na conta (não é defeito de config); OpenRouter ainda sem prova — ver `docs/project/CURRENT_STATE.md` |
 | Perfil personal-default (seus próprios projetos) | **Implementado**; ranking com preferência de custo do NVIDIA provado concorrendo com quatro outros providers simultaneamente habilitados — ver `config/profiles/personal-default/README.md` |
 | Hardening mais amplo das superfícies operacionais — OR-9 | **Em andamento** através dos incrementos limitados PC-34..PC-51 (ver `docs/project/CURRENT_STATE.md`); IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF continuam separados |
-| Screenshots/demo/validação final de product readiness — OR-10 | **Não iniciado** |
+| Screenshots/demo/validação final de product readiness — OR-10 | **Em andamento**: validação e2e reproduzível iniciada (demo operations-only, personal-default via launcher, o próprio exemplo de instalação/código do consumidor no README, tudo reexecutado literalmente — ver `docs/project/CURRENT_STATE.md`); screenshots/assets, revisão formal de arquitetura/segurança e non-claims consolidados ainda não iniciados |
 | Correlação per-trace no Console | **Deferida até existir uma fonte de correlação explicitamente revisada** |
 
 O checkpoint autoritativo é [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
@@ -352,7 +358,7 @@ Para um caminho **live e demonstrável de portfólio/produto**, os principais it
 1. ~~executar e registrar uma prova opt-in com provider real através do perfil PC-33, mantendo a CI obrigatória sem credenciais~~ — feito em 2026-09-08 para o deployment nativo Gemini; o deployment nativo OpenAI do mesmo perfil ainda não tem prova separada;
 2. decidir se o Console atual deve ganhar uma visão limitada de live request/proveniência e navegação per-trace, usando somente evidência real do backend;
 3. concluir o mínimo de hardening OR-9 necessário às superfícies demonstradas e separar claramente o que é hardening exclusivo de produção;
-4. concluir OR-10: validação end-to-end reproduzível, documentação final, screenshots/assets quando fizerem sentido, revisão de arquitetura/segurança/CI e non-claims explícitos de local/demo/produção;
+4. concluir OR-10: validação end-to-end reproduzível iniciada em 2026-09-09 (ver `docs/project/CURRENT_STATE.md`); documentação final, screenshots/assets quando fizerem sentido, revisão de arquitetura/segurança/CI e non-claims explícitos de local/demo/produção continuam faltando;
 5. decidir e cortar a fronteira de `v1.0.0` antes de apresentar o repositório como pacote open source reutilizável (a licença do repositório agora é [Apache-2.0](LICENSE)).
 
 Para **concluir todo o roadmap**, a Phase 14 também continua sequencialmente bloqueada: OpsLens precisa ser reconciliado antes de iniciar RAGForge e as integrações seguintes, a menos que essa ordem normativa seja revisada explicitamente.

@@ -124,8 +124,8 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 | OR-6 | Grafana dashboards + trace correlation/deep links | PC-26 Tempo queryability + PC-27 bounded Grafana trace dashboard + PC-28 local dashboard navigation implemented; per-trace correlation deferred |
 | OR-7 | optional Langfuse OTLP fan-out | optional / not started |
 | OR-8 | one-command deterministic local demo | complete in PC-29/PC-30 at the bounded operations-only local-demo scope; not production-ready |
-| OR-9 | broader authentication/security hardening for operational surfaces | IN PROGRESS — bounded PC-34/PC-35/PC-37/PC-38/PC-39 hardening complete; production identity/TLS/rate-limit/CSRF concerns pending |
-| OR-10 | final docs, screenshots, demo and product-readiness validation | not started |
+| OR-9 | broader authentication/security hardening for operational surfaces | IN PROGRESS — bounded PC-34 through PC-51 hardening complete; production identity/TLS/rate-limit/CSRF concerns pending |
+| OR-10 | final docs, screenshots, demo and product-readiness validation | IN PROGRESS — reproducible e2e validation started 2026-09-09 (see `docs/project/CURRENT_STATE.md`); screenshots/assets, formal architecture/security review and consolidated non-claims not started |
 
 OR-1 is split into small increments. Issue #83 declares the compatibility vocabulary and updates the
 Phase 9 documentation before any external observability stack is added.
@@ -431,9 +431,10 @@ none of these CI checks require provider, PDP, SaaS or secret access.
 
 ## Next slice
 
-PC-39 is certified at `main@99bbbf1f98605695935a89befc873b8c6a4296d4`. OR-8 remains complete for
-the bounded operations-only local demo. OR-9 is now in progress through separately reviewed hardening
-increments, while OR-10 final product/demo validation remains pending.
+PC-51 is the latest certified hardening increment (see `docs/project/CURRENT_STATE.md` for the current
+baseline commit). OR-8 remains complete for the bounded operations-only local demo. OR-9 is in progress
+through separately reviewed hardening increments (PC-34 through PC-51), and OR-10 final product/demo
+validation is now in progress, starting with reproducible end-to-end validation.
 
 The next operational-readiness work must be selected independently from real repository gaps. Production
 browser identity/session handling, OAuth/OIDC/workload identity, TLS termination, rate limiting, CSRF
