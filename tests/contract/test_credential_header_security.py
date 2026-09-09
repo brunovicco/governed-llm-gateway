@@ -13,6 +13,7 @@ from governed_llm_gateway_api.content_type_security import GovernedJsonContentTy
 from governed_llm_gateway_api.credential_header_security import (
     GatewayCredentialHeaderMiddleware,
 )
+from governed_llm_gateway_api.credential_shape import MAX_GATEWAY_API_KEY_LENGTH
 from governed_llm_gateway_api.generation_response_security import GenerationNoStoreMiddleware
 from governed_llm_gateway_api.operations_http import (
     OperationsReadAuthorizer,
@@ -37,17 +38,22 @@ class RecordingApp:
         await send({"type": "http.response.body", "body": b""})
 
 
-def _scope(headers: list[tuple[bytes, bytes]]) -> Scope:
+def _scope(
+    headers: list[tuple[bytes, bytes]],
+    *,
+    method: str = "POST",
+    path: str = "/v1/generate",
+) -> Scope:
     return cast(
         Scope,
         {
             "type": "http",
             "asgi": {"version": "3.0"},
             "http_version": "1.1",
-            "method": "POST",
+            "method": method,
             "scheme": "https",
-            "path": "/v1/generate",
-            "raw_path": b"/v1/generate",
+            "path": path,
+            "raw_path": path.encode("ascii"),
             "query_string": b"",
             "headers": headers,
             "client": None,
@@ -135,6 +141,51 @@ def test_duplicate_gateway_credential_headers_fail_before_downstream_or_body_rea
     assert b"second-secret-value" not in _response_body(sent)
 
 
+@pytest.mark.parametrize("path", ["/v1/generate", "/v1/route/explain"])
+@pytest.mark.parametrize(
+    "api_key",
+    [
+        b"",
+        b" leading-space",
+        b"trailing-space ",
+        b"x" * (MAX_GATEWAY_API_KEY_LENGTH + 1),
+        b"\xff",
+    ],
+)
+def test_malformed_single_credential_fails_before_downstream_or_body_read(
+    path: str,
+    api_key: bytes,
+) -> None:
+    downstream = RecordingApp()
+    middleware = GatewayCredentialHeaderMiddleware(downstream)
+
+    sent, receive_calls = _run(
+        middleware,
+        _scope([(b"x-gateway-api-key", api_key)], path=path),
+    )
+
+    assert _status(sent) == 401
+    assert _response_body(sent) == b'{"detail":{"code":"invalid_gateway_credential"}}'
+    assert downstream.calls == 0
+    assert receive_calls == 0
+
+
+def test_malformed_single_credential_does_not_change_unrelated_route_behavior() -> None:
+    headers = [(b"x-gateway-api-key", b" malformed ")]
+    downstream = RecordingApp()
+    middleware = GatewayCredentialHeaderMiddleware(downstream)
+
+    sent, receive_calls = _run(
+        middleware,
+        _scope(headers, method="GET", path="/health"),
+    )
+
+    assert _status(sent) == 204
+    assert downstream.calls == 1
+    assert downstream.headers == headers
+    assert receive_calls == 0
+
+
 def _full_gateway_app() -> FastAPI:
     return create_gateway_app(
         cast(RouteExplainCoordinator, object()),
@@ -161,6 +212,43 @@ def test_full_gateway_rejects_duplicate_credentials_with_no_store(path: str) -> 
     assert response.json() == {"detail": {"code": "ambiguous_gateway_credential"}}
     assert "first-secret-value" not in response.text
     assert "second-secret-value" not in response.text
+
+
+@pytest.mark.parametrize("path", ["/v1/generate", "/v1/route/explain"])
+def test_full_gateway_rejects_malformed_credential_before_invalid_body(path: str) -> None:
+    app = _full_gateway_app()
+    malformed = "x" * (MAX_GATEWAY_API_KEY_LENGTH + 1)
+
+    response = TestClient(app).post(
+        path,
+        headers={
+            "X-Gateway-API-Key": malformed,
+            "Content-Type": "application/json",
+        },
+        content=b"not-json",
+    )
+
+    assert response.status_code == 401
+    assert response.headers["cache-control"] == "no-store"
+    assert response.json() == {"detail": {"code": "invalid_gateway_credential"}}
+    assert malformed not in response.text
+
+
+@pytest.mark.parametrize("path", ["/v1/generate", "/v1/route/explain"])
+def test_full_gateway_keeps_valid_shape_body_validation_behavior(path: str) -> None:
+    app = _full_gateway_app()
+
+    response = TestClient(app).post(
+        path,
+        headers={
+            "X-Gateway-API-Key": "well-formed-but-unknown",
+            "Content-Type": "application/json",
+        },
+        content=b"not-json",
+    )
+
+    assert response.status_code == 422
+    assert response.headers["cache-control"] == "no-store"
 
 
 def test_configured_operations_reject_duplicate_credentials_with_no_store() -> None:
