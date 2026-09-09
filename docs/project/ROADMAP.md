@@ -178,7 +178,7 @@ Remains after the preceding consumer cases.
 
 ## Operational-readiness checkpoint
 
-The consumer-independent readiness track has certified the bounded local demo through PC-30 and then advanced the governed live-development/Console path through PC-39 without changing Phase 14 ordering.
+The consumer-independent readiness track has certified the bounded local demo through PC-30 and then advanced the governed live-development/Console path through PC-51 without changing Phase 14 ordering.
 
 Certified post-PC-30 increments relevant to readiness and security:
 
@@ -188,27 +188,28 @@ Certified post-PC-30 increments relevant to readiness and security:
 - PC-36 — explicit opt-in provider-neutral live-development smoke harness;
 - PC-37 — explicit secret-free Operations visibility for the reviewed live-development identity;
 - PC-38 — bounded provider-neutral Console inference via only relative `POST /v1/generate`;
-- PC-39 — immutable routing provenance across repeated Console SSE evidence.
+- PC-39 — immutable routing provenance across repeated Console SSE evidence;
+- PC-41..PC-51 — non-storable generation/route-explanation responses, disabled implicit API docs, bounded request bodies, a suppressed server fingerprint, required explicit JSON media types, disabled implicit forwarded-header trust, rejected duplicate credential headers, and Console anti-framing headers.
 
 Latest certified repository baseline:
 
-`99bbbf1f98605695935a89befc873b8c6a4296d4` (PR #191 / PC-39).
+`34d0e3fc5153022d2402808397ce93b3c19f2c7e` (PR #219 / PC-51).
 
 Post-merge `main` gates:
 
-- `quality` run `34291142714` — PASS;
-- `console-quality` run `34291142715` — PASS;
-- `local-demo-smoke` run `34291142723` — PASS.
+- `quality` run `34303543270` — PASS;
+- `console-quality` run `34303543250` — PASS;
+- `local-demo-smoke` run `34303543251` — PASS.
 
 OR-8 is complete only at the bounded operations-only local-demo scope. OR-9 is **IN PROGRESS** through bounded security hardening; production IAM/TLS/SSO, production browser identity/session handling, rate limiting, CSRF policy and future mutation authority remain separate increments. OR-10 remains pending.
 
-Credential-free CI does not establish live-provider proof. The explicit live-development profile and smoke harness are repository/protocol proofs until an operator executes the reviewed path with real local/server-side PDP/provider credentials.
+Credential-free CI does not establish live-provider proof by itself. A first live-provider proof was executed 2026-09-08 against the PC-33 profile (native Gemini deployment) with real local operator credentials; see `CURRENT_STATE.md` for the recorded evidence. It does not certify the OpenAI deployment in the same profile or any production deployment.
 
 ## Current gateway baseline
 
 Latest runtime-bearing and post-merge validated baseline:
 
-`99bbbf1f98605695935a89befc873b8c6a4296d4` (PR #191 / PC-39).
+`34d0e3fc5153022d2402808397ce93b3c19f2c7e` (PR #219 / PC-51).
 
 The default checked-in runtime remains credential-free and fail-closed. All new work starts from the then-current `main`.
 

@@ -38,7 +38,7 @@ The Gateway may narrow an authorized set. It may never widen upstream authorizat
 
 ## What this project demonstrates
 
-For recruiters, engineering managers and platform teams, the repository is a practical reference implementation of an AI Platform execution layer rather than a thin multi-provider proxy.
+The repository is a practical reference implementation of an AI Platform execution layer rather than a thin multi-provider proxy.
 
 | Area | Demonstrated capability |
 |---|---|
@@ -260,7 +260,7 @@ The Gateway is intentionally **not** an agent framework, RAG framework, MCP tool
 | Core platform — Phases 0–13 | **Complete** |
 | Real-project integrations — Phase 14 | **In progress**: two integrations complete; OpsLens intentionally deferred |
 | Local operational demo — OR-8 | **Complete** at the bounded operations-only local-demo scope |
-| Live-inference development profile | **Implemented in PC-33**; opt-in live-provider proof still required before portfolio/demo certification |
+| Live-inference development profile | **Implemented in PC-33**; a first opt-in live-provider proof (native Gemini deployment) was executed and recorded 2026-09-08 — see `docs/project/CURRENT_STATE.md` |
 | Broader operational-surface auth/security — OR-9 | **Not started** |
 | Final screenshots/demo/product-readiness validation — OR-10 | **Not started** |
 | Per-trace Console correlation | **Deferred pending an explicit reviewed correlation source** |
@@ -271,11 +271,11 @@ The authoritative checkpoint is [`docs/project/CURRENT_STATE.md`](docs/project/C
 
 For a **portfolio/demo-ready live product path**, the main remaining work is:
 
-1. execute and record an opt-in real-provider proof through the PC-33 profile while keeping required CI credential-free;
+1. ~~execute and record an opt-in real-provider proof through the PC-33 profile while keeping required CI credential-free~~ — done 2026-09-08 for the native Gemini deployment; the native OpenAI deployment in the same profile is not yet separately proven;
 2. decide whether the current Console should gain a bounded live-request/provenance view and per-trace navigation, based only on real backend evidence;
 3. complete the minimum OR-9 security hardening appropriate to the demonstrated operational surfaces and clearly separate production-only hardening;
 4. complete OR-10: reproducible end-to-end validation, final documentation, screenshots/assets where useful, architecture/security/CI review and explicit local/demo/production non-claims;
-5. add a repository license/release policy and decide the `v1.0.0` release boundary before presenting the repository as a reusable open-source package.
+5. decide and cut the `v1.0.0` release boundary before presenting the repository as a reusable open-source package (the repository license is now [Apache-2.0](LICENSE)).
 
 For **full roadmap completion**, Phase 14 also remains sequentially gated: OpsLens must be reconciled before RAGForge and later integrations are started unless that normative order is explicitly revised.
 
@@ -318,3 +318,7 @@ If you are evaluating the repository, start here:
 - [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md) — Console boundary;
 - [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) — real local Grafana/Tempo proof;
 - [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — benchmark/evidence architecture.
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE).

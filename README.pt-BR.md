@@ -38,7 +38,7 @@ O Gateway pode restringir um conjunto autorizado. Ele nunca pode ampliar uma aut
 
 ## O que este projeto demonstra
 
-Para recrutadores, gestores de engenharia e times de plataforma, o repositório funciona como uma implementação prática de uma camada de execução de AI Platform — e não apenas como um proxy multi-provider.
+O repositório funciona como uma implementação prática de uma camada de execução de AI Platform — e não apenas como um proxy multi-provider.
 
 | Área | Capacidade demonstrada |
 |---|---|
@@ -260,7 +260,7 @@ O Gateway propositalmente **não é** um agent framework, RAG framework, executo
 | Plataforma core — Phases 0–13 | **Concluída** |
 | Integrações com projetos reais — Phase 14 | **Em andamento**: duas integrações concluídas; OpsLens deliberadamente deferido |
 | Demo operacional local — OR-8 | **Concluída** no escopo limitado operations-only |
-| Perfil de live-inference para desenvolvimento | **Implementado no PC-33**; prova opt-in com provider real ainda necessária antes da certificação portfolio/demo-ready |
+| Perfil de live-inference para desenvolvimento | **Implementado no PC-33**; uma primeira prova opt-in com provider real (deployment nativo Gemini) foi executada e registrada em 2026-09-08 — ver `docs/project/CURRENT_STATE.md` |
 | Hardening mais amplo das superfícies operacionais — OR-9 | **Não iniciado** |
 | Screenshots/demo/validação final de product readiness — OR-10 | **Não iniciado** |
 | Correlação per-trace no Console | **Deferida até existir uma fonte de correlação explicitamente revisada** |
@@ -271,11 +271,11 @@ O checkpoint autoritativo é [`docs/project/CURRENT_STATE.md`](docs/project/CURR
 
 Para um caminho **live e demonstrável de portfólio/produto**, os principais itens restantes são:
 
-1. executar e registrar uma prova opt-in com provider real através do perfil PC-33, mantendo a CI obrigatória sem credenciais;
+1. ~~executar e registrar uma prova opt-in com provider real através do perfil PC-33, mantendo a CI obrigatória sem credenciais~~ — feito em 2026-09-08 para o deployment nativo Gemini; o deployment nativo OpenAI do mesmo perfil ainda não tem prova separada;
 2. decidir se o Console atual deve ganhar uma visão limitada de live request/proveniência e navegação per-trace, usando somente evidência real do backend;
 3. concluir o mínimo de hardening OR-9 necessário às superfícies demonstradas e separar claramente o que é hardening exclusivo de produção;
 4. concluir OR-10: validação end-to-end reproduzível, documentação final, screenshots/assets quando fizerem sentido, revisão de arquitetura/segurança/CI e non-claims explícitos de local/demo/produção;
-5. adicionar licença/política de releases e decidir a fronteira de `v1.0.0` antes de apresentar o repositório como pacote open source reutilizável.
+5. decidir e cortar a fronteira de `v1.0.0` antes de apresentar o repositório como pacote open source reutilizável (a licença do repositório agora é [Apache-2.0](LICENSE)).
 
 Para **concluir todo o roadmap**, a Phase 14 também continua sequencialmente bloqueada: OpsLens precisa ser reconciliado antes de iniciar RAGForge e as integrações seguintes, a menos que essa ordem normativa seja revisada explicitamente.
 
@@ -318,3 +318,7 @@ Se você está avaliando o projeto, comece por:
 - [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md) — fronteira do Console;
 - [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) — prova local real com Grafana/Tempo;
 - [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — arquitetura de benchmarks/evidência.
+
+## Licença
+
+Licenciado sob a [Apache License, Version 2.0](LICENSE).
