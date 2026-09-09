@@ -408,6 +408,16 @@ PC-51 squash merge / latest certified baseline:
 
 These increments do not complete OR-9. Production browser identity/session handling, OAuth/OIDC/workload identity, TLS termination, rate limiting, CSRF policy and any future mutation authority remain separate reviewable concerns. None of the hardening increments may authorize or widen model execution.
 
+## OR-9 minimum-hardening investigation, executed 2026-09-09
+
+README item 3 of "What remains before calling the application finished" asked to "complete the minimum OR-9 security hardening appropriate to the demonstrated operational surfaces" — but, unlike OR-10, no document anywhere enumerated what that minimum actually consisted of beyond "PC-34 through PC-51 complete; production concerns pending". This increment investigated whether a concrete, still-open, non-production gap exists on the surfaces this repository actually exposes (the Operations API, the governed generation/route-explain HTTP boundary, and the local Console), rather than leaving the item permanently unclosable for lack of a defined scope.
+
+Checked and confirmed already covered, with no further action needed: debug/reload is never enabled on the Uvicorn server (no stack-trace disclosure on unexpected exceptions); every `except Exception` handler in `apps/gateway-api` returns a sanitized message, never raw exception text (consistent with the OR-10 code security review); the Operations API (`/v1/ops/*`) exposes GET-only routes with no request body to bound; `/livez` and `/readyz` return fixed, minimal, non-informative payloads; there are no `TODO`/`FIXME` markers anywhere in `apps/gateway-api` or `packages/gateway-core` hinting at a known-but-deferred gap; the OTLP exporter's credential boundary is already explicitly documented as deferred in `docs/project/PROCESS_ENTRYPOINT.md`, not silently missing.
+
+One genuine, previously undocumented finding: the Gateway API has no CORS middleware configured. This is correct, not a gap — the Console only ever reaches the Gateway through Vite's same-origin `/v1` dev proxy, so no genuinely cross-origin browser request is ever made, and the absence of CORS headers means a browser blocks any other origin from reading a response by default. The property was true but implicit; it is now explicitly documented in `docs/project/GATEWAY_CONSOLE.md` as a reviewed choice, specifically to prevent a future contributor from "fixing" a perceived CORS gap by adding permissive cross-origin headers without a separately reviewed consumer boundary.
+
+**Conclusion: OR-9's minimum-appropriate hardening for the currently demonstrated operational surfaces is complete.** No further non-production gap was found. The remaining OR-9 scope — production browser identity/session handling, OAuth/OIDC/workload identity, TLS termination, rate limiting, CSRF policy, and any future mutation authority — is genuinely production-only work, correctly deferred rather than a silently missing "minimum," and remains explicitly open in both this document and the README's Non-claims section.
+
 ## Phase 14 — Real Project Integrations
 
 Normative order:
