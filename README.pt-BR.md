@@ -67,6 +67,18 @@ O repositório possui uma demo local determinística, executada por um único co
 
 Ela **não exige API key de provider nem credencial do Policy Router**, porque propositalmente não expõe nenhuma rota de inferência. Isso permite demonstrar as superfícies de plataforma, operação e evidência sem criar um caminho falso de autorização allow-all.
 
+Screenshots reais dessa mesma demo, capturadas contra uma execução local de verdade (não são mockups):
+
+| Console — antes de conectar | Console — conectado, estado operacional real |
+| --- | --- |
+| ![Gateway Console, desconectado](docs/assets/screenshots/gateway-console-disconnected.png) | ![Gateway Console, conectado, mostrando o baseline real do operations-only: registry phase2-empty, 0 deployments, 0 processos rastreados](docs/assets/screenshots/gateway-console-connected.png) |
+
+O screenshot conectado mostra o estado real da demo com honestidade, não um estado encenado: registry `phase2-empty`, `0 deployments`, `0 healthy` de process health. É exatamente essa a cara do baseline fail-closed já versionado desta demo limitada — veja [O que este projeto demonstra](#o-que-este-projeto-demonstra) e [Non-claims](#non-claims).
+
+![Dashboard local de traces no Grafana, provisionado por esta demo, sem linhas porque o modo operations-only não expõe nenhuma rota de inferência para gerar um trace](docs/assets/screenshots/grafana-trace-dashboard.png)
+
+O dashboard do Grafana provisionado é real e consultável contra a instância local do Tempo; ele aparece sem linhas aqui porque esse modo específico de demo nunca envia uma requisição por uma rota de inferência. Isso é a demo funcionando como projetada, não uma lacuna de renderização — veja os perfis [`live-development`](config/profiles/live-development/README.md) ou [`personal-default`](config/profiles/personal-default/README.md) para uma requisição governada que produz evidência real de trace.
+
 ### 2. Inferência governada real — perfil explícito de desenvolvimento
 
 O baseline padrão versionado no repositório continua propositalmente fail-closed:
@@ -346,7 +358,7 @@ O Gateway propositalmente **não é** um agent framework, RAG framework, executo
 | Perfil de live-inference para desenvolvimento | **Implementado no PC-33**, estendido para seis providers; provado individualmente com credenciais reais: Gemini, OpenAI, Groq, NVIDIA. Anthropic chegou ao provider e falhou por problema de crédito na conta (não é defeito de config); OpenRouter ainda sem prova — ver `docs/project/CURRENT_STATE.md` |
 | Perfil personal-default (seus próprios projetos) | **Implementado**; ranking com preferência de custo do NVIDIA provado concorrendo com quatro outros providers simultaneamente habilitados — ver `config/profiles/personal-default/README.md` |
 | Hardening mais amplo das superfícies operacionais — OR-9 | **Em andamento** através dos incrementos limitados PC-34..PC-51 (ver `docs/project/CURRENT_STATE.md`); IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF continuam separados |
-| Screenshots/demo/validação final de product readiness — OR-10 | **Em andamento**: validação e2e reproduzível, revisão de segurança do código novo da sessão e da superfície HTTP/adapters já existente (sem findings em nenhuma das duas) e a seção consolidada de [non-claims](#non-claims) deste repositório já estão feitas — ver `docs/project/CURRENT_STATE.md`; screenshots/assets continuam faltando |
+| Screenshots/demo/validação final de product readiness — OR-10 | **Concluída**: validação e2e reproduzível, revisão de segurança do código novo da sessão e da superfície HTTP/adapters já existente (sem findings em nenhuma das duas), a seção consolidada de [non-claims](#non-claims), e screenshots reais do Console/Grafana da demo operations-only — ver `docs/project/CURRENT_STATE.md` |
 | Correlação per-trace no Console | **Deferida até existir uma fonte de correlação explicitamente revisada** |
 
 O checkpoint autoritativo é [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
@@ -358,7 +370,7 @@ Para um caminho **live e demonstrável de portfólio/produto**, os principais it
 1. ~~executar e registrar uma prova opt-in com provider real através do perfil PC-33, mantendo a CI obrigatória sem credenciais~~ — feito em 2026-09-08 para o deployment nativo Gemini; o deployment nativo OpenAI do mesmo perfil ainda não tem prova separada;
 2. decidir se o Console atual deve ganhar uma visão limitada de live request/proveniência e navegação per-trace, usando somente evidência real do backend;
 3. concluir o mínimo de hardening OR-9 necessário às superfícies demonstradas e separar claramente o que é hardening exclusivo de produção;
-4. concluir OR-10: validação end-to-end reproduzível, revisão de segurança do código novo da sessão e da superfície HTTP/adapters já existente, e a seção consolidada de [non-claims](#non-claims) já estão feitas (ver `docs/project/CURRENT_STATE.md`); screenshots/assets continuam faltando;
+4. ~~concluir OR-10: validação end-to-end reproduzível, revisão de segurança, a seção consolidada de non-claims, e screenshots reais da demo operations-only~~ — feito, ver `docs/project/CURRENT_STATE.md`;
 5. decidir e cortar a fronteira de `v1.0.0` antes de apresentar o repositório como pacote open source reutilizável (a licença do repositório agora é [Apache-2.0](LICENSE)).
 
 Para **concluir todo o roadmap**, a Phase 14 também continua sequencialmente bloqueada: OpsLens precisa ser reconciliado antes de iniciar RAGForge e as integrações seguintes, a menos que essa ordem normativa seja revisada explicitamente.
@@ -374,7 +386,7 @@ Este repositório **não** afirma ser:
 - **Um benchmark de tráfego real de produção.** Tudo em `benchmarks/` roda contra fixtures públicas/sintéticas com scoring determinístico, credential-free por padrão. É evidência para elegibilidade de ranking dentro de um conjunto já autorizado, nunca autorização, e nunca um substituto para feedback real de usuários.
 - **Um deployment multi-tenant ou remoto.** Todo caminho demonstrado (`scripts/local_demo.py`, `live-development`, `personal-default`) roda como processos loopback locais (`127.0.0.1`) que um operador inicia e encerra. Nada disso foi exercitado atrás de um reverse proxy real, load balancer ou DNS público.
 - **Um rollout completo da Phase 14.** Duas das cinco integrações de consumidor planejadas estão completas; o OpsLens é um candidato validado mas deliberadamente adiado até seu próprio repositório estabilizar; RAGForge e a integração com Verifiable AI Governance nem começaram, por decisão explícita de sequenciamento, não por omissão.
-- **Uma OR-9 ou OR-10 finalizada.** A OR-9 é hardening limitado para as superfícies operacionais que este repositório já expõe, não uma certificação de segurança de produção. A validação end-to-end reproduzível da OR-10 e as duas passadas de revisão de segurança (código novo da sessão, e superfície HTTP/adapters já existente) já estão feitas; screenshots/assets continuam abertas.
+- **Uma OR-9 finalizada.** A OR-9 é hardening limitado para as superfícies operacionais que este repositório já expõe, não uma certificação de segurança de produção. A OR-10 (validação end-to-end reproduzível, duas passadas de revisão de segurança, e screenshots reais da demo) está completa; IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF da OR-9 continuam como trabalho futuro separado.
 
 O que cada prova de inferência governada citada em `docs/project/CURRENT_STATE.md` **é**: uma requisição real, com credenciais reais de provider fornecidas pelo operador, executada através da cadeia completa Policy Router → Gateway → provider, com a evidência terminal de rota/execução inspecionada — não é mock, não é stub, e não é simulação sem credenciais.
 
