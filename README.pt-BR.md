@@ -296,7 +296,7 @@ O Gateway propositalmente **não é** um agent framework, RAG framework, executo
 | Plataforma core — Phases 0–13 | **Concluída** |
 | Integrações com projetos reais — Phase 14 | **Em andamento**: duas integrações concluídas; OpsLens deliberadamente deferido |
 | Demo operacional local — OR-8 | **Concluída** no escopo limitado operations-only |
-| Perfil de live-inference para desenvolvimento | **Implementado no PC-33**, estendido para seis providers; provado individualmente com credenciais reais: Gemini, OpenAI, Groq, NVIDIA. Anthropic chegou ao provider e falhou por problema de crédito na conta (não é defeito de config); OpenRouter ainda sem prova — ver `docs/project/CURRENT_STATE.md` |
+| Perfil de live-inference para desenvolvimento | **Implementado no PC-33**, estendido para seis providers; provado individualmente com credenciais reais: Gemini, OpenAI, Groq, NVIDIA, OpenRouter. Anthropic chegou ao provider e falhou por problema de crédito na conta (não é defeito de config) — ver `docs/project/CURRENT_STATE.md` |
 | Perfil personal-default (seus próprios projetos) | **Implementado**; ranking com preferência de custo do NVIDIA provado concorrendo com quatro outros providers simultaneamente habilitados — ver `config/profiles/personal-default/README.md` |
 | Hardening mais amplo das superfícies operacionais — OR-9 | **Em andamento** através dos incrementos limitados PC-34..PC-51 (ver `docs/project/CURRENT_STATE.md`); IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF continuam separados |
 | Screenshots/demo/validação final de product readiness — OR-10 | **Concluída**: validação e2e reproduzível, revisão de segurança do código novo da sessão e da superfície HTTP/adapters já existente (sem findings em nenhuma das duas), a seção consolidada de [non-claims](#non-claims), e screenshots reais do Console/Grafana da demo operations-only — ver `docs/project/CURRENT_STATE.md` |
@@ -308,7 +308,7 @@ O checkpoint autoritativo é [`docs/project/CURRENT_STATE.md`](docs/project/CURR
 
 Para um caminho **live e demonstrável de portfólio/produto**, os principais itens restantes são:
 
-1. ~~executar e registrar uma prova opt-in com provider real através do perfil PC-33, mantendo a CI obrigatória sem credenciais~~ — feito em 2026-09-08 para o deployment nativo Gemini; o deployment nativo OpenAI do mesmo perfil ainda não tem prova separada;
+1. ~~executar e registrar uma prova opt-in com provider real através do perfil PC-33, mantendo a CI obrigatória sem credenciais~~ — feito: todo deployment do perfil já foi provado individualmente (Gemini, OpenAI, Groq, NVIDIA, OpenRouter), exceto Anthropic, que chega ao provider e falha fechado por um problema de crédito na conta, não um defeito de config — ver `docs/project/CURRENT_STATE.md`;
 2. decidir se o Console atual deve ganhar uma visão limitada de live request/proveniência e navegação per-trace, usando somente evidência real do backend;
 3. concluir o mínimo de hardening OR-9 necessário às superfícies demonstradas e separar claramente o que é hardening exclusivo de produção;
 4. ~~concluir OR-10: validação end-to-end reproduzível, revisão de segurança, a seção consolidada de non-claims, e screenshots reais da demo operations-only~~ — feito, ver `docs/project/CURRENT_STATE.md`;
