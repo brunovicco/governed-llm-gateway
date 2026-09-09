@@ -196,37 +196,20 @@ você não tiver as seis, desabilite o(s) deployment(s) correspondente(s) em
 `config/profiles/personal-default/model_registry.yaml` (`enabled: false`) e remova o binding
 correspondente do `provider_runtime.json` antes de iniciar o Gateway.
 
-### 3. Iniciar o Policy Router (terminal 1)
-
-```bash
-cd ../policy-model-router
-set -a; source ../governed-llm-gateway/.env; set +a
-export APP_ENV=development
-export ROUTING_POLICY_PATH="$PWD/examples/policies/gateway-generic.yaml"
-export API_KEYS="$(python3 -c 'import json, os; print(json.dumps({"gateway-demo": os.environ["POLICY_ROUTER_DEMO_API_KEY"]}))')"
-uv run uvicorn policy_model_router.entrypoints.http:app --host 127.0.0.1 --port 8001
-```
-
-### 4. Iniciar o Gateway (terminal 2)
+### 3. Iniciar o Policy Router e o Gateway
 
 ```bash
 cd governed-llm-gateway
 set -a; source .env; set +a
-uv run --frozen --package governed-llm-gateway-api governed-llm-gateway \
-  --deployment-root "$PWD" \
-  --model-registry-path config/profiles/personal-default/model_registry.yaml \
-  --provider-runtime-path config/profiles/personal-default/provider_runtime.json \
-  --client-auth-path config/profiles/personal-default/client_auth.json \
-  --operations-access-path config/profiles/personal-default/operations_access.json \
-  --policy-router-path config/profiles/personal-default/policy_router.json \
-  --ranking-policy-path config/profiles/personal-default/ranking_policy.yaml \
-  --default-max-latency-ms 60000 \
-  --default-max-cost-usd 0.05 \
-  --host 127.0.0.1 \
-  --port 8000
+uv run --frozen python scripts/personal_default_launcher.py
 ```
 
-### 5. Chamar a partir do seu próprio projeto
+Esse comando único sobe os dois serviços (assume `../policy-model-router` do passo 1; sobrescreva com
+`POLICY_MODEL_ROUTER_ROOT` caso contrário) e derruba os dois com Ctrl+C. Veja
+[`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md#running-it)
+para o equivalente manual com dois terminais e a flag `--smoke-test`.
+
+### 4. Chamar a partir do seu próprio projeto
 
 Adicione o SDK fino (não publicado no PyPI; instale direto deste repositório):
 
