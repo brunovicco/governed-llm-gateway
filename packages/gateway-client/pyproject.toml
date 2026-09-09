@@ -1,6 +1,6 @@
 [project]
 name = "governed-llm-gateway-client"
-version = "0.2.0"
+version = "1.0.0"
 description = "Thin async client for Governed LLM Gateway"
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.15"
