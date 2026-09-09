@@ -346,7 +346,7 @@ O Gateway propositalmente **não é** um agent framework, RAG framework, executo
 | Perfil de live-inference para desenvolvimento | **Implementado no PC-33**, estendido para seis providers; provado individualmente com credenciais reais: Gemini, OpenAI, Groq, NVIDIA. Anthropic chegou ao provider e falhou por problema de crédito na conta (não é defeito de config); OpenRouter ainda sem prova — ver `docs/project/CURRENT_STATE.md` |
 | Perfil personal-default (seus próprios projetos) | **Implementado**; ranking com preferência de custo do NVIDIA provado concorrendo com quatro outros providers simultaneamente habilitados — ver `config/profiles/personal-default/README.md` |
 | Hardening mais amplo das superfícies operacionais — OR-9 | **Em andamento** através dos incrementos limitados PC-34..PC-51 (ver `docs/project/CURRENT_STATE.md`); IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF continuam separados |
-| Screenshots/demo/validação final de product readiness — OR-10 | **Em andamento**: validação e2e reproduzível iniciada (demo operations-only, personal-default via launcher, o próprio exemplo de instalação/código do consumidor no README, tudo reexecutado literalmente — ver `docs/project/CURRENT_STATE.md`); screenshots/assets, revisão formal de arquitetura/segurança e non-claims consolidados ainda não iniciados |
+| Screenshots/demo/validação final de product readiness — OR-10 | **Em andamento**: validação e2e reproduzível, revisão de segurança do código novo da sessão (sem findings) e a seção consolidada de [non-claims](#non-claims) deste repositório já estão feitas — ver `docs/project/CURRENT_STATE.md`; screenshots/assets continuam faltando |
 | Correlação per-trace no Console | **Deferida até existir uma fonte de correlação explicitamente revisada** |
 
 O checkpoint autoritativo é [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
@@ -358,10 +358,25 @@ Para um caminho **live e demonstrável de portfólio/produto**, os principais it
 1. ~~executar e registrar uma prova opt-in com provider real através do perfil PC-33, mantendo a CI obrigatória sem credenciais~~ — feito em 2026-09-08 para o deployment nativo Gemini; o deployment nativo OpenAI do mesmo perfil ainda não tem prova separada;
 2. decidir se o Console atual deve ganhar uma visão limitada de live request/proveniência e navegação per-trace, usando somente evidência real do backend;
 3. concluir o mínimo de hardening OR-9 necessário às superfícies demonstradas e separar claramente o que é hardening exclusivo de produção;
-4. concluir OR-10: validação end-to-end reproduzível iniciada em 2026-09-09 (ver `docs/project/CURRENT_STATE.md`); documentação final, screenshots/assets quando fizerem sentido, revisão de arquitetura/segurança/CI e non-claims explícitos de local/demo/produção continuam faltando;
+4. concluir OR-10: validação end-to-end reproduzível, revisão de segurança do código novo da sessão e a seção consolidada de [non-claims](#non-claims) já estão feitas (ver `docs/project/CURRENT_STATE.md`); passada final de documentação e screenshots/assets quando fizerem sentido continuam faltando;
 5. decidir e cortar a fronteira de `v1.0.0` antes de apresentar o repositório como pacote open source reutilizável (a licença do repositório agora é [Apache-2.0](LICENSE)).
 
 Para **concluir todo o roadmap**, a Phase 14 também continua sequencialmente bloqueada: OpsLens precisa ser reconciliado antes de iniciar RAGForge e as integrações seguintes, a menos que essa ordem normativa seja revisada explicitamente.
+
+## Non-claims
+
+Non-claims pontuais já existem perto da feature específica que limitam (o README de cada perfil, as linhas de OR-9/OR-10 acima). Esta seção é o lugar único para ler todas de uma vez.
+
+Este repositório **não** afirma ser:
+
+- **Infraestrutura de produção.** Sem terminação TLS, sem IAM/OAuth/OIDC/workload identity de produção, sem gestão de sessão de browser, sem rate limiting, sem política de CSRF. O hardening limitado PC-34–PC-51 da OR-9 estreita lacunas específicas nas superfícies que este repositório realmente expõe (respostas não-armazenáveis, sanitização de headers, corpos limitados); não completa nada do acima.
+- **Um SLA ou garantia de uptime de qualquer provider de modelo terceiro.** As entradas de pricing/catálogo de modelo são metadados fixados, revisados em datas específicas (ver o README de cada perfil), e podem se distanciar do catálogo real do provider; o pricing de NVIDIA/Groq/OpenRouter no `personal-default` é um placeholder aproximado pendente de atualização revisada separadamente.
+- **Um benchmark de tráfego real de produção.** Tudo em `benchmarks/` roda contra fixtures públicas/sintéticas com scoring determinístico, credential-free por padrão. É evidência para elegibilidade de ranking dentro de um conjunto já autorizado, nunca autorização, e nunca um substituto para feedback real de usuários.
+- **Um deployment multi-tenant ou remoto.** Todo caminho demonstrado (`scripts/local_demo.py`, `live-development`, `personal-default`) roda como processos loopback locais (`127.0.0.1`) que um operador inicia e encerra. Nada disso foi exercitado atrás de um reverse proxy real, load balancer ou DNS público.
+- **Um rollout completo da Phase 14.** Duas das cinco integrações de consumidor planejadas estão completas; o OpsLens é um candidato validado mas deliberadamente adiado até seu próprio repositório estabilizar; RAGForge e a integração com Verifiable AI Governance nem começaram, por decisão explícita de sequenciamento, não por omissão.
+- **Uma OR-9 ou OR-10 finalizada.** A OR-9 é hardening limitado para as superfícies operacionais que este repositório já expõe, não uma certificação de segurança de produção. A OR-10 começou com validação end-to-end reproduzível; screenshots/assets e uma passada dedicada de revisão de arquitetura/segurança continuam abertas.
+
+O que cada prova de inferência governada citada em `docs/project/CURRENT_STATE.md` **é**: uma requisição real, com credenciais reais de provider fornecidas pelo operador, executada através da cadeia completa Policy Router → Gateway → provider, com a evidência terminal de rota/execução inspecionada — não é mock, não é stub, e não é simulação sem credenciais.
 
 ## Validar o repositório
 
