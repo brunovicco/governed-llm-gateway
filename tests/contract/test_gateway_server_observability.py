@@ -149,7 +149,7 @@ def test_explicit_observability_settings_override_ambient_a2a_values(
 
     assert observability is not None
     assert observability.service_name == "governed-llm-gateway"
-    assert observability.service_version == "0.1.0"
+    assert observability.service_version == "1.0.0"
     assert observability.environment == "test"
     assert observability.enabled is True
     assert observability.otlp_endpoint == "http://127.0.0.1:4318/v1/traces"

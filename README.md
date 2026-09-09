@@ -73,11 +73,11 @@ Real screenshots from this exact demo, captured against a live local run (not mo
 | --- | --- |
 | ![Gateway Console, disconnected](docs/assets/screenshots/gateway-console-disconnected.png) | ![Gateway Console, connected, showing the real operations-only baseline: phase2-empty registry, 0 deployments, 0 tracked processes](docs/assets/screenshots/gateway-console-connected.png) |
 
-The connected screenshot shows the demo's real state honestly, not a staged one: `phase2-empty` registry, `0 deployments`, `0 healthy` process health. That is what this bounded demo's own checked-in fail-closed baseline actually looks like — see [What this project demonstrates](#what-this-project-demonstrates) and [Non-claims](#non-claims).
+The connected view is the real fail-closed baseline, not a staged one — `phase2-empty` registry, `0 deployments` (see [Non-claims](#non-claims)).
 
-![Local Grafana trace dashboard, provisioned by this demo, showing no rows because the operations-only demo exposes no inference route to generate a trace](docs/assets/screenshots/grafana-trace-dashboard.png)
+![Local Grafana trace dashboard, provisioned by this demo](docs/assets/screenshots/grafana-trace-dashboard.png)
 
-The provisioned Grafana dashboard is real and queryable against the local Tempo instance; it shows no rows here because this specific demo mode never sends a request through an inference route. That is the demo working as designed, not a rendering gap — see the [`live-development`](config/profiles/live-development/README.md) or [`personal-default`](config/profiles/personal-default/README.md) profiles for a governed request that actually produces trace evidence.
+The real, queryable local Grafana/Tempo dashboard shows no rows here because this demo mode exposes no inference route to generate a trace — see [`live-development`](config/profiles/live-development/README.md) or [`personal-default`](config/profiles/personal-default/README.md) for a request that actually produces one.
 
 ### 2. Governed live inference — explicit development profile
 
@@ -90,23 +90,13 @@ The checked-in default deployment baseline remains intentionally fail-closed:
 
 Therefore **adding `OPENAI_API_KEY` or another provider key by itself still does not enable live inference**.
 
-For an explicit opt-in development path, `config/profiles/live-development/` now provides a reviewed secret-free profile for one `development` / `public` / `rag.answer` consumer, an external Policy Model Router authorization boundary, deterministic ranking, and two native provider deployments in the same authorized `balanced` logical group.
-
-See [`config/profiles/live-development/README.md`](config/profiles/live-development/README.md) for the exact startup and request flow. The profile is a development/demo configuration, not a production TLS, IAM, secret-management or provider-SLA claim. Live-provider execution remains opt-in and credential-backed; the required quality CI stays credential-free.
+For an explicit opt-in path, `config/profiles/live-development/` provides a reviewed secret-free profile for one `development` / `public` / `rag.answer` consumer with an external Policy Model Router boundary, deterministic ranking, and two native provider deployments in the same authorized `balanced` group. See [its README](config/profiles/live-development/README.md) for the startup/request flow — it is a development/demo configuration, not a production TLS/IAM/SLA claim, and required CI stays credential-free.
 
 This separation is intentional: operational availability never becomes authorization by accident.
 
 ### 3. Your own project — the personal-default profile
 
-`config/profiles/personal-default/` is the profile built for actually calling the Gateway from your
-own applications, not a reviewed demo. It wires six providers (NVIDIA, Gemini, OpenAI, Anthropic, Groq,
-OpenRouter) into the same authorized model group. NVIDIA is the practical default — it has a genuine
-ranking preference reflecting its free tier — and deterministic ranking with automatic bounded fallback
-picks whichever authorized deployment is actually eligible. Your application never selects a provider or
-model; it only declares `workload`, `risk_level` and `data_classification`. See
-["Quick start: call the Gateway from your own project"](#quick-start-call-the-gateway-from-your-own-project)
-below and [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) for
-the full picture, including its current one-workload/one-group scope and proof status per provider.
+`config/profiles/personal-default/` is the profile for calling the Gateway from your own applications, not a reviewed demo. It wires six providers (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter) into the same authorized group, with NVIDIA cost-preferred as the practical default; deterministic ranking with bounded fallback picks whichever authorized deployment is actually eligible. Your application only ever declares `workload`, `risk_level` and `data_classification`. See ["Quick start: call the Gateway from your own project"](#quick-start-call-the-gateway-from-your-own-project) below and [its README](config/profiles/personal-default/README.md) for the full scope and per-provider proof status.
 
 ## Quick start: local operations demo
 
@@ -199,13 +189,11 @@ GROQ_API_KEY=your-real-groq-key
 OPENROUTER_API_KEY=your-real-openrouter-key
 ```
 
-`GATEWAY_DEMO_API_KEY`/`POLICY_ROUTER_DEMO_API_KEY` are just local shared secrets you invent; the six
-provider keys are real credentials from each provider (NVIDIA has a free tier at
-[build.nvidia.com](https://build.nvidia.com)). Adapter construction resolves every **enabled**
-deployment's credential eagerly at startup, so a missing key fails the whole process closed. If you
-don't have all six, disable the corresponding deployment(s) in
-`config/profiles/personal-default/model_registry.yaml` (`enabled: false`) and remove the matching
-binding from `provider_runtime.json` before starting the Gateway.
+`GATEWAY_DEMO_API_KEY`/`POLICY_ROUTER_DEMO_API_KEY` are local shared secrets you invent; the six
+provider keys are real credentials (NVIDIA has a free tier at [build.nvidia.com](https://build.nvidia.com)).
+A missing key for an **enabled** deployment fails the whole process closed at startup — if you don't
+have all six, disable the corresponding deployment(s) in `model_registry.yaml` (`enabled: false`) and
+remove the matching binding from `provider_runtime.json` first.
 
 ### 3. Start the Policy Router and the Gateway
 
@@ -215,9 +203,8 @@ set -a; source .env; set +a
 uv run --frozen python scripts/personal_default_launcher.py
 ```
 
-This one command starts both services (it assumes `../policy-model-router` from step 1; override with
-`POLICY_MODEL_ROUTER_ROOT` otherwise) and tears both down on Ctrl+C. See
-[`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md#running-it)
+This one command starts both services (assumes `../policy-model-router` from step 1; override with
+`POLICY_MODEL_ROUTER_ROOT`) and tears both down on Ctrl+C. See [its README](config/profiles/personal-default/README.md#running-it)
 for the two-terminal manual equivalent and the `--smoke-test` switch.
 
 ### 4. Call it from your own project
@@ -265,44 +252,20 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-`max_output_tokens: 2000` above is not arbitrary: NVIDIA, Gemini and Groq's deployments in this
-profile all spend a variable, sometimes large share of the budget on internal "thinking" before any
-visible text — a tight budget like `128` measurably returns empty `response.content` a meaningful
-fraction of the time (this was reproduced directly, not theoretical). Give reasoning-style models real
-headroom, not a token count sized for the answer alone.
+`max_output_tokens: 2000` is not arbitrary: NVIDIA, Gemini and Groq's deployments here spend a variable,
+sometimes large share of the budget on internal "thinking" before any visible text — a tight budget
+like `128` measurably returns empty `response.content` a meaningful fraction of the time (reproduced
+directly, not theoretical). Give reasoning-style models real headroom.
 
 No provider SDK, no API key, and no `if provider == ...` branch belongs in your project. See
-[`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) for the full
-runbook, current scope (`rag.answer` in the `balanced` model group) and per-provider proof status.
+[its README](config/profiles/personal-default/README.md) for the full runbook, current scope
+(`rag.answer` in `balanced`) and per-provider proof status.
 
 ## The secret model
 
-**Never put real API keys in Model Registry files, provider-runtime JSON, README files, logs, traces or Git.** Per-profile `.env` variables are covered inline in each quick start above; this section is the underlying model, not another list of the same names.
+**Never put real API keys in Model Registry files, provider-runtime JSON, README files, logs, traces or Git.** Provider credentials belong to the **Gateway deployment**, never to consumer applications: a provider-runtime binding references a credential by name, and a server-side secret resolver turns that reference into the real value only inside the Gateway process — a sourced `.env` locally, or the same environment references injected by a real secret manager (AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault, ...) in a real deployment.
 
-Provider credentials belong to the **Gateway deployment**, never to consumer applications. Every provider-runtime binding references a credential by name; a secret resolver turns that reference into the real value only inside the Gateway process:
-
-```text
-provider-runtime artifact
-    credential_reference: "OPENAI_API_KEY"
-                         │
-                         ▼
-Gateway process environment / secret manager
-    OPENAI_API_KEY=<real secret>
-                         │
-                         ▼
-provider adapter
-```
-
-For local development this is a sourced `.env`. For a real deployment, inject the same environment references through your orchestrator or secret manager instead — the resolver port is designed so AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault or another backend can replace it without changing consumer contracts.
-
-A consumer application should receive only two variables, never a provider key:
-
-```text
-GOVERNED_LLM_GATEWAY_URL
-GOVERNED_LLM_GATEWAY_API_KEY
-```
-
-It does not own provider/model selection or retry/fallback policy either. See [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) and [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) for the detailed trust boundary.
+A consumer application receives only two variables, never a provider key, and owns no provider/model selection or retry/fallback policy: `GOVERNED_LLM_GATEWAY_URL` and `GOVERNED_LLM_GATEWAY_API_KEY`. See [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) and [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) for the detailed trust boundary.
 
 ## How governed execution works
 
@@ -320,30 +283,7 @@ Business tool execution remains outside the Gateway. The Gateway can normalize a
 
 ## Architecture boundaries
 
-```text
-                    Governance authority (optional)
-                              │
-                              ▼
-                      Policy Model Router
-                              │ PDP
-                              ▼
-                     Governed LLM Gateway
-                              │ PEP
-          ┌───────────────────┼────────────────────┐
-          ▼                   ▼                    ▼
-   Model providers      a2a-otel-kit         Evidence / evals
-          │                   │
-          │                   ▼
-          │             OTel Collector
-          │                   │
-          │                   ▼
-          │                 Tempo
-          │                   │
-          │                   ▼
-          │                 Grafana
-          ▼
- normalized execution
-```
+An optional governance authority can only narrow what the Policy Model Router (PDP) authorizes; the Gateway (PEP) executes only inside that already-narrowed set, normalizes the provider call, and fans out metadata-only telemetry (OTel Collector → Tempo → Grafana) and evaluation evidence alongside the actual provider request. See [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) for the exact wire contract.
 
 The Gateway is intentionally **not** an agent framework, RAG framework, MCP tool executor, prompt-management platform or general API-management product. Its responsibility is governed model resolution and execution.
 
@@ -370,7 +310,7 @@ For a **portfolio/demo-ready live product path**, the main remaining work is:
 2. decide whether the current Console should gain a bounded live-request/provenance view and per-trace navigation, based only on real backend evidence;
 3. complete the minimum OR-9 security hardening appropriate to the demonstrated operational surfaces and clearly separate production-only hardening;
 4. ~~complete OR-10: reproducible end-to-end validation, a security review, the consolidated non-claims section, and real screenshots of the operations-only demo~~ — done, see `docs/project/CURRENT_STATE.md`;
-5. decide and cut the `v1.0.0` release boundary before presenting the repository as a reusable open-source package (the repository license is now [Apache-2.0](LICENSE)).
+5. ~~decide and cut the `v1.0.0` release boundary~~ — done, see [`CHANGELOG.md`](CHANGELOG.md).
 
 For **full roadmap completion**, Phase 14 also remains sequentially gated: OpsLens must be reconciled before RAGForge and later integrations are started unless that normative order is explicitly revised.
 
@@ -428,7 +368,8 @@ If you are evaluating the repository, start here:
 - [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) — provider and secret model;
 - [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md) — Console boundary;
 - [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) — real local Grafana/Tempo proof;
-- [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — benchmark/evidence architecture.
+- [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — benchmark/evidence architecture;
+- [`CHANGELOG.md`](CHANGELOG.md) — what each version includes.
 
 ## License
 

@@ -112,7 +112,7 @@ The executable process owns these fixed observability values:
 
 ```text
 service.name    = governed-llm-gateway
-service.version = 0.1.0
+service.version = 1.0.0
 log.level       = INFO
 log.format      = json
 ```

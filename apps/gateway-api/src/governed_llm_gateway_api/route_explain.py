@@ -290,7 +290,7 @@ def create_app(
     """Create authenticated route explanation with optional explicit complexity mode."""
     app = FastAPI(
         title="Governed LLM Gateway",
-        version="0.1.0",
+        version="1.0.0",
         docs_url=None,
         redoc_url=None,
         openapi_url=None,

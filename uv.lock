@@ -297,7 +297,7 @@ wheels = [
 
 [[package]]
 name = "governed-llm-gateway"
-version = "0.1.0"
+version = "1.0.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
@@ -312,7 +312,7 @@ dev = [{ name = "httpx", specifier = ">=0.28.1,<0.29" }]
 
 [[package]]
 name = "governed-llm-gateway-api"
-version = "0.1.0"
+version = "1.0.0"
 source = { editable = "apps/gateway-api" }
 dependencies = [
     { name = "a2a-otel-kit" },
@@ -335,7 +335,7 @@ requires-dist = [
 
 [[package]]
 name = "governed-llm-gateway-client"
-version = "0.2.0"
+version = "1.0.0"
 source = { editable = "packages/gateway-client" }
 dependencies = [
     { name = "governed-llm-gateway-contracts" },
@@ -350,12 +350,12 @@ requires-dist = [
 
 [[package]]
 name = "governed-llm-gateway-contracts"
-version = "0.1.0"
+version = "1.0.0"
 source = { editable = "packages/gateway-contracts" }
 
 [[package]]
 name = "governed-llm-gateway-core"
-version = "0.1.0"
+version = "1.0.0"
 source = { editable = "packages/gateway-core" }
 dependencies = [
     { name = "a2a-otel-kit" },
