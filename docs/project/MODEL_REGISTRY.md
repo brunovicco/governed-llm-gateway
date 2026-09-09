@@ -63,5 +63,15 @@ The registry contract provides:
 - deterministic canonicalization and SHA-256 digest;
 - provider/model/deployment/logical-group identity separation.
 
+The YAML adapter derives from `yaml.SafeLoader` and overrides mapping construction to reject duplicate
+keys before a later value can silently replace an earlier one; Python object tags and other unsafe
+construction are not permitted. Parsed YAML remains untrusted input until domain validation succeeds.
+
+The digest is calculated only after validation, over a canonical JSON-serializable representation with
+deployment IDs sorted, sets converted to sorted values, capability keys emitted deterministically, dates
+normalized to ISO format, equivalent decimal values normalized to one textual representation, and stable
+JSON key ordering/separators. YAML formatting or ordering changes that preserve semantic content
+therefore do not change `model_registry_digest`; meaningful validated content changes do.
+
 Later phases consume this validated registry but do not change its authorization semantics. Streaming
 capability is another fail-narrow eligibility fact, not a policy grant.
