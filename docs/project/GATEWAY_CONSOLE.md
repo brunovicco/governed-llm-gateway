@@ -107,9 +107,10 @@ The UI therefore does not fabricate:
 
 `process_local` is rendered explicitly for health and must not be relabeled as global/fleet state.
 
-PC-28 does not add trace IDs, routing history or a trace list. The new link navigates to the existing
-Grafana dashboard only; any true per-trace correlation surface requires a separately reviewed source of
-correlation evidence rather than inference in the browser.
+PC-28's dashboard link does not add trace IDs, routing history or a trace list; it navigates to the
+existing Grafana dashboard only. PC-52 separately adds one real per-request trace ID and a deep link to
+that exact trace — see "Per-request trace navigation" below — without changing this general dashboard
+link's own no-trace-claim.
 
 ## Read-only authority boundary
 
@@ -148,6 +149,52 @@ JSON so the navigation cannot silently drift from provisioning.
 The Console does not fetch Grafana or Tempo, proxy their APIs, inspect their health, or treat their
 availability as Gateway readiness. The link is descriptive local-demo navigation only.
 
+## Per-request trace navigation
+
+PC-52 adds a second, more specific navigation affordance: after a governed request completes with real
+OpenTelemetry tracing enabled, the Console renders a "View this request's trace in Grafana" link that
+opens the exact trace for that one request, not just the general dashboard.
+
+The trace ID comes from the Gateway's own already-active span for the request, not a client-side guess.
+`apps/gateway-api/stream_generate.py` reads the current span's `SpanContext.trace_id` (via
+`current_trace_id` in `packages/gateway-core/application/telemetry.py`) only when building the terminal
+`RESPONSE_COMPLETED` SSE event, and only when that span context is valid — when observability is
+disabled, `execution.trace_id` stays `None` rather than being fabricated. `ProviderExecution.trace_id` is
+validated as an exact 32-character lowercase-hex string wherever it is constructed, decoded, or
+re-decoded (the Gateway, the Python thin client, and the Console's own SSE decoder each independently
+reject anything else).
+
+The deep link itself does **not** use Grafana's Explore view: this local demo's anonymous Viewer role
+(`GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer`) does not have Explore access, confirmed by direct testing (Grafana
+redirects `/explore` to `/?redirectTo=%2Fexplore` for that role). Instead, the provisioned
+`gateway-traces-dashboard.json` gained a second panel, "Selected request trace" (a Tempo `traces` panel
+type querying `${traceId}`), fed by a `traceId` textbox dashboard variable. The link sets that variable
+and jumps straight to the panel: `/d/<uid>/<slug>?var-traceId=<id>&viewPanel=2`. This reuses the same
+reviewed, file-provisioned, `allowUiUpdates: false` dashboard the Console already links to, rather than
+introducing a new authorization surface.
+
+Building and proving this end to end surfaced one real infrastructure bug, since fixed: `otel-collector`
+in `compose.observability.yml` declared a `127.0.0.1:4318:4318` host port mapping, but its only Docker
+network was `observability`, which is `internal: true`. An `internal` network cannot have any of its
+containers' ports published to the host — Docker silently drops the mapping rather than erroring — so
+`http://127.0.0.1:4318` was unreachable from any host process for as long as this compose file has
+existed. Nothing had caught this because the existing credential-free `collector-receipt` CI proof
+(`compose.collector-receipt.yml`) uses an entirely separate, non-internal-networked compose file, and no
+other workflow sends a real span through this specific stack from a host process. The fix adds
+`otel-collector` to the same `grafana-host-access` bridge network `grafana` already uses. See
+`docs/project/CURRENT_STATE.md` for the real trace captured proving the fix (Gateway → Collector → Tempo
+→ Grafana, rendered waterfall included).
+
+Real screenshots from this exact flow, captured against a live local run (not mockups): the Console after
+a real governed request, showing the real `Trace ID` alongside the rest of the terminal evidence and the
+"View this request's trace in Grafana" link —
+
+![Gateway Console showing terminal execution evidence including a real Trace ID and the "View this request's trace in Grafana" link](../assets/screenshots/console-trace-evidence.png)
+
+— and the exact same trace ID rendered by Grafana's `Selected request trace` panel after following that link:
+
+![Grafana "Selected request trace" panel rendering the real trace waterfall for the same request, matching trace ID](../assets/screenshots/grafana-selected-trace-panel.png)
+
 ## CI
 
 `.github/workflows/console-quality.yml` is credential-free and path-scoped. It requires:
@@ -162,22 +209,23 @@ npm run build
 
 PC-28 extends deterministic frontend tests for the exact accepted/rejected origin contract and dashboard
 UID alignment. PC-51 adds a deterministic configuration contract for the exact local browser hardening
-headers while re-locking the loopback host, fixed port and relative `/v1` proxy. The existing
-security-surface check remains unchanged and continues to reject arbitrary absolute HTTP URLs in Console
-source.
+headers while re-locking the loopback host, fixed port and relative `/v1` proxy. PC-52 adds deterministic
+tests for the per-trace dashboard deep link (exact `var-traceId`/`viewPanel` construction, trace ID format
+rejection, origin rejection) and cross-checks the link's panel ID against the provisioned dashboard JSON,
+the same way PC-28 cross-checks the dashboard UID. The existing security-surface check remains unchanged
+and continues to reject arbitrary absolute HTTP URLs in Console source.
 
 The workflow is separate from the Python quality gate so frontend toolchain concerns do not weaken or
 replace existing Python governance/security gates.
 
 ## Deferred
 
-PC-25/PC-28/PC-51 do not add:
+PC-25/PC-28/PC-51/PC-52 do not add:
 
 - production authentication or external IAM;
 - a BFF/session service;
 - deployment/evidence detail pages;
 - recent routing history;
-- per-trace correlation/deep links by trace ID;
 - direct Tempo/Grafana API queries from the Console;
 - production Grafana URL discovery or arbitrary external observability URLs;
 - broader dashboard navigation;

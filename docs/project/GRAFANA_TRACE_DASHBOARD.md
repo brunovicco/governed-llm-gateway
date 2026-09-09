@@ -17,8 +17,7 @@ The checked-in local stack provides:
 - the existing provisioned Tempo datasource with UID `tempo` and `editable: false`;
 - a file-backed dashboard provider with `allowUiUpdates: false`;
 - one dashboard with UID `governed-llm-gateway-traces` and title `Governed LLM Gateway — Traces`;
-- exactly one read-only table panel, `Recent gateway request traces`;
-- exactly one TraceQL query:
+- one read-only table panel, `Recent gateway request traces`, with exactly one TraceQL query:
 
 ```traceql
 { span:name = "llm.gateway.request" }
@@ -26,13 +25,19 @@ The checked-in local stack provides:
 
 The dashboard is intentionally small. PC-27 does not introduce a general dashboard framework, synthetic metrics, cost estimates, mutation controls, provider calls, Policy Router calls, or a second operational source of truth.
 
+PC-52 (see `docs/project/GATEWAY_CONSOLE.md`'s "Per-request trace navigation" section) adds one more panel
+to this same dashboard: `Selected request trace`, a Tempo `traces` panel querying `${traceId}` from a
+`traceId` textbox dashboard variable, reached from the Console's own per-request trace link. The dashboard
+still has no synthetic data, mutation controls, or second source of truth — the added panel only ever
+shows a real Tempo trace for a real trace ID, or nothing.
+
 ## Local topology and network boundary
 
 The reusable local path remains:
 
 ```text
 Gateway / a2a-otel-kit
-        │ OTLP/HTTP
+        │ OTLP/HTTP → 127.0.0.1:4318
         ▼
 OpenTelemetry Collector
         │
@@ -45,9 +50,20 @@ OpenTelemetry Collector
         └── 127.0.0.1:3000
 ```
 
-The `observability` Compose network remains `internal: true`. Tempo is not host-published by the reusable base Compose file. Grafana is attached to both the internal `observability` network and a separate `grafana-host-access` bridge so its explicitly loopback-bound `127.0.0.1:3000` port remains reachable from the local host while Collector-to-Tempo traffic stays on the internal evidence network.
+The `observability` Compose network remains `internal: true`. Tempo is not host-published by the reusable base Compose file. Grafana and the OpenTelemetry Collector are each attached to both the internal `observability` network and a separate `grafana-host-access` bridge, so their explicitly loopback-bound `127.0.0.1:3000` and `127.0.0.1:4318` ports remain reachable from the local host while Collector-to-Tempo traffic stays on the internal evidence network.
 
 The extra bridge is not an authorization or provider network and does not publish Tempo. The contract test protects this topology so a future change cannot silently replace the local-only boundary with `0.0.0.0` exposure or remove the internal observability network.
+
+**PC-52 fixed a real bug in this exact topology.** `otel-collector` declared the `127.0.0.1:4318:4318`
+host port mapping from the start, but was attached only to the `internal: true` `observability` network —
+an internal network cannot have any of its containers' ports published to the host, so Docker silently
+dropped the mapping and `http://127.0.0.1:4318` was unreachable from any host process. This had never
+been caught because the credential-free `collector-receipt` CI proof uses an entirely separate,
+non-internal-networked Compose file (`compose.collector-receipt.yml`), and no workflow previously sent a
+real span through this specific stack from a host process. Building the Console's per-request trace
+navigation (PC-52) was the first thing that actually exercised this path, surfacing the bug immediately.
+The fix adds `otel-collector` to `grafana-host-access` alongside `grafana`; Tempo remains on the internal
+network only, unpublished, exactly as before.
 
 ## Run locally
 
@@ -88,10 +104,12 @@ The credential-free `grafana-dashboard` workflow:
 3. waits for the loopback Grafana health endpoint within a bounded window while requiring both services to remain running;
 4. retrieves dashboard UID `governed-llm-gateway-traces` from the Grafana API;
 5. requires Grafana to report `meta.provisioned == true`;
-6. requires the expected title and exactly one reviewed panel;
-7. requires that panel to use datasource UID `tempo`;
-8. requires exactly one target using `queryType == "traceql"` and the exact stable-span query;
-9. emits container logs on failure and always tears the stack down.
+6. requires the expected title and exactly two reviewed panels;
+7. requires both panels to use datasource UID `tempo` and exactly one TraceQL target each;
+8. requires the `Recent gateway request traces` panel to keep its stable-span query and result limit,
+   and the `Selected request trace` panel to query the `${traceId}` dashboard variable;
+9. requires exactly one `traceId` textbox template variable;
+10. emits container logs on failure and always tears the stack down.
 
 The workflow requires no provider credential, Policy Router credential, Grafana credential, Tempo credential, SaaS account, or application secret. It does not create the dashboard through the Grafana API; provisioning must come from the checked-in files.
 
@@ -118,7 +136,10 @@ PC-27 does **not** prove or provide:
 - gateway inference readiness;
 - authorization, routing, ranking, health, retry, fallback, or circuit-breaker authority from Grafana or Tempo;
 - prompt, completion, tool argument/result, document, credential, or customer-payload capture;
-- a Gateway Console deep link or trace-correlation contract unless introduced by a later reviewed increment;
 - Langfuse or another SaaS observability dependency.
+
+PC-52 is the later reviewed increment this document anticipated for a Gateway Console deep link and
+trace-correlation contract — see `docs/project/GATEWAY_CONSOLE.md`'s "Per-request trace navigation"
+section and `docs/project/CURRENT_STATE.md` for the real trace it proved.
 
 Telemetry remains metadata-only by default, and evidence remains descriptive rather than authoritative.

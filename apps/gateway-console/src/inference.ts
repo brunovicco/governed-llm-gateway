@@ -72,6 +72,7 @@ export interface InferenceExecution {
   api_family: string | null;
   max_output_tokens: number | null;
   finish_reason: string | null;
+  trace_id: string | null;
 }
 
 export interface GovernedInferenceResult {
@@ -179,8 +180,10 @@ const EXECUTION_FIELDS = new Set([
   "fallback_index",
   "api_family",
   "max_output_tokens",
+  "trace_id",
 ]);
 const ERROR_FIELDS = new Set(["code", "message", "retryable"]);
+const TRACE_ID_PATTERN = /^[0-9a-f]{32}$/;
 
 export class GovernedInferenceClient {
   readonly #fetch: FetchLike;
@@ -673,7 +676,19 @@ function decodeExecution(payload: Record<string, unknown>): InferenceExecution {
     api_family: optionalString(payload, "api_family"),
     max_output_tokens: optionalPositiveInteger(payload, "max_output_tokens"),
     finish_reason: optionalString(payload, "finish_reason"),
+    trace_id: decodeTraceId(payload),
   };
+}
+
+function decodeTraceId(payload: Record<string, unknown>): string | null {
+  const value = optionalString(payload, "trace_id");
+  if (value === null) {
+    return null;
+  }
+  if (!TRACE_ID_PATTERN.test(value)) {
+    throw protocolError("Execution evidence trace_id is not a 32-character lowercase hex string.");
+  }
+  return value;
 }
 
 function decodeErrorCode(payload: Record<string, unknown>): string {

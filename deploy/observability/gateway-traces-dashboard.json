@@ -44,6 +44,38 @@
       ],
       "title": "Recent gateway request traces",
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "description": "One trace selected by exact trace ID, normally reached from the Console's per-request trace link (the ${traceId} dashboard variable). Empty until a trace ID is supplied; never fabricated or inferred.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 2,
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "query": "${traceId}",
+          "queryType": "traceql",
+          "refId": "A"
+        }
+      ],
+      "title": "Selected request trace",
+      "type": "traces"
     }
   ],
   "refresh": "10s",
@@ -54,7 +86,18 @@
     "traces"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "traceId",
+        "label": "Trace ID",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        }
+      }
+    ]
   },
   "time": {
     "from": "now-15m",

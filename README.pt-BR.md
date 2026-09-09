@@ -300,19 +300,21 @@ O Gateway propositalmente **não é** um agent framework, RAG framework, executo
 | Perfil personal-default (seus próprios projetos) | **Implementado**; ranking com preferência de custo do NVIDIA provado concorrendo com quatro outros providers simultaneamente habilitados — ver `config/profiles/personal-default/README.md` |
 | Hardening mais amplo das superfícies operacionais — OR-9 | **Hardening mínimo apropriado concluído** através dos incrementos limitados PC-34..PC-51 mais uma investigação dedicada de lacunas (ver `docs/project/CURRENT_STATE.md`); IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF continuam como trabalho futuro explícito, não uma lacuna silenciosa |
 | Screenshots/demo/validação final de product readiness — OR-10 | **Concluída**: validação e2e reproduzível, revisão de segurança do código novo da sessão e da superfície HTTP/adapters já existente (sem findings em nenhuma das duas), a seção consolidada de [non-claims](#non-claims), e screenshots reais do Console/Grafana da demo operations-only — ver `docs/project/CURRENT_STATE.md` |
-| Correlação per-trace no Console | **Deferida até existir uma fonte de correlação explicitamente revisada** |
+| Correlação per-trace no Console | **Implementada no PC-52**; provada ao vivo contra um trace real capturado, no navegador, não só via SDK — ver `docs/project/CURRENT_STATE.md` |
 
 O checkpoint autoritativo é [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
 
-### O que falta para considerar a aplicação finalizada
+### Caminho live e demonstrável de portfólio/produto — completo
 
-Para um caminho **live e demonstrável de portfólio/produto**, os principais itens restantes são:
+Todo item antes rastreado aqui para um caminho **live e demonstrável de portfólio/produto** já está feito:
 
-1. ~~executar e registrar uma prova opt-in com provider real através do perfil PC-33, mantendo a CI obrigatória sem credenciais~~ — feito: todo deployment do perfil já está provado individualmente ao vivo (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — ver `docs/project/CURRENT_STATE.md`;
-2. decidir se o Console atual deve ganhar uma visão limitada de live request/proveniência e navegação per-trace, usando somente evidência real do backend;
-3. ~~concluir o mínimo de hardening OR-9 necessário às superfícies demonstradas e separar claramente o que é hardening exclusivo de produção~~ — feito: uma investigação dedicada não encontrou nenhuma lacuna não-produção além de PC-34..PC-51 — ver `docs/project/CURRENT_STATE.md`;
-4. ~~concluir OR-10: validação end-to-end reproduzível, revisão de segurança, a seção consolidada de non-claims, e screenshots reais da demo operations-only~~ — feito, ver `docs/project/CURRENT_STATE.md`;
+1. ~~executar e registrar uma prova opt-in com provider real através do perfil PC-33, mantendo a CI obrigatória sem credenciais~~ — todo deployment do perfil está provado individualmente ao vivo (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic);
+2. ~~decidir se o Console atual deve ganhar uma visão limitada de live request/proveniência e navegação per-trace~~ — a visão de live request/proveniência já existia desde o PC-38; o PC-52 adiciona a navegação per-trace real, provada ao vivo no navegador contra um trace real capturado;
+3. ~~concluir o mínimo de hardening OR-9 necessário às superfícies demonstradas~~ — uma investigação dedicada não encontrou nenhuma lacuna não-produção além de PC-34..PC-51;
+4. ~~concluir OR-10: validação end-to-end reproduzível, revisão de segurança, a seção consolidada de non-claims, e screenshots reais~~ — feito;
 5. ~~decidir e cortar a fronteira de `v1.0.0`~~ — feito, ver [`CHANGELOG.md`](CHANGELOG.md).
+
+Veja `docs/project/CURRENT_STATE.md` para a evidência datada por trás de cada item. Isso fecha a lista que estava aberta no corte da v1.0.0, não o roadmap como um todo — o escopo exclusivo de produção da OR-9 (TLS/IAM/SSO, gestão de sessão, rate limiting, CSRF) e os casos restantes da Phase 14 continuam abertos por design; veja [Non-claims](#non-claims).
 
 Para **concluir todo o roadmap**, a Phase 14 também continua sequencialmente bloqueada: OpsLens precisa ser reconciliado antes de iniciar RAGForge e as integrações seguintes, a menos que essa ordem normativa seja revisada explicitamente.
 

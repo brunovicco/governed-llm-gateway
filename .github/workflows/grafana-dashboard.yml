@@ -89,24 +89,53 @@ jobs:
           if metadata.get("provisioned") is not True:
               raise SystemExit("Grafana did not report the dashboard as provisioned")
           panels = dashboard.get("panels")
-          if not isinstance(panels, list) or len(panels) != 1:
-              raise SystemExit("Gateway trace dashboard must contain exactly one reviewed panel")
-          panel = panels[0]
-          if not isinstance(panel, dict):
-              raise SystemExit("Gateway trace dashboard panel must be an object")
-          datasource = panel.get("datasource")
-          if not isinstance(datasource, dict) or datasource.get("uid") != "tempo":
-              raise SystemExit("Gateway trace dashboard panel must use the provisioned Tempo datasource")
-          targets = panel.get("targets")
-          if not isinstance(targets, list) or len(targets) != 1:
-              raise SystemExit("Gateway trace dashboard must contain exactly one reviewed query")
-          target = targets[0]
-          if not isinstance(target, dict):
-              raise SystemExit("Gateway trace dashboard query must be an object")
-          if target.get("queryType") != "traceql":
-              raise SystemExit("Gateway trace dashboard must use TraceQL")
-          if target.get("query") != '{ span:name = "llm.gateway.request" }':
+          if not isinstance(panels, list) or len(panels) != 2:
+              raise SystemExit("Gateway trace dashboard must contain exactly two reviewed panels")
+
+          def _tempo_target(panel: object) -> dict:
+              if not isinstance(panel, dict):
+                  raise SystemExit("Gateway trace dashboard panel must be an object")
+              datasource = panel.get("datasource")
+              if not isinstance(datasource, dict) or datasource.get("uid") != "tempo":
+                  raise SystemExit(
+                      "Gateway trace dashboard panel must use the provisioned Tempo datasource"
+                  )
+              targets = panel.get("targets")
+              if not isinstance(targets, list) or len(targets) != 1:
+                  raise SystemExit("Gateway trace dashboard panel must contain exactly one reviewed query")
+              target = targets[0]
+              if not isinstance(target, dict):
+                  raise SystemExit("Gateway trace dashboard query must be an object")
+              if target.get("queryType") != "traceql":
+                  raise SystemExit("Gateway trace dashboard must use TraceQL")
+              return target
+
+          recent_panel, trace_panel = panels
+          recent_target = _tempo_target(recent_panel)
+          if recent_panel.get("type") != "table":
+              raise SystemExit("Recent-traces panel must remain a table panel")
+          if recent_target.get("query") != '{ span:name = "llm.gateway.request" }':
               raise SystemExit("Gateway trace dashboard must target the stable request span")
+          if recent_target.get("limit") != 20:
+              raise SystemExit("Recent-traces panel must keep its reviewed result limit")
+
+          trace_target = _tempo_target(trace_panel)
+          if trace_panel.get("type") != "traces":
+              raise SystemExit("Selected-trace panel must remain a traces panel")
+          if trace_target.get("query") != "${traceId}":
+              raise SystemExit("Selected-trace panel must query the ${traceId} dashboard variable")
+
+          templating = dashboard.get("templating")
+          variables = templating.get("list") if isinstance(templating, dict) else None
+          if not isinstance(variables, list) or len(variables) != 1:
+              raise SystemExit("Gateway trace dashboard must declare exactly one template variable")
+          variable = variables[0]
+          if (
+              not isinstance(variable, dict)
+              or variable.get("name") != "traceId"
+              or variable.get("type") != "textbox"
+          ):
+              raise SystemExit("Gateway trace dashboard must declare a traceId textbox variable")
           PY
       - name: Preserve failure diagnostics
         if: failure()

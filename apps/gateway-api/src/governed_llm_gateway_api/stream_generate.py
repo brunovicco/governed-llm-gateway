@@ -4,7 +4,7 @@ import asyncio
 import json
 from collections.abc import AsyncGenerator
 from contextlib import aclosing, nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import UUID
@@ -45,6 +45,7 @@ from governed_llm_gateway_core.application.ranking import (
 from governed_llm_gateway_core.application.streaming import StreamingExecutionService
 from governed_llm_gateway_core.application.telemetry import (
     GatewaySpanName,
+    current_trace_id,
     mark_span_cancelled,
     mark_span_failure,
     mark_span_success,
@@ -522,6 +523,13 @@ async def _sse_body(
                                 _routing_attributes_from_provenance(event.routing),
                             )
                         mark_span_success(span)
+                        if event.execution is not None:
+                            trace_id = current_trace_id(span)
+                            if trace_id is not None:
+                                event = replace(
+                                    event,
+                                    execution=replace(event.execution, trace_id=trace_id),
+                                )
                     yield _encode_sse(event)
         except asyncio.CancelledError:
             mark_span_cancelled(span)
@@ -628,6 +636,8 @@ def _event_payload(event: GatewayStreamEvent) -> dict[str, object]:
             execution["provider_request_id"] = event.execution.provider_request_id
         if event.execution.finish_reason is not None:
             execution["finish_reason"] = event.execution.finish_reason
+        if event.execution.trace_id is not None:
+            execution["trace_id"] = event.execution.trace_id
         if event.execution.usage is not None:
             execution_usage: dict[str, object] = {
                 "input_tokens": event.execution.usage.input_tokens,

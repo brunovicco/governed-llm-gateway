@@ -6,7 +6,7 @@ import {
   type GovernedInferenceResult,
   InferenceApiError,
 } from "./inference";
-import { buildLocalGrafanaDashboardUrl } from "./observability";
+import { buildLocalGrafanaDashboardUrl, buildLocalGrafanaTraceUrl } from "./observability";
 import type { OperationsConsoleSnapshot, OperationsDeployment } from "./types";
 
 const operationsClient = new OperationsApiClient();
@@ -380,6 +380,10 @@ function InferencePanel({
 function InferenceEvidence({ result }: { result: GovernedInferenceResult }) {
   const { routing, execution, usage } = result;
   const totalTokens = usage.total_tokens ?? usage.input_tokens + usage.output_tokens;
+  const traceUrl =
+    execution.trace_id !== null
+      ? buildLocalGrafanaTraceUrl(window.location.origin, execution.trace_id)
+      : null;
   return (
     <div className="inference-evidence" aria-live="polite">
       <div className="answer-block">
@@ -435,6 +439,11 @@ function InferenceEvidence({ result }: { result: GovernedInferenceResult }) {
         />
         <ProvenanceItem term="Cost evidence" value={usage.total_cost_usd ?? "Not supplied"} />
         <ProvenanceItem
+          term="Trace ID"
+          value={execution.trace_id ?? "Not supplied"}
+          mono={execution.trace_id !== null}
+        />
+        <ProvenanceItem
           term="Rejected candidates"
           value={
             routing.rejected_candidates.length === 0
@@ -445,6 +454,11 @@ function InferenceEvidence({ result }: { result: GovernedInferenceResult }) {
           }
         />
       </dl>
+      {traceUrl && (
+        <a className="secondary" href={traceUrl} target="_blank" rel="noopener noreferrer">
+          View this request&apos;s trace in Grafana
+        </a>
+      )}
     </div>
   );
 }
