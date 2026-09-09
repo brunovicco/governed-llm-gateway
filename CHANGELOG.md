@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
+made.
+
+- **PC-52 — Gateway Console per-request trace navigation** (#237): closes README item 2 and the OR-6
+  per-trace-correlation gap. `ProviderExecution` gains an optional, strictly-validated `trace_id`; the
+  Gateway threads its own real OTel span's trace ID through the terminal SSE event when tracing is
+  enabled; the Console renders a "View this request's trace in Grafana" link to the exact trace via a
+  second panel on the existing provisioned dashboard. Proven live twice (SDK and full browser run)
+  against a real captured trace. Also fixes a real bug found while proving this: `otel-collector` in
+  `compose.observability.yml` could never actually publish its host port because its only network was
+  `internal: true`.
+- **OR-9 minimum-hardening investigation** (#236): closes README item 3. A dedicated investigation found
+  no further non-production security gap beyond the existing PC-34..PC-51 increments on the demonstrated
+  operational surfaces; documents one previously-implicit-but-correct property (no CORS middleware on the
+  Gateway API) explicitly.
+- **PC-33 profile completeness** (#235): closes README item 1 for real. Fixes a stale README claim
+  (OpenAI was already proven, the claim said otherwise) and proves the profile's actual remaining gap,
+  OpenRouter, live. Every deployment in the `live-development` profile is now individually proven.
+
+With these three, every item in the README's post-v1.0.0 punch list is closed.
+
 ## v1.0.0 — 2026-09-09
 
 First versioned release. `1.0.0` marks a stable public contract for the workspace packages and a

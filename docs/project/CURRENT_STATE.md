@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-09-08
+Last updated: 2026-09-09
 
 ## Phase status
 
@@ -510,8 +510,8 @@ Remains after the preceding integration cases.
 
 ## Current working boundary
 
-1. `main@34d0e3fc5153022d2402808397ce93b3c19f2c7e` is the latest certified repository baseline. A first live-provider inference proof was executed and recorded against the PC-33 profile (Gemini deployment only); it does not itself certify OpenAI or any production deployment and must not be inferred from credential-free CI alone.
-2. OR-9 is in progress through bounded hardening PC-34..PC-51; it is not complete. Continue only with separately justified, consumer-independent security increments that preserve existing serving semantics.
+1. `main@289f1de7ff3ca548ca013055c08ce09ec40d1c99` (PR #237 / PC-52) is the latest certified repository baseline. Every deployment in the PC-33 profile is individually proven live (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic); this still does not itself certify any production deployment and must not be inferred from credential-free CI alone.
+2. OR-9's minimum-appropriate hardening for the demonstrated operational surfaces is complete (bounded increments PC-34..PC-51 plus a dedicated 2026-09-09 gap investigation found no further non-production gap). Production identity/TLS/rate-limit/CSRF concerns remain separate, explicit future work, not a silently missing minimum. Continue only with separately justified, consumer-independent security increments that preserve existing serving semantics.
 3. Do not modify OpsLens until its independent development state is ready for reconciliation.
 4. Do not begin RAGForge in parallel unless the normative roadmap order is explicitly revised.
 5. Accept further upstream gateway changes only when they are consumer-agnostic, independently justified and preserve the permanent authorization invariant.
