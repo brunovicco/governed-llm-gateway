@@ -21,7 +21,11 @@ class GenerationRequestBodyLimitMiddleware:
         max_body_bytes: int = MAX_GENERATION_REQUEST_BODY_BYTES,
     ) -> None:
         """Bind one positive hard ceiling for the owned generation endpoint."""
-        if isinstance(max_body_bytes, bool) or not isinstance(max_body_bytes, int) or max_body_bytes <= 0:
+        if (
+            isinstance(max_body_bytes, bool)
+            or not isinstance(max_body_bytes, int)
+            or max_body_bytes <= 0
+        ):
             raise ValueError("generation request body limit must be a positive integer")
         self._app = app
         self._max_body_bytes = max_body_bytes
