@@ -1,7 +1,5 @@
 """Deterministic PT-BR RAG workload contract and scorer."""
 
-from __future__ import annotations
-
 from decimal import Decimal
 from pathlib import Path
 

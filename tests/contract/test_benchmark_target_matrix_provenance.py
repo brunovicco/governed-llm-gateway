@@ -1,7 +1,5 @@
 """Contract tests for explicit benchmark target-matrix snapshot provenance."""
 
-from __future__ import annotations
-
 from dataclasses import replace
 from datetime import date
 from pathlib import Path

@@ -1,7 +1,5 @@
 """Executable Gateway process settings and ASGI server boundary."""
 
-from __future__ import annotations
-
 import argparse
 import logging
 import sys

@@ -1,7 +1,5 @@
 """Credential-isolated local bootstrap for read-only Gateway operations surfaces."""
 
-from __future__ import annotations
-
 import argparse
 import sys
 from collections.abc import Mapping, Sequence

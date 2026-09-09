@@ -1,7 +1,5 @@
 """Content-addressed handoff batches for metadata-only operational attempt samples."""
 
-from __future__ import annotations
-
 import hashlib
 import json
 import re

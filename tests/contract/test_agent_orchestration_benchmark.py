@@ -1,7 +1,5 @@
 """Agent-orchestration v1 benchmark contract and end-to-end evidence tests."""
 
-from __future__ import annotations
-
 import asyncio
 from datetime import date
 from decimal import Decimal

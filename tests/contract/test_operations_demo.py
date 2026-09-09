@@ -1,7 +1,5 @@
 """Contract tests for the bounded operations-only local demo bootstrap."""
 
-from __future__ import annotations
-
 import inspect
 import json
 from pathlib import Path

@@ -1,7 +1,5 @@
 """Strict JSON adapter for explicitly pinned approved ranking artifacts."""
 
-from __future__ import annotations
-
 import json
 from collections.abc import Mapping
 from datetime import date

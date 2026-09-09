@@ -1,7 +1,5 @@
 """Materialize reviewed operational evidence from bounded metadata-only samples."""
 
-from __future__ import annotations
-
 import math
 import re
 from collections import defaultdict

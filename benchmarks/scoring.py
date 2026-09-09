@@ -1,7 +1,5 @@
 """Deterministic offline scorers for the reviewed benchmark workloads."""
 
-from __future__ import annotations
-
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal

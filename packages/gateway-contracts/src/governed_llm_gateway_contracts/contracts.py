@@ -1,7 +1,5 @@
 """Immutable provider-neutral contracts for the Governed LLM Gateway."""
 
-from __future__ import annotations
-
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -282,6 +280,44 @@ class RoutingProvenance:
 
 
 @dataclass(frozen=True, slots=True)
+class ProviderExecution:
+    """Normalized terminal execution evidence without provider-specific response objects."""
+
+    provider: str
+    model: str
+    deployment: str
+    status: ExecutionStatus
+    latency_ms: int
+    usage: Usage | None = None
+    provider_request_id: str | None = None
+    finish_reason: str | None = None
+    attempt_number: int = 1
+    fallback_index: int = 0
+    api_family: str | None = None
+    max_output_tokens: int | None = None
+
+    def __post_init__(self) -> None:
+        """Validate concrete provider identity and measured execution metadata."""
+        if any(not value.strip() for value in (self.provider, self.model, self.deployment)):
+            raise ValueError("provider execution identity must be non-empty")
+        if self.latency_ms < 0:
+            raise ValueError("provider execution latency_ms must be non-negative")
+        for name, value in (
+            ("provider_request_id", self.provider_request_id),
+            ("finish_reason", self.finish_reason),
+            ("api_family", self.api_family),
+        ):
+            if value is not None and (not value.strip() or value.strip() != value):
+                raise ValueError(f"provider execution {name} must be normalized when present")
+        if self.attempt_number <= 0:
+            raise ValueError("provider execution attempt_number must be positive")
+        if self.fallback_index < 0:
+            raise ValueError("provider execution fallback_index must be non-negative")
+        if self.max_output_tokens is not None and self.max_output_tokens <= 0:
+            raise ValueError("provider execution max_output_tokens must be positive when present")
+
+
+@dataclass(frozen=True, slots=True)
 class GatewayStreamEvent:
     """One normalized SSE event emitted by the gateway streaming boundary."""
 
@@ -375,44 +411,6 @@ class GatewayStreamEvent:
             routing.deployment,
         ):
             raise ValueError("terminal execution evidence does not match routing provenance")
-
-
-@dataclass(frozen=True, slots=True)
-class ProviderExecution:
-    """Normalized terminal execution evidence without provider-specific response objects."""
-
-    provider: str
-    model: str
-    deployment: str
-    status: ExecutionStatus
-    latency_ms: int
-    usage: Usage | None = None
-    provider_request_id: str | None = None
-    finish_reason: str | None = None
-    attempt_number: int = 1
-    fallback_index: int = 0
-    api_family: str | None = None
-    max_output_tokens: int | None = None
-
-    def __post_init__(self) -> None:
-        """Validate concrete provider identity and measured execution metadata."""
-        if any(not value.strip() for value in (self.provider, self.model, self.deployment)):
-            raise ValueError("provider execution identity must be non-empty")
-        if self.latency_ms < 0:
-            raise ValueError("provider execution latency_ms must be non-negative")
-        for name, value in (
-            ("provider_request_id", self.provider_request_id),
-            ("finish_reason", self.finish_reason),
-            ("api_family", self.api_family),
-        ):
-            if value is not None and (not value.strip() or value.strip() != value):
-                raise ValueError(f"provider execution {name} must be normalized when present")
-        if self.attempt_number <= 0:
-            raise ValueError("provider execution attempt_number must be positive")
-        if self.fallback_index < 0:
-            raise ValueError("provider execution fallback_index must be non-negative")
-        if self.max_output_tokens is not None and self.max_output_tokens <= 0:
-            raise ValueError("provider execution max_output_tokens must be positive when present")
 
 
 @dataclass(frozen=True, slots=True)

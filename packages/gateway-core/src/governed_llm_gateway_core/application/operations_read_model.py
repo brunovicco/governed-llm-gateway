@@ -1,7 +1,5 @@
 """Read-only operations projections over already-validated Gateway runtime state."""
 
-from __future__ import annotations
-
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import date, datetime

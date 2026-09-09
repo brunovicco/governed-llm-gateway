@@ -7,8 +7,6 @@ reliability, latency score, cost score, and expected latency stay explicit stati
 inputs until a separately reviewed normalization policy exists.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
