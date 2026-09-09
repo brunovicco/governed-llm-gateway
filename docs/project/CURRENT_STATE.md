@@ -257,12 +257,16 @@ Individually proven with real operator credentials against repository baseline `
 - `google-gemini-3-8-flash-dev` — succeeded, `latency_ms: 1598`;
 - `openai-gpt-5-6-luna-dev` — succeeded, `latency_ms: 3308`;
 - `groq-gpt-oss-120b-dev` — succeeded, `latency_ms: 580` (model corrected during this proof from the originally wired `llama-3.3-70b-versatile`, no longer served by Groq's catalog, to `openai/gpt-oss-120b`, confirmed against the account's live `/v1/models` listing);
-- `anthropic-claude-sonnet-5-dev` — reached the provider and failed closed with a sanitized `invalid_request` gateway error; direct diagnosis against the real Anthropic API confirmed the model/endpoint/version are correct and the cause is an account-level credit balance issue, not a configuration defect;
+- `anthropic-claude-sonnet-5-dev` — initially reached the provider and failed closed with a sanitized `invalid_request` gateway error; direct diagnosis against the real Anthropic API confirmed the model/endpoint/version were correct and the cause was an account-level issue, not a configuration defect. Later individually re-proven successfully the same day, see below;
 - `nvidia-nemotron-3-super-dev` (proven later the same day, see below) and `openrouter-llama-3-3-70b-dev` — wired identically but not yet proven at the time of this record; `NVIDIA_API_KEY` and `OPENROUTER_API_KEY` were not available in the operator's environment for this session.
 
 NVIDIA/Groq/OpenRouter pricing in the registry is an approximate placeholder pending a separately reviewed catalog update; it does not affect authorization and only participates in cost-eligibility filtering within the already-authorized `balanced` group.
 
 The originally wired NVIDIA model (`meta/llama-3.3-70b-instruct`) had reached end-of-life on NVIDIA's hosted catalog (`410 Gone`) and was corrected to `nvidia/nemotron-3-super-120b-a12b`, confirmed against the account's live `/v1/models` listing, in both this profile and `personal-default` below; the deployment id was renamed from `nvidia-llama-3-3-70b-dev` to `nvidia-nemotron-3-super-dev` to match.
+
+`openrouter-llama-3-3-70b-dev` was individually proven later the same day, once `OPENROUTER_API_KEY` became available: succeeded through the full Policy Router + Gateway chain, `provider: openrouter`, `model: meta-llama/llama-3.3-70b-instruct`, `latency_ms: 11762`. (`openai-gpt-5-6-luna-dev` was also re-confirmed the same day: `latency_ms: 1718`, same deployment identity as the original proof above — a spot-check, not new information.)
+
+The account-level issue above was resolved the same day. `anthropic-claude-sonnet-5-dev` was individually re-proven using the same isolation procedure: succeeded through the full Policy Router + Gateway chain, `provider: anthropic`, `model: claude-sonnet-5`, `finish_reason: end_turn`, `latency_ms: 2037`. **All six deployments in the PC-33 profile are now individually proven live**, closing README item 1 of "What remains before calling the application finished" completely.
 
 ## Personal default profile — NVIDIA cost-preferred routing, executed 2026-09-09
 
@@ -287,7 +291,7 @@ Individually proven with real operator credentials, through the full Policy Rout
 
 - `classification.simple` — succeeded via Groq (`fast-small`), `latency_ms: 606`. A first attempt with a very small `max_output_tokens` failed because `openai/gpt-oss-120b` spends hidden reasoning tokens before visible content — a real model-behavior characteristic, not a wiring defect.
 - `extraction.structured` — succeeded via Gemini (`structured-fast`), `latency_ms: 1712`.
-- `reasoning.complex` and `agent.orchestration` — both initially routed to Anthropic (alphabetically first at equal neutral scores) and failed closed on the same pre-existing account credit-balance issue recorded above, with no fallback (a permanent, non-retryable failure never triggers cross-provider fallback by design). With Anthropic's two new deployments temporarily disabled to prove the group's other member, both succeeded via OpenAI: `reasoning.complex` `latency_ms: 3577`, `agent.orchestration` `latency_ms: 1748`.
+- `reasoning.complex` and `agent.orchestration` — both initially routed to Anthropic (alphabetically first at equal neutral scores) and failed closed on the same pre-existing account-level issue recorded above (since resolved), with no fallback (a permanent, non-retryable failure never triggers cross-provider fallback by design). With Anthropic's two new deployments temporarily disabled to prove the group's other member, both succeeded via OpenAI: `reasoning.complex` `latency_ms: 3577`, `agent.orchestration` `latency_ms: 1748`.
 - `security.analysis`, `code.generate`, `code.review` (sharing the same `reasoning-strong` deployments as `reasoning.complex`) were wired identically but not individually exercised with a live request. `agent.tool-use` was separately proven with a real tool call — see below.
 
 This does not change the checked-in fail-closed default `config/` artifacts, and does not add or require any new provider credential beyond the six already in use.
@@ -296,7 +300,7 @@ The full six-deployment `personal-default` profile requires all six provider cre
 
 ## Real structured-output and tool-calling proof, executed 2026-09-09
 
-Both native capabilities registered on the `structured-fast`/`reasoning-strong`/`agentic-strong` deployments were exercised with genuinely real requests through the full Policy Router + Gateway chain (Anthropic's two `agentic-strong`/`reasoning-strong` deployments temporarily disabled locally to reach OpenAI past the recorded credit-balance issue; no committed config changed):
+Both native capabilities registered on the `structured-fast`/`reasoning-strong`/`agentic-strong` deployments were exercised with genuinely real requests through the full Policy Router + Gateway chain (Anthropic's two `agentic-strong`/`reasoning-strong` deployments temporarily disabled locally to reach OpenAI past the recorded account-level issue; no committed config changed):
 
 - **Structured output** — `extraction.structured` with a real JSON Schema (`{"type": "object", "properties": {"apples": {"type": "integer"}}, "required": ["apples"]}`) succeeded via `google-gemini-3-8-flash-structured-dev`, returning valid schema-conformant JSON (`{"apples": 5}`).
 - **Tool calling** — `agent.tool-use` with a real `ToolDefinition` (`get_weather(city: string)`) succeeded via `openai-gpt-5-6-luna-agentic-dev`: the model correctly decided to call the tool, the gateway normalized `tool_call.started` → `tool_call.arguments.delta` → `tool_call.completed` with real provider correlation (`call_id`), and the terminal response carried the canonical `ToolCall` (`get_weather({"city": "Paris"})`).
