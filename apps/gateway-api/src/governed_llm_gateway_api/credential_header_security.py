@@ -40,10 +40,10 @@ class GatewayCredentialHeaderMiddleware:
             await response(scope, receive, send)
             return
 
-        if len(credential_values) == 1 and (
-            scope["method"],
-            scope["path"],
-        ) in _GOVERNED_BODY_AUTH_ROUTES:
+        if (
+            len(credential_values) == 1
+            and (scope["method"], scope["path"]) in _GOVERNED_BODY_AUTH_ROUTES
+        ):
             try:
                 api_key = credential_values[0].decode("ascii")
             except UnicodeDecodeError:
