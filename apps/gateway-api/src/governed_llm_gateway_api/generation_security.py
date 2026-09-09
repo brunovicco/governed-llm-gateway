@@ -73,9 +73,7 @@ class GenerationRequestBodyLimitMiddleware:
 
 def _declared_content_length(scope: Scope) -> int | None:
     values = tuple(
-        value
-        for name, value in scope.get("headers", ())
-        if name.lower() == b"content-length"
+        value for name, value in scope.get("headers", ()) if name.lower() == b"content-length"
     )
     if len(values) != 1:
         return None
