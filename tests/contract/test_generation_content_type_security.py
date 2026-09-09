@@ -78,7 +78,10 @@ def _run(app: ASGIApp, scope: Scope, body: bytes = b"{}") -> list[Message]:
     async def send(message: Message) -> None:
         sent.append(message)
 
-    asyncio.run(app(scope, receive, send))
+    async def scenario() -> None:
+        await app(scope, receive, send)
+
+    asyncio.run(scenario())
     return sent
 
 
