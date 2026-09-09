@@ -296,7 +296,7 @@ The Gateway is intentionally **not** an agent framework, RAG framework, MCP tool
 | Local operational demo — OR-8 | **Complete** at the bounded operations-only local-demo scope |
 | Live-inference development profile | **Implemented in PC-33**, extended to six providers; every deployment individually proven with real credentials (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — see `docs/project/CURRENT_STATE.md` |
 | Personal-default profile (your own projects) | **Implemented**; NVIDIA cost-preferred ranking proven against four other simultaneously-enabled competing providers — see `config/profiles/personal-default/README.md` |
-| Broader operational-surface auth/security — OR-9 | **In progress** through bounded increments PC-34..PC-51 (see `docs/project/CURRENT_STATE.md`); production IAM/TLS/SSO, session handling, rate limiting and CSRF remain separate |
+| Broader operational-surface auth/security — OR-9 | **Minimum-appropriate hardening complete** through bounded increments PC-34..PC-51 plus a dedicated gap investigation (see `docs/project/CURRENT_STATE.md`); production IAM/TLS/SSO, session handling, rate limiting and CSRF remain explicit future work, not silently missing |
 | Final screenshots/demo/product-readiness validation — OR-10 | **Complete**: reproducible e2e validation, a security review of the session's new code and of the existing HTTP/adapter surface (no findings in either pass), the consolidated [non-claims](#non-claims) section, and real Console/Grafana screenshots of the operations-only demo — see `docs/project/CURRENT_STATE.md` |
 | Per-trace Console correlation | **Deferred pending an explicit reviewed correlation source** |
 
@@ -308,7 +308,7 @@ For a **portfolio/demo-ready live product path**, the main remaining work is:
 
 1. ~~execute and record an opt-in real-provider proof through the PC-33 profile while keeping required CI credential-free~~ — done: every deployment in the profile is now individually proven live (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — see `docs/project/CURRENT_STATE.md`;
 2. decide whether the current Console should gain a bounded live-request/provenance view and per-trace navigation, based only on real backend evidence;
-3. complete the minimum OR-9 security hardening appropriate to the demonstrated operational surfaces and clearly separate production-only hardening;
+3. ~~complete the minimum OR-9 security hardening appropriate to the demonstrated operational surfaces and clearly separate production-only hardening~~ — done: a dedicated investigation found no further non-production gap beyond PC-34..PC-51 — see `docs/project/CURRENT_STATE.md`;
 4. ~~complete OR-10: reproducible end-to-end validation, a security review, the consolidated non-claims section, and real screenshots of the operations-only demo~~ — done, see `docs/project/CURRENT_STATE.md`;
 5. ~~decide and cut the `v1.0.0` release boundary~~ — done, see [`CHANGELOG.md`](CHANGELOG.md).
 

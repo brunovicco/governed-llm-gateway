@@ -298,7 +298,7 @@ O Gateway propositalmente **não é** um agent framework, RAG framework, executo
 | Demo operacional local — OR-8 | **Concluída** no escopo limitado operations-only |
 | Perfil de live-inference para desenvolvimento | **Implementado no PC-33**, estendido para seis providers; todo deployment provado individualmente com credenciais reais (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — ver `docs/project/CURRENT_STATE.md` |
 | Perfil personal-default (seus próprios projetos) | **Implementado**; ranking com preferência de custo do NVIDIA provado concorrendo com quatro outros providers simultaneamente habilitados — ver `config/profiles/personal-default/README.md` |
-| Hardening mais amplo das superfícies operacionais — OR-9 | **Em andamento** através dos incrementos limitados PC-34..PC-51 (ver `docs/project/CURRENT_STATE.md`); IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF continuam separados |
+| Hardening mais amplo das superfícies operacionais — OR-9 | **Hardening mínimo apropriado concluído** através dos incrementos limitados PC-34..PC-51 mais uma investigação dedicada de lacunas (ver `docs/project/CURRENT_STATE.md`); IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF continuam como trabalho futuro explícito, não uma lacuna silenciosa |
 | Screenshots/demo/validação final de product readiness — OR-10 | **Concluída**: validação e2e reproduzível, revisão de segurança do código novo da sessão e da superfície HTTP/adapters já existente (sem findings em nenhuma das duas), a seção consolidada de [non-claims](#non-claims), e screenshots reais do Console/Grafana da demo operations-only — ver `docs/project/CURRENT_STATE.md` |
 | Correlação per-trace no Console | **Deferida até existir uma fonte de correlação explicitamente revisada** |
 
@@ -310,7 +310,7 @@ Para um caminho **live e demonstrável de portfólio/produto**, os principais it
 
 1. ~~executar e registrar uma prova opt-in com provider real através do perfil PC-33, mantendo a CI obrigatória sem credenciais~~ — feito: todo deployment do perfil já está provado individualmente ao vivo (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — ver `docs/project/CURRENT_STATE.md`;
 2. decidir se o Console atual deve ganhar uma visão limitada de live request/proveniência e navegação per-trace, usando somente evidência real do backend;
-3. concluir o mínimo de hardening OR-9 necessário às superfícies demonstradas e separar claramente o que é hardening exclusivo de produção;
+3. ~~concluir o mínimo de hardening OR-9 necessário às superfícies demonstradas e separar claramente o que é hardening exclusivo de produção~~ — feito: uma investigação dedicada não encontrou nenhuma lacuna não-produção além de PC-34..PC-51 — ver `docs/project/CURRENT_STATE.md`;
 4. ~~concluir OR-10: validação end-to-end reproduzível, revisão de segurança, a seção consolidada de non-claims, e screenshots reais da demo operations-only~~ — feito, ver `docs/project/CURRENT_STATE.md`;
 5. ~~decidir e cortar a fronteira de `v1.0.0`~~ — feito, ver [`CHANGELOG.md`](CHANGELOG.md).
 

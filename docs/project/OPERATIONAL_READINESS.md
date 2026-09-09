@@ -124,7 +124,7 @@ requires it, but authority/security boundaries take precedence over visual/demo 
 | OR-6 | Grafana dashboards + trace correlation/deep links | PC-26 Tempo queryability + PC-27 bounded Grafana trace dashboard + PC-28 local dashboard navigation implemented; per-trace correlation deferred |
 | OR-7 | optional Langfuse OTLP fan-out | optional / not started |
 | OR-8 | one-command deterministic local demo | complete in PC-29/PC-30 at the bounded operations-only local-demo scope; not production-ready |
-| OR-9 | broader authentication/security hardening for operational surfaces | IN PROGRESS — bounded PC-34 through PC-51 hardening complete; production identity/TLS/rate-limit/CSRF concerns pending |
+| OR-9 | broader authentication/security hardening for operational surfaces | MINIMUM-APPROPRIATE HARDENING COMPLETE — bounded PC-34 through PC-51 plus a dedicated 2026-09-09 gap investigation found no further non-production gap; production identity/TLS/rate-limit/CSRF concerns remain explicit future work |
 | OR-10 | final docs, screenshots, demo and product-readiness validation | COMPLETE 2026-09-09 — reproducible e2e validation, two security-review passes (session's new code, and the existing HTTP/adapter surface), the consolidated non-claims section, and real Console/Grafana screenshots of the operations-only demo (see `docs/project/CURRENT_STATE.md`) |
 
 OR-1 is split into small increments. Issue #83 declares the compatibility vocabulary and updates the
@@ -432,10 +432,11 @@ none of these CI checks require provider, PDP, SaaS or secret access.
 ## Next slice
 
 PC-51 is the latest certified hardening increment (see `docs/project/CURRENT_STATE.md` for the current
-baseline commit). OR-8 remains complete for the bounded operations-only local demo. OR-9 is in progress
-through separately reviewed hardening increments (PC-34 through PC-51). OR-10 final product/demo
-validation is complete: reproducible end-to-end validation, two security-review passes, the consolidated
-non-claims section, and real demo screenshots.
+baseline commit). OR-8 remains complete for the bounded operations-only local demo. OR-9's
+minimum-appropriate hardening for the demonstrated surfaces is complete (PC-34 through PC-51 plus a
+dedicated gap investigation); production identity/TLS/rate-limit/CSRF concerns remain separate,
+explicit future work. OR-10 final product/demo validation is complete: reproducible end-to-end
+validation, two security-review passes, the consolidated non-claims section, and real demo screenshots.
 
 The next operational-readiness work must be selected independently from real repository gaps. Production
 browser identity/session handling, OAuth/OIDC/workload identity, TLS termination, rate limiting, CSRF

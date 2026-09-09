@@ -51,6 +51,13 @@ is derived from the validated origin and resolves to the PC-27 dashboard UID
 `governed-llm-gateway-traces` on loopback Grafana port `3000`. No environment variable or arbitrary
 external observability URL is introduced.
 
+The Gateway API has no CORS middleware configured, reviewed as part of an OR-9 minimum-hardening pass
+over the demonstrated operational surfaces. This is deliberate, not an oversight: the Console only ever
+reaches the Gateway through Vite's same-origin `/v1` proxy above, so the browser never makes a genuinely
+cross-origin request to it. Absent CORS headers, a browser blocks any other origin from reading a
+response even if it can send the request, which is the correct default for a credential-bearing API. Do
+not add permissive CORS to the Gateway API without a separately reviewed cross-origin consumer boundary.
+
 ## Credential handling
 
 The existing Operations transport still requires:
