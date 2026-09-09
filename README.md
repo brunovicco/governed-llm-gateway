@@ -41,7 +41,7 @@ The Gateway may narrow an authorized set. It may never widen upstream authorizat
 The repository is a practical reference implementation of an AI Platform execution layer rather than a thin multi-provider proxy.
 
 | Area | Demonstrated capability |
-|---|---|
+| --- | --- |
 | **AI Platform architecture** | Provider-neutral contracts, model registry, explicit composition roots and thin consumer SDK |
 | **Governed execution** | PDP/PEP separation, deterministic authorization boundary and fail-closed behavior |
 | **Model routing** | Capability/environment filtering, deterministic ranking and route explainability |
@@ -84,6 +84,18 @@ See [`config/profiles/live-development/README.md`](config/profiles/live-developm
 
 This separation is intentional: operational availability never becomes authorization by accident.
 
+### 3. Your own project — the personal-default profile
+
+`config/profiles/personal-default/` is the profile built for actually calling the Gateway from your
+own applications, not a reviewed demo. It wires six providers (NVIDIA, Gemini, OpenAI, Anthropic, Groq,
+OpenRouter) into the same authorized model group. NVIDIA is the practical default — it has a genuine
+ranking preference reflecting its free tier — and deterministic ranking with automatic bounded fallback
+picks whichever authorized deployment is actually eligible. Your application never selects a provider or
+model; it only declares `workload`, `risk_level` and `data_classification`. See
+["Quick start: call the Gateway from your own project"](#quick-start-call-the-gateway-from-your-own-project)
+below and [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) for
+the full picture, including its current one-workload/one-group scope and proof status per provider.
+
 ## Quick start: local operations demo
 
 ### Prerequisites
@@ -121,7 +133,7 @@ uv run --frozen python scripts/local_demo.py
 When readiness succeeds, open:
 
 | Surface | URL | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | Gateway Console | `http://127.0.0.1:5173` | Read-only operational view |
 | Gateway readiness | `http://127.0.0.1:8000/readyz` | Process readiness |
 | Operations API | `http://127.0.0.1:8000/v1/ops/overview` | Authenticated bounded operational state |
@@ -136,6 +148,131 @@ uv run --frozen python scripts/local_demo.py --smoke-test
 ```
 
 For governed provider execution, use the separate [`live-development` profile runbook](config/profiles/live-development/README.md); it intentionally requires an external PDP and server-side provider credentials.
+
+## Quick start: call the Gateway from your own project
+
+This is the actual "no friction" path: your application never picks a provider or model, only a
+`workload`. It requires two running processes — the Policy Model Router (a separate repository) and the
+Gateway — plus your consumer project pointed at the Gateway's URL and credential.
+
+### 1. Install both services
+
+```bash
+git clone https://github.com/brunovicco/governed-llm-gateway.git
+cd governed-llm-gateway
+uv sync --frozen
+
+git clone https://github.com/brunovicco/policy-model-router.git ../policy-model-router
+cd ../policy-model-router
+uv sync --frozen
+cd ../governed-llm-gateway
+```
+
+### 2. Configure
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
+
+```dotenv
+GATEWAY_DEMO_API_KEY=replace-with-a-random-local-value
+POLICY_ROUTER_DEMO_API_KEY=replace-with-a-random-local-value
+NVIDIA_API_KEY=your-real-nvidia-key
+GEMINI_API_KEY=your-real-gemini-key
+OPENAI_API_KEY=your-real-openai-key
+ANTHROPIC_API_KEY=your-real-anthropic-key
+GROQ_API_KEY=your-real-groq-key
+OPENROUTER_API_KEY=your-real-openrouter-key
+```
+
+`GATEWAY_DEMO_API_KEY`/`POLICY_ROUTER_DEMO_API_KEY` are just local shared secrets you invent; the six
+provider keys are real credentials from each provider (NVIDIA has a free tier at
+[build.nvidia.com](https://build.nvidia.com)). Adapter construction resolves every **enabled**
+deployment's credential eagerly at startup, so a missing key fails the whole process closed. If you
+don't have all six, disable the corresponding deployment(s) in
+`config/profiles/personal-default/model_registry.yaml` (`enabled: false`) and remove the matching
+binding from `provider_runtime.json` before starting the Gateway.
+
+### 3. Start the Policy Router (terminal 1)
+
+```bash
+cd ../policy-model-router
+set -a; source ../governed-llm-gateway/.env; set +a
+export APP_ENV=development
+export ROUTING_POLICY_PATH="$PWD/examples/policies/gateway-generic.yaml"
+export API_KEYS="$(python3 -c 'import json, os; print(json.dumps({"gateway-demo": os.environ["POLICY_ROUTER_DEMO_API_KEY"]}))')"
+uv run uvicorn policy_model_router.entrypoints.http:app --host 127.0.0.1 --port 8001
+```
+
+### 4. Start the Gateway (terminal 2)
+
+```bash
+cd governed-llm-gateway
+set -a; source .env; set +a
+uv run --frozen --package governed-llm-gateway-api governed-llm-gateway \
+  --deployment-root "$PWD" \
+  --model-registry-path config/profiles/personal-default/model_registry.yaml \
+  --provider-runtime-path config/profiles/personal-default/provider_runtime.json \
+  --client-auth-path config/profiles/personal-default/client_auth.json \
+  --operations-access-path config/profiles/personal-default/operations_access.json \
+  --policy-router-path config/profiles/personal-default/policy_router.json \
+  --ranking-policy-path config/profiles/personal-default/ranking_policy.yaml \
+  --default-max-latency-ms 60000 \
+  --default-max-cost-usd 0.05 \
+  --host 127.0.0.1 \
+  --port 8000
+```
+
+### 5. Call it from your own project
+
+Add the thin client (not published to PyPI; install straight from this repository):
+
+```bash
+uv add "governed-llm-gateway-client @ git+https://github.com/brunovicco/governed-llm-gateway.git#subdirectory=packages/gateway-client"
+```
+
+Your consumer project needs only two environment variables — never a provider key:
+
+```dotenv
+GOVERNED_LLM_GATEWAY_URL=http://127.0.0.1:8000
+GOVERNED_LLM_GATEWAY_API_KEY=<the same GATEWAY_DEMO_API_KEY from step 2>
+```
+
+```python
+import asyncio
+
+from governed_llm_gateway_client import GatewayClient
+from governed_llm_gateway_contracts import DataClassification, Message, MessageRole, RiskLevel
+
+
+async def main() -> None:
+    async with GatewayClient.from_env() as gateway:
+        response = await gateway.generate(
+            workload="rag.answer",
+            messages=(
+                Message(role=MessageRole.USER, content="Explain deterministic routing in one sentence."),
+            ),
+            risk_level=RiskLevel.LOW,
+            data_classification=DataClassification.PUBLIC,
+            context_tokens_estimated=128,
+            max_output_tokens=128,
+            provider_timeout_seconds=30.0,
+        )
+
+    print(response.content)
+    # Decided by the Gateway's ranking, not by your code — NVIDIA under normal conditions,
+    # automatically falling back to another authorized provider otherwise.
+    print(response.execution.provider, response.execution.model, response.execution.deployment)
+
+
+asyncio.run(main())
+```
+
+No provider SDK, no API key, and no `if provider == ...` branch belongs in your project. See
+[`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) for the full
+runbook, current scope (`rag.answer` in the `balanced` model group) and per-provider proof status.
 
 ## Where do API keys go?
 
@@ -174,9 +311,20 @@ GATEWAY_DEMO_API_KEY
 POLICY_ROUTER_DEMO_API_KEY
 OPENAI_API_KEY
 GEMINI_API_KEY
+ANTHROPIC_API_KEY
+NVIDIA_API_KEY
+GROQ_API_KEY
+OPENROUTER_API_KEY
 ```
 
 The consumer presents only `GATEWAY_DEMO_API_KEY`. The Policy Router and provider credentials remain server-side. The profile does not contain the raw values and does not automatically activate when those variables are present.
+
+### Personal-default profile credentials
+
+The `personal-default` profile references the same eight variables as live-development above. Booting
+all six deployments at once requires all six provider keys to resolve (see
+["Quick start: call the Gateway from your own project"](#quick-start-call-the-gateway-from-your-own-project));
+disable any deployment you don't have a credential for.
 
 ### Provider API keys
 
@@ -256,12 +404,13 @@ The Gateway is intentionally **not** an agent framework, RAG framework, MCP tool
 ## Current status
 
 | Track | Status |
-|---|---|
+| --- | --- |
 | Core platform — Phases 0–13 | **Complete** |
 | Real-project integrations — Phase 14 | **In progress**: two integrations complete; OpsLens intentionally deferred |
 | Local operational demo — OR-8 | **Complete** at the bounded operations-only local-demo scope |
-| Live-inference development profile | **Implemented in PC-33**; a first opt-in live-provider proof (native Gemini deployment) was executed and recorded 2026-09-08 — see `docs/project/CURRENT_STATE.md` |
-| Broader operational-surface auth/security — OR-9 | **Not started** |
+| Live-inference development profile | **Implemented in PC-33**, extended to six providers; individually proven with real credentials: Gemini, OpenAI, Groq, NVIDIA. Anthropic reached the provider and failed on an account credit issue (not a config defect); OpenRouter not yet proven — see `docs/project/CURRENT_STATE.md` |
+| Personal-default profile (your own projects) | **Implemented**; NVIDIA cost-preferred ranking proven against four other simultaneously-enabled competing providers — see `config/profiles/personal-default/README.md` |
+| Broader operational-surface auth/security — OR-9 | **In progress** through bounded increments PC-34..PC-51 (see `docs/project/CURRENT_STATE.md`); production IAM/TLS/SSO, session handling, rate limiting and CSRF remain separate |
 | Final screenshots/demo/product-readiness validation — OR-10 | **Not started** |
 | Per-trace Console correlation | **Deferred pending an explicit reviewed correlation source** |
 
@@ -293,7 +442,7 @@ Frontend, observability and integration proofs are also isolated in dedicated Gi
 ## Repository map
 
 | Path | Responsibility |
-|---|---|
+| --- | --- |
 | `apps/gateway-api/` | FastAPI composition root and executable Gateway processes |
 | `apps/gateway-console/` | Read-only React/TypeScript operational console |
 | `packages/gateway-contracts/` | Provider-neutral public contracts |
@@ -313,6 +462,7 @@ If you are evaluating the repository, start here:
 - [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — authoritative current checkpoint;
 - [`docs/project/OPERATIONAL_READINESS.md`](docs/project/OPERATIONAL_READINESS.md) — local demo/operations readiness sequence;
 - [`config/profiles/live-development/README.md`](config/profiles/live-development/README.md) — governed live-development runbook;
+- [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) — how to call the Gateway from your own project, NVIDIA cost-preferred ranking;
 - [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — authorization boundary;
 - [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) — provider and secret model;
 - [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md) — Console boundary;
