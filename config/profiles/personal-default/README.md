@@ -60,13 +60,21 @@ after a permanent (non-retryable) failure.
   and fails closed on an account credit-balance issue in every group it's wired into (not a config
   defect — confirmed by direct API diagnosis). OpenRouter is wired but unproven pending
   `OPENROUTER_API_KEY`. See `docs/project/CURRENT_STATE.md`.
-- `agent.tool-use` and the other `reasoning-strong` workloads (`security.analysis`, `code.generate`,
-  `code.review`) share deployments already proven under `reasoning.complex`/`agent.orchestration` in
-  the same model group, but each individual workload string was not separately exercised with a live
-  request.
-- No workload here actually declares `requirements.tool_calling=true` with a real `ToolDefinition` in
-  a live proof; the capability is registered as genuinely supported (see above) but tool-call
-  execution itself is not yet demonstrated through this profile.
+- `security.analysis`, `code.generate`, `code.review` (sharing `reasoning-strong`'s deployments) were
+  not individually exercised with a live request.
+- Real structured-output and real tool-calling requests were both proven end to end (a genuine JSON
+  schema through `extraction.structured`/Gemini, and a real `ToolDefinition` + tool call through
+  `agent.tool-use`/OpenAI). Two real constraints surfaced doing this, worth knowing before you build
+  against this profile:
+  - `gemini-3.8-flash` spends a large, variable share of `max_output_tokens` on internal "thinking"
+    before any visible/structured text — the same class of issue already found with Groq's
+    `gpt-oss-120b` in `classification.simple` (see `docs/project/CURRENT_STATE.md`). A budget of `200`
+    reliably left no room for the actual JSON; `2000` was reliable. Give reasoning models real
+    headroom, not a token count sized for the answer alone.
+  - OpenAI's strict tool/structured-output mode requires `additionalProperties: false` on every object
+    node and every property listed in `required` (no optional properties) — the gateway enforces this
+    locally before any network call, failing closed in milliseconds with a clear message rather than
+    sending a request OpenAI would reject.
 - This is still a local/loopback profile: the Policy Router and Gateway run as local processes on
   `127.0.0.1`. It is not a production TLS/IAM/SLA claim, and it does not change the repository's
   fail-closed default `config/` artifacts used by CI and by a fresh clone.

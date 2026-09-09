@@ -288,12 +288,23 @@ Individually proven with real operator credentials, through the full Policy Rout
 - `classification.simple` — succeeded via Groq (`fast-small`), `latency_ms: 606`. A first attempt with a very small `max_output_tokens` failed because `openai/gpt-oss-120b` spends hidden reasoning tokens before visible content — a real model-behavior characteristic, not a wiring defect.
 - `extraction.structured` — succeeded via Gemini (`structured-fast`), `latency_ms: 1712`.
 - `reasoning.complex` and `agent.orchestration` — both initially routed to Anthropic (alphabetically first at equal neutral scores) and failed closed on the same pre-existing account credit-balance issue recorded above, with no fallback (a permanent, non-retryable failure never triggers cross-provider fallback by design). With Anthropic's two new deployments temporarily disabled to prove the group's other member, both succeeded via OpenAI: `reasoning.complex` `latency_ms: 3577`, `agent.orchestration` `latency_ms: 1748`.
-- `security.analysis`, `code.generate`, `code.review` (sharing the same `reasoning-strong` deployments as `reasoning.complex`) and `agent.tool-use` (sharing `agentic-strong` with `agent.orchestration`) are wired identically but were not individually exercised with a live request.
-- No workload was exercised with a real `ToolDefinition`/tool-call request; native tool-calling capability is registered as genuinely supported but tool-call execution itself remains unproven through this profile.
+- `security.analysis`, `code.generate`, `code.review` (sharing the same `reasoning-strong` deployments as `reasoning.complex`) were wired identically but not individually exercised with a live request. `agent.tool-use` was separately proven with a real tool call — see below.
 
 This does not change the checked-in fail-closed default `config/` artifacts, and does not add or require any new provider credential beyond the six already in use.
 
 The full six-deployment `personal-default` profile requires all six provider credentials to resolve at once (adapter construction is eager at startup); a full-profile boot proving the NVIDIA-wins-ranking behavior end to end is deferred until `OPENROUTER_API_KEY` is available, matching the same constraint already recorded for the `live-development` extension above.
+
+## Real structured-output and tool-calling proof, executed 2026-09-09
+
+Both native capabilities registered on the `structured-fast`/`reasoning-strong`/`agentic-strong` deployments were exercised with genuinely real requests through the full Policy Router + Gateway chain (Anthropic's two `agentic-strong`/`reasoning-strong` deployments temporarily disabled locally to reach OpenAI past the recorded credit-balance issue; no committed config changed):
+
+- **Structured output** — `extraction.structured` with a real JSON Schema (`{"type": "object", "properties": {"apples": {"type": "integer"}}, "required": ["apples"]}`) succeeded via `google-gemini-3-8-flash-structured-dev`, returning valid schema-conformant JSON (`{"apples": 5}`).
+- **Tool calling** — `agent.tool-use` with a real `ToolDefinition` (`get_weather(city: string)`) succeeded via `openai-gpt-5-6-luna-agentic-dev`: the model correctly decided to call the tool, the gateway normalized `tool_call.started` → `tool_call.arguments.delta` → `tool_call.completed` with real provider correlation (`call_id`), and the terminal response carried the canonical `ToolCall` (`get_weather({"city": "Paris"})`).
+
+Two real constraints surfaced while proving this, not gateway defects:
+
+- `gemini-3.8-flash` spends a large, variable share of `max_output_tokens` on internal "thinking" before any visible/structured text, the same class of issue as `gpt-oss-120b` above. `max_output_tokens: 200` reliably left no budget for the actual JSON (`finishReason: MAX_TOKENS` after only a few visible tokens); `max_output_tokens: 2000` was reliable. Confirmed directly against the real Gemini API (both `generateContent` and `streamGenerateContent`), independent of the gateway.
+- OpenAI's strict tool/structured-output mode requires `additionalProperties: false` on every object node and every property listed in `required`. The gateway's `openai_responses.py`/`openai_responses_streaming.py` already enforce this locally (`_require_openai_strict_schema`) and fail closed in ~2ms with a clear `invalid_request` message before any network call when a caller's schema is missing it — this is the gateway working as designed, not a bug; a first attempt without `additionalProperties: false` correctly failed this way.
 
 ## Governed live-inference development profile — PC-33 certified repository profile
 
