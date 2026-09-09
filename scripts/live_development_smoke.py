@@ -24,7 +24,7 @@ _PROFILE_EXECUTIONS: Mapping[str, tuple[str, str]] = {
     "google-gemini-3-8-flash-dev": ("google", "gemini-3.8-flash"),
     "openai-gpt-5-6-luna-dev": ("openai", "gpt-5.6-luna"),
     "anthropic-claude-sonnet-5-dev": ("anthropic", "claude-sonnet-5"),
-    "nvidia-llama-3-3-70b-dev": ("nvidia", "meta/llama-3.3-70b-instruct"),
+    "nvidia-nemotron-3-super-dev": ("nvidia", "nvidia/nemotron-3-super-120b-a12b"),
     "groq-gpt-oss-120b-dev": ("groq", "openai/gpt-oss-120b"),
     "openrouter-llama-3-3-70b-dev": ("openrouter", "meta-llama/llama-3.3-70b-instruct"),
 }

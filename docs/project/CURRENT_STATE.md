@@ -248,7 +248,7 @@ This satisfies README item 1 of "What remains before calling the application fin
 
 ## Live-development profile extended to six providers — proofs executed 2026-09-09
 
-The PC-33 profile was extended from two to six deployments in the same authorized `balanced` group: `google-gemini-3-8-flash-dev`, `openai-gpt-5-6-luna-dev`, `anthropic-claude-sonnet-5-dev` (native Anthropic Messages), `nvidia-llama-3-3-70b-dev`, `groq-gpt-oss-120b-dev`, and `openrouter-llama-3-3-70b-dev` (all three via the existing `openai-compatible` adapter family). `scripts/live_development_smoke.py` was extended to recognize all six as reviewed identities.
+The PC-33 profile was extended from two to six deployments in the same authorized `balanced` group: `google-gemini-3-8-flash-dev`, `openai-gpt-5-6-luna-dev`, `anthropic-claude-sonnet-5-dev` (native Anthropic Messages), `nvidia-nemotron-3-super-dev`, `groq-gpt-oss-120b-dev`, and `openrouter-llama-3-3-70b-dev` (all three via the existing `openai-compatible` adapter family). `scripts/live_development_smoke.py` was extended to recognize all six as reviewed identities.
 
 Booting the full six-deployment profile at once requires all six provider credentials to resolve, because adapter construction happens eagerly for every enabled deployment at startup. To prove one provider at a time without requiring every credential simultaneously, each proof below used a reduced local `model_registry.yaml` (only the target deployment `enabled: true`, the other five `enabled: false`) and a matching `provider_runtime.json` containing only that provider's binding; `provider_runtime.json` validation requires an exact match against currently-enabled registry deployments, and disabled deployments naturally surfaced as `deployment_disabled` rejected candidates rather than being silently dropped.
 
@@ -258,9 +258,26 @@ Individually proven with real operator credentials against repository baseline `
 - `openai-gpt-5-6-luna-dev` — succeeded, `latency_ms: 3308`;
 - `groq-gpt-oss-120b-dev` — succeeded, `latency_ms: 580` (model corrected during this proof from the originally wired `llama-3.3-70b-versatile`, no longer served by Groq's catalog, to `openai/gpt-oss-120b`, confirmed against the account's live `/v1/models` listing);
 - `anthropic-claude-sonnet-5-dev` — reached the provider and failed closed with a sanitized `invalid_request` gateway error; direct diagnosis against the real Anthropic API confirmed the model/endpoint/version are correct and the cause is an account-level credit balance issue, not a configuration defect;
-- `nvidia-llama-3-3-70b-dev` and `openrouter-llama-3-3-70b-dev` — wired identically but not yet proven; `NVIDIA_API_KEY` and `OPENROUTER_API_KEY` were not available in the operator's environment for this session.
+- `nvidia-nemotron-3-super-dev` (proven later the same day, see below) and `openrouter-llama-3-3-70b-dev` — wired identically but not yet proven at the time of this record; `NVIDIA_API_KEY` and `OPENROUTER_API_KEY` were not available in the operator's environment for this session.
 
 NVIDIA/Groq/OpenRouter pricing in the registry is an approximate placeholder pending a separately reviewed catalog update; it does not affect authorization and only participates in cost-eligibility filtering within the already-authorized `balanced` group.
+
+The originally wired NVIDIA model (`meta/llama-3.3-70b-instruct`) had reached end-of-life on NVIDIA's hosted catalog (`410 Gone`) and was corrected to `nvidia/nemotron-3-super-120b-a12b`, confirmed against the account's live `/v1/models` listing, in both this profile and `personal-default` below; the deployment id was renamed from `nvidia-llama-3-3-70b-dev` to `nvidia-nemotron-3-super-dev` to match.
+
+## Personal default profile — NVIDIA cost-preferred routing, executed 2026-09-09
+
+`config/profiles/personal-default/` is a new, distinct profile from `live-development`: it is the operator's actual day-to-day governed deployment rather than a reviewed demo. It wires the same six providers into the `balanced` group, but `nvidia-nemotron-3-super-dev` is given a real ranking preference — `cost: "1.00"` against `"0.50"` for the other five deployments, with registry `pricing` both `"0.00"` reflecting a genuine free tier — so it wins the deterministic ranking (total score `0.60` vs `0.50`) under normal conditions while automatic bounded fallback to the other five stays available if NVIDIA is disabled, missing its credential, unhealthy, or hits a retryable failure. All six deployments still sit in the single `balanced` group serving one workload, `rag.answer`; extending into the Policy Router's other model groups (`fast-small`, `reasoning-strong`, `agentic-strong`, `structured-fast`) is explicitly out of scope for this increment.
+
+The NVIDIA model originally wired in this profile (`meta/llama-3.3-70b-instruct`) returned `410 Gone` — it had reached end of life on NVIDIA's hosted catalog on 2026-08-26. Corrected to `nvidia/nemotron-3-super-120b-a12b`, confirmed against the account's live `/v1/models` listing before wiring it.
+
+Individually proven with real operator credentials:
+
+- `nvidia-nemotron-3-super-dev` alone — succeeded through the full Policy Router + Gateway chain, `latency_ms: 3571`.
+- `nvidia-nemotron-3-super-dev` competing against `google-gemini-3-8-flash-dev`, `openai-gpt-5-6-luna-dev`, `anthropic-claude-sonnet-5-dev`, and `groq-gpt-oss-120b-dev` simultaneously enabled (only `openrouter-llama-3-3-70b-dev` disabled, for lack of `OPENROUTER_API_KEY`) — NVIDIA won the deterministic ranking and was selected, confirming the `cost: "1.00"` preference actually decides routing rather than only working in isolation. `latency_ms: 1206`; `rejected_candidates` correctly showed only the disabled OpenRouter deployment, not the four healthy competing candidates.
+
+A full six-deployment boot proving this against all five alternatives simultaneously, including OpenRouter, remains deferred until `OPENROUTER_API_KEY` is available.
+
+The full six-deployment `personal-default` profile requires all six provider credentials to resolve at once (adapter construction is eager at startup); a full-profile boot proving the NVIDIA-wins-ranking behavior end to end is deferred until `OPENROUTER_API_KEY` is available, matching the same constraint already recorded for the `live-development` extension above.
 
 ## Governed live-inference development profile — PC-33 certified repository profile
 
