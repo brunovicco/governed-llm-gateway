@@ -1,8 +1,6 @@
 import asyncio
 from typing import cast
 
-from starlette.types import Message, Receive, Scope, Send
-
 from governed_llm_gateway_api import (
     GenerateCoordinator,
     RouteExplainCoordinator,
@@ -12,6 +10,7 @@ from governed_llm_gateway_api.generation_security import (
     MAX_GENERATION_REQUEST_BODY_BYTES,
     GenerationRequestBodyLimitMiddleware,
 )
+from starlette.types import Message, Receive, Scope, Send
 
 
 class RecordingApp:
