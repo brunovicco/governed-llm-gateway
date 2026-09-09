@@ -86,6 +86,7 @@ _EXECUTION_FIELDS = frozenset(
         "fallback_index",
         "api_family",
         "max_output_tokens",
+        "trace_id",
     }
 )
 _ERROR_FIELDS = frozenset({"code", "message", "retryable"})
@@ -377,6 +378,7 @@ def _decode_execution(payload: dict[str, object]) -> ProviderExecution:
         fallback_index=0 if fallback_index is None else fallback_index,
         api_family=_optional_str(payload, "api_family"),
         max_output_tokens=_optional_int(payload, "max_output_tokens"),
+        trace_id=_optional_str(payload, "trace_id"),
     )
 
 

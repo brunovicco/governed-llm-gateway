@@ -20,6 +20,7 @@ from .errors import GatewayError
 
 _TOOL_NAME_PATTERN = r"[A-Za-z_][A-Za-z0-9_-]{0,127}"
 _SCHEMA_NAME_PATTERN = r"[A-Za-z_][A-Za-z0-9_-]{0,63}"
+_TRACE_ID_PATTERN = r"[0-9a-f]{32}"
 _MAX_IMAGE_URL_LENGTH = 2048
 _MAX_IMAGES_PER_MESSAGE = 8
 _MAX_IMAGES_PER_REQUEST = 16
@@ -295,6 +296,7 @@ class ProviderExecution:
     fallback_index: int = 0
     api_family: str | None = None
     max_output_tokens: int | None = None
+    trace_id: str | None = None
 
     def __post_init__(self) -> None:
         """Validate concrete provider identity and measured execution metadata."""
@@ -315,6 +317,11 @@ class ProviderExecution:
             raise ValueError("provider execution fallback_index must be non-negative")
         if self.max_output_tokens is not None and self.max_output_tokens <= 0:
             raise ValueError("provider execution max_output_tokens must be positive when present")
+        if self.trace_id is not None and fullmatch(_TRACE_ID_PATTERN, self.trace_id) is None:
+            raise ValueError(
+                "provider execution trace_id must be a 32-character lowercase hex string"
+                " when present"
+            )
 
 
 @dataclass(frozen=True, slots=True)

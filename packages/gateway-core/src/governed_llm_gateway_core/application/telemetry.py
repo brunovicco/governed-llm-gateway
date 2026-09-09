@@ -99,3 +99,15 @@ def mark_span_failure(span: Span, error_type: str) -> None:
 def mark_span_cancelled(span: Span) -> None:
     """Record caller cancellation as lifecycle state, not provider failure."""
     span.set_attribute("outcome", "cancelled")
+
+
+def current_trace_id(span: Span) -> str | None:
+    """Return the span's 32-character lowercase-hex trace ID, or None when invalid.
+
+    A disabled/no-op span (observability off) carries an invalid span context, so callers get
+    None rather than a synthesized identity - descriptive evidence must never be fabricated.
+    """
+    span_context = span.get_span_context()
+    if not span_context.is_valid:
+        return None
+    return format(span_context.trace_id, "032x")

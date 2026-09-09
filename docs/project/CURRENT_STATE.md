@@ -418,7 +418,24 @@ One genuine, previously undocumented finding: the Gateway API has no CORS middle
 
 **Conclusion: OR-9's minimum-appropriate hardening for the currently demonstrated operational surfaces is complete.** No further non-production gap was found. The remaining OR-9 scope — production browser identity/session handling, OAuth/OIDC/workload identity, TLS termination, rate limiting, CSRF policy, and any future mutation authority — is genuinely production-only work, correctly deferred rather than a silently missing "minimum," and remains explicitly open in both this document and the README's Non-claims section.
 
-## Phase 14 — Real Project Integrations
+## PC-52 — Gateway Console per-request trace navigation, executed 2026-09-09
+
+README item 2 of "What remains before calling the application finished" asked whether the Console should gain a bounded live-request/provenance view and per-trace navigation. The live-request/provenance view already existed (PC-38's "Run governed request" panel, already showing real provider/model/deployment identity). The genuinely open part was per-trace navigation: a real link from one completed request to that exact trace in Grafana, not just the general dashboard PC-28 already links to.
+
+`ProviderExecution` gained an optional `trace_id` field (validated everywhere as an exact 32-character lowercase-hex string, or absent — never fabricated). `apps/gateway-api/stream_generate.py` reads the Gateway's own already-active OTel span's `SpanContext.trace_id` (via a new `current_trace_id` helper in `packages/gateway-core/application/telemetry.py`) only when building the terminal `RESPONSE_COMPLETED` SSE event, only when that span context is valid. The field threads through the SSE wire payload, the Python thin client's codec, and the Console's own SSE decoder, each independently closed-schema validating it. The Console renders a "View this request's trace in Grafana" link when present, built by a new `buildLocalGrafanaTraceUrl` alongside the existing `buildLocalGrafanaDashboardUrl`.
+
+The per-trace link does not use Grafana's Explore view: this local demo's anonymous Viewer role does not have Explore access (confirmed directly — Grafana redirects `/explore` to `/?redirectTo=%2Fexplore` for that role). Instead, `deploy/observability/gateway-traces-dashboard.json` gained a second panel, `Selected request trace` (a Tempo `traces` panel querying `${traceId}`), fed by a new `traceId` textbox dashboard variable; the link sets that variable and jumps straight to the panel (`/d/<uid>/<slug>?var-traceId=<id>&viewPanel=2`). This reuses the same reviewed, `allowUiUpdates: false` dashboard the Console already links to.
+
+Proving this end to end surfaced one real, previously undiscovered infrastructure bug: `otel-collector` in `compose.observability.yml` declared `127.0.0.1:4318:4318`, but its only Docker network was `observability`, which is `internal: true` — an internal network cannot have any of its containers' ports published to the host, so Docker silently dropped the mapping and the Collector was unreachable from any host process. This had never been caught because the credential-free `collector-receipt` CI proof uses an entirely separate, non-internal-networked compose file (`compose.collector-receipt.yml`), and nothing else sent a real span through this specific stack from a host process. Fixed by adding `otel-collector` to the `grafana-host-access` bridge alongside `grafana`; Tempo stays internal-only and unpublished, unchanged.
+
+With the fix in place, this was proven completely live, twice:
+
+1. **SDK-level proof** (`personal-default` profile, OTel enabled, real observability stack): a real governed request returned `trace_id: c4825b8223d1d5187b3a65ef6323dab3` (then `06aab379f1d4674df651e926f2d14882` after the network fix); Grafana's `Selected request trace` panel rendered the real waterfall for the second one — `governed-llm-gateway: llm.gateway.request` (273ms) → `policy.route` (234ms) and `llm.gateway.stream` (1.63s) → `provider.inference` (1.62s) — matching the Gateway's own span hierarchy exactly.
+2. **Full browser proof** (Console UI, not just the SDK): connected to the live Gateway, ran a real governed request through the Console's own form, got back `provider: nvidia`, `deployment: nvidia-nemotron-3-super-dev`, and `Trace ID: 0d4f1d56a6af2f2a50fa1b1ae217b870` displayed in the evidence panel; clicked the Console's own "View this request's trace in Grafana" link; Grafana opened showing that exact same trace ID and the same waterfall shape. Screenshots: `docs/assets/screenshots/console-trace-evidence.png` and `docs/assets/screenshots/grafana-selected-trace-panel.png`.
+
+All local processes and the observability Compose stack (including volumes) were torn down after the proof; `git status --short config/` was clean throughout since no committed config was edited for this profile run.
+
+This closes README item 2 completely and closes OR-6's previously-deferred per-trace-correlation gap.
 
 Normative order:
 

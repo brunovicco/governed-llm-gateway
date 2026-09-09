@@ -298,19 +298,21 @@ The Gateway is intentionally **not** an agent framework, RAG framework, MCP tool
 | Personal-default profile (your own projects) | **Implemented**; NVIDIA cost-preferred ranking proven against four other simultaneously-enabled competing providers — see `config/profiles/personal-default/README.md` |
 | Broader operational-surface auth/security — OR-9 | **Minimum-appropriate hardening complete** through bounded increments PC-34..PC-51 plus a dedicated gap investigation (see `docs/project/CURRENT_STATE.md`); production IAM/TLS/SSO, session handling, rate limiting and CSRF remain explicit future work, not silently missing |
 | Final screenshots/demo/product-readiness validation — OR-10 | **Complete**: reproducible e2e validation, a security review of the session's new code and of the existing HTTP/adapter surface (no findings in either pass), the consolidated [non-claims](#non-claims) section, and real Console/Grafana screenshots of the operations-only demo — see `docs/project/CURRENT_STATE.md` |
-| Per-trace Console correlation | **Deferred pending an explicit reviewed correlation source** |
+| Per-trace Console correlation | **Implemented in PC-52**; proven live against a real captured trace, in the browser, not just the SDK — see `docs/project/CURRENT_STATE.md` |
 
 The authoritative checkpoint is [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
 
-### What remains before calling the application finished
+### Portfolio/demo-ready live product path — complete
 
-For a **portfolio/demo-ready live product path**, the main remaining work is:
+Every item previously tracked here for a **portfolio/demo-ready live product path** is now done:
 
-1. ~~execute and record an opt-in real-provider proof through the PC-33 profile while keeping required CI credential-free~~ — done: every deployment in the profile is now individually proven live (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — see `docs/project/CURRENT_STATE.md`;
-2. decide whether the current Console should gain a bounded live-request/provenance view and per-trace navigation, based only on real backend evidence;
-3. ~~complete the minimum OR-9 security hardening appropriate to the demonstrated operational surfaces and clearly separate production-only hardening~~ — done: a dedicated investigation found no further non-production gap beyond PC-34..PC-51 — see `docs/project/CURRENT_STATE.md`;
-4. ~~complete OR-10: reproducible end-to-end validation, a security review, the consolidated non-claims section, and real screenshots of the operations-only demo~~ — done, see `docs/project/CURRENT_STATE.md`;
+1. ~~execute and record an opt-in real-provider proof through the PC-33 profile while keeping required CI credential-free~~ — every deployment in the profile is individually proven live (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic);
+2. ~~decide whether the current Console should gain a bounded live-request/provenance view and per-trace navigation~~ — the live-request/provenance view existed since PC-38; PC-52 adds real per-trace navigation, proven live in the browser against a real captured trace;
+3. ~~complete the minimum OR-9 security hardening appropriate to the demonstrated operational surfaces~~ — a dedicated investigation found no further non-production gap beyond PC-34..PC-51;
+4. ~~complete OR-10: reproducible end-to-end validation, a security review, the consolidated non-claims section, and real screenshots~~ — done;
 5. ~~decide and cut the `v1.0.0` release boundary~~ — done, see [`CHANGELOG.md`](CHANGELOG.md).
+
+See `docs/project/CURRENT_STATE.md` for the dated evidence behind each item. This closes the list that was open at v1.0.0's cut, not the roadmap as a whole — OR-9's production-only scope (TLS/IAM/SSO, session handling, rate limiting, CSRF) and Phase 14's remaining cases stay open by design; see [Non-claims](#non-claims).
 
 For **full roadmap completion**, Phase 14 also remains sequentially gated: OpsLens must be reconciled before RAGForge and later integrations are started unless that normative order is explicitly revised.
 

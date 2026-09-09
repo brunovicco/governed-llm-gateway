@@ -40,7 +40,7 @@ def test_compose_mounts_read_only_grafana_dashboard_provisioning() -> None:
     assert "0.0.0.0:3000:3000" not in compose
     assert "3200:3200" not in compose
     assert "  observability:\n    internal: true" in compose
-    assert compose.count("      - grafana-host-access") == 1
+    assert compose.count("      - grafana-host-access") == 2
     assert "  grafana-host-access:\n    driver: bridge" in compose
 
 
@@ -67,13 +67,13 @@ def test_dashboard_is_read_only_and_uses_only_the_tempo_trace_query() -> None:
 
     panels = dashboard["panels"]
     assert isinstance(panels, list)
-    assert len(panels) == 1
-    panel = panels[0]
-    assert isinstance(panel, dict)
-    assert panel["type"] == "table"
-    assert panel["datasource"] == {"type": "tempo", "uid": "tempo"}
+    assert len(panels) == 2
+    recent_panel, trace_panel = panels
 
-    targets = panel["targets"]
+    assert isinstance(recent_panel, dict)
+    assert recent_panel["type"] == "table"
+    assert recent_panel["datasource"] == {"type": "tempo", "uid": "tempo"}
+    targets = recent_panel["targets"]
     assert isinstance(targets, list)
     assert len(targets) == 1
     target = targets[0]
@@ -82,6 +82,28 @@ def test_dashboard_is_read_only_and_uses_only_the_tempo_trace_query() -> None:
     assert target["queryType"] == "traceql"
     assert target["query"] == _TRACE_QUERY
     assert target["limit"] == 20
+
+    assert isinstance(trace_panel, dict)
+    assert trace_panel["type"] == "traces"
+    assert trace_panel["datasource"] == {"type": "tempo", "uid": "tempo"}
+    trace_targets = trace_panel["targets"]
+    assert isinstance(trace_targets, list)
+    assert len(trace_targets) == 1
+    trace_target = trace_targets[0]
+    assert isinstance(trace_target, dict)
+    assert trace_target["datasource"] == {"type": "tempo", "uid": "tempo"}
+    assert trace_target["queryType"] == "traceql"
+    assert trace_target["query"] == "${traceId}"
+
+    templating = dashboard["templating"]
+    assert isinstance(templating, dict)
+    variables = templating["list"]
+    assert isinstance(variables, list)
+    assert len(variables) == 1
+    variable = variables[0]
+    assert isinstance(variable, dict)
+    assert variable["name"] == "traceId"
+    assert variable["type"] == "textbox"
 
 
 def test_dashboard_contains_no_fake_metrics_mutations_or_external_backends() -> None:

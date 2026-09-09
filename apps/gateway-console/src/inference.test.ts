@@ -85,6 +85,53 @@ describe("GovernedInferenceClient", () => {
       latency_ms: 125,
     });
     expect(result.usage).toMatchObject({ input_tokens: 42, output_tokens: 11, total_tokens: 53 });
+    expect(result.execution.trace_id).toBeNull();
+  });
+
+  it("decodes a valid terminal execution trace_id", async () => {
+    const traceId = "abcdef1234567890abcdef1234567890";
+    const client = new GovernedInferenceClient(
+      vi.fn().mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+        const request = requestBody(init);
+        return Promise.resolve(
+          sseResponse([
+            event(request.request_id, 1, "response.started", { routing: ROUTING }),
+            event(request.request_id, 2, "content.delta", { delta: "traced answer" }),
+            event(request.request_id, 3, "usage.completed", { usage: USAGE }),
+            event(request.request_id, 4, "response.completed", {
+              routing: ROUTING,
+              execution: { ...EXECUTION, trace_id: traceId },
+            }),
+          ]),
+        );
+      }),
+    );
+
+    const result = await client.generate("demo-key", "trace me");
+
+    expect(result.execution.trace_id).toBe(traceId);
+  });
+
+  it("fails closed on a malformed terminal execution trace_id", async () => {
+    const client = new GovernedInferenceClient(
+      vi.fn().mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+        const request = requestBody(init);
+        return Promise.resolve(
+          sseResponse([
+            event(request.request_id, 1, "response.started", { routing: ROUTING }),
+            event(request.request_id, 2, "usage.completed", { usage: USAGE }),
+            event(request.request_id, 3, "response.completed", {
+              routing: ROUTING,
+              execution: { ...EXECUTION, trace_id: "NOT-VALID-HEX" },
+            }),
+          ]),
+        );
+      }),
+    );
+
+    await expect(client.generate("demo-key", "hello")).rejects.toMatchObject<
+      Partial<InferenceApiError>
+    >({ kind: "protocol_error" });
   });
 
   it("fails closed when the SSE request id differs from the submitted request", async () => {
