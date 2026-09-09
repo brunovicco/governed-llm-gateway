@@ -4,6 +4,7 @@ from a2a_otel_kit import Observability
 from fastapi import FastAPI
 
 from .complexity_generate import ComplexityGenerateCoordinator
+from .content_type_security import GovernedJsonContentTypeMiddleware
 from .generation_response_security import GenerationNoStoreMiddleware
 from .generation_security import GenerationRequestBodyLimitMiddleware
 from .route_explain import (
@@ -31,8 +32,9 @@ def create_gateway_app(
         observability=observability,
     )
     app.add_middleware(RouteExplainRequestBodyLimitMiddleware)
-    app.add_middleware(RouteExplainNoStoreMiddleware)
     app.add_middleware(GenerationRequestBodyLimitMiddleware)
+    app.add_middleware(GovernedJsonContentTypeMiddleware)
+    app.add_middleware(RouteExplainNoStoreMiddleware)
     app.add_middleware(GenerationNoStoreMiddleware)
     attach_generate_route(
         app,
