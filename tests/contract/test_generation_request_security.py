@@ -184,9 +184,7 @@ def test_gateway_composition_installs_generation_limit_once() -> None:
     )
 
     installed = [
-        item
-        for item in app.user_middleware
-        if item.cls is GenerationRequestBodyLimitMiddleware
+        item for item in app.user_middleware if item.cls is GenerationRequestBodyLimitMiddleware
     ]
 
     assert len(installed) == 1
