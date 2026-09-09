@@ -183,9 +183,7 @@ def test_gateway_composition_installs_generation_limit_once() -> None:
         cast(GenerateCoordinator, object()),
     )
 
-    installed = [
-        item for item in app.user_middleware if item.cls is GenerationRequestBodyLimitMiddleware
-    ]
+    middleware_classes = tuple(cast(object, item.cls) for item in app.user_middleware)
 
-    assert len(installed) == 1
+    assert middleware_classes.count(GenerationRequestBodyLimitMiddleware) == 1
     assert MAX_GENERATION_REQUEST_BODY_BYTES == 8 * 1024 * 1024
