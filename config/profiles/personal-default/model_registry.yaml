@@ -1,7 +1,30 @@
 schema_version: "1.0"
-catalog_version: "pc33-live-development-20260908"
-source_date: "2026-09-08"
+catalog_version: "personal-default-20260909"
+source_date: "2026-09-09"
 deployments:
+  nvidia-nemotron-3-super-dev:
+    provider: nvidia
+    model_id: nvidia/nemotron-3-super-120b-a12b
+    model_group: balanced
+    api_family: openai-compatible
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: false
+      structured_output: false
+      streaming: true
+    context_tokens: 131072
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "0.00"
+      output_usd_per_million_tokens: "0.00"
+      source_date: "2026-09-09"
+      snapshot_version: "nvidia-nemotron-3-super-free-tier-20260909"
+    max_data_classification: public
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"
   google-gemini-3-8-flash-dev:
     provider: google
     model_id: gemini-3.8-flash
@@ -23,8 +46,8 @@ deployments:
     max_data_classification: public
     allowed_environments: [development]
     enabled: true
-    source_date: "2026-09-08"
-    catalog_version: "pc33-live-development-20260908"
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"
   openai-gpt-5-6-luna-dev:
     provider: openai
     model_id: gpt-5.6-luna
@@ -46,8 +69,8 @@ deployments:
     max_data_classification: public
     allowed_environments: [development]
     enabled: true
-    source_date: "2026-09-08"
-    catalog_version: "pc33-live-development-20260908"
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"
   anthropic-claude-sonnet-5-dev:
     provider: anthropic
     model_id: claude-sonnet-5
@@ -69,31 +92,8 @@ deployments:
     max_data_classification: public
     allowed_environments: [development]
     enabled: true
-    source_date: "2026-09-08"
-    catalog_version: "pc33-live-development-20260908"
-  nvidia-nemotron-3-super-dev:
-    provider: nvidia
-    model_id: nvidia/nemotron-3-super-120b-a12b
-    model_group: balanced
-    api_family: openai-compatible
-    capabilities:
-      text: true
-      vision: false
-      tool_calling: false
-      structured_output: false
-      streaming: true
-    context_tokens: 131072
-    modalities: [text]
-    pricing:
-      input_usd_per_million_tokens: "0.20"
-      output_usd_per_million_tokens: "0.20"
-      source_date: "2026-09-09"
-      snapshot_version: "nvidia-nemotron-3-super-20260909"
-    max_data_classification: public
-    allowed_environments: [development]
-    enabled: true
-    source_date: "2026-09-08"
-    catalog_version: "pc33-live-development-20260908"
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"
   groq-gpt-oss-120b-dev:
     provider: groq
     model_id: openai/gpt-oss-120b
@@ -115,8 +115,8 @@ deployments:
     max_data_classification: public
     allowed_environments: [development]
     enabled: true
-    source_date: "2026-09-08"
-    catalog_version: "pc33-live-development-20260908"
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"
   openrouter-llama-3-3-70b-dev:
     provider: openrouter
     model_id: meta-llama/llama-3.3-70b-instruct
@@ -138,5 +138,5 @@ deployments:
     max_data_classification: public
     allowed_environments: [development]
     enabled: true
-    source_date: "2026-09-08"
-    catalog_version: "pc33-live-development-20260908"
+    source_date: "2026-09-09"
+    catalog_version: "personal-default-20260909"

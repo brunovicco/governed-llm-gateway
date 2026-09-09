@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0",
+  "config_version": "personal-default-20260909",
+  "bindings": [
+    {
+      "provider": "nvidia",
+      "api_family": "openai-compatible",
+      "credential_reference": "NVIDIA_API_KEY",
+      "endpoint": "https://integrate.api.nvidia.com/v1/chat/completions",
+      "openai_compatible": {
+        "max_tokens_field": "max_tokens",
+        "supports_native_structured_output": false,
+        "supports_native_tool_calling": false,
+        "supports_streaming": true,
+        "supports_stream_usage": true
+      }
+    },
+    {
+      "provider": "google",
+      "api_family": "gemini-generate-content",
+      "credential_reference": "GEMINI_API_KEY",
+      "endpoint": "https://generativelanguage.googleapis.com/v1beta/models"
+    },
+    {
+      "provider": "openai",
+      "api_family": "openai-responses",
+      "credential_reference": "OPENAI_API_KEY",
+      "endpoint": "https://api.openai.com/v1/responses"
+    },
+    {
+      "provider": "anthropic",
+      "api_family": "anthropic-messages",
+      "credential_reference": "ANTHROPIC_API_KEY",
+      "endpoint": "https://api.anthropic.com/v1/messages",
+      "anthropic_api_version": "2023-06-01"
+    },
+    {
+      "provider": "groq",
+      "api_family": "openai-compatible",
+      "credential_reference": "GROQ_API_KEY",
+      "endpoint": "https://api.groq.com/openai/v1/chat/completions",
+      "openai_compatible": {
+        "max_tokens_field": "max_tokens",
+        "supports_native_structured_output": false,
+        "supports_native_tool_calling": false,
+        "supports_streaming": true,
+        "supports_stream_usage": true
+      }
+    },
+    {
+      "provider": "openrouter",
+      "api_family": "openai-compatible",
+      "credential_reference": "OPENROUTER_API_KEY",
+      "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+      "openai_compatible": {
+        "max_tokens_field": "max_tokens",
+        "supports_native_structured_output": false,
+        "supports_native_tool_calling": false,
+        "supports_streaming": true,
+        "supports_stream_usage": true
+      }
+    }
+  ]
+}

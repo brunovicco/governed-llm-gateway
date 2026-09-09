@@ -1,7 +1,7 @@
 schema_version: "1.0"
-policy_version: "pc33-live-development-v1"
-score_snapshot_id: "pc33-neutral-static-v1"
-source_date: "2026-09-08"
+policy_version: "personal-default-v1"
+score_snapshot_id: "personal-default-cost-preference-v1"
+source_date: "2026-09-09"
 workloads:
   rag.answer:
     weights:
@@ -11,6 +11,13 @@ workloads:
       cost: "0.20"
       availability: "0.20"
     deployments:
+      nvidia-nemotron-3-super-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "1.00"
+        availability: "0.50"
+        expected_latency_ms: 30000
       google-gemini-3-8-flash-dev:
         quality: "0.50"
         reliability: "0.50"
@@ -26,13 +33,6 @@ workloads:
         availability: "0.50"
         expected_latency_ms: 30000
       anthropic-claude-sonnet-5-dev:
-        quality: "0.50"
-        reliability: "0.50"
-        latency: "0.50"
-        cost: "0.50"
-        availability: "0.50"
-        expected_latency_ms: 30000
-      nvidia-nemotron-3-super-dev:
         quality: "0.50"
         reliability: "0.50"
         latency: "0.50"

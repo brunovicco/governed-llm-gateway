@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "config_version": "personal-default-20260909",
+  "bindings": [
+    {
+      "client_id": "gateway-demo",
+      "environment": "development",
+      "credential_reference": "GATEWAY_DEMO_API_KEY",
+      "allowed_workloads": ["rag.answer"],
+      "minimum_risk_level": "low",
+      "minimum_data_classification": "public"
+    }
+  ]
+}

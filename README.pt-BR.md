@@ -41,7 +41,7 @@ O Gateway pode restringir um conjunto autorizado. Ele nunca pode ampliar uma aut
 O repositório funciona como uma implementação prática de uma camada de execução de AI Platform — e não apenas como um proxy multi-provider.
 
 | Área | Capacidade demonstrada |
-|---|---|
+| --- | --- |
 | **Arquitetura de AI Platform** | Contratos provider-neutral, model registry, composition roots explícitos e SDK consumidor fino |
 | **Execução governada** | Separação PDP/PEP, fronteira determinística de autorização e comportamento fail-closed |
 | **Roteamento de modelos** | Filtros por capacidade/ambiente, ranking determinístico e explicabilidade da rota |
@@ -50,7 +50,7 @@ O repositório funciona como uma implementação prática de uma camada de execu
 | **Model I/O estruturado** | Validação de structured output e contratos normalizados de tool calls sem assumir a execução das ferramentas |
 | **Observabilidade** | OpenTelemetry metadata-only, prova real Collector → Tempo e dashboard Grafana provisionado por arquivo |
 | **Avaliação** | Benchmarks determinísticos, evidência imutável e fronteiras explícitas de promoção/rollback |
-| **Segurança** | Secrets de provider no servidor, fronteiras de autenticação de clientes, secret scanning e ausência de fallback allow-all |
+| **Segurança** | Secrets de provider no servidor, fronteiras de autenticação de clientes, secret scanning e ausência de fallback allow-all 
 | **Qualidade de engenharia** | Tipagem strict, architecture checks, gates de segurança, testes automatizados e provas de CI com containers reais |
 
 ## O que já é possível executar hoje
@@ -83,6 +83,19 @@ Para um caminho explícito e opt-in de desenvolvimento, `config/profiles/live-de
 Veja [`config/profiles/live-development/README.md`](config/profiles/live-development/README.md) para o fluxo exato de startup e requisição. O perfil é uma configuração de desenvolvimento/demo, não uma promessa de TLS, IAM, secret management ou SLA de provider para produção. A execução com providers reais permanece opt-in e exige credenciais; a CI obrigatória continua credential-free.
 
 Essa separação é intencional: disponibilidade operacional não pode virar autorização acidentalmente.
+
+### 3. Seu próprio projeto — o perfil personal-default
+
+`config/profiles/personal-default/` é o perfil construído para chamar o Gateway de verdade a partir das
+suas próprias aplicações, não uma demo revisada. Ele conecta seis providers (NVIDIA, Gemini, OpenAI,
+Anthropic, Groq, OpenRouter) no mesmo grupo lógico autorizado. O NVIDIA é o padrão prático — ele tem uma
+preferência real de ranking refletindo seu tier gratuito — e o ranking determinístico com fallback
+automático limitado escolhe qualquer deployment autorizado que esteja de fato elegível. Sua aplicação
+nunca seleciona provider nem modelo; ela só declara `workload`, `risk_level` e `data_classification`.
+Veja
+["Quick start: chamar o Gateway a partir do seu próprio projeto"](#quick-start-chamar-o-gateway-a-partir-do-seu-próprio-projeto)
+abaixo e [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) para
+o panorama completo, incluindo o escopo atual de um workload/um grupo e o status de prova por provider.
 
 ## Quick start: demo local operations-only
 
@@ -121,7 +134,7 @@ uv run --frozen python scripts/local_demo.py
 Quando a readiness estiver concluída, abra:
 
 | Superfície | URL | Finalidade |
-|---|---|---|
+| --- | --- | --- |
 | Gateway Console | `http://127.0.0.1:5173` | Visão operacional read-only |
 | Gateway readiness | `http://127.0.0.1:8000/readyz` | Readiness do processo |
 | Operations API | `http://127.0.0.1:8000/v1/ops/overview` | Estado operacional limitado e autenticado |
@@ -137,11 +150,136 @@ uv run --frozen python scripts/local_demo.py --smoke-test
 
 Para execução governada com providers, use o runbook separado do [`live-development` profile](config/profiles/live-development/README.md); ele exige deliberadamente um PDP externo e credenciais server-side dos providers.
 
-## Onde informar as API keys?
+## Quick start: chamar o Gateway a partir do seu próprio projeto
 
-**Nunca coloque API keys reais em arquivos do Model Registry, JSON de provider runtime, READMEs, logs, traces ou no Git.**
+Esse é o caminho "sem fricção" de verdade: sua aplicação nunca escolhe provider nem modelo, só um
+`workload`. Ele exige dois processos rodando — o Policy Model Router (um repositório separado) e o
+Gateway — mais o seu projeto consumidor apontado para a URL e a credencial do Gateway.
 
-O projeto usa um modelo de secrets baseado em referências:
+### 1. Instalar os dois serviços
+
+```bash
+git clone https://github.com/brunovicco/governed-llm-gateway.git
+cd governed-llm-gateway
+uv sync --frozen
+
+git clone https://github.com/brunovicco/policy-model-router.git ../policy-model-router
+cd ../policy-model-router
+uv sync --frozen
+cd ../governed-llm-gateway
+```
+
+### 2. Configurar
+
+```bash
+cp .env.example .env
+```
+
+Edite o `.env`:
+
+```dotenv
+GATEWAY_DEMO_API_KEY=substitua-por-um-valor-local-aleatorio
+POLICY_ROUTER_DEMO_API_KEY=substitua-por-um-valor-local-aleatorio
+NVIDIA_API_KEY=sua-chave-nvidia-real
+GEMINI_API_KEY=sua-chave-gemini-real
+OPENAI_API_KEY=sua-chave-openai-real
+ANTHROPIC_API_KEY=sua-chave-anthropic-real
+GROQ_API_KEY=sua-chave-groq-real
+OPENROUTER_API_KEY=sua-chave-openrouter-real
+```
+
+`GATEWAY_DEMO_API_KEY`/`POLICY_ROUTER_DEMO_API_KEY` são só segredos locais que você inventa; as seis
+chaves de provider são credenciais reais de cada provider (o NVIDIA tem tier gratuito em
+[build.nvidia.com](https://build.nvidia.com)). A construção dos adapters resolve a credencial de todo
+deployment **habilitado** já no boot, então uma chave faltando derruba o processo inteiro fechado. Se
+você não tiver as seis, desabilite o(s) deployment(s) correspondente(s) em
+`config/profiles/personal-default/model_registry.yaml` (`enabled: false`) e remova o binding
+correspondente do `provider_runtime.json` antes de iniciar o Gateway.
+
+### 3. Iniciar o Policy Router (terminal 1)
+
+```bash
+cd ../policy-model-router
+set -a; source ../governed-llm-gateway/.env; set +a
+export APP_ENV=development
+export ROUTING_POLICY_PATH="$PWD/examples/policies/gateway-generic.yaml"
+export API_KEYS="$(python3 -c 'import json, os; print(json.dumps({"gateway-demo": os.environ["POLICY_ROUTER_DEMO_API_KEY"]}))')"
+uv run uvicorn policy_model_router.entrypoints.http:app --host 127.0.0.1 --port 8001
+```
+
+### 4. Iniciar o Gateway (terminal 2)
+
+```bash
+cd governed-llm-gateway
+set -a; source .env; set +a
+uv run --frozen --package governed-llm-gateway-api governed-llm-gateway \
+  --deployment-root "$PWD" \
+  --model-registry-path config/profiles/personal-default/model_registry.yaml \
+  --provider-runtime-path config/profiles/personal-default/provider_runtime.json \
+  --client-auth-path config/profiles/personal-default/client_auth.json \
+  --operations-access-path config/profiles/personal-default/operations_access.json \
+  --policy-router-path config/profiles/personal-default/policy_router.json \
+  --ranking-policy-path config/profiles/personal-default/ranking_policy.yaml \
+  --default-max-latency-ms 60000 \
+  --default-max-cost-usd 0.05 \
+  --host 127.0.0.1 \
+  --port 8000
+```
+
+### 5. Chamar a partir do seu próprio projeto
+
+Adicione o SDK fino (não publicado no PyPI; instale direto deste repositório):
+
+```bash
+uv add "governed-llm-gateway-client @ git+https://github.com/brunovicco/governed-llm-gateway.git#subdirectory=packages/gateway-client"
+```
+
+Seu projeto consumidor precisa só de duas variáveis de ambiente — nunca de uma chave de provider:
+
+```dotenv
+GOVERNED_LLM_GATEWAY_URL=http://127.0.0.1:8000
+GOVERNED_LLM_GATEWAY_API_KEY=<o mesmo GATEWAY_DEMO_API_KEY do passo 2>
+```
+
+```python
+import asyncio
+
+from governed_llm_gateway_client import GatewayClient
+from governed_llm_gateway_contracts import DataClassification, Message, MessageRole, RiskLevel
+
+
+async def main() -> None:
+    async with GatewayClient.from_env() as gateway:
+        response = await gateway.generate(
+            workload="rag.answer",
+            messages=(
+                Message(role=MessageRole.USER, content="Explique roteamento determinístico em uma frase."),
+            ),
+            risk_level=RiskLevel.LOW,
+            data_classification=DataClassification.PUBLIC,
+            context_tokens_estimated=128,
+            max_output_tokens=128,
+            provider_timeout_seconds=30.0,
+        )
+
+    print(response.content)
+    # Decidido pelo ranking do Gateway, não pelo seu código — NVIDIA em condições normais,
+    # com fallback automático para outro provider autorizado caso contrário.
+    print(response.execution.provider, response.execution.model, response.execution.deployment)
+
+
+asyncio.run(main())
+```
+
+Nenhum SDK de provider, nenhuma API key e nenhum `if provider == ...` pertence ao seu projeto. Veja
+[`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) para o
+runbook completo, o escopo atual (`rag.answer` no grupo `balanced`) e o status de prova por provider.
+
+## O modelo de secrets
+
+**Nunca coloque API keys reais em arquivos do Model Registry, JSON de provider runtime, READMEs, logs, traces ou no Git.** As variáveis de `.env` de cada perfil já aparecem nos quick starts acima; esta seção é o modelo por trás delas, não outra lista repetindo os mesmos nomes.
+
+As credenciais de provider pertencem ao **deployment do Gateway**, nunca às aplicações consumidoras. Todo binding de provider-runtime referencia uma credencial pelo nome; um resolver de secrets transforma essa referência no valor real só dentro do processo do Gateway:
 
 ```text
 artefato de provider runtime
@@ -155,60 +293,16 @@ ambiente do processo Gateway / secret manager
 adapter do provider
 ```
 
-### Credencial da demo local
+Para desenvolvimento local isso é um `.env` carregado via `source`. Em um deployment real, injete as mesmas referências de ambiente pelo orquestrador ou secret manager da infraestrutura — a porta de resolução foi desenhada para que AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault ou outro backend a substituam sem mudar os contratos dos consumidores.
 
-A demo operations-only exige:
-
-```text
-GATEWAY_LOCAL_DEMO_API_KEY
-```
-
-Coloque essa variável no seu `.env`, faça `source`/export do arquivo e execute o launcher. O launcher envia essa credencial somente para o processo filho do Gateway operations-only; Docker, npm e Vite recebem ambientes sanitizados sem essa variável.
-
-### Credenciais do perfil live-development
-
-O perfil opt-in de live development referencia:
-
-```text
-GATEWAY_DEMO_API_KEY
-POLICY_ROUTER_DEMO_API_KEY
-OPENAI_API_KEY
-GEMINI_API_KEY
-```
-
-O consumidor apresenta somente `GATEWAY_DEMO_API_KEY`. A credencial do Policy Router e as chaves dos providers permanecem server-side. O perfil não contém os valores reais e não é ativado automaticamente pela simples presença dessas variáveis.
-
-### API keys dos providers
-
-As credenciais dos providers pertencem ao **deployment do Gateway**, não às aplicações consumidoras. O primeiro resolver server-side implementado lê variáveis de ambiente cujos nomes são referenciados pelo artefato de runtime selecionado.
-
-Exemplos comuns aparecem comentados no `.env.example`:
-
-```dotenv
-# OPENAI_API_KEY=
-# ANTHROPIC_API_KEY=
-# GEMINI_API_KEY=
-# NVIDIA_API_KEY=
-# GROQ_API_KEY=
-# OPENROUTER_API_KEY=
-```
-
-Elas só passam a ser utilizadas quando um binding de provider-runtime revisado referencia a variável e existe um deployment correspondente no Model Registry selecionado.
-
-Para desenvolvimento local, você pode carregar `.env`. Em um deployment real, injete as mesmas referências de ambiente pelo orquestrador ou secret manager utilizado na infraestrutura. A porta de resolução de secrets foi desenhada para permitir substituir o resolver de ambiente por AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault ou outro backend sem mudar os contratos dos consumidores.
-
-### Credenciais dos consumidores
-
-Uma aplicação consumidora deve receber apenas:
+Uma aplicação consumidora deve receber apenas duas variáveis, nunca uma chave de provider:
 
 ```text
 GOVERNED_LLM_GATEWAY_URL
 GOVERNED_LLM_GATEWAY_API_KEY
 ```
 
-Ela **não** deve receber API keys de providers. O consumidor também não deve ser responsável pela seleção provider/model nem pela policy de retry/fallback.
-
-Veja [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) e [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) para a fronteira completa de confiança.
+Ela também não é responsável pela seleção provider/model nem pela policy de retry/fallback. Veja [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) e [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) para a fronteira completa de confiança.
 
 ## Como funciona a execução governada
 
@@ -256,12 +350,13 @@ O Gateway propositalmente **não é** um agent framework, RAG framework, executo
 ## Estado atual
 
 | Track | Estado |
-|---|---|
+| --- | --- |
 | Plataforma core — Phases 0–13 | **Concluída** |
 | Integrações com projetos reais — Phase 14 | **Em andamento**: duas integrações concluídas; OpsLens deliberadamente deferido |
 | Demo operacional local — OR-8 | **Concluída** no escopo limitado operations-only |
-| Perfil de live-inference para desenvolvimento | **Implementado no PC-33**; uma primeira prova opt-in com provider real (deployment nativo Gemini) foi executada e registrada em 2026-09-08 — ver `docs/project/CURRENT_STATE.md` |
-| Hardening mais amplo das superfícies operacionais — OR-9 | **Não iniciado** |
+| Perfil de live-inference para desenvolvimento | **Implementado no PC-33**, estendido para seis providers; provado individualmente com credenciais reais: Gemini, OpenAI, Groq, NVIDIA. Anthropic chegou ao provider e falhou por problema de crédito na conta (não é defeito de config); OpenRouter ainda sem prova — ver `docs/project/CURRENT_STATE.md` |
+| Perfil personal-default (seus próprios projetos) | **Implementado**; ranking com preferência de custo do NVIDIA provado concorrendo com quatro outros providers simultaneamente habilitados — ver `config/profiles/personal-default/README.md` |
+| Hardening mais amplo das superfícies operacionais — OR-9 | **Em andamento** através dos incrementos limitados PC-34..PC-51 (ver `docs/project/CURRENT_STATE.md`); IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF continuam separados |
 | Screenshots/demo/validação final de product readiness — OR-10 | **Não iniciado** |
 | Correlação per-trace no Console | **Deferida até existir uma fonte de correlação explicitamente revisada** |
 
@@ -293,7 +388,7 @@ Frontend, observabilidade e provas de integração também ficam isolados em wor
 ## Mapa do repositório
 
 | Caminho | Responsabilidade |
-|---|---|
+| --- | --- |
 | `apps/gateway-api/` | Composition root FastAPI e processos executáveis do Gateway |
 | `apps/gateway-console/` | Console operacional read-only em React/TypeScript |
 | `packages/gateway-contracts/` | Contratos públicos provider-neutral |
@@ -313,6 +408,7 @@ Se você está avaliando o projeto, comece por:
 - [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — checkpoint atual autoritativo;
 - [`docs/project/OPERATIONAL_READINESS.md`](docs/project/OPERATIONAL_READINESS.md) — sequência de readiness/demo operacional;
 - [`config/profiles/live-development/README.md`](config/profiles/live-development/README.md) — runbook de live development governado;
+- [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) — como chamar o Gateway a partir do seu próprio projeto, ranking com preferência de custo do NVIDIA;
 - [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — fronteira de autorização;
 - [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) — modelo de providers e secrets;
 - [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md) — fronteira do Console;
