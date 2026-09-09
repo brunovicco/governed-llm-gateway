@@ -66,10 +66,12 @@ class FakeRuntime:
         self.clock += seconds
 
 
-def _settings() -> launcher_module.PersonalDefaultSettings:
+def _settings(
+    policy_router_root: Path = _POLICY_ROUTER_ROOT,
+) -> launcher_module.PersonalDefaultSettings:
     return launcher_module.PersonalDefaultSettings(
         repository_root=_REPO_ROOT,
-        policy_router_root=_POLICY_ROUTER_ROOT,
+        policy_router_root=policy_router_root,
         smoke_test=True,
     )
 
@@ -84,10 +86,14 @@ def _environ() -> dict[str, str]:
     }
 
 
-def test_smoke_test_starts_policy_router_then_gateway_and_cleans_up_in_reverse() -> None:
+def test_smoke_test_starts_policy_router_then_gateway_and_cleans_up_in_reverse(
+    tmp_path: Path,
+) -> None:
+    policy_router_root = tmp_path / "policy-model-router"
+    policy_router_root.mkdir()
     runtime = FakeRuntime()
     launcher = launcher_module.PersonalDefaultLauncher(
-        _settings(),
+        _settings(policy_router_root),
         runtime=runtime,
         environ=_environ(),
     )
@@ -100,10 +106,10 @@ def test_smoke_test_starts_policy_router_then_gateway_and_cleans_up_in_reverse()
     gateway_command, gateway_cwd, gateway_env = runtime.start_calls[1]
 
     assert policy_router_command[:3] == ("uv", "run", "uvicorn")
-    assert policy_router_cwd == _POLICY_ROUTER_ROOT
+    assert policy_router_cwd == policy_router_root
     assert policy_router_env["APP_ENV"] == "development"
     assert policy_router_env["ROUTING_POLICY_PATH"] == str(
-        _POLICY_ROUTER_ROOT / "examples" / "policies" / "gateway-generic.yaml"
+        policy_router_root / "examples" / "policies" / "gateway-generic.yaml"
     )
     assert json.loads(policy_router_env["API_KEYS"]) == {"gateway-demo": _POLICY_ROUTER_KEY}
 
@@ -159,10 +165,12 @@ def test_missing_policy_router_root_fails_closed() -> None:
     assert runtime.start_calls == []
 
 
-def test_owned_child_exit_fails_closed_and_still_tears_down() -> None:
+def test_owned_child_exit_fails_closed_and_still_tears_down(tmp_path: Path) -> None:
+    policy_router_root = tmp_path / "policy-model-router"
+    policy_router_root.mkdir()
     runtime = FakeRuntime(second_child_exit_code=7)
     launcher = launcher_module.PersonalDefaultLauncher(
-        _settings(),
+        _settings(policy_router_root),
         runtime=runtime,
         environ=_environ(),
     )
