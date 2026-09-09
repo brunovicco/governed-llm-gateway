@@ -44,7 +44,14 @@ class UvicornServerRunner:
 
     def run(self, app: FastAPI, *, host: str, port: int) -> None:
         """Run exactly one Uvicorn worker around an already-composed application."""
-        uvicorn.run(app, host=host, port=port, workers=1, server_header=False)
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            workers=1,
+            server_header=False,
+            proxy_headers=False,
+        )
 
 
 @dataclass(frozen=True, slots=True)

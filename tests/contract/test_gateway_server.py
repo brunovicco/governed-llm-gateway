@@ -205,11 +205,11 @@ def test_injected_runner_receives_composed_app_without_socket_binding(
     assert route_paths.count("/readyz") == 1
 
 
-def test_uvicorn_runner_delegates_single_worker_without_server_fingerprint(
+def test_uvicorn_runner_delegates_without_unreviewed_transport_metadata_trust(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = FastAPI()
-    calls: list[tuple[FastAPI, str, int, int, bool]] = []
+    calls: list[tuple[FastAPI, str, int, int, bool, bool]] = []
 
     def fake_uvicorn_run(
         candidate: FastAPI,
@@ -218,11 +218,12 @@ def test_uvicorn_runner_delegates_single_worker_without_server_fingerprint(
         port: int,
         workers: int,
         server_header: bool,
+        proxy_headers: bool,
     ) -> None:
-        calls.append((candidate, host, port, workers, server_header))
+        calls.append((candidate, host, port, workers, server_header, proxy_headers))
 
     monkeypatch.setattr(uvicorn, "run", fake_uvicorn_run)
 
     UvicornServerRunner().run(app, host="127.0.0.1", port=8000)
 
-    assert calls == [(app, "127.0.0.1", 8000, 1, False)]
+    assert calls == [(app, "127.0.0.1", 8000, 1, False, False)]
