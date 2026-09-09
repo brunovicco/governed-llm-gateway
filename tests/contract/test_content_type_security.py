@@ -160,7 +160,7 @@ def test_composed_gateway_returns_no_store_on_media_type_rejection(path: str) ->
     assert response.headers["cache-control"] == "no-store"
 
 
-def test_gateway_composition_places_media_type_gate_inside_no_store_and_outside_body_limits() -> None:
+def test_media_type_gate_ordering_is_fail_closed() -> None:
     app = create_gateway_app(
         cast(RouteExplainCoordinator, object()),
         cast(GenerateCoordinator, object()),
