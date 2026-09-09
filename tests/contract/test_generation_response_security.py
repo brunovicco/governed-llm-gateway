@@ -2,7 +2,11 @@ import asyncio
 from typing import cast
 
 import pytest
-from governed_llm_gateway_api import GenerateCoordinator, RouteExplainCoordinator, create_gateway_app
+from governed_llm_gateway_api import (
+    GenerateCoordinator,
+    RouteExplainCoordinator,
+    create_gateway_app,
+)
 from governed_llm_gateway_api.generation_response_security import GenerationNoStoreMiddleware
 from governed_llm_gateway_api.generation_security import GenerationRequestBodyLimitMiddleware
 from starlette.types import Message, Receive, Scope, Send
