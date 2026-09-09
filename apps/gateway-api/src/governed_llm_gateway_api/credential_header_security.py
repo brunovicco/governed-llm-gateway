@@ -20,9 +20,7 @@ class GatewayCredentialHeaderMiddleware:
             return
 
         occurrences = sum(
-            1
-            for name, _value in scope["headers"]
-            if name.lower() == _GATEWAY_API_KEY_HEADER
+            1 for name, _value in scope["headers"] if name.lower() == _GATEWAY_API_KEY_HEADER
         )
         if occurrences <= 1:
             await self._app(scope, receive, send)
