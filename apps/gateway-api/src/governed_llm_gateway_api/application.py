@@ -4,6 +4,7 @@ from a2a_otel_kit import Observability
 from fastapi import FastAPI
 
 from .complexity_generate import ComplexityGenerateCoordinator
+from .generation_security import GenerationRequestBodyLimitMiddleware
 from .route_explain import (
     ComplexityRouteExplainCoordinator,
     RouteExplainCoordinator,
@@ -26,6 +27,7 @@ def create_gateway_app(
         complexity_coordinator=complexity_route_explain_coordinator,
         observability=observability,
     )
+    app.add_middleware(GenerationRequestBodyLimitMiddleware)
     attach_generate_route(
         app,
         generate_coordinator,

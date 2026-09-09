@@ -47,6 +47,20 @@ The request includes:
 The endpoint itself is streaming-only. `stream` is fixed to `true`, and the resulting
 `GatewayRequest.requirements.streaming` is always true.
 
+### Inbound request-size boundary
+
+The production Gateway application applies a fixed 8 MiB hard ceiling to the incoming JSON body for
+`POST /v1/generate`. A declared `Content-Length` above the ceiling is rejected before downstream request
+parsing, and the ASGI receive path independently counts actual bytes so missing, incorrect, or chunked
+length metadata cannot bypass the ceiling. Oversized requests return sanitized HTTP `413` with code
+`generation_request_too_large` before authentication, Policy Router authorization, ranking, or provider
+execution can begin.
+
+The 8 MiB value is a transport safety ceiling only. It is not a model context-window guarantee, token
+capacity statement, ranking input, or authorization policy. Image inputs remain bounded HTTPS URL
+references rather than uploaded binary bodies. The middleware does not buffer or transform the SSE
+response path and does not apply this generation-specific ceiling to unrelated routes.
+
 Tool-result continuation is rejected before SSE begins because Phase 7 deliberately does not fabricate
 provider-native continuation/reasoning state.
 
