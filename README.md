@@ -195,37 +195,20 @@ don't have all six, disable the corresponding deployment(s) in
 `config/profiles/personal-default/model_registry.yaml` (`enabled: false`) and remove the matching
 binding from `provider_runtime.json` before starting the Gateway.
 
-### 3. Start the Policy Router (terminal 1)
-
-```bash
-cd ../policy-model-router
-set -a; source ../governed-llm-gateway/.env; set +a
-export APP_ENV=development
-export ROUTING_POLICY_PATH="$PWD/examples/policies/gateway-generic.yaml"
-export API_KEYS="$(python3 -c 'import json, os; print(json.dumps({"gateway-demo": os.environ["POLICY_ROUTER_DEMO_API_KEY"]}))')"
-uv run uvicorn policy_model_router.entrypoints.http:app --host 127.0.0.1 --port 8001
-```
-
-### 4. Start the Gateway (terminal 2)
+### 3. Start the Policy Router and the Gateway
 
 ```bash
 cd governed-llm-gateway
 set -a; source .env; set +a
-uv run --frozen --package governed-llm-gateway-api governed-llm-gateway \
-  --deployment-root "$PWD" \
-  --model-registry-path config/profiles/personal-default/model_registry.yaml \
-  --provider-runtime-path config/profiles/personal-default/provider_runtime.json \
-  --client-auth-path config/profiles/personal-default/client_auth.json \
-  --operations-access-path config/profiles/personal-default/operations_access.json \
-  --policy-router-path config/profiles/personal-default/policy_router.json \
-  --ranking-policy-path config/profiles/personal-default/ranking_policy.yaml \
-  --default-max-latency-ms 60000 \
-  --default-max-cost-usd 0.05 \
-  --host 127.0.0.1 \
-  --port 8000
+uv run --frozen python scripts/personal_default_launcher.py
 ```
 
-### 5. Call it from your own project
+This one command starts both services (it assumes `../policy-model-router` from step 1; override with
+`POLICY_MODEL_ROUTER_ROOT` otherwise) and tears both down on Ctrl+C. See
+[`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md#running-it)
+for the two-terminal manual equivalent and the `--smoke-test` switch.
+
+### 4. Call it from your own project
 
 Add the thin client (not published to PyPI; install straight from this repository):
 

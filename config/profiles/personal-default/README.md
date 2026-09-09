@@ -71,10 +71,28 @@ have some of these credentials, disable the corresponding deployment(s) in `mode
 
 ## Running it
 
-Startup is identical to the `live-development` profile (see
-[`../live-development/README.md`](../live-development/README.md) for the full step-by-step,
-including starting the Policy Model Router and the observability stack), just point the Gateway CLI
-flags at this directory instead:
+### One command (recommended)
+
+`scripts/personal_default_launcher.py` starts the Policy Model Router and the Gateway together and
+tears both down on Ctrl+C, so you don't manage two terminals by hand:
+
+```bash
+set -a; source .env; set +a
+uv run --frozen python scripts/personal_default_launcher.py
+```
+
+It expects a sibling `policy-model-router` checkout at `../policy-model-router` relative to this
+repository; override the path with `POLICY_MODEL_ROUTER_ROOT` if yours lives elsewhere. `--smoke-test`
+proves startup/readiness and exits immediately, matching `scripts/local_demo.py`'s existing pattern.
+A missing provider credential for an *enabled* deployment fails the whole launch closed within a few
+seconds (adapter construction resolves every enabled deployment eagerly) — disable what you don't have
+in `model_registry.yaml`/`provider_runtime.json` rather than waiting it out.
+
+### Two terminals (what the launcher automates)
+
+Startup is otherwise identical to the `live-development` profile (see
+[`../live-development/README.md`](../live-development/README.md) for the full step-by-step, including
+the observability stack), just point the Gateway CLI flags at this directory instead:
 
 ```bash
 uv run --frozen --package governed-llm-gateway-api governed-llm-gateway \
