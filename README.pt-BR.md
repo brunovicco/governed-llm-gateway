@@ -275,11 +275,11 @@ Nenhum SDK de provider, nenhuma API key e nenhum `if provider == ...` pertence a
 [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) para o
 runbook completo, o escopo atual (`rag.answer` no grupo `balanced`) e o status de prova por provider.
 
-## Onde informar as API keys?
+## O modelo de secrets
 
-**Nunca coloque API keys reais em arquivos do Model Registry, JSON de provider runtime, READMEs, logs, traces ou no Git.**
+**Nunca coloque API keys reais em arquivos do Model Registry, JSON de provider runtime, READMEs, logs, traces ou no Git.** As variáveis de `.env` de cada perfil já aparecem nos quick starts acima; esta seção é o modelo por trás delas, não outra lista repetindo os mesmos nomes.
 
-O projeto usa um modelo de secrets baseado em referências:
+As credenciais de provider pertencem ao **deployment do Gateway**, nunca às aplicações consumidoras. Todo binding de provider-runtime referencia uma credencial pelo nome; um resolver de secrets transforma essa referência no valor real só dentro do processo do Gateway:
 
 ```text
 artefato de provider runtime
@@ -293,71 +293,16 @@ ambiente do processo Gateway / secret manager
 adapter do provider
 ```
 
-### Credencial da demo local
+Para desenvolvimento local isso é um `.env` carregado via `source`. Em um deployment real, injete as mesmas referências de ambiente pelo orquestrador ou secret manager da infraestrutura — a porta de resolução foi desenhada para que AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault ou outro backend a substituam sem mudar os contratos dos consumidores.
 
-A demo operations-only exige:
-
-```text
-GATEWAY_LOCAL_DEMO_API_KEY
-```
-
-Coloque essa variável no seu `.env`, faça `source`/export do arquivo e execute o launcher. O launcher envia essa credencial somente para o processo filho do Gateway operations-only; Docker, npm e Vite recebem ambientes sanitizados sem essa variável.
-
-### Credenciais do perfil live-development
-
-O perfil opt-in de live development referencia:
-
-```text
-GATEWAY_DEMO_API_KEY
-POLICY_ROUTER_DEMO_API_KEY
-OPENAI_API_KEY
-GEMINI_API_KEY
-ANTHROPIC_API_KEY
-NVIDIA_API_KEY
-GROQ_API_KEY
-OPENROUTER_API_KEY
-```
-
-O consumidor apresenta somente `GATEWAY_DEMO_API_KEY`. A credencial do Policy Router e as chaves dos providers permanecem server-side. O perfil não contém os valores reais e não é ativado automaticamente pela simples presença dessas variáveis.
-
-### Credenciais do perfil personal-default
-
-O perfil `personal-default` referencia as mesmas oito variáveis do live-development acima. Subir os
-seis deployments de uma vez exige que as seis chaves de provider resolvam (veja
-["Quick start: chamar o Gateway a partir do seu próprio projeto"](#quick-start-chamar-o-gateway-a-partir-do-seu-próprio-projeto));
-desabilite qualquer deployment para o qual você não tenha credencial.
-
-### API keys dos providers
-
-As credenciais dos providers pertencem ao **deployment do Gateway**, não às aplicações consumidoras. O primeiro resolver server-side implementado lê variáveis de ambiente cujos nomes são referenciados pelo artefato de runtime selecionado.
-
-Exemplos comuns aparecem comentados no `.env.example`:
-
-```dotenv
-# OPENAI_API_KEY=
-# ANTHROPIC_API_KEY=
-# GEMINI_API_KEY=
-# NVIDIA_API_KEY=
-# GROQ_API_KEY=
-# OPENROUTER_API_KEY=
-```
-
-Elas só passam a ser utilizadas quando um binding de provider-runtime revisado referencia a variável e existe um deployment correspondente no Model Registry selecionado.
-
-Para desenvolvimento local, você pode carregar `.env`. Em um deployment real, injete as mesmas referências de ambiente pelo orquestrador ou secret manager utilizado na infraestrutura. A porta de resolução de secrets foi desenhada para permitir substituir o resolver de ambiente por AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault ou outro backend sem mudar os contratos dos consumidores.
-
-### Credenciais dos consumidores
-
-Uma aplicação consumidora deve receber apenas:
+Uma aplicação consumidora deve receber apenas duas variáveis, nunca uma chave de provider:
 
 ```text
 GOVERNED_LLM_GATEWAY_URL
 GOVERNED_LLM_GATEWAY_API_KEY
 ```
 
-Ela **não** deve receber API keys de providers. O consumidor também não deve ser responsável pela seleção provider/model nem pela policy de retry/fallback.
-
-Veja [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) e [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) para a fronteira completa de confiança.
+Ela também não é responsável pela seleção provider/model nem pela policy de retry/fallback. Veja [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) e [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) para a fronteira completa de confiança.
 
 ## Como funciona a execução governada
 

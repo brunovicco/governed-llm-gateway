@@ -274,11 +274,11 @@ No provider SDK, no API key, and no `if provider == ...` branch belongs in your 
 [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) for the full
 runbook, current scope (`rag.answer` in the `balanced` model group) and per-provider proof status.
 
-## Where do API keys go?
+## The secret model
 
-**Never put real API keys in Model Registry files, provider-runtime JSON, README files, logs, traces or Git.**
+**Never put real API keys in Model Registry files, provider-runtime JSON, README files, logs, traces or Git.** Per-profile `.env` variables are covered inline in each quick start above; this section is the underlying model, not another list of the same names.
 
-The repository uses a reference-based secret model:
+Provider credentials belong to the **Gateway deployment**, never to consumer applications. Every provider-runtime binding references a credential by name; a secret resolver turns that reference into the real value only inside the Gateway process:
 
 ```text
 provider-runtime artifact
@@ -292,71 +292,16 @@ Gateway process environment / secret manager
 provider adapter
 ```
 
-### Local demo credential
+For local development this is a sourced `.env`. For a real deployment, inject the same environment references through your orchestrator or secret manager instead — the resolver port is designed so AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault or another backend can replace it without changing consumer contracts.
 
-The operations-only demo requires:
-
-```text
-GATEWAY_LOCAL_DEMO_API_KEY
-```
-
-Put it in your local `.env`, source/export the file, and then run the launcher. The launcher passes this credential only to the operations-only Gateway child; Docker, npm and Vite receive sanitized environments without it.
-
-### Governed live-development credentials
-
-The opt-in live-development profile references:
-
-```text
-GATEWAY_DEMO_API_KEY
-POLICY_ROUTER_DEMO_API_KEY
-OPENAI_API_KEY
-GEMINI_API_KEY
-ANTHROPIC_API_KEY
-NVIDIA_API_KEY
-GROQ_API_KEY
-OPENROUTER_API_KEY
-```
-
-The consumer presents only `GATEWAY_DEMO_API_KEY`. The Policy Router and provider credentials remain server-side. The profile does not contain the raw values and does not automatically activate when those variables are present.
-
-### Personal-default profile credentials
-
-The `personal-default` profile references the same eight variables as live-development above. Booting
-all six deployments at once requires all six provider keys to resolve (see
-["Quick start: call the Gateway from your own project"](#quick-start-call-the-gateway-from-your-own-project));
-disable any deployment you don't have a credential for.
-
-### Provider API keys
-
-Provider credentials belong to the **Gateway deployment**, not consumer applications. The initial server-side resolver reads environment variables whose names are referenced by the selected provider-runtime artifact.
-
-Common examples are included as comments in `.env.example`:
-
-```dotenv
-# OPENAI_API_KEY=
-# ANTHROPIC_API_KEY=
-# GEMINI_API_KEY=
-# NVIDIA_API_KEY=
-# GROQ_API_KEY=
-# OPENROUTER_API_KEY=
-```
-
-They become relevant only when a reviewed provider-runtime binding references them and a matching deployment exists in the selected Model Registry.
-
-For local development you may source `.env`. For a real deployment, inject the same environment references through your orchestrator or secret manager. The secret-resolution port is intentionally designed so AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault or another backend can replace the environment resolver without changing consumer contracts.
-
-### Consumer credentials
-
-A consumer should receive only:
+A consumer application should receive only two variables, never a provider key:
 
 ```text
 GOVERNED_LLM_GATEWAY_URL
 GOVERNED_LLM_GATEWAY_API_KEY
 ```
 
-It should **not** receive provider API keys. Consumer applications also do not own provider/model selection or retry/fallback policy.
-
-See [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) and [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) for the detailed trust boundary.
+It does not own provider/model selection or retry/fallback policy either. See [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) and [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) for the detailed trust boundary.
 
 ## How governed execution works
 
