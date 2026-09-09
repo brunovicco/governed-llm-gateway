@@ -345,7 +345,7 @@ The Gateway is intentionally **not** an agent framework, RAG framework, MCP tool
 | Live-inference development profile | **Implemented in PC-33**, extended to six providers; individually proven with real credentials: Gemini, OpenAI, Groq, NVIDIA. Anthropic reached the provider and failed on an account credit issue (not a config defect); OpenRouter not yet proven — see `docs/project/CURRENT_STATE.md` |
 | Personal-default profile (your own projects) | **Implemented**; NVIDIA cost-preferred ranking proven against four other simultaneously-enabled competing providers — see `config/profiles/personal-default/README.md` |
 | Broader operational-surface auth/security — OR-9 | **In progress** through bounded increments PC-34..PC-51 (see `docs/project/CURRENT_STATE.md`); production IAM/TLS/SSO, session handling, rate limiting and CSRF remain separate |
-| Final screenshots/demo/product-readiness validation — OR-10 | **In progress**: reproducible e2e validation, a security review of the session's new code (no findings), and this repository's consolidated [non-claims](#non-claims) section are done — see `docs/project/CURRENT_STATE.md`; screenshots/assets remain |
+| Final screenshots/demo/product-readiness validation — OR-10 | **In progress**: reproducible e2e validation, a security review of the session's new code and of the existing HTTP/adapter surface (no findings in either pass), and this repository's consolidated [non-claims](#non-claims) section are done — see `docs/project/CURRENT_STATE.md`; screenshots/assets remain |
 | Per-trace Console correlation | **Deferred pending an explicit reviewed correlation source** |
 
 The authoritative checkpoint is [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
@@ -357,7 +357,7 @@ For a **portfolio/demo-ready live product path**, the main remaining work is:
 1. ~~execute and record an opt-in real-provider proof through the PC-33 profile while keeping required CI credential-free~~ — done 2026-09-08 for the native Gemini deployment; the native OpenAI deployment in the same profile is not yet separately proven;
 2. decide whether the current Console should gain a bounded live-request/provenance view and per-trace navigation, based only on real backend evidence;
 3. complete the minimum OR-9 security hardening appropriate to the demonstrated operational surfaces and clearly separate production-only hardening;
-4. complete OR-10: reproducible end-to-end validation, a security review of the session's new code, and the consolidated [non-claims](#non-claims) section are done (see `docs/project/CURRENT_STATE.md`); final documentation pass and screenshots/assets where useful remain;
+4. complete OR-10: reproducible end-to-end validation, a security review of both the session's new code and the existing HTTP/adapter surface, and the consolidated [non-claims](#non-claims) section are done (see `docs/project/CURRENT_STATE.md`); screenshots/assets remain;
 5. decide and cut the `v1.0.0` release boundary before presenting the repository as a reusable open-source package (the repository license is now [Apache-2.0](LICENSE)).
 
 For **full roadmap completion**, Phase 14 also remains sequentially gated: OpsLens must be reconciled before RAGForge and later integrations are started unless that normative order is explicitly revised.
@@ -373,7 +373,7 @@ This repository does **not** claim to be:
 - **A benchmark of real production traffic.** Everything in `benchmarks/` runs against public/synthetic fixtures with deterministic scoring, credential-free by default. It is evidence for ranking eligibility inside an already-authorized set, never authorization, and never a substitute for live user feedback.
 - **A multi-tenant or remote deployment.** Every demonstrated path (`scripts/local_demo.py`, `live-development`, `personal-default`) runs as local loopback (`127.0.0.1`) processes an operator starts and stops. None of it has been exercised behind a real reverse proxy, load balancer, or public DNS name.
 - **A complete Phase 14 rollout.** Two of five planned consumer integrations are complete; OpsLens is a validated-but-deliberately-deferred candidate pending its own repository stabilizing; RAGForge and the Verifiable AI Governance integration have not started, by explicit sequencing decision, not oversight.
-- **A finished OR-9 or OR-10.** OR-9 is bounded hardening for the operational surfaces this repo already exposes, not a production security certification. OR-10 started with reproducible end-to-end validation; screenshots/assets and a dedicated architecture/security review pass remain open.
+- **A finished OR-9 or OR-10.** OR-9 is bounded hardening for the operational surfaces this repo already exposes, not a production security certification. OR-10's reproducible end-to-end validation and two security-review passes (this session's new code, and the existing HTTP/adapter surface) are done; screenshots/assets remain open.
 
 What every governed-inference proof cited in `docs/project/CURRENT_STATE.md` **is**: a real request, with real operator-supplied provider credentials, executed through the full Policy Router → Gateway → provider chain, with the terminal routing/execution evidence inspected — not a mock, not a stub, and not a credential-free simulation.
 
