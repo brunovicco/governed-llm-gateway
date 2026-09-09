@@ -25,3 +25,31 @@ workloads:
         cost: "0.50"
         availability: "0.50"
         expected_latency_ms: 30000
+      anthropic-claude-sonnet-5-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 30000
+      nvidia-llama-3-3-70b-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 30000
+      groq-gpt-oss-120b-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 30000
+      openrouter-llama-3-3-70b-dev:
+        quality: "0.50"
+        reliability: "0.50"
+        latency: "0.50"
+        cost: "0.50"
+        availability: "0.50"
+        expected_latency_ms: 30000

@@ -48,3 +48,95 @@ deployments:
     enabled: true
     source_date: "2026-09-08"
     catalog_version: "pc33-live-development-20260908"
+  anthropic-claude-sonnet-5-dev:
+    provider: anthropic
+    model_id: claude-sonnet-5
+    model_group: balanced
+    api_family: anthropic-messages
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: false
+      structured_output: false
+      streaming: true
+    context_tokens: 200000
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "3.00"
+      output_usd_per_million_tokens: "15.00"
+      source_date: "2026-09-08"
+      snapshot_version: "anthropic-claude-sonnet-5-20260908"
+    max_data_classification: public
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-08"
+    catalog_version: "pc33-live-development-20260908"
+  nvidia-llama-3-3-70b-dev:
+    provider: nvidia
+    model_id: meta/llama-3.3-70b-instruct
+    model_group: balanced
+    api_family: openai-compatible
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: false
+      structured_output: false
+      streaming: true
+    context_tokens: 32768
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "0.20"
+      output_usd_per_million_tokens: "0.20"
+      source_date: "2026-09-08"
+      snapshot_version: "nvidia-llama-3-3-70b-20260908"
+    max_data_classification: public
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-08"
+    catalog_version: "pc33-live-development-20260908"
+  groq-gpt-oss-120b-dev:
+    provider: groq
+    model_id: openai/gpt-oss-120b
+    model_group: balanced
+    api_family: openai-compatible
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: false
+      structured_output: false
+      streaming: true
+    context_tokens: 131072
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "0.15"
+      output_usd_per_million_tokens: "0.75"
+      source_date: "2026-09-09"
+      snapshot_version: "groq-gpt-oss-120b-20260909"
+    max_data_classification: public
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-08"
+    catalog_version: "pc33-live-development-20260908"
+  openrouter-llama-3-3-70b-dev:
+    provider: openrouter
+    model_id: meta-llama/llama-3.3-70b-instruct
+    model_group: balanced
+    api_family: openai-compatible
+    capabilities:
+      text: true
+      vision: false
+      tool_calling: false
+      structured_output: false
+      streaming: true
+    context_tokens: 128000
+    modalities: [text]
+    pricing:
+      input_usd_per_million_tokens: "0.12"
+      output_usd_per_million_tokens: "0.30"
+      source_date: "2026-09-08"
+      snapshot_version: "openrouter-llama-3-3-70b-20260908"
+    max_data_classification: public
+    allowed_environments: [development]
+    enabled: true
+    source_date: "2026-09-08"
+    catalog_version: "pc33-live-development-20260908"

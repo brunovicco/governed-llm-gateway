@@ -23,6 +23,10 @@ _PROFILE_MODEL_GROUP = "balanced"
 _PROFILE_EXECUTIONS: Mapping[str, tuple[str, str]] = {
     "google-gemini-3-8-flash-dev": ("google", "gemini-3.8-flash"),
     "openai-gpt-5-6-luna-dev": ("openai", "gpt-5.6-luna"),
+    "anthropic-claude-sonnet-5-dev": ("anthropic", "claude-sonnet-5"),
+    "nvidia-llama-3-3-70b-dev": ("nvidia", "meta/llama-3.3-70b-instruct"),
+    "groq-gpt-oss-120b-dev": ("groq", "openai/gpt-oss-120b"),
+    "openrouter-llama-3-3-70b-dev": ("openrouter", "meta-llama/llama-3.3-70b-instruct"),
 }
 _SMOKE_PROMPT = "Answer in one sentence: what does deterministic model routing mean?"
 

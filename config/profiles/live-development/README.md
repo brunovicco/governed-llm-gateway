@@ -24,13 +24,15 @@ The profile is intentionally bounded to:
 - minimum risk: `low`;
 - minimum data classification: `public`;
 - authorized logical group supplied by the external PDP: `balanced`;
-- providers: native Gemini and native OpenAI Responses;
-- concrete deployments: `gemini-3.8-flash` and `gpt-5.6-luna`;
+- providers: native Gemini, native OpenAI Responses, native Anthropic Messages, and three `openai-compatible` bindings (NVIDIA, Groq, OpenRouter);
+- concrete deployments: `gemini-3.8-flash`, `gpt-5.6-luna`, `claude-sonnet-5`, `meta/llama-3.3-70b-instruct` (NVIDIA), `openai/gpt-oss-120b` (Groq), and `meta-llama/llama-3.3-70b-instruct` (OpenRouter);
 - metadata-only Gateway observability when OTLP is enabled.
 
 This is not a production authentication, TLS, IAM, secret-management, provider-SLA, or production-readiness claim.
 
-The two ranking entries deliberately use identical neutral static component scores and identical planning latency values. They are configuration inputs for a reproducible development tie-break, **not observed quality, availability, latency, or benchmark evidence**. Current provider pricing metadata is retained separately in the Model Registry for cost eligibility.
+All six ranking entries deliberately use identical neutral static component scores and identical planning latency values. They are configuration inputs for a reproducible development tie-break, **not observed quality, availability, latency, or benchmark evidence**. Current provider pricing metadata is retained separately in the Model Registry for cost eligibility; NVIDIA/Groq/OpenRouter pricing is an approximate placeholder pending a separately reviewed catalog update.
+
+Booting the full six-deployment profile requires all six provider credentials to be resolvable (adapter construction happens eagerly at startup); a missing credential fails the whole process closed rather than silently dropping one deployment. To exercise a single provider in isolation, use a reduced local copy of `model_registry.yaml` (only that deployment `enabled: true`) and a matching `provider_runtime.json` containing only that provider's binding.
 
 ## Required server-side environment variables
 
@@ -41,6 +43,10 @@ GATEWAY_DEMO_API_KEY=
 POLICY_ROUTER_DEMO_API_KEY=
 OPENAI_API_KEY=
 GEMINI_API_KEY=
+ANTHROPIC_API_KEY=
+NVIDIA_API_KEY=
+GROQ_API_KEY=
+OPENROUTER_API_KEY=
 ```
 
 `GATEWAY_DEMO_API_KEY` is the credential a consumer presents to the Gateway. The other three values stay server-side.
@@ -266,7 +272,7 @@ GOVERNED_LLM_GATEWAY_API_KEY
 
 It does not inspect `OPENAI_API_KEY`, `GEMINI_API_KEY`, or `POLICY_ROUTER_DEMO_API_KEY`. Those values remain server-side prerequisites for the already-running Gateway/PDP processes.
 
-A successful run prints exactly one metadata-only JSON object containing the request ID, authorized model group, provider/model/deployment identity, API family when present, attempt/fallback position, latency and normalized token counts. It does **not** print the prompt or completion text and it accepts either reviewed PC-33 deployment inside the PDP-authorized `balanced` group.
+A successful run prints exactly one metadata-only JSON object containing the request ID, authorized model group, provider/model/deployment identity, API family when present, attempt/fallback position, latency and normalized token counts. It does **not** print the prompt or completion text and it accepts any of the six reviewed deployments inside the PDP-authorized `balanced` group.
 
 The harness implementation and credential-free unit tests do not by themselves certify live-provider execution. Record a successful explicit operator run separately before claiming portfolio/demo-ready live inference.
 

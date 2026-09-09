@@ -29,6 +29,10 @@ _OPAQUE_ENV = {
     "POLICY_ROUTER_DEMO_API_KEY": "opaque-policy-router-demo-value",
     "OPENAI_API_KEY": "opaque-openai-value",
     "GEMINI_API_KEY": "opaque-gemini-value",
+    "ANTHROPIC_API_KEY": "opaque-anthropic-value",
+    "NVIDIA_API_KEY": "opaque-nvidia-value",
+    "GROQ_API_KEY": "opaque-groq-value",
+    "OPENROUTER_API_KEY": "opaque-openrouter-value",
 }
 
 
@@ -59,8 +63,8 @@ def test_profile_has_exact_bounded_provider_and_authority_shape() -> None:
 
     providers = {deployment.provider for deployment in registry.deployments}
     model_groups = {deployment.model_group for deployment in registry.deployments}
-    assert len(registry.deployments) == 2
-    assert providers == {"google", "openai"}
+    assert len(registry.deployments) == 6
+    assert providers == {"google", "openai", "anthropic", "nvidia", "groq", "openrouter"}
     assert model_groups == {"balanced"}
     assert all(
         deployment.allowed_environments == frozenset({"development"})
@@ -81,25 +85,21 @@ def test_profile_has_exact_bounded_provider_and_authority_shape() -> None:
     ) == (("gateway-demo", "development"),)
 
     workload = ranking.for_workload("rag.answer")
-    google_score = workload.score_for("google-gemini-3-8-flash-dev")
-    openai_score = workload.score_for("openai-gpt-5-6-luna-dev")
-    assert google_score is not None
-    assert openai_score is not None
-    assert (
-        google_score.quality,
-        google_score.reliability,
-        google_score.latency,
-        google_score.cost,
-        google_score.availability,
-        google_score.expected_latency_ms,
-    ) == (
-        openai_score.quality,
-        openai_score.reliability,
-        openai_score.latency,
-        openai_score.cost,
-        openai_score.availability,
-        openai_score.expected_latency_ms,
-    )
+    score_tuples = []
+    for deployment in registry.deployments:
+        score = workload.score_for(deployment.deployment_id)
+        assert score is not None
+        score_tuples.append(
+            (
+                score.quality,
+                score.reliability,
+                score.latency,
+                score.cost,
+                score.availability,
+                score.expected_latency_ms,
+            )
+        )
+    assert len(set(score_tuples)) == 1
 
 
 def test_profile_materializes_without_network_calls() -> None:
