@@ -5,6 +5,23 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **Benchmark-derived ranking, actually closed**: the Phase 10 -> Phase 11 chain
+  (`Scorecard -> promote_snapshot -> compile_benchmark_hybrid_policy -> ApprovedRankingArtifact`)
+  existed end to end and the runtime already accepted an approved artifact, but no
+  `BenchmarkExecutor` implementation had ever been written, so `benchmarks/scorecards/` was empty
+  and `personal-default`'s `rag.answer` ranked six deployments on hand-written scores that were
+  `0.50` on every dimension except a single `cost` preference. Adds
+  `benchmarks/provider_execution.py`, which binds one benchmark target to exactly one reviewed
+  registry deployment and calls it through the same provider adapters the Gateway uses, and
+  `scripts/publish_ranking_evidence.py`, which runs the dataset, persists an immutable
+  content-addressed snapshot, promotes it through explicit mappings and writes the pinned approved
+  artifact. `rag.answer` now ranks on real evidence from all six `balanced` deployments: quality
+  from `0.875` to `1.000` and one genuine NVIDIA provider failure recorded as `0.833` availability.
+  `reliability`/`latency`/`cost` remain static by the compiler's existing contract.
+  `scripts/personal_default_launcher.py` boots from the artifact and pins its ID, so drift fails
+  closed at startup. Adds `tests/contract/test_benchmark_provider_execution.py` and
+  `tests/contract/test_personal_default_approved_ranking.py`, the latter asserting that promoted
+  quality and availability are not uniform placeholders.
 - **Quality gate runs each step once**: `scripts/quality_gate.py` invoked `architecture_check.py`
   and `secret_scan.py` directly and then ran `phase0_gate.py`, which runs both again. Steps are now
   named, timed, reported as a summary, and deduplicated; `phase0_gate.py` stays independently

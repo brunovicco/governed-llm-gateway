@@ -41,12 +41,50 @@ verified against those specific APIs; they only serve `fast-small`/`balanced`, w
 
 Within `balanced`, NVIDIA is the practical default because its configured tier has zero marginal cost
 (`pricing.input_usd_per_million_tokens` / `output_usd_per_million_tokens` are both `"0.00"`); its
-`cost` ranking score is set to `"1.00"` against `"0.50"` for the other five, so it wins the
-deterministic ranking under normal conditions (`0.60` total score vs `0.50` for everyone else at
-equal weights). This is a genuine, defensible preference — not the reproducible-tie-break neutral
-scoring used elsewhere. The other four groups use plain neutral scores (like `live-development`)
-since there isn't yet a similar cost/quality basis to prefer one deployment over the other within
-them.
+`cost` ranking score is set to `"1.00"` against `"0.50"` for the other five. The other four groups
+use plain neutral scores (like `live-development`) since there isn't yet a similar cost/quality
+basis to prefer one deployment over the other within them.
+
+### Where `rag.answer` scores come from
+
+`rag.answer` no longer ranks on hand-written scores. The Gateway boots this profile from
+`approved_ranking.json`, a pinned approved artifact whose `quality` and `availability` inputs are
+compiled from a real benchmark run rather than authored:
+
+```text
+rag-answer-v1 dataset -> all six balanced deployments -> immutable snapshot
+  -> operator-approved promotion -> benchmark_hybrid ranking policy -> approved artifact
+```
+
+| Deployment | quality | availability | source |
+| --- | --- | --- | --- |
+| `anthropic-claude-sonnet-5-dev` | 1.000 | 1.000 | benchmark |
+| `openrouter-llama-3-3-70b-dev` | 0.958 | 1.000 | benchmark |
+| `nvidia-nemotron-3-super-dev` | 0.950 | 0.833 | benchmark |
+| `google-gemini-3-8-flash-dev` | 0.917 | 1.000 | benchmark |
+| `openai-gpt-5-6-luna-dev` | 0.917 | 1.000 | benchmark |
+| `groq-gpt-oss-120b-dev` | 0.875 | 1.000 | benchmark |
+
+NVIDIA's `0.833` availability is one real provider failure in six calls, recorded as availability
+evidence rather than as a quality score — the snapshot keeps those separate on purpose.
+
+`reliability`, `latency` and `cost` stay static reviewed inputs. That is the compiler's contract, not
+an oversight: `compile_benchmark_hybrid_policy` replaces only empirical quality and availability
+until a separately reviewed normalization policy exists for the other three.
+
+Regenerate both artifacts, and the launcher's pinned ID, with:
+
+```bash
+set -a; source .env; set +a
+PYTHONPATH="$PWD" uv run --frozen --all-packages \
+  python scripts/publish_ranking_evidence.py --approved-by "<your name>" --target-concurrency 6
+```
+
+That command spends real provider credentials. The current committed evidence is snapshot
+`sha256:6f6b4ae1928132ce2b3f6f4212151e60617ec511af128fc6833add971691334f`
+and artifact `sha256:4d58f86b791267b2d38c6a95edad576ab35a5b97a8ee43a78a9d527ac8ee56ad`; the immutable snapshot lives in
+`benchmarks/scorecards/rag-answer-v1/`. `scripts/personal_default_launcher.py` pins the artifact ID,
+so an artifact that changes without the pin being updated fails the Gateway closed at startup.
 
 Fallback stays automatic and within Phase 6's existing bounded rules: ranking/fallback moves only to
 the next already-authorized eligible deployment inside the *same* PDP-granted model group, and never
@@ -137,7 +175,8 @@ uv run --frozen --package governed-llm-gateway-api governed-llm-gateway \
   --client-auth-path config/profiles/personal-default/client_auth.json \
   --operations-access-path config/profiles/personal-default/operations_access.json \
   --policy-router-path config/profiles/personal-default/policy_router.json \
-  --ranking-policy-path config/profiles/personal-default/ranking_policy.yaml \
+  --approved-ranking-artifact-path config/profiles/personal-default/approved_ranking.json \
+  --expected-ranking-artifact-id sha256:4d58f86b791267b2d38c6a95edad576ab35a5b97a8ee43a78a9d527ac8ee56ad \
   --default-max-latency-ms 60000 \
   --default-max-cost-usd 0.05 \
   --host 127.0.0.1 \

@@ -92,5 +92,5 @@ Gateway allowed set ⊆ Policy Router authorized set
 ```
 
 See `docs/evaluation/BENCHMARK_MATRIX.md`,
-`docs/evaluation/BENCHMARK_QUALITY_COMPONENTS.md`, and `docs/project/EVALUATION.md` for the current
+and `docs/project/EVALUATION.md` for the current
 reviewed benchmark/evidence contracts.
