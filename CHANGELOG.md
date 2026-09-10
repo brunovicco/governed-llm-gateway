@@ -5,6 +5,19 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **Container deployment artifact**: adds `Dockerfile`, `.dockerignore`, `compose.gateway.yml`,
+  `docs/project/CONTAINER_DEPLOYMENT.md` and a `image` CI workflow. The Gateway previously had no
+  deployment artifact at all — only local launcher scripts. The image carries code only: no
+  deployment configuration, no default `CMD`, non-root `uid 10001`, both stages pinned to one
+  identical base-image digest (the virtualenv records its interpreter path), dependencies resolved
+  in a layer a source change cannot invalidate, and `uv sync --no-editable` so the runtime stage
+  copies the virtualenv alone — no sources, no build tooling, no `uv`. The consumer SDK is
+  deliberately excluded. CI lints the Dockerfile, validates the compose model, builds the image and
+  then proves three properties against the built artifact: it ships no deployment config and runs as
+  the expected non-root uid, the entrypoint fails closed with no artifacts, and the credential-free
+  operations-only container reports `healthy`. Documented limitation, not worked around: the
+  operations-only entrypoint binds `127.0.0.1` with no `--host` flag, so it is reachable only from
+  inside its container.
 - **Benchmark-derived ranking, actually closed**: the Phase 10 -> Phase 11 chain
   (`Scorecard -> promote_snapshot -> compile_benchmark_hybrid_policy -> ApprovedRankingArtifact`)
   existed end to end and the runtime already accepted an approved artifact, but no
@@ -37,15 +50,6 @@ made.
   print the matched value, and symlinks, deleted index entries, binary and oversized files are
   skipped. Adds `tests/contract/test_secret_scan.py` (10 cases), the first coverage this security
   control has had.
-- **README leads with a real governed request**: both READMEs opened on the operations-only demo
-  screenshots, whose connected view is honestly empty (`phase2-empty` registry, `0 deployments`,
-  `0 healthy`) — a first impression of a console with nothing in it. A new section above
-  "What this project demonstrates" leads with `console-trace-evidence.png`, which existed only in
-  `docs/project/GATEWAY_CONSOLE.md`: a real `personal-default` run showing the selected provider,
-  attempt/fallback counts, routing and policy decision IDs, registry and ranking digests, and the
-  emitted trace ID. The operations-only screenshots stay where they are; their column header now
-  says `operations-only baseline (no inference route)` so the empty registry reads as intentional
-  at a glance rather than three paragraphs later.
 - **Documentation restructure** (#240): consolidates 27 narrow per-workload/per-benchmark docs under
   `docs/evaluation/` into the already-comprehensive `BENCHMARK_MATRIX.md`, removes 3 completed phase
   reports and a duplicate `MODEL_REGISTRY.md`, and splits `docs/project/CURRENT_STATE.md` into a short

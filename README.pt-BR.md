@@ -356,6 +356,7 @@ Frontend, observabilidade e provas de integração também ficam isolados em wor
 | `packages/gateway-client/` | SDK consumidor fino e tipado |
 | `config/` | Registry e artefatos secret-free de provider, cliente, policy e routing |
 | `benchmarks/` | Avaliação determinística e evidência |
+| `Dockerfile`, `compose.gateway.yml` | Imagem de container e deployment da Gateway API |
 | `deploy/observability/` | Provisioning local de Collector, Tempo e Grafana |
 | `scripts/` | Ferramentas de quality, evidência e demo local determinística |
 | `tests/` | Testes unitários, de contrato, integração e end-to-end |
@@ -372,6 +373,7 @@ Se você está avaliando o projeto, comece por:
 - [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) — como chamar o Gateway a partir do seu próprio projeto, ranking com preferência de custo do NVIDIA;
 - [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — fronteira de autorização;
 - [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) — modelo de providers e secrets;
+- [`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md) — imagem de container e deployment;
 - [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md) — fronteira do Console;
 - [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) — prova local real com Grafana/Tempo;
 - [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — arquitetura de benchmarks/evidência;

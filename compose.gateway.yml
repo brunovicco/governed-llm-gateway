@@ -1,0 +1,84 @@
+# Container deployment for the Governed LLM Gateway API.
+#
+# Two services, because the two surfaces have genuinely different requirements.
+#
+# `gateway-operations` (default) runs the read-only operations-only surface against the
+# reviewed fail-closed baseline. It needs no provider credential and no Policy Router,
+# so it is the service CI builds and health-checks.
+#
+# `gateway` (compose profile `governed`) runs real governed inference. It is opt-in
+# because it needs three things this file cannot supply: provider credentials in the
+# environment, a reachable Policy Model Router, and a profile whose
+# `policy_router.json` endpoint resolves from inside a container — the checked-in
+# `personal-default` profile points at `127.0.0.1:8001`, which inside a container is
+# the container itself. Point it at `host.docker.internal:8001` (mapped below) or at
+# the PDP's own service name before starting this service.
+
+name: governed-llm-gateway
+
+services:
+  gateway-operations:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: governed-llm-gateway:local
+    entrypoint: ["governed-llm-gateway-operations-demo"]
+    command: ["--repository-root", "/srv"]
+    environment:
+      # Local-only shared secret invented by the operator; never a provider key.
+      GATEWAY_LOCAL_DEMO_API_KEY: ${GATEWAY_LOCAL_DEMO_API_KEY:?set a random local value}
+    volumes:
+      - ./config:/srv/config:ro
+      - ./examples:/srv/examples:ro
+    # This entrypoint binds 127.0.0.1 and exposes no --host flag, so it is reachable
+    # only from inside the container. The container HEALTHCHECK probes it there.
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  gateway:
+    profiles: ["governed"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: governed-llm-gateway:local
+    command:
+      - --deployment-root=/config
+      - --model-registry-path=model_registry.yaml
+      - --provider-runtime-path=provider_runtime.json
+      - --client-auth-path=client_auth.json
+      - --operations-access-path=operations_access.json
+      - --policy-router-path=policy_router.json
+      - --approved-ranking-artifact-path=approved_ranking.json
+      - --expected-ranking-artifact-id=${APPROVED_RANKING_ARTIFACT_ID:?pin the approved artifact id}
+      - --default-max-latency-ms=60000
+      - --default-max-cost-usd=0.05
+      - --host=0.0.0.0
+      - --port=8000
+    environment:
+      GATEWAY_DEMO_API_KEY: ${GATEWAY_DEMO_API_KEY:?required}
+      POLICY_ROUTER_DEMO_API_KEY: ${POLICY_ROUTER_DEMO_API_KEY:?required}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      # Deployment artifacts stay outside the image and are never writable.
+      - ./config/profiles/personal-default:/config:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

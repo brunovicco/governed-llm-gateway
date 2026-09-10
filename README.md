@@ -353,6 +353,7 @@ Frontend, observability and integration proofs are also isolated in dedicated Gi
 | `packages/gateway-client/` | Thin typed consumer SDK |
 | `config/` | Secret-free registry, provider, client, policy and routing artifacts |
 | `benchmarks/` | Deterministic evaluation and evidence |
+| `Dockerfile`, `compose.gateway.yml` | Container image and deployment for the Gateway API |
 | `deploy/observability/` | Collector, Tempo and Grafana local provisioning |
 | `scripts/` | Quality, evidence and deterministic local-demo tooling |
 | `tests/` | Unit, contract, integration and end-to-end validation |
@@ -369,6 +370,7 @@ If you are evaluating the repository, start here:
 - [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) — how to call the Gateway from your own project, NVIDIA cost-preferred ranking;
 - [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — authorization boundary;
 - [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) — provider and secret model;
+- [`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md) — container image and deployment;
 - [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md) — Console boundary;
 - [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) — real local Grafana/Tempo proof;
 - [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — benchmark/evidence architecture;

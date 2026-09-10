@@ -1,0 +1,99 @@
+name: image
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - compose.gateway.yml
+      - pyproject.toml
+      - uv.lock
+      - packages/**
+      - apps/gateway-api/**
+      - docs/project/CONTAINER_DEPLOYMENT.md
+      - .github/workflows/image.yml
+  push:
+    branches:
+      - main
+      - feat/**
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - compose.gateway.yml
+      - pyproject.toml
+      - uv.lock
+      - packages/**
+      - apps/gateway-api/**
+      - docs/project/CONTAINER_DEPLOYMENT.md
+      - .github/workflows/image.yml
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: warning
+
+      - name: Validate compose model
+        env:
+          GATEWAY_LOCAL_DEMO_API_KEY: compose-config-only
+          GATEWAY_DEMO_API_KEY: compose-config-only
+          POLICY_ROUTER_DEMO_API_KEY: compose-config-only
+          APPROVED_RANKING_ARTIFACT_ID: sha256:0000000000000000000000000000000000000000000000000000000000000000
+        run: docker compose -f compose.gateway.yml --profile governed config --quiet
+
+      - name: Build image
+        run: docker build --tag governed-llm-gateway:ci .
+
+      - name: Require the image to carry no deployment configuration
+        run: |
+          docker run --rm --entrypoint sh governed-llm-gateway:ci -c '
+            test ! -e /app/config || { echo "image ships deployment config" >&2; exit 1; }
+            test ! -e /app/.env || { echo "image ships an env file" >&2; exit 1; }
+            test "$(id -u)" -eq 10001 || { echo "image does not run as the gateway user" >&2; exit 1; }
+          '
+
+      - name: Require the entrypoint to fail closed without artifacts
+        run: |
+          if docker run --rm governed-llm-gateway:ci; then
+            echo "entrypoint started without explicit deployment artifacts" >&2
+            exit 1
+          fi
+
+      - name: Require a healthy operations-only container
+        env:
+          GATEWAY_LOCAL_DEMO_API_KEY: local-demo-ci-value
+        run: |
+          container="$(docker run --detach \
+            --entrypoint governed-llm-gateway-operations-demo \
+            --env GATEWAY_LOCAL_DEMO_API_KEY \
+            --volume "$PWD/config:/srv/config:ro" \
+            --volume "$PWD/examples:/srv/examples:ro" \
+            --read-only --tmpfs /tmp \
+            governed-llm-gateway:ci --repository-root /srv)"
+          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 60); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' "$container")"
+            if [ "$status" = "healthy" ]; then
+              echo "operations-only container reported healthy"
+              exit 0
+            fi
+            if [ "$(docker inspect --format '{{.State.Running}}' "$container")" != "true" ]; then
+              docker logs "$container"
+              echo "operations-only container exited" >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          docker logs "$container"
+          echo "operations-only container never became healthy" >&2
+          exit 1
