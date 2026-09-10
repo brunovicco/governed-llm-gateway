@@ -5,6 +5,10 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **Quality gate runs each step once**: `scripts/quality_gate.py` invoked `architecture_check.py`
+  and `secret_scan.py` directly and then ran `phase0_gate.py`, which runs both again. Steps are now
+  named, timed, reported as a summary, and deduplicated; `phase0_gate.py` stays independently
+  runnable and keeps owning those two checks.
 - **Secret scan enumerates through Git, and is now itself under test**: `scripts/secret_scan.py`
   walked the filesystem and excluded only `.git`, `.venv` and `uv.lock`, so it read paths that can
   never reach a commit. A local `.env` holding a real provider key therefore failed
