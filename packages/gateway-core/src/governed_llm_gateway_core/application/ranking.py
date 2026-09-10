@@ -20,7 +20,11 @@ from governed_llm_gateway_core.domain.evidence_ranking import (
     manual_override_id,
     score_provenance_mode,
 )
-from governed_llm_gateway_core.domain.model_registry import ModelDeployment, ModelRegistry
+from governed_llm_gateway_core.domain.model_registry import (
+    ModelDeployment,
+    ModelRegistry,
+    estimated_cost_usd,
+)
 from governed_llm_gateway_core.domain.ranking import (
     RankingPolicy,
     RankingWeights,
@@ -139,10 +143,10 @@ class OperationalRankingService:
                 raise RankingInvariantViolation(
                     "eligible deployment reached scoring without static ranking inputs"
                 )
-            estimated_cost = _estimate_cost(
-                deployment,
-                policy_request.context_tokens_estimated,
-                policy_request.max_output_tokens_estimated,
+            estimated_cost = estimated_cost_usd(
+                deployment.pricing,
+                input_tokens=policy_request.context_tokens_estimated,
+                output_tokens=policy_request.max_output_tokens_estimated,
             )
             if estimated_cost is None:
                 raise RankingInvariantViolation(
@@ -340,10 +344,10 @@ def _eligibility_rejection(
             reason=RejectionReason.RANKING_SCORE_UNAVAILABLE,
         )
 
-    estimated_cost = _estimate_cost(
-        deployment,
-        policy_request.context_tokens_estimated,
-        policy_request.max_output_tokens_estimated,
+    estimated_cost = estimated_cost_usd(
+        deployment.pricing,
+        input_tokens=policy_request.context_tokens_estimated,
+        output_tokens=policy_request.max_output_tokens_estimated,
     )
     if estimated_cost is None:
         return CandidateRejection(
@@ -413,20 +417,6 @@ def _missing_capabilities(
     if request.requirements.streaming:
         required.append(Capability.STREAMING)
     return tuple(capability for capability in required if capability not in deployment.capabilities)
-
-
-def _estimate_cost(
-    deployment: ModelDeployment,
-    input_tokens: int,
-    output_tokens: int,
-) -> Decimal | None:
-    pricing = deployment.pricing
-    if pricing is None:
-        return None
-    return (
-        pricing.input_usd_per_million_tokens * Decimal(input_tokens) / _MILLION
-        + pricing.output_usd_per_million_tokens * Decimal(output_tokens) / _MILLION
-    )
 
 
 def _score(weights: RankingWeights, static: StaticDeploymentScore) -> ScoreBreakdown:

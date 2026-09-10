@@ -5,6 +5,23 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **Estimated-spend accounting and budgets**: per-client, per-workload accumulation of what
+  execution implied, with limits that refuse a request once a ceiling is reached. Amounts derive
+  from the Model Registry's pinned pricing and the provider's reported usage, so they are the
+  gateway's **estimate** rather than an invoice — the docs and the code say so, because presenting
+  a drifting pinned price as billed cost to a finance audience would be the wrong kind of
+  confidence. Money accumulates as integer micro-USD: a float ledger loses precision at the scale
+  that matters (a contract test asserts a thousand tenths of a cent total exactly one dollar), and
+  a counter shared across replicas must be incremented atomically, which `INCRBY` on an integer is
+  and a read-modify-write of a float is not. The guard runs after PDP authorization and before
+  provider work, so a budget narrows and never widens. Reading fails closed — spending against a
+  ceiling nobody can see is worse than refusing — while writing is swallowed, since the caller
+  already holds their answer. A cached answer records nothing, which is what the `cached` marker
+  added in the previous commit is for. Exhaustion is `>=`, because a budget that permits one more
+  call at exactly its ceiling is designed to be exceeded. Also consolidates the cost formula, which
+  was private to `ranking.py`, into the domain module that owns `PricingMetadata`. Adds
+  `docs/project/SPEND_ACCOUNTING.md` and `tests/contract/test_spend_accounting.py` (24 cases);
+  three governance-critical assertions were confirmed against mutated source.
 - **Response cache wired into the governed streaming path**: the cache is now consulted and
   populated by real requests rather than only being available. `ProviderExecution` gains `cached`,
   because a served hit reports the deployment that originally produced the content and without that
