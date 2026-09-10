@@ -227,7 +227,7 @@ def test_429_retries_same_deployment_before_fallback() -> None:
         ExecutionAttemptOutcome.TRANSIENT_FAILURE,
         ExecutionAttemptOutcome.SUCCEEDED,
     ]
-    snapshot = health.snapshot("candidate-a")
+    snapshot = asyncio.run(health.snapshot("candidate-a"))
     assert snapshot.request_count == 2
     assert snapshot.success_count == 1
     assert snapshot.rate_limit_count == 1
@@ -345,20 +345,20 @@ def test_circuit_opens_and_prevents_provider_call_until_cooldown() -> None:
     with pytest.raises(ResilienceExecutionError):
         asyncio.run(service.execute(_request(), _decision(deployment), max_output_tokens=100))
 
-    assert health.snapshot("candidate-a").circuit_state is CircuitState.OPEN
+    assert asyncio.run(health.snapshot("candidate-a")).circuit_state is CircuitState.OPEN
     with pytest.raises(ResilienceExecutionError) as exc_info:
         asyncio.run(service.execute(_request(), _decision(deployment), max_output_tokens=100))
     assert len(provider.calls) == 1
     assert exc_info.value.attempts[0].outcome is ExecutionAttemptOutcome.CIRCUIT_OPEN
 
     clock.advance(30)
-    half_open = health.snapshot("candidate-a")
+    half_open = asyncio.run(health.snapshot("candidate-a"))
     assert half_open.circuit_state is CircuitState.HALF_OPEN
     assert half_open.status is HealthStatus.DEGRADED
 
     result = asyncio.run(service.execute(_request(), _decision(deployment), max_output_tokens=100))
     assert result.response.text == "ok"
-    recovered = health.snapshot("candidate-a")
+    recovered = asyncio.run(health.snapshot("candidate-a"))
     assert recovered.circuit_state is CircuitState.CLOSED
     assert recovered.status is HealthStatus.HEALTHY
 

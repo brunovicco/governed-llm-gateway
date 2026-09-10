@@ -5,9 +5,9 @@ from collections.abc import AsyncGenerator
 from governed_llm_gateway_contracts import GatewayStreamEvent
 from governed_llm_gateway_core.application import (
     ComplexityRouteExplainService,
-    InMemoryHealthTracker,
     PolicyProjectionDefaults,
 )
+from governed_llm_gateway_core.application.health import DeploymentHealthPort
 from governed_llm_gateway_core.application.streaming import StreamingExecutionService
 from governed_llm_gateway_core.domain.evidence_ranking import EvidenceDrivenRankingPolicy
 from governed_llm_gateway_core.domain.model_registry import ModelRegistry
@@ -29,7 +29,7 @@ class ComplexityGenerateCoordinator:
         context_resolver: EffectiveContextResolver,
         route_service: ComplexityRouteExplainService,
         streaming_service: StreamingExecutionService,
-        health: InMemoryHealthTracker,
+        health: DeploymentHealthPort,
         registry: ModelRegistry,
         ranking_policy: EvidenceDrivenRankingPolicy,
         defaults: PolicyProjectionDefaults,
@@ -58,7 +58,7 @@ class ComplexityGenerateCoordinator:
         deployment_ids = tuple(
             sorted(deployment.deployment_id for deployment in self._registry.deployments)
         )
-        runtime_health = self._health.snapshots(deployment_ids)
+        runtime_health = await self._health.snapshots(deployment_ids)
         decision = await self._route_service.explain(
             request,
             effective_context,

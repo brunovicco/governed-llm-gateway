@@ -8,8 +8,12 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    # The Lua extra matters: every circuit transition is an EVAL, so an emulator without
+    # scripting would silently test nothing.
+    "fakeredis[lua]>=2.38.0,<3",
     "httpx>=0.28.1,<0.29",
     "openai>=2.9.0,<3",
+    "redis>=6.0.0,<9",
 ]
 
 [tool.uv]

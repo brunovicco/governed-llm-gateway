@@ -21,6 +21,7 @@ from governed_llm_gateway_contracts import (
 
 from governed_llm_gateway_core.domain.resilience import RetryPolicy
 
+from .health import DeploymentHealthPort
 from .observability import ObservabilityPort
 from .operational_evidence import OperationalAttemptRecorder, UtcClock
 from .operational_recording import (
@@ -40,9 +41,10 @@ from .provider import (
     ProviderToolCallCompleted,
     ProviderToolCallStarted,
     ProviderUsageCompleted,
+    is_transient_provider_error,
 )
 from .ranking import RankedCandidate, RankingDecision, RankingInvariantViolation
-from .resilience import InMemoryHealthTracker, ProviderResolutionError, ProviderResolver
+from .resilience import ProviderResolutionError, ProviderResolver
 from .telemetry import (
     GatewaySpanEventName,
     GatewaySpanName,
@@ -58,7 +60,7 @@ class StreamingExecutionService:
     def __init__(
         self,
         *,
-        health: InMemoryHealthTracker,
+        health: DeploymentHealthPort,
         resolver: ProviderResolver,
         retry_policy: RetryPolicy | None = None,
         clock: Clock = time.monotonic,
@@ -117,7 +119,7 @@ class StreamingExecutionService:
         for candidate_index, candidate in enumerate(bounded):
             deployment = candidate.deployment
             deployment_id = deployment.deployment_id
-            if not self._health.allow_request(deployment_id):
+            if not await self._health.allow_request(deployment_id):
                 continue
             fallback_sequence.append(deployment_id)
             routing = _routing_for_candidate(decision, candidate, fallback_sequence)
@@ -171,7 +173,7 @@ class StreamingExecutionService:
                 return
 
             for attempt_number in range(1, self._retry_policy.max_attempts_per_deployment + 1):
-                if not self._health.allow_request(deployment_id):
+                if not await self._health.allow_request(deployment_id):
                     break
 
                 provider_request = _provider_request(
@@ -316,7 +318,7 @@ class StreamingExecutionService:
                                             "provider completed before semantic output/final usage",
                                         )
                                     latency_ms = _latency_ms(started_at, self._clock())
-                                    self._health.record_success(
+                                    await self._health.record_success(
                                         deployment_id,
                                         latency_ms=latency_ms,
                                     )
@@ -413,7 +415,7 @@ class StreamingExecutionService:
                             provider_error=exc,
                         )
                         attempt_terminal_recorded = True
-                        self._health.record_failure(deployment_id, exc, latency_ms=latency_ms)
+                        await self._health.record_failure(deployment_id, exc, latency_ms=latency_ms)
                         last_error = exc
                         last_execution = ProviderExecution(
                             provider=deployment.provider,
@@ -452,11 +454,11 @@ class StreamingExecutionService:
                             )
                             return
 
-                        transient = _is_transient(exc)
+                        transient = is_transient_provider_error(exc)
                         can_retry = (
                             transient
                             and attempt_number < self._retry_policy.max_attempts_per_deployment
-                            and self._health.allow_request(deployment_id)
+                            and await self._health.allow_request(deployment_id)
                         )
                         if can_retry:
                             delay = _retry_delay_seconds(
@@ -637,15 +639,6 @@ def _invalid_stream_event(provider: str, message: str) -> ProviderError:
         message=message,
         retryable=False,
     )
-
-
-def _is_transient(error: ProviderError) -> bool:
-    return error.retryable and error.code in {
-        ProviderErrorCode.RATE_LIMIT,
-        ProviderErrorCode.TIMEOUT,
-        ProviderErrorCode.UNAVAILABLE,
-        ProviderErrorCode.TRANSPORT,
-    }
 
 
 def _retry_delay_seconds(

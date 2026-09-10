@@ -14,6 +14,7 @@ from governed_llm_gateway_api import server as server_module
 from governed_llm_gateway_api.deployment_activation import GovernedDeploymentSettings
 from governed_llm_gateway_api.server import parse_server_args, run_governed_server
 from governed_llm_gateway_core.adapters.observability_otel import OpenTelemetryObservability
+from governed_llm_gateway_core.application.health import DeploymentHealthPort
 from governed_llm_gateway_core.application.observability import ObservabilityPort
 
 
@@ -181,8 +182,9 @@ def test_enabled_observability_is_injected_and_shutdown_after_runner_return(
         *,
         environ: Mapping[str, str] | None = None,
         observability: ObservabilityPort | None = None,
+        health: DeploymentHealthPort | None = None,
     ) -> SimpleNamespace:
-        del value, environ
+        del value, environ, health
         injected.append(observability)
         return SimpleNamespace(app=app)
 
@@ -219,8 +221,9 @@ def test_observability_configuration_failure_degrades_to_null_telemetry(
         *,
         environ: Mapping[str, str] | None = None,
         observability: ObservabilityPort | None = None,
+        health: DeploymentHealthPort | None = None,
     ) -> SimpleNamespace:
-        del value, environ
+        del value, environ, health
         injected.append(observability)
         return SimpleNamespace(app=app)
 
@@ -252,8 +255,9 @@ def test_activation_failure_still_shuts_down_owned_observability(
         *,
         environ: Mapping[str, str] | None = None,
         observability: ObservabilityPort | None = None,
+        health: DeploymentHealthPort | None = None,
     ) -> SimpleNamespace:
-        del value, environ
+        del value, environ, health
         assert isinstance(observability, OpenTelemetryObservability)
         assert observability.observability is expected_observability
         raise ActivationError("activation failed")
@@ -286,8 +290,9 @@ def test_shutdown_failure_never_masks_runner_failure(
         *,
         environ: Mapping[str, str] | None = None,
         observability: ObservabilityPort | None = None,
+        health: DeploymentHealthPort | None = None,
     ) -> SimpleNamespace:
-        del value, environ
+        del value, environ, health
         assert isinstance(observability, OpenTelemetryObservability)
         assert observability.observability is expected_observability
         return SimpleNamespace(app=app)
@@ -322,8 +327,9 @@ def test_shutdown_failure_after_normal_runner_return_is_best_effort(
         *,
         environ: Mapping[str, str] | None = None,
         observability: ObservabilityPort | None = None,
+        health: DeploymentHealthPort | None = None,
     ) -> SimpleNamespace:
-        del value, environ
+        del value, environ, health
         assert isinstance(observability, OpenTelemetryObservability)
         assert observability.observability is expected_observability
         return SimpleNamespace(app=app)

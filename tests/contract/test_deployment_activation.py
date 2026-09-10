@@ -480,7 +480,7 @@ def test_configured_operational_evidence_is_bound_to_authenticated_overview(
     assert bound is not None
     assert bound.evidence_id == expected.evidence_id
     assert (
-        services.operations_snapshot_reader.snapshot().operational_evidence.state.value
+        asyncio.run(services.operations_snapshot_reader.snapshot()).operational_evidence.state.value
         == "available"
     )
 

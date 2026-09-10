@@ -1,5 +1,6 @@
 """Contract tests for the typed read-only operations projection."""
 
+import asyncio
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
@@ -164,7 +165,7 @@ def test_health_inspection_does_not_materialize_unseen_live_state() -> None:
     health = InMemoryHealthTracker()
     inspector = InMemoryHealthInspectionAdapter(health)
 
-    snapshots = inspector.inspect(("deployment-a",))
+    snapshots = asyncio.run(inspector.inspect(("deployment-a",)))
 
     assert len(snapshots) == 1
     assert snapshots[0].deployment_id == "deployment-a"
@@ -180,11 +181,11 @@ def test_health_inspection_reports_effective_half_open_without_mutating_live_sta
         CircuitBreakerPolicy(failure_threshold=1, cooldown_seconds=30),
         clock=clock,
     )
-    health.record_failure("deployment-a", _server_error(), latency_ms=25)
+    asyncio.run(health.record_failure("deployment-a", _server_error(), latency_ms=25))
     assert health._states["deployment-a"].circuit_state is CircuitState.OPEN
 
     clock.advance(30)
-    inspected = InMemoryHealthInspectionAdapter(health).inspect(("deployment-a",))
+    inspected = asyncio.run(InMemoryHealthInspectionAdapter(health).inspect(("deployment-a",)))
 
     assert inspected[0].circuit_state is CircuitState.HALF_OPEN
     assert inspected[0].status is HealthStatus.DEGRADED
@@ -201,8 +202,8 @@ def test_static_operations_snapshot_is_deterministic_and_explicit_about_absence(
         health=InMemoryHealthInspectionAdapter(health),
     )
 
-    first = service.snapshot()
-    second = service.snapshot()
+    first = asyncio.run(service.snapshot())
+    second = asyncio.run(service.snapshot())
 
     assert first == second
     assert first.health_scope is OperationsHealthScope.PROCESS_LOCAL
@@ -234,7 +235,7 @@ def test_evidence_driven_ranking_provenance_is_projected_without_inference() -> 
         health=InMemoryHealthInspectionAdapter(InMemoryHealthTracker()),
     )
 
-    snapshot = service.snapshot()
+    snapshot = asyncio.run(service.snapshot())
 
     assert snapshot.ranking.score_provenance_mode == "benchmark_hybrid"
     assert snapshot.ranking.benchmark_snapshot_id == "sha256:" + "a" * 64
@@ -275,7 +276,7 @@ def test_reviewed_operational_evidence_preserves_exact_provenance_and_window() -
         health=InMemoryHealthInspectionAdapter(InMemoryHealthTracker()),
     )
 
-    snapshot = service.snapshot(operational_evidence=evidence)
+    snapshot = asyncio.run(service.snapshot(operational_evidence=evidence))
 
     assert isinstance(snapshot.operational_evidence, OperationalEvidenceAvailable)
     assert snapshot.operational_evidence.state is OperationalEvidenceState.AVAILABLE

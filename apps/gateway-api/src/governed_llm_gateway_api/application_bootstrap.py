@@ -12,7 +12,8 @@ from governed_llm_gateway_core.adapters import (
     load_ranking_policy,
 )
 from governed_llm_gateway_core.adapters.operational_evidence_json import load_operational_evidence
-from governed_llm_gateway_core.application import InMemoryHealthTracker, PolicyProjectionDefaults
+from governed_llm_gateway_core.application import PolicyProjectionDefaults
+from governed_llm_gateway_core.application.health import DeploymentHealthPort
 from governed_llm_gateway_core.application.observability import ObservabilityPort
 from governed_llm_gateway_core.domain.model_registry import ModelRegistry
 from governed_llm_gateway_core.domain.operational_evidence import (
@@ -201,7 +202,7 @@ def materialize_governed_application_services(
     defaults: PolicyProjectionDefaults,
     observability: ObservabilityPort | None = None,
     retry_policy: RetryPolicy | None = None,
-    health: InMemoryHealthTracker | None = None,
+    health: DeploymentHealthPort | None = None,
 ) -> GovernedGatewayServices:
     """Resolve secrets only after routing artifacts validated, then delegate to PC-9."""
     if not isinstance(artifacts, GovernedApplicationArtifacts):
@@ -234,7 +235,7 @@ def bootstrap_governed_application_services(
     defaults: PolicyProjectionDefaults,
     observability: ObservabilityPort | None = None,
     retry_policy: RetryPolicy | None = None,
-    health: InMemoryHealthTracker | None = None,
+    health: DeploymentHealthPort | None = None,
 ) -> GovernedGatewayServices:
     """Validate every deployment artifact before materializing any secret-backed service."""
     artifacts = load_governed_application_artifacts(paths)

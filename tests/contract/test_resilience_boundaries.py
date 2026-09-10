@@ -201,7 +201,7 @@ def test_timeout_retries_and_updates_timeout_health_counter() -> None:
 
     assert len(provider.calls) == 2
     assert sleeper.delays == [0.1]
-    snapshot = health.snapshot("candidate-a")
+    snapshot = asyncio.run(health.snapshot("candidate-a"))
     assert snapshot.timeout_count == 2
     assert snapshot.transient_failure_count == 2
 
@@ -307,14 +307,14 @@ def test_transient_half_open_probe_failure_reopens_circuit() -> None:
     )
     transient = _error(ProviderErrorCode.UNAVAILABLE, status=503)
 
-    health.record_failure("candidate-a", transient, latency_ms=10)
-    assert health.snapshot("candidate-a").circuit_state is CircuitState.OPEN
+    asyncio.run(health.record_failure("candidate-a", transient, latency_ms=10))
+    assert asyncio.run(health.snapshot("candidate-a")).circuit_state is CircuitState.OPEN
 
     clock.advance(10)
-    assert health.snapshot("candidate-a").circuit_state is CircuitState.HALF_OPEN
+    assert asyncio.run(health.snapshot("candidate-a")).circuit_state is CircuitState.HALF_OPEN
 
-    health.record_failure("candidate-a", transient, latency_ms=10)
-    assert health.snapshot("candidate-a").circuit_state is CircuitState.OPEN
+    asyncio.run(health.record_failure("candidate-a", transient, latency_ms=10))
+    assert asyncio.run(health.snapshot("candidate-a")).circuit_state is CircuitState.OPEN
 
 
 def test_retry_schedule_is_reconstructable_for_same_request_and_policy() -> None:

@@ -9,7 +9,8 @@ from governed_llm_gateway_core.adapters import (
     EnvironmentPolicyRouterSecretResolver,
     EnvironmentProviderSecretResolver,
 )
-from governed_llm_gateway_core.application import InMemoryHealthTracker, PolicyProjectionDefaults
+from governed_llm_gateway_core.application import PolicyProjectionDefaults
+from governed_llm_gateway_core.application.health import DeploymentHealthPort
 from governed_llm_gateway_core.application.observability import ObservabilityPort
 from governed_llm_gateway_core.domain.resilience import RetryPolicy
 
@@ -144,7 +145,7 @@ def activate_governed_deployment(
     environ: Mapping[str, str] | None = None,
     observability: ObservabilityPort | None = None,
     retry_policy: RetryPolicy | None = None,
-    health: InMemoryHealthTracker | None = None,
+    health: DeploymentHealthPort | None = None,
 ) -> GovernedGatewayServices:
     """Validate all deployment artifacts before binding environment-backed credentials."""
     if not isinstance(settings, GovernedDeploymentSettings):

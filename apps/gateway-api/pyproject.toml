@@ -13,6 +13,12 @@ dependencies = [
     "governed-llm-gateway-core",
 ]
 
+[project.optional-dependencies]
+# Only needed when a deployment configures shared health state. Any RESP client works;
+# this is the one the composition root wires by default. Redis Open Source, Valkey,
+# ElastiCache and MemoryDB all speak the same protocol.
+redis = ["redis>=6.0.0,<9"]
+
 [project.scripts]
 governed-llm-gateway = "governed_llm_gateway_api.server:main"
 governed-llm-gateway-operations-demo = "governed_llm_gateway_api.operations_demo:main"

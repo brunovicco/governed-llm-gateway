@@ -400,8 +400,8 @@ class CircuitStateTests(unittest.TestCase):
         )
         health = InMemoryHealthTracker(CircuitBreakerPolicy(failure_threshold=1))
         for _ in range(2):
-            health.record_failure(primary.deployment_id, _rate_limit(), latency_ms=1)
-        self.assertFalse(health.allow_request(primary.deployment_id))
+            asyncio.run(health.record_failure(primary.deployment_id, _rate_limit(), latency_ms=1))
+        self.assertFalse(asyncio.run(health.allow_request(primary.deployment_id)))
 
         service = _service(
             (primary, primary_provider),
@@ -420,7 +420,9 @@ class CircuitStateTests(unittest.TestCase):
         provider = ScriptedStreamingProvider(())
         health = InMemoryHealthTracker(CircuitBreakerPolicy(failure_threshold=1))
         for _ in range(2):
-            health.record_failure(deployment.deployment_id, _rate_limit(), latency_ms=1)
+            asyncio.run(
+                health.record_failure(deployment.deployment_id, _rate_limit(), latency_ms=1)
+            )
 
         service = _service((deployment, provider), health=health)
 

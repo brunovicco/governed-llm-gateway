@@ -212,7 +212,7 @@ def test_successful_stream_has_one_deterministic_terminal_lifecycle() -> None:
     assert events[2].usage is not None
     assert events[2].usage.input_tokens == 10
     assert provider.closed_count == 1
-    assert health.snapshot("deployment-a").success_count == 1
+    assert asyncio.run(health.snapshot("deployment-a")).success_count == 1
 
 
 def test_transient_failure_before_output_can_fallback_inside_ranked_sequence() -> None:
@@ -301,6 +301,6 @@ def test_client_close_closes_provider_stream_without_recording_provider_failure(
     asyncio.run(scenario())
 
     assert provider.closed_count == 1
-    snapshot = health.snapshot("deployment-a")
+    snapshot = asyncio.run(health.snapshot("deployment-a"))
     assert snapshot.request_count == 0
     assert snapshot.transient_failure_count == 0

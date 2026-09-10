@@ -13,6 +13,7 @@ from governed_llm_gateway_core.application import (
     PolicyProjectionDefaults,
     RouteExplainService,
 )
+from governed_llm_gateway_core.application.health import DeploymentHealthPort
 from governed_llm_gateway_core.application.observability import ObservabilityPort
 from governed_llm_gateway_core.application.streaming import StreamingExecutionService
 from governed_llm_gateway_core.domain.complexity import DeterministicComplexityEvaluator
@@ -40,7 +41,7 @@ class GovernedGatewayServices:
     """Explicit per-process services sharing one validated runtime and health state."""
 
     app: FastAPI
-    health: InMemoryHealthTracker
+    health: DeploymentHealthPort
     operations_read_model: OperationsReadModelService
     operations_snapshot_reader: DeploymentOperationsSnapshotReader
     operations_read_access: OperationsReadAccessService
@@ -88,7 +89,7 @@ def compose_governed_gateway_services(
     operational_evidence: OperationalEvidenceSnapshot | None = None,
     observability: ObservabilityPort | None = None,
     retry_policy: RetryPolicy | None = None,
-    health: InMemoryHealthTracker | None = None,
+    health: DeploymentHealthPort | None = None,
 ) -> GovernedGatewayServices:
     """Build the governed HTTP service graph without reading config, secrets, or the network."""
     if not isinstance(runtime, GovernedProcessRuntimeBundle):

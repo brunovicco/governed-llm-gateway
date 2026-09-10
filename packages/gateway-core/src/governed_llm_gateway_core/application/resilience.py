@@ -3,7 +3,7 @@
 import asyncio
 import hashlib
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from enum import StrEnum
@@ -21,6 +21,7 @@ from governed_llm_gateway_core.domain.resilience import (
     RetryPolicy,
 )
 
+from .health import DeploymentHealthPort
 from .observability import ObservabilityPort
 from .operational_evidence import OperationalAttemptRecorder, UtcClock
 from .operational_recording import (
@@ -34,6 +35,7 @@ from .provider import (
     ProviderPort,
     ProviderRequest,
     ProviderResponse,
+    is_transient_provider_error,
 )
 from .ranking import RankedCandidate, RankingDecision, RankingInvariantViolation
 from .telemetry import (
@@ -135,23 +137,25 @@ class InMemoryHealthTracker:
         self._clock = clock
         self._states: dict[str, _MutableDeploymentHealth] = {}
 
-    def snapshot(self, deployment_id: str) -> DeploymentHealthSnapshot:
+    async def snapshot(self, deployment_id: str) -> DeploymentHealthSnapshot:
         """Return current state, moving an expired open circuit to half-open."""
         state = self._state(deployment_id)
         self._refresh_circuit(state)
         return _snapshot(deployment_id, state)
 
-    def snapshots(self, deployment_ids: tuple[str, ...]) -> dict[str, DeploymentHealthSnapshot]:
+    async def snapshots(self, deployment_ids: Sequence[str]) -> dict[str, DeploymentHealthSnapshot]:
         """Return deterministic snapshots for all requested deployments."""
-        return {deployment_id: self.snapshot(deployment_id) for deployment_id in deployment_ids}
+        return {
+            deployment_id: await self.snapshot(deployment_id) for deployment_id in deployment_ids
+        }
 
-    def allow_request(self, deployment_id: str) -> bool:
+    async def allow_request(self, deployment_id: str) -> bool:
         """Reject calls while the circuit is open and allow a half-open probe after cooldown."""
         state = self._state(deployment_id)
         self._refresh_circuit(state)
         return state.circuit_state is not CircuitState.OPEN
 
-    def record_success(self, deployment_id: str, *, latency_ms: int) -> None:
+    async def record_success(self, deployment_id: str, *, latency_ms: int) -> None:
         """Record success and close/reset a half-open or degraded circuit."""
         state = self._state(deployment_id)
         state.request_count += 1
@@ -161,7 +165,7 @@ class InMemoryHealthTracker:
         state.circuit_state = CircuitState.CLOSED
         state.opened_at = None
 
-    def record_failure(
+    async def record_failure(
         self,
         deployment_id: str,
         error: ProviderError,
@@ -172,7 +176,7 @@ class InMemoryHealthTracker:
         state = self._state(deployment_id)
         state.request_count += 1
         state.last_latency_ms = latency_ms
-        if not _is_transient(error):
+        if not is_transient_provider_error(error):
             state.consecutive_transient_failures = 0
             return
 
@@ -228,7 +232,7 @@ class ResilientExecutionService:
 
     def __init__(
         self,
-        health: InMemoryHealthTracker,
+        health: DeploymentHealthPort,
         resolver: ProviderResolver,
         retry_policy: RetryPolicy | None = None,
         *,
@@ -288,7 +292,7 @@ class ResilientExecutionService:
 
         for candidate_index, candidate in enumerate(bounded_candidates):
             deployment_id = candidate.deployment.deployment_id
-            if not self._health.allow_request(deployment_id):
+            if not await self._health.allow_request(deployment_id):
                 attempts.append(
                     ExecutionAttempt(
                         deployment_id=deployment_id,
@@ -300,7 +304,7 @@ class ResilientExecutionService:
 
             fallback_sequence.append(deployment_id)
             for attempt_number in range(1, self._retry_policy.max_attempts_per_deployment + 1):
-                if not self._health.allow_request(deployment_id):
+                if not await self._health.allow_request(deployment_id):
                     attempts.append(
                         ExecutionAttempt(
                             deployment_id=deployment_id,
@@ -373,13 +377,13 @@ class ResilientExecutionService:
                             latency_ms=latency_ms,
                             provider_error=exc,
                         )
-                        self._health.record_failure(deployment_id, exc, latency_ms=latency_ms)
-                        transient = _is_transient(exc)
+                        await self._health.record_failure(deployment_id, exc, latency_ms=latency_ms)
+                        transient = is_transient_provider_error(exc)
                         retry_delay: float | None = None
                         can_retry = (
                             transient
                             and attempt_number < self._retry_policy.max_attempts_per_deployment
-                            and self._health.allow_request(deployment_id)
+                            and await self._health.allow_request(deployment_id)
                         )
                         if can_retry:
                             retry_delay = _retry_delay_seconds(
@@ -458,7 +462,7 @@ class ResilientExecutionService:
                             fallback_index=len(fallback_sequence) - 1,
                             latency_ms=latency_ms,
                         )
-                        self._health.record_success(deployment_id, latency_ms=latency_ms)
+                        await self._health.record_success(deployment_id, latency_ms=latency_ms)
                         if span is not None:
                             span.set_attributes(
                                 {
@@ -506,15 +510,6 @@ class ResilientExecutionService:
             raise RankingInvariantViolation(
                 "resilience candidate is outside the PDP-authorized logical model group"
             )
-
-
-def _is_transient(error: ProviderError) -> bool:
-    return error.retryable and error.code in {
-        ProviderErrorCode.RATE_LIMIT,
-        ProviderErrorCode.TIMEOUT,
-        ProviderErrorCode.UNAVAILABLE,
-        ProviderErrorCode.TRANSPORT,
-    }
 
 
 def _retry_delay_seconds(

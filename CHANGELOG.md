@@ -5,6 +5,31 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **Shared health and circuit state across replicas**: `InMemoryHealthTracker` kept circuit state
+  per process, so with more than one replica each worker learned independently that a provider was
+  failing and the aggregate fallback behaviour stopped being deterministic — a contradiction of the
+  property this gateway sells. Adds `application/health.py` with a `DeploymentHealthPort` (services
+  now depend on the port, not on the concrete tracker) and
+  `adapters/health_redis.py`, which keeps that state on any RESP server. The port is asynchronous
+  because the only useful implementation beyond one process is a network round trip; blocking the
+  event loop to decide whether a circuit is open would trade one correctness problem for a worse
+  one. Every transition is a single server-side Lua script, since read-modify-write across replicas
+  is exactly the race that would make a shared breaker worse than a local one — an integration test
+  drives ten concurrent replicas and asserts no counter is lost.
+
+  **Server choice stays with the operator.** The adapter uses only core data types and Lua — no
+  modules, no vendor commands — and imports no client library at all, taking a `RespClient`
+  Protocol instead, so `gateway-core` gains no dependency and `gateway-api` declares an optional
+  `redis` extra. Redis 8 folded the former Stack modules into core, and none of them are needed
+  here, so the real difference is licensing: Redis Open Source 8 is AGPLv3 while Valkey is BSD and
+  the AWS ElastiCache/MemoryDB default. That belongs to whoever deploys this, so the new
+  `redis-health` workflow runs the same contract against **both** Valkey 8 and Redis 8.
+
+  Also consolidates a pre-existing duplication surfaced by this work: the transient-error
+  classification lived in two copies in `resilience.py` and `streaming.py`, and a third slightly
+  different copy nearly shipped in the new adapter. There is now one
+  `is_transient_provider_error`, because a copy that drifted by one condition would silently change
+  when a circuit opens.
 - **OpenAI-compatible ingress** (`POST /v1/chat/completions`): a consumer can now repoint an
   existing OpenAI client's `base_url` at the Gateway instead of adopting the thin SDK. It is
   adoption friction removed, not a second execution path — the route translates onto the existing

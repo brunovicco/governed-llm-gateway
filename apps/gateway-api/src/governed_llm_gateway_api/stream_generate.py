@@ -31,12 +31,12 @@ from governed_llm_gateway_contracts import (
 from governed_llm_gateway_core.application import (
     ComplexityNarrowingError,
     ComplexityRankingError,
-    InMemoryHealthTracker,
     PolicyDecisionError,
     PolicyDecisionErrorCode,
     PolicyProjectionDefaults,
     PolicyProjectionError,
 )
+from governed_llm_gateway_core.application.health import DeploymentHealthPort
 from governed_llm_gateway_core.application.observability import ObservabilityPort
 from governed_llm_gateway_core.application.ranking import (
     RankingDecision,
@@ -230,7 +230,7 @@ class GenerateCoordinator:
         context_resolver: EffectiveContextResolver,
         route_service: RouteExplainService,
         streaming_service: StreamingExecutionService,
-        health: InMemoryHealthTracker,
+        health: DeploymentHealthPort,
         registry: ModelRegistry,
         ranking_policy: RankingPolicy,
         defaults: PolicyProjectionDefaults,
@@ -259,7 +259,7 @@ class GenerateCoordinator:
         deployment_ids = tuple(
             sorted(deployment.deployment_id for deployment in self._registry.deployments)
         )
-        runtime_health = self._health.snapshots(deployment_ids)
+        runtime_health = await self._health.snapshots(deployment_ids)
         decision = await self._route_service.explain(
             request,
             effective_context,

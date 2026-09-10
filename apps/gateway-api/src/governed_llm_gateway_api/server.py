@@ -17,6 +17,7 @@ from governed_llm_gateway_core.adapters.observability_otel import OpenTelemetryO
 
 from .deployment_activation import GovernedDeploymentSettings, activate_governed_deployment
 from .process_health import attach_process_health_routes
+from .shared_health_bootstrap import SharedHealthSettings, build_health_tracker
 
 _DEFAULT_HOST = "127.0.0.1"
 _DEFAULT_PORT = 8000
@@ -61,6 +62,7 @@ class GovernedServerSettings:
     host: str = _DEFAULT_HOST
     port: int = _DEFAULT_PORT
     observability: ObservabilitySettings | None = None
+    shared_health: SharedHealthSettings | None = None
 
     def __post_init__(self) -> None:
         """Validate bounded server settings without reading artifacts or secrets."""
@@ -119,6 +121,7 @@ def parse_server_args(argv: Sequence[str]) -> GovernedServerSettings:
         host=args.host,
         port=args.port,
         observability=_parse_observability_settings(args),
+        shared_health=_parse_shared_health_settings(args),
     )
 
 
@@ -142,6 +145,9 @@ def run_governed_server(
             settings.deployment,
             environ=environ,
             observability=observability_port,
+            # Absent configuration this is the in-process tracker, which is correct for
+            # one replica and a real limitation for more than one.
+            health=build_health_tracker(settings.shared_health),
         )
         attach_process_health_routes(services.app)
         selected_runner = UvicornServerRunner() if runner is None else runner
@@ -153,6 +159,14 @@ def run_governed_server(
 def main() -> None:
     """Installed console-script entrypoint for the governed Gateway process."""
     run_governed_server(parse_server_args(sys.argv[1:]))
+
+
+def _parse_shared_health_settings(args: argparse.Namespace) -> SharedHealthSettings | None:
+    """Return shared health settings only when a server URL was supplied explicitly."""
+    url = args.shared_health_url
+    if url is None:
+        return None
+    return SharedHealthSettings(url=url, key_prefix=args.shared_health_key_prefix)
 
 
 def _parse_observability_settings(args: argparse.Namespace) -> ObservabilitySettings | None:
@@ -228,6 +242,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--default-max-cost-usd", required=True, type=Decimal)
     parser.add_argument("--host", default=_DEFAULT_HOST)
     parser.add_argument("--port", default=_DEFAULT_PORT, type=int)
+    parser.add_argument("--shared-health-url")
+    parser.add_argument("--shared-health-key-prefix", default="governed-llm-gateway")
     parser.add_argument("--otel-endpoint")
     parser.add_argument("--otel-environment")
     parser.add_argument("--otel-timeout-seconds", type=float)

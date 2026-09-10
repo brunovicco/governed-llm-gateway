@@ -23,6 +23,6 @@ class DeploymentOperationsSnapshotReader:
         ):
             raise TypeError("operational_evidence must use OperationalEvidenceSnapshot or None")
 
-    def snapshot(self) -> OperationsSnapshot:
+    async def snapshot(self) -> OperationsSnapshot:
         """Read current process state with the exact startup-bound evidence snapshot."""
-        return self.read_model.snapshot(operational_evidence=self.operational_evidence)
+        return await self.read_model.snapshot(operational_evidence=self.operational_evidence)

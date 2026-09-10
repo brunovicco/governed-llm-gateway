@@ -143,7 +143,9 @@ class FixedHealth:
     def __init__(self, *, high_unhealthy: bool = False) -> None:
         self._high_unhealthy = high_unhealthy
 
-    def snapshots(self, deployment_ids: tuple[str, ...]) -> dict[str, DeploymentHealthSnapshot]:
+    async def snapshots(
+        self, deployment_ids: tuple[str, ...]
+    ) -> dict[str, DeploymentHealthSnapshot]:
         result: dict[str, DeploymentHealthSnapshot] = {}
         for deployment_id in deployment_ids:
             if deployment_id == "deployment-high" and self._high_unhealthy:
