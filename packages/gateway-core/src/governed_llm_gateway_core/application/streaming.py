@@ -6,8 +6,8 @@ import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import aclosing, nullcontext
 from dataclasses import replace
+from uuid import UUID
 
-from a2a_otel_kit import Observability
 from governed_llm_gateway_contracts import (
     Capability,
     ExecutionStatus,
@@ -21,7 +21,10 @@ from governed_llm_gateway_contracts import (
 )
 
 from governed_llm_gateway_core.domain.resilience import RetryPolicy
+from governed_llm_gateway_core.domain.response_cache import ResponseCacheIdentity
 
+from .health import DeploymentHealthPort
+from .observability import ObservabilityPort
 from .operational_evidence import OperationalAttemptRecorder, UtcClock
 from .operational_recording import (
     invalidate_operational_completeness_best_effort,
@@ -40,17 +43,14 @@ from .provider import (
     ProviderToolCallCompleted,
     ProviderToolCallStarted,
     ProviderUsageCompleted,
+    is_transient_provider_error,
 )
 from .ranking import RankedCandidate, RankingDecision, RankingInvariantViolation
-from .resilience import InMemoryHealthTracker, ProviderResolutionError, ProviderResolver
+from .resilience import ProviderResolutionError, ProviderResolver
+from .response_cache import CachedResponse, ResponseCachePort
 from .telemetry import (
     GatewaySpanEventName,
     GatewaySpanName,
-    add_gateway_span_event,
-    mark_span_cancelled,
-    mark_span_failure,
-    mark_span_success,
-    set_gateway_span_attributes,
 )
 
 Clock = Callable[[], float]
@@ -63,14 +63,16 @@ class StreamingExecutionService:
     def __init__(
         self,
         *,
-        health: InMemoryHealthTracker,
+        health: DeploymentHealthPort,
         resolver: ProviderResolver,
         retry_policy: RetryPolicy | None = None,
         clock: Clock = time.monotonic,
         sleeper: Sleeper = asyncio.sleep,
-        observability: Observability | None = None,
+        observability: ObservabilityPort | None = None,
         operational_recorder: OperationalAttemptRecorder | None = None,
         utc_clock: UtcClock = utc_now,
+        cache: ResponseCachePort | None = None,
+        cache_ttl_seconds: int = 300,
     ) -> None:
         """Bind resilience controls plus optional local telemetry/evidence recording."""
         self._health = health
@@ -81,6 +83,48 @@ class StreamingExecutionService:
         self._observability = observability
         self._operational_recorder = operational_recorder
         self._utc_clock = utc_clock
+        self._cache = cache
+        self._cache_ttl_seconds = cache_ttl_seconds
+
+    async def _store_best_effort(
+        self,
+        identity: ResponseCacheIdentity | None,
+        content: list[str] | None,
+        *,
+        execution: ProviderExecution,
+        request_id: UUID,
+    ) -> None:
+        """Store a completed answer, and never let the cache break a served request.
+
+        A write failure loses a future optimisation. Letting it escape here would lose an
+        answer the caller has already received in full, so it is swallowed deliberately
+        rather than propagated.
+        """
+        if self._cache is None or identity is None or not content:
+            return
+        text = "".join(content)
+        if not text:
+            return
+        usage = execution.usage
+        try:
+            await self._cache.put(
+                identity,
+                CachedResponse(
+                    content=text,
+                    input_tokens=0 if usage is None else usage.input_tokens,
+                    output_tokens=0 if usage is None else usage.output_tokens,
+                    provider=execution.provider,
+                    model=execution.model,
+                    deployment=execution.deployment,
+                    api_family=execution.api_family or "unknown",
+                    finish_reason=execution.finish_reason or "stop",
+                    cached_at=self._utc_clock(),
+                    source_request_id=request_id,
+                ),
+                ttl_seconds=self._cache_ttl_seconds,
+            )
+        except Exception:
+            return
 
     async def stream(
         self,
@@ -89,8 +133,14 @@ class StreamingExecutionService:
         *,
         max_output_tokens: int,
         provider_timeout_seconds: float = 30.0,
+        cache_identity: ResponseCacheIdentity | None = None,
     ) -> AsyncGenerator[GatewayStreamEvent]:
-        """Yield a deterministic gateway stream and stop replay once semantic output is visible."""
+        """Yield a deterministic gateway stream and stop replay once semantic output is visible.
+
+        ``cache_identity`` is supplied only by a caller that already holds the effective
+        authorization context and has checked the cache policy against it. Absent one,
+        nothing is read or written — the cacheable decision is never inferred here.
+        """
         if not request.requirements.streaming:
             raise ValueError("streaming execution requires WorkloadRequirements.streaming")
         if max_output_tokens <= 0:
@@ -109,11 +159,28 @@ class StreamingExecutionService:
             )
             return
 
+        if self._cache is not None and cache_identity is not None:
+            hit = await self._cache.get(cache_identity)
+            # A stored answer is served only when ranking would have chosen the same
+            # deployment anyway. Terminal evidence must agree with routing provenance, and
+            # naming a deployment that did not produce this content would break that. The
+            # identity already binds the registry and ranking digests, so a divergence here
+            # means runtime health moved the selection — in which case the honest answer is
+            # to execute rather than replay a decision that no longer holds.
+            if hit is not None and hit.deployment == decision.selected.deployment.deployment_id:
+                for cached_event in _cached_events(request, decision, hit):
+                    yield cached_event
+                return
+
         candidates = (decision.selected, *decision.alternatives)
         bounded = candidates[: self._retry_policy.max_fallbacks + 1]
         for candidate in bounded:
             _validate_streaming_candidate(candidate, decision)
 
+        # Only a request that may be stored accumulates its own output.
+        cached_content: list[str] | None = (
+            [] if self._cache is not None and cache_identity is not None else None
+        )
         fallback_sequence: list[str] = []
         last_error: ProviderError | None = None
         last_execution: ProviderExecution | None = None
@@ -122,7 +189,7 @@ class StreamingExecutionService:
         for candidate_index, candidate in enumerate(bounded):
             deployment = candidate.deployment
             deployment_id = deployment.deployment_id
-            if not self._health.allow_request(deployment_id):
+            if not await self._health.allow_request(deployment_id):
                 continue
             fallback_sequence.append(deployment_id)
             routing = _routing_for_candidate(decision, candidate, fallback_sequence)
@@ -176,7 +243,7 @@ class StreamingExecutionService:
                 return
 
             for attempt_number in range(1, self._retry_policy.max_attempts_per_deployment + 1):
-                if not self._health.allow_request(deployment_id):
+                if not await self._health.allow_request(deployment_id):
                     break
 
                 provider_request = _provider_request(
@@ -212,8 +279,7 @@ class StreamingExecutionService:
                 retry_delay_after_span: float | None = None
                 with span_context as span:
                     if span is not None:
-                        set_gateway_span_attributes(
-                            span,
+                        span.set_attributes(
                             {
                                 "llm.workload": request.workload,
                                 "llm.provider": deployment.provider,
@@ -258,11 +324,14 @@ class StreamingExecutionService:
                                     | ProviderToolCallCompleted,
                                 ):
                                     if not semantic_output and span is not None:
-                                        set_gateway_span_attributes(
-                                            span,
+                                        span.set_attributes(
                                             {"llm.ttft_ms": _latency_ms(started_at, self._clock())},
                                         )
                                     semantic_output = True
+                                    if cached_content is not None and isinstance(
+                                        event, ProviderContentDelta
+                                    ):
+                                        cached_content.append(event.delta)
                                     if not public_started:
                                         sequence += 1
                                         public_started = True
@@ -293,8 +362,7 @@ class StreamingExecutionService:
                                         )
                                     usage_seen = True
                                     if span is not None:
-                                        set_gateway_span_attributes(
-                                            span,
+                                        span.set_attributes(
                                             {
                                                 "llm.usage.input_count": event.usage.input_tokens,
                                                 "llm.usage.output_count": event.usage.output_tokens,
@@ -324,16 +392,15 @@ class StreamingExecutionService:
                                             "provider completed before semantic output/final usage",
                                         )
                                     latency_ms = _latency_ms(started_at, self._clock())
-                                    self._health.record_success(
+                                    await self._health.record_success(
                                         deployment_id,
                                         latency_ms=latency_ms,
                                     )
                                     if span is not None:
-                                        set_gateway_span_attributes(
-                                            span,
+                                        span.set_attributes(
                                             {"llm.latency_ms": latency_ms},
                                         )
-                                        mark_span_success(span)
+                                        span.mark_success()
                                     if final_usage is None:
                                         raise _invalid_stream_event(
                                             deployment.provider,
@@ -373,6 +440,12 @@ class StreamingExecutionService:
                                         api_family=deployment.api_family,
                                         max_output_tokens=provider_request.max_output_tokens,
                                     )
+                                    await self._store_best_effort(
+                                        cache_identity,
+                                        cached_content,
+                                        execution=execution,
+                                        request_id=request.request_id,
+                                    )
                                     sequence += 1
                                     yield GatewayStreamEvent(
                                         event_type=StreamEventType.RESPONSE_COMPLETED,
@@ -400,7 +473,7 @@ class StreamingExecutionService:
                                 utc_clock=self._utc_clock,
                             )
                         if span is not None:
-                            mark_span_cancelled(span)
+                            span.mark_cancelled()
                         raise
                     except GeneratorExit:
                         if provider_attempt_started and not attempt_terminal_recorded:
@@ -422,7 +495,7 @@ class StreamingExecutionService:
                             provider_error=exc,
                         )
                         attempt_terminal_recorded = True
-                        self._health.record_failure(deployment_id, exc, latency_ms=latency_ms)
+                        await self._health.record_failure(deployment_id, exc, latency_ms=latency_ms)
                         last_error = exc
                         last_execution = ProviderExecution(
                             provider=deployment.provider,
@@ -444,8 +517,8 @@ class StreamingExecutionService:
                             }
                             if exc.status_code is not None:
                                 failure_attributes["http.status_code"] = exc.status_code
-                            set_gateway_span_attributes(span, failure_attributes)
-                            mark_span_failure(span, exc.code.value)
+                            span.set_attributes(failure_attributes)
+                            span.mark_failure(exc.code.value)
 
                         if semantic_output:
                             sequence += 1
@@ -461,11 +534,11 @@ class StreamingExecutionService:
                             )
                             return
 
-                        transient = _is_transient(exc)
+                        transient = is_transient_provider_error(exc)
                         can_retry = (
                             transient
                             and attempt_number < self._retry_policy.max_attempts_per_deployment
-                            and self._health.allow_request(deployment_id)
+                            and await self._health.allow_request(deployment_id)
                         )
                         if can_retry:
                             delay = _retry_delay_seconds(
@@ -476,8 +549,7 @@ class StreamingExecutionService:
                                 retry_after_seconds=exc.retry_after_seconds,
                             )
                             if span is not None:
-                                add_gateway_span_event(
-                                    span,
+                                span.add_event(
                                     GatewaySpanEventName.RETRY.value,
                                     {
                                         "retry_count": attempt_number,
@@ -488,8 +560,7 @@ class StreamingExecutionService:
                             retry_delay_after_span = delay
                         elif transient:
                             if span is not None and candidate_index + 1 < len(bounded):
-                                add_gateway_span_event(
-                                    span,
+                                span.add_event(
                                     GatewaySpanEventName.FALLBACK.value,
                                     {
                                         "llm.fallback_count": len(fallback_sequence),
@@ -619,6 +690,62 @@ def _semantic_gateway_event(
     )
 
 
+def _cached_events(
+    request: GatewayRequest,
+    decision: RankingDecision,
+    hit: CachedResponse,
+) -> tuple[GatewayStreamEvent, ...]:
+    """Replay a stored completion as the same lifecycle a provider call would produce.
+
+    The execution identity names the deployment that originally produced the content,
+    because that is what generated it, and ``cached`` is what stops that from reading as
+    a fresh call. Latency is this request's cache read rather than the original call's,
+    since a stored latency would misreport what just happened. Usage is the original
+    call's: it describes the answer's size, and the ``cached`` marker is what tells
+    spend accounting not to count those tokens again.
+    """
+    usage = Usage(input_tokens=hit.input_tokens, output_tokens=hit.output_tokens)
+    execution = ProviderExecution(
+        provider=hit.provider,
+        model=hit.model,
+        deployment=hit.deployment,
+        status=ExecutionStatus.SUCCEEDED,
+        latency_ms=0,
+        usage=usage,
+        finish_reason=hit.finish_reason,
+        api_family=hit.api_family,
+        cached=True,
+    )
+    return (
+        GatewayStreamEvent(
+            event_type=StreamEventType.RESPONSE_STARTED,
+            request_id=request.request_id,
+            sequence_number=1,
+            routing=decision.routing,
+        ),
+        GatewayStreamEvent(
+            event_type=StreamEventType.CONTENT_DELTA,
+            request_id=request.request_id,
+            sequence_number=2,
+            delta=hit.content,
+        ),
+        GatewayStreamEvent(
+            event_type=StreamEventType.USAGE_COMPLETED,
+            request_id=request.request_id,
+            sequence_number=3,
+            usage=usage,
+        ),
+        GatewayStreamEvent(
+            event_type=StreamEventType.RESPONSE_COMPLETED,
+            request_id=request.request_id,
+            sequence_number=4,
+            routing=decision.routing,
+            execution=execution,
+            finish_reason=hit.finish_reason,
+        ),
+    )
+
+
 def _failed_event(
     *,
     request: GatewayRequest,
@@ -648,15 +775,6 @@ def _invalid_stream_event(provider: str, message: str) -> ProviderError:
         message=message,
         retryable=False,
     )
-
-
-def _is_transient(error: ProviderError) -> bool:
-    return error.retryable and error.code in {
-        ProviderErrorCode.RATE_LIMIT,
-        ProviderErrorCode.TIMEOUT,
-        ProviderErrorCode.UNAVAILABLE,
-        ProviderErrorCode.TRANSPORT,
-    }
 
 
 def _retry_delay_seconds(

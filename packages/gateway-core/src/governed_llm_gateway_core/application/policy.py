@@ -7,7 +7,6 @@ from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 
-from a2a_otel_kit import Observability
 from governed_llm_gateway_contracts import (
     DataClassification,
     GatewayRequest,
@@ -24,12 +23,10 @@ from governed_llm_gateway_core.domain.authorization import (
 from governed_llm_gateway_core.domain.model_registry import ModelDeployment, ModelRegistry
 from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
 
+from .observability import ObservabilityPort
 from .provider import ProviderPort, ProviderRequest, ProviderResponse
 from .telemetry import (
     GatewaySpanName,
-    mark_span_failure,
-    mark_span_success,
-    set_gateway_span_attributes,
 )
 
 
@@ -238,7 +235,7 @@ class PolicyEnforcementService:
         self,
         policy: PolicyDecisionPort,
         *,
-        observability: Observability | None = None,
+        observability: ObservabilityPort | None = None,
     ) -> None:
         """Bind the deterministic PDP port and optional Phase 9 telemetry foundation."""
         self._policy = policy
@@ -283,23 +280,22 @@ class PolicyEnforcementService:
             },
             record_exception=False,
         ) as span:
-            set_gateway_span_attributes(span, {"llm.workload": metadata.workload})
+            span.set_attributes({"llm.workload": metadata.workload})
             try:
                 decision = await self._policy.authorize(metadata)
             except PolicyDecisionError as exc:
                 attributes: dict[str, object] = {"error.type": exc.code.value}
                 if exc.status_code is not None:
                     attributes["http.status_code"] = exc.status_code
-                set_gateway_span_attributes(span, attributes)
-                mark_span_failure(span, exc.code.value)
+                span.set_attributes(attributes)
+                span.mark_failure(exc.code.value)
                 raise
             except Exception:
-                mark_span_failure(span, "policy_unexpected_error")
+                span.mark_failure("policy_unexpected_error")
                 raise
 
             authorized_groups = decision.authorization.authorized_model_groups
-            set_gateway_span_attributes(
-                span,
+            span.set_attributes(
                 {
                     "routing.policy_id": decision.provenance.policy_id,
                     "routing.policy_version": decision.provenance.policy_version,
@@ -309,7 +305,7 @@ class PolicyEnforcementService:
                     ),
                 },
             )
-            mark_span_success(span)
+            span.mark_success()
             return decision
 
     async def execute_selected(

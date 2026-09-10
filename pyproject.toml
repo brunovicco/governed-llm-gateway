@@ -8,7 +8,12 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    # The Lua extra matters: every circuit transition is an EVAL, so an emulator without
+    # scripting would silently test nothing.
+    "fakeredis[lua]>=2.38.0,<3",
     "httpx>=0.28.1,<0.29",
+    "openai>=2.9.0,<3",
+    "redis>=6.0.0,<9",
 ]
 
 [tool.uv]
@@ -59,8 +64,6 @@ pythonpath = ["."]
 addopts = "-q --strict-markers --strict-config"
 markers = [
     "integration: tests that cross package/process boundaries",
-    "e2e: end-to-end gateway behavior",
-    "live_provider: requires external provider credentials and network access",
 ]
 
 [tool.coverage.run]
@@ -97,6 +100,11 @@ deny-dynamic-imports = true
 
 [[tool.engineering-harness.architecture.boundaries]]
 path = "packages/gateway-core/src/governed_llm_gateway_core/domain"
+allowed-imports = ["stdlib", "governed_llm_gateway_contracts", "governed_llm_gateway_core"]
+deny-dynamic-imports = true
+
+[[tool.engineering-harness.architecture.boundaries]]
+path = "packages/gateway-core/src/governed_llm_gateway_core/application"
 allowed-imports = ["stdlib", "governed_llm_gateway_contracts", "governed_llm_gateway_core"]
 deny-dynamic-imports = true
 

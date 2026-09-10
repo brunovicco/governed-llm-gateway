@@ -59,6 +59,29 @@ class PricingMetadata:
     snapshot_version: str
 
 
+_MILLION = Decimal(1_000_000)
+
+
+def estimated_cost_usd(
+    pricing: "PricingMetadata | None",
+    *,
+    input_tokens: int,
+    output_tokens: int,
+) -> Decimal | None:
+    """Return the cost this deployment's pinned pricing implies for one call.
+
+    Estimated, never billed. Registry pricing is reviewed metadata pinned at a source
+    date and can drift from a provider's live catalog, so every consumer of this value
+    must present it as the gateway's own estimate rather than as an invoice.
+    """
+    if pricing is None:
+        return None
+    return (
+        pricing.input_usd_per_million_tokens * Decimal(input_tokens) / _MILLION
+        + pricing.output_usd_per_million_tokens * Decimal(output_tokens) / _MILLION
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class ModelDeployment:
     """One concrete provider/model deployment declared by registry data."""

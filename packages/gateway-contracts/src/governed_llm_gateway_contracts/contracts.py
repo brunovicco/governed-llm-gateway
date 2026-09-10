@@ -297,6 +297,11 @@ class ProviderExecution:
     api_family: str | None = None
     max_output_tokens: int | None = None
     trace_id: str | None = None
+    # A served cache hit reports the deployment that originally produced the content,
+    # so this flag is what keeps that from reading as a fresh provider call. Usage is
+    # likewise the original call's, and any spend accounting must exclude a cached
+    # execution rather than count those tokens twice.
+    cached: bool = False
 
     def __post_init__(self) -> None:
         """Validate concrete provider identity and measured execution metadata."""

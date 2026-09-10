@@ -32,6 +32,11 @@ _POLICY_ROUTER_CLIENT_ID = "gateway-demo"
 _POLICY_ROUTER_READY_URL = "http://127.0.0.1:8001/readyz"
 _GATEWAY_READY_URL = "http://127.0.0.1:8000/readyz"
 _ALLOWED_HTTP_PORTS = frozenset({8000, 8001})
+# Pinned identity of config/profiles/personal-default/approved_ranking.json. Regenerate both
+# with scripts/publish_ranking_evidence.py; a mismatch fails the Gateway closed at startup.
+_APPROVED_RANKING_ARTIFACT_ID = (
+    "sha256:4d58f86b791267b2d38c6a95edad576ab35a5b97a8ee43a78a9d527ac8ee56ad"
+)
 _STARTUP_TIMEOUT_SECONDS = 60.0
 _READINESS_INTERVAL_SECONDS = 1.0
 _PROCESS_STOP_TIMEOUT_SECONDS = 5.0
@@ -303,8 +308,10 @@ class PersonalDefaultLauncher:
                     str(_PROFILE_REL / "operations_access.json"),
                     "--policy-router-path",
                     str(_PROFILE_REL / "policy_router.json"),
-                    "--ranking-policy-path",
-                    str(_PROFILE_REL / "ranking_policy.yaml"),
+                    "--approved-ranking-artifact-path",
+                    str(_PROFILE_REL / "approved_ranking.json"),
+                    "--expected-ranking-artifact-id",
+                    _APPROVED_RANKING_ARTIFACT_ID,
                     "--default-max-latency-ms",
                     "60000",
                     "--default-max-cost-usd",

@@ -60,7 +60,7 @@ class RecordingSnapshotReader:
         self._fail = fail
         self.calls = 0
 
-    def snapshot(self) -> OperationsSnapshot:
+    async def snapshot(self) -> OperationsSnapshot:
         self.calls += 1
         self._events.append("snapshot")
         if self._fail:

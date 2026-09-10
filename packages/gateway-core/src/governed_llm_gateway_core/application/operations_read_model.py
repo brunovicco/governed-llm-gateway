@@ -122,7 +122,7 @@ class OperationsSnapshot:
 class DeploymentHealthInspectionPort(Protocol):
     """Read deployment health without mutating the live resilience state."""
 
-    def inspect(
+    async def inspect(
         self,
         deployment_ids: tuple[str, ...],
     ) -> tuple[DeploymentHealthSnapshot, ...]:
@@ -139,7 +139,7 @@ class InMemoryHealthInspectionAdapter:
             raise TypeError("tracker must use InMemoryHealthTracker")
         self._tracker = tracker
 
-    def inspect(
+    async def inspect(
         self,
         deployment_ids: tuple[str, ...],
     ) -> tuple[DeploymentHealthSnapshot, ...]:
@@ -157,7 +157,7 @@ class InMemoryHealthInspectionAdapter:
                 raise ValueError("deployment_ids must contain normalized non-empty strings")
 
         replica = deepcopy(self._tracker)
-        snapshots = replica.snapshots(deployment_ids)
+        snapshots = await replica.snapshots(deployment_ids)
         return tuple(snapshots[deployment_id] for deployment_id in deployment_ids)
 
 
@@ -182,7 +182,7 @@ class OperationsReadModelService:
         self._ranking_policy = ranking_policy
         self._health = health
 
-    def snapshot(
+    async def snapshot(
         self,
         *,
         operational_evidence: OperationalEvidenceSnapshot | None = None,
@@ -198,7 +198,7 @@ class OperationsReadModelService:
             sorted(self._registry.deployments, key=lambda item: item.deployment_id)
         )
         deployment_ids = tuple(item.deployment_id for item in ordered_deployments)
-        health_snapshots = self._health.inspect(deployment_ids)
+        health_snapshots = await self._health.inspect(deployment_ids)
         if len(health_snapshots) != len(ordered_deployments):
             raise RuntimeError("health inspection returned an incomplete deployment set")
 

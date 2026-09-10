@@ -10,6 +10,7 @@ _GOVERNED_BODY_AUTH_ROUTES = frozenset(
     {
         ("POST", "/v1/generate"),
         ("POST", "/v1/route/explain"),
+        ("POST", "/v1/chat/completions"),
     }
 )
 

@@ -5,12 +5,13 @@ from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 
-from a2a_otel_kit import Observability
 from governed_llm_gateway_core.adapters import (
     EnvironmentPolicyRouterSecretResolver,
     EnvironmentProviderSecretResolver,
 )
-from governed_llm_gateway_core.application import InMemoryHealthTracker, PolicyProjectionDefaults
+from governed_llm_gateway_core.application import PolicyProjectionDefaults
+from governed_llm_gateway_core.application.health import DeploymentHealthPort
+from governed_llm_gateway_core.application.observability import ObservabilityPort
 from governed_llm_gateway_core.domain.resilience import RetryPolicy
 
 from .application_bootstrap import (
@@ -142,9 +143,9 @@ def activate_governed_deployment(
     settings: GovernedDeploymentSettings,
     *,
     environ: Mapping[str, str] | None = None,
-    observability: Observability | None = None,
+    observability: ObservabilityPort | None = None,
     retry_policy: RetryPolicy | None = None,
-    health: InMemoryHealthTracker | None = None,
+    health: DeploymentHealthPort | None = None,
 ) -> GovernedGatewayServices:
     """Validate all deployment artifacts before binding environment-backed credentials."""
     if not isinstance(settings, GovernedDeploymentSettings):

@@ -1,0 +1,71 @@
+name: redis-health
+
+# The default gate runs the shared-health contract against an emulator so it stays
+# serverless. That proves the logic, not the protocol. This workflow re-runs the same
+# expectations against a real server, and against both of them: Valkey is BSD and the
+# ElastiCache/MemoryDB default, Redis Open Source 8 is AGPLv3 and folded the Stack
+# modules into core. The adapter uses no module and no vendor command, so a divergence
+# between the two would be a defect in this repository, not a licensing question.
+
+on:
+  pull_request:
+    paths:
+      - packages/gateway-core/src/governed_llm_gateway_core/adapters/health_redis.py
+      - packages/gateway-core/src/governed_llm_gateway_core/application/health.py
+      - tests/contract/test_shared_health_redis.py
+      - tests/integration/test_shared_health_server.py
+      - docs/project/SHARED_RUNTIME_STATE.md
+      - .github/workflows/redis-health.yml
+  push:
+    branches:
+      - main
+      - feat/**
+    paths:
+      - packages/gateway-core/src/governed_llm_gateway_core/adapters/health_redis.py
+      - packages/gateway-core/src/governed_llm_gateway_core/application/health.py
+      - tests/contract/test_shared_health_redis.py
+      - tests/integration/test_shared_health_server.py
+      - docs/project/SHARED_RUNTIME_STATE.md
+      - .github/workflows/redis-health.yml
+
+permissions:
+  contents: read
+
+jobs:
+  shared-health:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - server: valkey
+            image: valkey/valkey:8-alpine
+          - server: redis
+            image: redis:8-alpine
+    services:
+      resp:
+        image: ${{ matrix.image }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping || valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Sync locked dependencies
+        run: uv sync --frozen --all-packages
+      - name: Require shared circuit state against ${{ matrix.server }}
+        env:
+          GATEWAY_SHARED_HEALTH_URL: redis://127.0.0.1:6379/0
+          GATEWAY_SHARED_HEALTH_SERVER: ${{ matrix.server }}
+        run: >-
+          uv run --frozen --all-packages --with pytest==8.4.1
+          pytest -m integration tests/integration/test_shared_health_server.py -v

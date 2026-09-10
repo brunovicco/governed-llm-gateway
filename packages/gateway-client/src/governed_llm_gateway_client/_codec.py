@@ -87,6 +87,7 @@ _EXECUTION_FIELDS = frozenset(
         "api_family",
         "max_output_tokens",
         "trace_id",
+        "cached",
     }
 )
 _ERROR_FIELDS = frozenset({"code", "message", "retryable"})
@@ -379,6 +380,7 @@ def _decode_execution(payload: dict[str, object]) -> ProviderExecution:
         api_family=_optional_str(payload, "api_family"),
         max_output_tokens=_optional_int(payload, "max_output_tokens"),
         trace_id=_optional_str(payload, "trace_id"),
+        cached=bool(payload.get("cached", False)),
     )
 
 

@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Annotated, Literal, Protocol
 from uuid import UUID
 
-from a2a_otel_kit import Observability, continue_trace
+from a2a_otel_kit import continue_trace
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from governed_llm_gateway_contracts import (
     DataClassification,
@@ -24,6 +24,7 @@ from governed_llm_gateway_core.application import (
     PolicyProjectionDefaults,
     PolicyProjectionError,
 )
+from governed_llm_gateway_core.application.observability import ObservabilityPort
 from governed_llm_gateway_core.application.ranking import (
     RankedCandidate,
     RankingDecision,
@@ -32,9 +33,6 @@ from governed_llm_gateway_core.application.ranking import (
 )
 from governed_llm_gateway_core.application.telemetry import (
     GatewaySpanName,
-    mark_span_failure,
-    mark_span_success,
-    set_gateway_span_attributes,
 )
 from governed_llm_gateway_core.domain.evidence_ranking import EvidenceDrivenRankingPolicy
 from governed_llm_gateway_core.domain.model_registry import ModelRegistry
@@ -285,7 +283,7 @@ def create_app(
     coordinator: RouteExplainCoordinator,
     *,
     complexity_coordinator: ComplexityRouteExplainCoordinator | None = None,
-    observability: Observability | None = None,
+    observability: ObservabilityPort | None = None,
 ) -> FastAPI:
     """Create authenticated route explanation with optional explicit complexity mode."""
     app = FastAPI(
@@ -326,8 +324,7 @@ def create_app(
                 },
                 record_exception=False,
             ) as span:
-                set_gateway_span_attributes(
-                    span,
+                span.set_attributes(
                     {
                         "llm.workload": payload.workload,
                         "llm.streaming": False,
@@ -342,15 +339,14 @@ def create_app(
                         payload=payload,
                     )
                 except HTTPException as exc:
-                    set_gateway_span_attributes(span, {"http.status_code": exc.status_code})
-                    mark_span_failure(span, _http_error_code(exc))
+                    span.set_attributes({"http.status_code": exc.status_code})
+                    span.mark_failure(_http_error_code(exc))
                     raise
                 except Exception:
-                    mark_span_failure(span, "gateway_unexpected_error")
+                    span.mark_failure("gateway_unexpected_error")
                     raise
 
-                set_gateway_span_attributes(
-                    span,
+                span.set_attributes(
                     {
                         "routing.decision_id": response.ranking.decision_id,
                         "routing.policy_id": response.policy.policy_id,
@@ -364,7 +360,7 @@ def create_app(
                         "llm.deployment": response.selected_deployment,
                     },
                 )
-                mark_span_success(span)
+                span.mark_success()
                 return response
 
     return app

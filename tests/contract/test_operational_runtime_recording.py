@@ -423,10 +423,12 @@ def test_circuit_open_and_resolution_failure_do_not_create_provider_attempt_samp
         CircuitBreakerPolicy(failure_threshold=1, cooldown_seconds=30),
         clock=monotonic,
     )
-    health.record_failure(
-        deployment.deployment_id,
-        _error(ProviderErrorCode.RATE_LIMIT),
-        latency_ms=1,
+    asyncio.run(
+        health.record_failure(
+            deployment.deployment_id,
+            _error(ProviderErrorCode.RATE_LIMIT),
+            latency_ms=1,
+        )
     )
     service = ResilientExecutionService(
         health,

@@ -1,5 +1,6 @@
 """Contract tests for pure governed service composition over the PC-8 runtime bundle."""
 
+import asyncio
 import json
 from datetime import date
 from decimal import Decimal
@@ -282,7 +283,7 @@ def test_operational_composition_reuses_runtime_without_new_secret_reads(tmp_pat
     assert services.streaming_service._health is health
     assert services.generate_coordinator._health is health
 
-    health.record_success("openai-primary", latency_ms=123)
+    asyncio.run(health.record_success("openai-primary", latency_ms=123))
     live_state = health._states["openai-primary"]
     state_before_snapshot = (
         live_state.request_count,
@@ -292,7 +293,7 @@ def test_operational_composition_reuses_runtime_without_new_secret_reads(tmp_pat
         live_state.opened_at,
     )
 
-    snapshot = services.operations_read_model.snapshot()
+    snapshot = asyncio.run(services.operations_read_model.snapshot())
 
     state_after_snapshot = (
         live_state.request_count,
@@ -368,7 +369,7 @@ def test_evidence_driven_complexity_composes_complete_post_authorization_path(
     assert services.streaming_service._health is health
     assert services.complexity_generate_coordinator._health is health
 
-    snapshot = services.operations_read_model.snapshot()
+    snapshot = asyncio.run(services.operations_read_model.snapshot())
     assert snapshot.ranking.digest == ranking.digest
     assert snapshot.ranking.score_provenance_mode == "benchmark_hybrid"
     assert snapshot.ranking.benchmark_snapshot_id == "sha256:" + "a" * 64

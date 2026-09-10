@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 import pytest
 import uvicorn
-from a2a_otel_kit.entrypoints.observability import Observability
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from governed_llm_gateway_api import server as server_module
@@ -17,6 +16,8 @@ from governed_llm_gateway_api.server import (
     parse_server_args,
     run_governed_server,
 )
+from governed_llm_gateway_core.application.health import DeploymentHealthPort
+from governed_llm_gateway_core.application.observability import ObservabilityPort
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -180,13 +181,14 @@ def test_injected_runner_receives_composed_app_without_socket_binding(
     runner = RecordingRunner()
     deployment = _deployment(tmp_path.resolve())
     settings = GovernedServerSettings(deployment=deployment, host="localhost", port=8123)
-    seen: list[tuple[GovernedDeploymentSettings, Observability | None]] = []
+    seen: list[tuple[GovernedDeploymentSettings, ObservabilityPort | None]] = []
 
     def fake_activate(
         value: GovernedDeploymentSettings,
         *,
         environ: object = None,
-        observability: Observability | None = None,
+        observability: ObservabilityPort | None = None,
+        health: DeploymentHealthPort | None = None,
     ) -> SimpleNamespace:
         del environ
         seen.append((value, observability))

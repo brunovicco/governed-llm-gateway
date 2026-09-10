@@ -17,6 +17,19 @@ FORBIDDEN_CONTRACT_PREFIXES = {
     "sqlalchemy",
 }
 FORBIDDEN_DOMAIN_PREFIXES = FORBIDDEN_CONTRACT_PREFIXES | {"redis"}
+# The application layer decides what is worth recording and which metadata may leave the
+# process; it must not know which telemetry backend receives it. The concrete binding lives
+# in adapters/observability_otel.py, which composition roots wire in.
+FORBIDDEN_APPLICATION_PREFIXES = {
+    "a2a_otel_kit",
+    "anthropic",
+    "fastapi",
+    "google",
+    "openai",
+    "opentelemetry",
+    "redis",
+    "sqlalchemy",
+}
 CLIENT_BOUNDARY = ROOT / "packages/gateway-client/src/governed_llm_gateway_client"
 CLIENT_ALLOWED_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {
     "governed_llm_gateway_client",
@@ -29,6 +42,9 @@ BOUNDARIES = {
         FORBIDDEN_CONTRACT_PREFIXES
     ),
     ROOT / "packages/gateway-core/src/governed_llm_gateway_core/domain": FORBIDDEN_DOMAIN_PREFIXES,
+    ROOT / "packages/gateway-core/src/governed_llm_gateway_core/application": (
+        FORBIDDEN_APPLICATION_PREFIXES
+    ),
 }
 
 

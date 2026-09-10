@@ -21,6 +21,10 @@ from governed_llm_gateway_contracts import (
 )
 from governed_llm_gateway_core.adapters.http_json import StdlibJsonTransport
 from governed_llm_gateway_core.adapters.http_sse import HttpxSseTransport
+from governed_llm_gateway_core.adapters.observability_otel import (
+    OpenTelemetryGatewaySpan,
+    OpenTelemetryObservability,
+)
 from governed_llm_gateway_core.application.policy import (
     PolicyAuthorizationDecision,
     PolicyEnforcementService,
@@ -44,7 +48,6 @@ from governed_llm_gateway_core.application.resilience import (
     ResilientExecutionService,
     StaticProviderResolver,
 )
-from governed_llm_gateway_core.application.telemetry import set_gateway_span_attributes
 from governed_llm_gateway_core.domain.authorization import PolicyAuthorization
 from governed_llm_gateway_core.domain.model_registry import (
     ModelDeployment,
@@ -240,8 +243,7 @@ def test_gateway_attribute_boundary_is_deny_by_default() -> None:
     observability, exporter = _observability()
 
     with observability.start_span("privacy", record_exception=False) as span:
-        set_gateway_span_attributes(
-            span,
+        OpenTelemetryGatewaySpan(span).set_attributes(
             {
                 "llm.workload": "agent.orchestration",
                 "routing.decision_id": "sha256:" + "b" * 64,
@@ -267,7 +269,9 @@ def test_gateway_attribute_boundary_is_deny_by_default() -> None:
 def test_policy_route_span_is_metadata_only() -> None:
     observability, exporter = _observability()
     deployment = _deployment("deployment-a", "provider-a")
-    service = PolicyEnforcementService(AllowPolicy(), observability=observability)
+    service = PolicyEnforcementService(
+        AllowPolicy(), observability=OpenTelemetryObservability(observability)
+    )
 
     authorized = asyncio.run(
         service.authorize_candidates(
@@ -328,7 +332,7 @@ def test_provider_attempts_keep_one_trace_and_emit_retry_and_fallback_events() -
         ),
         retry_policy=RetryPolicy(max_attempts_per_deployment=2, max_fallbacks=1),
         sleeper=assert_attempt_span_closed,
-        observability=observability,
+        observability=OpenTelemetryObservability(observability),
     )
 
     with observability.start_span("llm.gateway.request", record_exception=False) as gateway_span:

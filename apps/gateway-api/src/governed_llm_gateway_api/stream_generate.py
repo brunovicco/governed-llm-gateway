@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import UUID
 
-from a2a_otel_kit import Observability, continue_trace, inject_trace_context
+from a2a_otel_kit import continue_trace, inject_trace_context
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from governed_llm_gateway_contracts import (
@@ -31,12 +31,13 @@ from governed_llm_gateway_contracts import (
 from governed_llm_gateway_core.application import (
     ComplexityNarrowingError,
     ComplexityRankingError,
-    InMemoryHealthTracker,
     PolicyDecisionError,
     PolicyDecisionErrorCode,
     PolicyProjectionDefaults,
     PolicyProjectionError,
 )
+from governed_llm_gateway_core.application.health import DeploymentHealthPort
+from governed_llm_gateway_core.application.observability import ObservabilityPort
 from governed_llm_gateway_core.application.ranking import (
     RankingDecision,
     RankingInvariantViolation,
@@ -45,18 +46,20 @@ from governed_llm_gateway_core.application.ranking import (
 from governed_llm_gateway_core.application.streaming import StreamingExecutionService
 from governed_llm_gateway_core.application.telemetry import (
     GatewaySpanName,
-    current_trace_id,
-    mark_span_cancelled,
-    mark_span_failure,
-    mark_span_success,
-    set_gateway_span_attributes,
 )
 from governed_llm_gateway_core.domain.model_registry import ModelRegistry
 from governed_llm_gateway_core.domain.ranking import RankingPolicy, RankingPolicyError
+from governed_llm_gateway_core.domain.response_cache import (
+    ResponseCacheIdentity,
+    ResponseCachePolicy,
+    is_cacheable_request,
+    messages_digest,
+)
 from governed_llm_gateway_core.domain.structured import (
     validate_structured_output_schema,
     validate_tool_definitions,
 )
+from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
 from pydantic import BaseModel, ConfigDict, Field
 
 from .route_explain import ClientAuthenticationError, EffectiveContextResolver
@@ -219,6 +222,9 @@ class PreparedStreamingExecution:
     decision: RankingDecision
     max_output_tokens: int
     provider_timeout_seconds: float
+    # None means this request is not cacheable. Built from the effective context, never
+    # from the caller's declared classification, which the binding may have raised.
+    cache_identity: ResponseCacheIdentity | None = None
 
 
 class NoEligibleStreamingDeploymentError(RuntimeError):
@@ -234,10 +240,11 @@ class GenerateCoordinator:
         context_resolver: EffectiveContextResolver,
         route_service: RouteExplainService,
         streaming_service: StreamingExecutionService,
-        health: InMemoryHealthTracker,
+        health: DeploymentHealthPort,
         registry: ModelRegistry,
         ranking_policy: RankingPolicy,
         defaults: PolicyProjectionDefaults,
+        cache_policy: ResponseCachePolicy | None = None,
     ) -> None:
         """Bind trusted context, deterministic routing inputs, runtime health, and execution."""
         self._context_resolver = context_resolver
@@ -247,6 +254,7 @@ class GenerateCoordinator:
         self._registry = registry
         self._ranking_policy = ranking_policy
         self._defaults = defaults
+        self._cache_policy = cache_policy or ResponseCachePolicy()
 
     async def prepare(
         self,
@@ -263,7 +271,7 @@ class GenerateCoordinator:
         deployment_ids = tuple(
             sorted(deployment.deployment_id for deployment in self._registry.deployments)
         )
-        runtime_health = self._health.snapshots(deployment_ids)
+        runtime_health = await self._health.snapshots(deployment_ids)
         decision = await self._route_service.explain(
             request,
             effective_context,
@@ -283,6 +291,13 @@ class GenerateCoordinator:
             decision=decision,
             max_output_tokens=payload.max_output_tokens,
             provider_timeout_seconds=payload.provider_timeout_seconds,
+            cache_identity=_cache_identity(
+                self._cache_policy,
+                request=request,
+                effective_context=effective_context,
+                decision=decision,
+                max_output_tokens=payload.max_output_tokens,
+            ),
         )
 
     def stream(
@@ -295,7 +310,49 @@ class GenerateCoordinator:
             prepared.decision,
             max_output_tokens=prepared.max_output_tokens,
             provider_timeout_seconds=prepared.provider_timeout_seconds,
+            cache_identity=prepared.cache_identity,
         )
+
+
+def _cache_identity(
+    policy: ResponseCachePolicy,
+    *,
+    request: GatewayRequest,
+    effective_context: EffectivePolicyContext,
+    decision: RankingDecision,
+    max_output_tokens: int,
+) -> ResponseCacheIdentity | None:
+    """Return a cache identity only when policy and request shape both permit one.
+
+    The classification checked here is the **effective** one. A caller that declares
+    ``public`` while its client-auth binding raises the floor must be judged on the
+    raised value, or the cache would store data the deployment classified higher.
+    """
+    if not policy.permits(
+        workload=effective_context.workload,
+        data_classification=effective_context.data_classification,
+    ):
+        return None
+    # Without a ranking digest there is nothing binding the entry to a routing policy,
+    # so a later policy change could not invalidate it. That is a miss, not a guess.
+    if decision.routing.ranking_policy_digest is None:
+        return None
+    if not is_cacheable_request(
+        request.messages,
+        structured_output_requested=request.structured_output is not None,
+        tools_requested=bool(request.tools),
+    ):
+        return None
+    return ResponseCacheIdentity(
+        workload=effective_context.workload,
+        risk_level=effective_context.risk_level,
+        data_classification=effective_context.data_classification,
+        authorized_model_group=decision.routing.authorized_model_group,
+        model_registry_digest=decision.routing.model_registry_digest,
+        ranking_policy_digest=decision.routing.ranking_policy_digest,
+        max_output_tokens=max_output_tokens,
+        messages_digest=messages_digest(request.messages),
+    )
 
 
 def attach_generate_route(
@@ -303,7 +360,7 @@ def attach_generate_route(
     coordinator: GenerateCoordinator,
     *,
     complexity_coordinator: "ComplexityGenerateCoordinator | None" = None,
-    observability: Observability | None = None,
+    observability: ObservabilityPort | None = None,
 ) -> None:
     """Attach governed SSE generation with opt-in complexity routing and tracing."""
 
@@ -325,7 +382,7 @@ def attach_generate_route(
 
         with trace_context:
             if observability is None:
-                prepared = await _prepare_generation(
+                prepared = await prepare_generation(
                     active_coordinator,
                     api_key=gateway_api_key,
                     payload=payload,
@@ -340,34 +397,32 @@ def attach_generate_route(
                     },
                     record_exception=False,
                 ) as span:
-                    set_gateway_span_attributes(
-                        span,
+                    span.set_attributes(
                         {
                             "llm.workload": payload.workload,
                             "llm.streaming": True,
                         },
                     )
                     try:
-                        prepared = await _prepare_generation(
+                        prepared = await prepare_generation(
                             active_coordinator,
                             api_key=gateway_api_key,
                             payload=payload,
                             complexity_mode=mode == "complexity",
                         )
                     except HTTPException as exc:
-                        set_gateway_span_attributes(span, {"http.status_code": exc.status_code})
-                        mark_span_failure(span, _http_error_code(exc))
+                        span.set_attributes({"http.status_code": exc.status_code})
+                        span.mark_failure(_http_error_code(exc))
                         raise
                     except Exception:
-                        mark_span_failure(span, "gateway_unexpected_error")
+                        span.mark_failure("gateway_unexpected_error")
                         raise
 
-                    set_gateway_span_attributes(
-                        span,
+                    span.set_attributes(
                         _routing_attributes(prepared.decision),
                     )
                     inject_trace_context(stream_parent_carrier)
-                    mark_span_success(span)
+                    span.mark_success()
 
         return StreamingResponse(
             _sse_body(
@@ -400,13 +455,18 @@ def _select_generate_coordinator(
     return coordinator
 
 
-async def _prepare_generation(
+async def prepare_generation(
     coordinator: "GenerateCoordinator | ComplexityGenerateCoordinator",
     *,
     api_key: str,
     payload: GenerateRequestModel,
     complexity_mode: bool = False,
 ) -> PreparedStreamingExecution:
+    """Authenticate, authorize and rank before any HTTP response body can begin.
+
+    Shared by the native streaming route and the OpenAI-compatible ingress so both
+    reach execution through exactly one governed preflight.
+    """
     try:
         return await coordinator.prepare(
             api_key=api_key,
@@ -462,7 +522,7 @@ async def _sse_body(
     coordinator: "GenerateCoordinator | ComplexityGenerateCoordinator",
     prepared: PreparedStreamingExecution,
     *,
-    observability: Observability | None = None,
+    observability: ObservabilityPort | None = None,
     trace_carrier: dict[str, str] | None = None,
 ) -> AsyncGenerator[str]:
     if observability is None:
@@ -484,8 +544,7 @@ async def _sse_body(
             record_exception=False,
         ) as span,
     ):
-        set_gateway_span_attributes(
-            span,
+        span.set_attributes(
             {
                 "llm.workload": prepared.request.workload,
                 "llm.streaming": True,
@@ -498,8 +557,7 @@ async def _sse_body(
             async with aclosing(stream) as events:
                 async for event in events:
                     if event.usage is not None:
-                        set_gateway_span_attributes(
-                            span,
+                        span.set_attributes(
                             {
                                 "llm.usage.input_count": event.usage.input_tokens,
                                 "llm.usage.output_count": event.usage.output_tokens,
@@ -507,24 +565,21 @@ async def _sse_body(
                         )
                     if event.event_type is StreamEventType.RESPONSE_FAILED:
                         terminal = True
-                        set_gateway_span_attributes(
-                            span,
+                        span.set_attributes(
                             {"llm.partial": event.partial},
                         )
-                        mark_span_failure(
-                            span,
+                        span.mark_failure(
                             event.error.code if event.error is not None else "stream_failed",
                         )
                     elif event.event_type is StreamEventType.RESPONSE_COMPLETED:
                         terminal = True
                         if event.routing is not None:
-                            set_gateway_span_attributes(
-                                span,
+                            span.set_attributes(
                                 _routing_attributes_from_provenance(event.routing),
                             )
-                        mark_span_success(span)
+                        span.mark_success()
                         if event.execution is not None:
-                            trace_id = current_trace_id(span)
+                            trace_id = span.trace_id
                             if trace_id is not None:
                                 event = replace(
                                     event,
@@ -532,14 +587,14 @@ async def _sse_body(
                                 )
                     yield _encode_sse(event)
         except asyncio.CancelledError:
-            mark_span_cancelled(span)
+            span.mark_cancelled()
             raise
         except Exception:
-            mark_span_failure(span, "stream_unexpected_error")
+            span.mark_failure("stream_unexpected_error")
             raise
         finally:
             if not terminal:
-                set_gateway_span_attributes(span, {"llm.partial": False})
+                span.set_attributes({"llm.partial": False})
 
 
 def _trace_carrier(request: Request) -> dict[str, str]:
@@ -638,6 +693,8 @@ def _event_payload(event: GatewayStreamEvent) -> dict[str, object]:
             execution["finish_reason"] = event.execution.finish_reason
         if event.execution.trace_id is not None:
             execution["trace_id"] = event.execution.trace_id
+        if event.execution.cached:
+            execution["cached"] = True
         if event.execution.usage is not None:
             execution_usage: dict[str, object] = {
                 "input_tokens": event.execution.usage.input_tokens,

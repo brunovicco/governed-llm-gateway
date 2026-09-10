@@ -2,6 +2,11 @@ import { type FormEvent, useRef, useState } from "react";
 
 import { OperationsApiClient, OperationsApiError } from "./api";
 import {
+  DEPLOYMENT_CATALOG_COLUMNS,
+  EMPTY_DEPLOYMENT_CATALOG_NOTICE,
+  describeExcludedCandidates,
+} from "./catalog";
+import {
   GovernedInferenceClient,
   type GovernedInferenceResult,
   InferenceApiError,
@@ -296,19 +301,23 @@ function ConsoleView({
           <table>
             <thead>
               <tr>
-                <th>Deployment</th>
-                <th>Provider / model</th>
-                <th>Group</th>
-                <th>Capabilities</th>
-                <th>Context</th>
-                <th>Environment</th>
-                <th>Health</th>
+                {DEPLOYMENT_CATALOG_COLUMNS.map((column) => (
+                  <th key={column}>{column}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {deployments.deployments.map((deployment) => (
-                <DeploymentRow key={deployment.deployment_id} deployment={deployment} />
-              ))}
+              {deployments.deployments.length === 0 ? (
+                <tr>
+                  <td className="catalog-empty-cell" colSpan={DEPLOYMENT_CATALOG_COLUMNS.length}>
+                    {EMPTY_DEPLOYMENT_CATALOG_NOTICE}
+                  </td>
+                </tr>
+              ) : (
+                deployments.deployments.map((deployment) => (
+                  <DeploymentRow key={deployment.deployment_id} deployment={deployment} />
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -444,14 +453,8 @@ function InferenceEvidence({ result }: { result: GovernedInferenceResult }) {
           mono={execution.trace_id !== null}
         />
         <ProvenanceItem
-          term="Rejected candidates"
-          value={
-            routing.rejected_candidates.length === 0
-              ? "None"
-              : routing.rejected_candidates
-                  .map((candidate) => `${candidate.deployment}: ${candidate.reason}`)
-                  .join(" · ")
-          }
+          term="Excluded before selection"
+          value={describeExcludedCandidates(routing.rejected_candidates)}
         />
       </dl>
       {traceUrl && (

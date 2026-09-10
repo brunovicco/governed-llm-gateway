@@ -33,7 +33,7 @@ class OperationsReadAuthorizer(Protocol):
 class OperationsSnapshotReader(Protocol):
     """Read one already-composed immutable operations snapshot."""
 
-    def snapshot(self) -> OperationsSnapshot:
+    async def snapshot(self) -> OperationsSnapshot:
         """Return descriptive operations state without I/O or mutation."""
         ...
 
@@ -213,7 +213,7 @@ async def _authorize_and_read_snapshot(
         ) from exc
 
     try:
-        return read_model.snapshot()
+        return await read_model.snapshot()
     except RuntimeError as exc:
         raise _snapshot_unavailable() from exc
 

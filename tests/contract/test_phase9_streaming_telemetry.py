@@ -26,6 +26,9 @@ from governed_llm_gateway_contracts import (
     StreamEventType,
     Usage,
 )
+from governed_llm_gateway_core.adapters.observability_otel import (
+    OpenTelemetryObservability,
+)
 from governed_llm_gateway_core.application.ranking import RankingDecision
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -197,7 +200,7 @@ def test_generate_telemetry_continues_trace_and_exports_metadata_only() -> None:
     attach_generate_route(
         app,
         cast(GenerateCoordinator, fake),
-        observability=observability,
+        observability=OpenTelemetryObservability(observability),
     )
 
     response = TestClient(app).post(
@@ -272,7 +275,7 @@ def test_stream_failure_records_category_and_partial_without_remote_message() ->
         async for chunk in _sse_body(
             cast(GenerateCoordinator, fake),
             fake.prepared,
-            observability=observability,
+            observability=OpenTelemetryObservability(observability),
         ):
             chunks.append(chunk)
         return chunks

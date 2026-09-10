@@ -35,6 +35,20 @@ class ProviderErrorCode(StrEnum):
     UNKNOWN = "unknown"
 
 
+def is_transient_provider_error(error: "ProviderError") -> bool:
+    """Return whether a provider failure may be retried on the same deployment.
+
+    One definition, used by retry, fallback and every health tracker. A second copy that
+    drifted by one condition would silently change when a circuit opens.
+    """
+    return error.retryable and error.code in {
+        ProviderErrorCode.RATE_LIMIT,
+        ProviderErrorCode.TIMEOUT,
+        ProviderErrorCode.UNAVAILABLE,
+        ProviderErrorCode.TRANSPORT,
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class ProviderFeatureSupport:
     """API-family features the adapter can translate natively.

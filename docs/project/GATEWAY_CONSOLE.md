@@ -157,7 +157,8 @@ opens the exact trace for that one request, not just the general dashboard.
 
 The trace ID comes from the Gateway's own already-active span for the request, not a client-side guess.
 `apps/gateway-api/stream_generate.py` reads the current span's `SpanContext.trace_id` (via
-`current_trace_id` in `packages/gateway-core/application/telemetry.py`) only when building the terminal
+the `trace_id` property of the application's `GatewaySpan` port, implemented in
+`packages/gateway-core/adapters/observability_otel.py`) only when building the terminal
 `RESPONSE_COMPLETED` SSE event, and only when that span context is valid — when observability is
 disabled, `execution.trace_id` stays `None` rather than being fabricated. `ProviderExecution.trace_id` is
 validated as an exact 32-character lowercase-hex string wherever it is constructed, decoded, or

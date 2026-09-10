@@ -1,0 +1,66 @@
+{
+  "schema_version": "1.2",
+  "matrix_version": "personal-default-balanced-v1",
+  "targets": [
+    {
+      "target_id": "pd-balanced-anthropic-claude-sonnet-5-dev",
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "api": "anthropic/messages",
+      "api_family": "anthropic-messages",
+      "max_output_tokens": 4096,
+      "configuration": "access=personal_default;model_group=balanced;temperature=default;max_output=4096;response_normalization=fenced_json_v1",
+      "source_date": "2026-09-09"
+    },
+    {
+      "target_id": "pd-balanced-google-gemini-3-8-flash-dev",
+      "provider": "google",
+      "model": "gemini-3.8-flash",
+      "api": "gemini/generateContent",
+      "api_family": "gemini-generate-content",
+      "max_output_tokens": 4096,
+      "configuration": "access=personal_default;model_group=balanced;temperature=default;max_output=4096;response_normalization=fenced_json_v1",
+      "source_date": "2026-09-09"
+    },
+    {
+      "target_id": "pd-balanced-groq-gpt-oss-120b-dev",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "api": "openai-compatible/chat-completions",
+      "api_family": "openai-compatible",
+      "max_output_tokens": 4096,
+      "configuration": "access=personal_default;model_group=balanced;temperature=default;max_output=4096;response_normalization=fenced_json_v1",
+      "source_date": "2026-09-09"
+    },
+    {
+      "target_id": "pd-balanced-nvidia-nemotron-3-super-dev",
+      "provider": "nvidia",
+      "model": "nvidia/nemotron-3-super-120b-a12b",
+      "api": "openai-compatible/chat-completions",
+      "api_family": "openai-compatible",
+      "max_output_tokens": 4096,
+      "configuration": "access=personal_default;model_group=balanced;temperature=default;max_output=4096;response_normalization=fenced_json_v1",
+      "source_date": "2026-09-09"
+    },
+    {
+      "target_id": "pd-balanced-openai-gpt-5-6-luna-dev",
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "api": "openai/responses",
+      "api_family": "openai-responses",
+      "max_output_tokens": 4096,
+      "configuration": "access=personal_default;model_group=balanced;temperature=default;max_output=4096;response_normalization=fenced_json_v1",
+      "source_date": "2026-09-09"
+    },
+    {
+      "target_id": "pd-balanced-openrouter-llama-3-3-70b-dev",
+      "provider": "openrouter",
+      "model": "meta-llama/llama-3.3-70b-instruct",
+      "api": "openai-compatible/chat-completions",
+      "api_family": "openai-compatible",
+      "max_output_tokens": 4096,
+      "configuration": "access=personal_default;model_group=balanced;temperature=default;max_output=4096;response_normalization=fenced_json_v1",
+      "source_date": "2026-09-09"
+    }
+  ]
+}

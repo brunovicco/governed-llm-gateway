@@ -5,6 +5,173 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **Estimated-spend accounting and budgets**: per-client, per-workload accumulation of what
+  execution implied, with limits that refuse a request once a ceiling is reached. Amounts derive
+  from the Model Registry's pinned pricing and the provider's reported usage, so they are the
+  gateway's **estimate** rather than an invoice — the docs and the code say so, because presenting
+  a drifting pinned price as billed cost to a finance audience would be the wrong kind of
+  confidence. Money accumulates as integer micro-USD: a float ledger loses precision at the scale
+  that matters (a contract test asserts a thousand tenths of a cent total exactly one dollar), and
+  a counter shared across replicas must be incremented atomically, which `INCRBY` on an integer is
+  and a read-modify-write of a float is not. The guard runs after PDP authorization and before
+  provider work, so a budget narrows and never widens. Reading fails closed — spending against a
+  ceiling nobody can see is worse than refusing — while writing is swallowed, since the caller
+  already holds their answer. A cached answer records nothing, which is what the `cached` marker
+  added in the previous commit is for. Exhaustion is `>=`, because a budget that permits one more
+  call at exactly its ceiling is designed to be exceeded. Also consolidates the cost formula, which
+  was private to `ranking.py`, into the domain module that owns `PricingMetadata`. Adds
+  `docs/project/SPEND_ACCOUNTING.md` and `tests/contract/test_spend_accounting.py` (24 cases);
+  three governance-critical assertions were confirmed against mutated source.
+- **Response cache wired into the governed streaming path**: the cache is now consulted and
+  populated by real requests rather than only being available. `ProviderExecution` gains `cached`,
+  because a served hit reports the deployment that originally produced the content and without that
+  marker the operational record would claim a provider call that never happened; the flag threads
+  through the SSE wire and the thin client's codec. Latency on a hit is this request's, usage is the
+  original call's, and the marker is what tells spend accounting not to count those tokens twice.
+  The cache identity is built in the coordinator from the **effective** authorization context, so a
+  caller declaring `public` under a binding that raises the floor is judged on the raised value —
+  the alternative would store data the deployment classified higher. A stored answer is served only
+  when ranking would still select the same deployment: the existing contract invariant that terminal
+  evidence must match routing provenance caught the inconsistency, and rather than weaken it the
+  cache now falls through to a real execution when runtime health has moved the selection. A cache
+  write failure is swallowed, since the caller already holds the complete answer. Adds
+  `tests/contract/test_streaming_cache_integration.py` (11 cases) and
+  `tests/contract/test_cache_identity_authorization.py` (7 cases); the four assertions that carry
+  the governance weight were each confirmed against deliberately mutated source.
+- **Governed response cache**: an exact-match completion cache on the same RESP server, off by
+  default and opt-in per workload. Three properties define it. A cache hit is never an
+  authorization shortcut: lookup happens after the Policy Model Router has decided, and the key
+  binds the full authorization context — workload, effective risk and classification, authorized
+  model group, registry and ranking digests, output budget and a digest of the exact messages — so
+  an entry produced under one authority is unreachable from another, and a registry or policy
+  change invalidates stored answers because a different configuration may route elsewhere. Only
+  `public` data is ever stored, and that ceiling lives in code rather than configuration, because
+  writing prompt-derived material to a server outside the process is a data-residency decision
+  rather than a performance one. Entries are keyed by content-addressed digest, never by the
+  prompt, and always carry a bounded TTL. Semantic caching over embeddings is an explicit
+  non-claim: an approximate hit answers a different question, which is not a trade a gateway
+  selling determinism can make. Requests with images, tools or structured output do not cache,
+  since each changes the answer without being represented in the key.
+- **Shared health and circuit state across replicas**: `InMemoryHealthTracker` kept circuit state
+  per process, so with more than one replica each worker learned independently that a provider was
+  failing and the aggregate fallback behaviour stopped being deterministic — a contradiction of the
+  property this gateway sells. Adds `application/health.py` with a `DeploymentHealthPort` (services
+  now depend on the port, not on the concrete tracker) and
+  `adapters/health_redis.py`, which keeps that state on any RESP server. The port is asynchronous
+  because the only useful implementation beyond one process is a network round trip; blocking the
+  event loop to decide whether a circuit is open would trade one correctness problem for a worse
+  one. Every transition is a single server-side Lua script, since read-modify-write across replicas
+  is exactly the race that would make a shared breaker worse than a local one — an integration test
+  drives ten concurrent replicas and asserts no counter is lost.
+
+  **Server choice stays with the operator.** The adapter uses only core data types and Lua — no
+  modules, no vendor commands — and imports no client library at all, taking a `RespClient`
+  Protocol instead, so `gateway-core` gains no dependency and `gateway-api` declares an optional
+  `redis` extra. Redis 8 folded the former Stack modules into core, and none of them are needed
+  here, so the real difference is licensing: Redis Open Source 8 is AGPLv3 while Valkey is BSD and
+  the AWS ElastiCache/MemoryDB default. That belongs to whoever deploys this, so the new
+  `redis-health` workflow runs the same contract against **both** Valkey 8 and Redis 8.
+
+  Also consolidates a pre-existing duplication surfaced by this work: the transient-error
+  classification lived in two copies in `resilience.py` and `streaming.py`, and a third slightly
+  different copy nearly shipped in the new adapter. There is now one
+  `is_transient_provider_error`, because a copy that drifted by one condition would silently change
+  when a circuit opens.
+- **OpenAI-compatible ingress** (`POST /v1/chat/completions`): a consumer can now repoint an
+  existing OpenAI client's `base_url` at the Gateway instead of adopting the thin SDK. It is
+  adoption friction removed, not a second execution path — the route translates onto the existing
+  `GenerateRequestModel` and reuses the same `GenerateCoordinator` preflight as `/v1/generate`, so
+  authentication, PDP authorization, ranking, fallback and evidence are the governed path unchanged.
+  `model` carries the **workload**, never a provider model. Shape validation refuses `openai/gpt-4`
+  and uppercase or undotted names, but a dotted model name like `gpt-5.6-luna` is shaped exactly
+  like a workload and passes — what refuses it is authorization, since an unregistered workload is
+  in no binding's `allowed_workloads`. That distinction is documented rather than glossed, because
+  relying on the pattern would be a protection that only looks like one. `risk_level` and
+  `data_classification` come from the deployment-owned client-auth binding, so a caller cannot lower
+  its own classification through this surface. Unknown fields, sampling controls included, are
+  rejected rather than silently dropped. Responses carry governed evidence in an `x_gateway` object
+  that OpenAI clients ignore. Adds `docs/project/OPENAI_COMPATIBLE_INGRESS.md`,
+  `tests/contract/test_openai_compatible_ingress.py` (20 cases) and
+  `tests/contract/test_openai_sdk_compatibility.py`, which drives the unmodified `openai` SDK
+  against a loopback instance — credential-free and networkless — so SDK compatibility is re-proven
+  on every run rather than asserted once.
+- **Streaming failure paths under test**: `/v1/generate` is SSE-only, so the streaming stack is the
+  gateway's primary execution path — and it was its least-covered one, with the aggregate 83.8%
+  hiding `application/streaming.py` at 68.45% and `adapters/openai_compatible.py` at 66.15%. Adds
+  `tests/contract/test_streaming_failure_paths.py` (11 cases) covering the properties that make
+  partial delivery safe: a provider failure after content has already reached the caller must not
+  retry or fall back, a truncated stream must not resemble a completed one, usage evidence is
+  required before completion, caller cancellation must close the provider stream and propagate, the
+  three streaming-capability guards must refuse rather than silently downgrade, and an open circuit
+  must be skipped without being called. Adds
+  `tests/contract/test_provider_payload_hardening.py` (16 cases) for the provider trust boundary,
+  where every tool-call rejection path was unexercised: malformed shapes, non-JSON arguments, a tool
+  the caller never declared, arguments violating the declared schema, and error text that must never
+  reach a sanitized `ProviderError`. `application/streaming.py` 68.45% -> 76.03%,
+  `openai_compatible.py` 66.15% -> 87.50%, `gemini_streaming.py` 70.59% -> 79.19%, total 83.87% ->
+  84.35%. The two central safety assertions were verified against deliberately mutated source before
+  being kept, so they fail when the property they describe is removed.
+- **Observability behind a port**: the application layer imported `a2a_otel_kit.Observability`
+  directly in `policy.py`, `resilience.py` and `streaming.py`, and `application/telemetry.py`
+  additionally reached for `a2a_otel_kit.sanitize_attributes` and OpenTelemetry's `Span`, `Status`
+  and `StatusCode` — the one place in the workspace where a telemetry backend leaked into
+  application code. `architecture_check.py` never caught it because it guarded only contracts and
+  domain. Adds `application/observability.py` with a `GatewaySpan`/`ObservabilityPort` pair, reduces
+  `application/telemetry.py` to the vocabulary the application actually owns (span names, event
+  names, the attribute allowlist) with no infrastructure import at all, and moves the binding to
+  `adapters/observability_otel.py`. Sanitization deliberately stays with the library that owns it:
+  the gateway contributes its allowlist as data and `sanitize_attributes` merges it with the kit's
+  defaults, so the two vocabularies cannot drift. `server.py` wraps the configured kit exactly once,
+  and every layer below sees only the port. The free span helpers are gone; call sites use span
+  methods. `architecture_check.py` and `pyproject.toml` now declare the application boundary, and
+  two contract tests cover it — one asserting the layer imports no telemetry backend, one asserting
+  the binding is reachable from exactly the three adapters that legitimately hold it. Both were
+  confirmed to fail against a deliberately planted violation before being kept.
+- **Container deployment artifact**: adds `Dockerfile`, `.dockerignore`, `compose.gateway.yml`,
+  `docs/project/CONTAINER_DEPLOYMENT.md` and a `image` CI workflow. The Gateway previously had no
+  deployment artifact at all — only local launcher scripts. The image carries code only: no
+  deployment configuration, no default `CMD`, non-root `uid 10001`, both stages pinned to one
+  identical base-image digest (the virtualenv records its interpreter path), dependencies resolved
+  in a layer a source change cannot invalidate, and `uv sync --no-editable` so the runtime stage
+  copies the virtualenv alone — no sources, no build tooling, no `uv`. The consumer SDK is
+  deliberately excluded. CI lints the Dockerfile, validates the compose model, builds the image and
+  then proves three properties against the built artifact: it ships no deployment config and runs as
+  the expected non-root uid, the entrypoint fails closed with no artifacts, and the credential-free
+  operations-only container reports `healthy`. Documented limitation, not worked around: the
+  operations-only entrypoint binds `127.0.0.1` with no `--host` flag, so it is reachable only from
+  inside its container.
+- **Benchmark-derived ranking, actually closed**: the Phase 10 -> Phase 11 chain
+  (`Scorecard -> promote_snapshot -> compile_benchmark_hybrid_policy -> ApprovedRankingArtifact`)
+  existed end to end and the runtime already accepted an approved artifact, but no
+  `BenchmarkExecutor` implementation had ever been written, so `benchmarks/scorecards/` was empty
+  and `personal-default`'s `rag.answer` ranked six deployments on hand-written scores that were
+  `0.50` on every dimension except a single `cost` preference. Adds
+  `benchmarks/provider_execution.py`, which binds one benchmark target to exactly one reviewed
+  registry deployment and calls it through the same provider adapters the Gateway uses, and
+  `scripts/publish_ranking_evidence.py`, which runs the dataset, persists an immutable
+  content-addressed snapshot, promotes it through explicit mappings and writes the pinned approved
+  artifact. `rag.answer` now ranks on real evidence from all six `balanced` deployments: quality
+  from `0.875` to `1.000` and one genuine NVIDIA provider failure recorded as `0.833` availability.
+  `reliability`/`latency`/`cost` remain static by the compiler's existing contract.
+  `scripts/personal_default_launcher.py` boots from the artifact and pins its ID, so drift fails
+  closed at startup. Adds `tests/contract/test_benchmark_provider_execution.py` and
+  `tests/contract/test_personal_default_approved_ranking.py`, the latter asserting that promoted
+  quality and availability are not uniform placeholders.
+- **Quality gate runs each step once**: `scripts/quality_gate.py` invoked `architecture_check.py`
+  and `secret_scan.py` directly and then ran `phase0_gate.py`, which runs both again. Steps are now
+  named, timed, reported as a summary, and deduplicated; `phase0_gate.py` stays independently
+  runnable and keeps owning those two checks.
+- **Secret scan enumerates through Git, and is now itself under test**: `scripts/secret_scan.py`
+  walked the filesystem and excluded only `.git`, `.venv` and `uv.lock`, so it read paths that can
+  never reach a commit. A local `.env` holding a real provider key therefore failed
+  `scripts/quality_gate.py` on a developer machine while CI stayed green only because no `.env`
+  exists there, and every scan also read `node_modules/`, `dist/` and the tool caches. Candidates now
+  come from `git ls-files --cached --others --exclude-standard` — tracked files plus untracked files
+  that are not ignored, which is exactly the set a commit could carry. Enumeration fails closed
+  outside a Git working tree rather than silently narrowing, findings report a line number and never
+  print the matched value, and symlinks, deleted index entries, binary and oversized files are
+  skipped. Adds `tests/contract/test_secret_scan.py` (10 cases), the first coverage this security
+  control has had.
 - **Documentation restructure** (#240): consolidates 27 narrow per-workload/per-benchmark docs under
   `docs/evaluation/` into the already-comprehensive `BENCHMARK_MATRIX.md`, removes 3 completed phase
   reports and a duplicate `MODEL_REGISTRY.md`, and splits `docs/project/CURRENT_STATE.md` into a short
