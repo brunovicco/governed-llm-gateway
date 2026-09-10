@@ -8,12 +8,12 @@
 
 > Um gateway de execução de LLM provider-neutral que mantém **autorização, seleção de modelo, credenciais de provider, resiliência e evidência de runtime** fora do código das aplicações.
 
-A aplicação declara um workload e seus requisitos. O Gateway decide qual modelo autorizado atende, chama
+A aplicação declara um workload e seus requisitos, enquanto o Gateway decide qual modelo autorizado atende, chama
 o provider e devolve a resposta com a evidência de como ela foi escolhida. Nenhum SDK de provider,
 nenhuma API key e nenhum `if provider == ...` no consumidor.
 
 ```text
-Aplicação / Agente
+Aplicação/Agente
         │
         │ workload + requisitos + credencial do Gateway
         ▼
@@ -22,7 +22,7 @@ Policy Model Router (PDP)
         ▼
 Governed LLM Gateway (PEP)
         ├─ elegibilidade + ranking determinístico
-        ├─ health / circuit breaker
+        ├─ health/circuit breaker
         ├─ retry limitado + fallback seguro
         ├─ tradução de provider
         └─ proveniência + OpenTelemetry
@@ -50,7 +50,7 @@ Uma execução local real do perfil [`personal-default`](config/profiles/persona
 credenciais. Cada campo é evidência terminal de execução: IDs de decisão de
 rota e de política, digests de registry e ranking, o score snapshot que ranqueou os candidatos, a
 sequência de fallback efetivamente percorrida e o trace ID emitido. O link *View this request's trace in
-Grafana* do próprio Console resolve exatamente aquele trace — o waterfall correspondente está em
+Grafana* do próprio Console resolve exatamente aquele trace - o waterfall correspondente está em
 [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md).
 
 ## O que você ganha
@@ -61,7 +61,7 @@ Grafana* do próprio Console resolve exatamente aquele trace — o waterfall cor
 | **Credenciais em um lugar só** | As chaves de provider pertencem ao deployment do Gateway. Rotacionar uma é uma mudança única, em um lugar único, sem redeploy de consumidor e sem chave espalhada por repositórios. |
 | **Autorização que se sustenta** | A política decide quais grupos de modelo um workload pode usar. O Gateway só consegue estreitar esse conjunto, nunca ampliá-lo, e falha fechado quando a política está inacessível. |
 | **Seleção determinística** | O ranking dentro do conjunto autorizado é reproduzível e explicável: mesmas entradas, mesmo deployment, com os motivos e os digests que o produziram anexados. |
-| **Resiliência sem surpresa** | Health, circuit breaker, retry limitado e fallback — todos restritos a deployments já autorizados, e compartilháveis entre réplicas para que o comportamento continue determinístico ao escalar. |
+| **Resiliência sem surpresa** | Health, circuit breaker, retry limitado e fallback - todos restritos a deployments já autorizados, e compartilháveis entre réplicas para que o comportamento continue determinístico ao escalar. |
 | **Teto de custo** | Contabilização de gasto por cliente e por workload, a partir do pricing fixado e do uso reportado, com orçamentos que recusam a requisição ao atingir o teto. |
 | **Evidência em toda requisição** | Proveniência terminal de execução mais OpenTelemetry metadata-only: o que foi autorizado, o que foi selecionado, o que de fato executou e o trace emitido. |
 | **Interoperabilidade nos dois sentidos** | Adapters nativos de OpenAI Responses, Anthropic Messages e Gemini, adapters explicitamente compatíveis com OpenAI, e um ingresso no formato OpenAI para que um cliente existente apenas reaponte seu `base_url`. |
@@ -76,7 +76,7 @@ Grafana* do próprio Console resolve exatamente aquele trace — o waterfall cor
 6. Proveniência terminal e telemetria metadata-safe descrevem o que aconteceu. Elas nunca autorizam uma requisição futura.
 
 Uma autoridade opcional de governança pode estreitar ainda mais o que a política autorizou; nunca pode
-expandir. O contrato de fio exato está em
+expandir. O contrato exato está em
 [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md).
 
 O Gateway deliberadamente não é framework de agentes, framework de RAG, executor de ferramentas MCP,
@@ -87,13 +87,13 @@ runtime da aplicação continua dono da autorização e dos efeitos colaterais d
 
 Credencial de provider é assunto do deployment. Um binding de provider-runtime referencia a credencial
 por nome, e um resolver server-side transforma essa referência no valor real apenas dentro do processo
-do Gateway — um `.env` carregado localmente, ou as mesmas referências injetadas por AWS Secrets Manager,
+do Gateway - um `.env` carregado localmente, ou as mesmas referências injetadas por AWS Secrets Manager,
 Azure Key Vault, GCP Secret Manager ou Vault em um deployment real. Rotacionar uma chave de provider é,
 portanto, uma mudança em um lugar só: nenhum consumidor publica build novo e nenhum repositório guarda
 segredo de provider.
 
-Uma aplicação consumidora recebe exatamente duas variáveis — `GOVERNED_LLM_GATEWAY_URL` e
-`GOVERNED_LLM_GATEWAY_API_KEY` — e não é dona de política de provider, modelo, retry ou fallback. A
+Uma aplicação consumidora recebe exatamente duas variáveis (`GOVERNED_LLM_GATEWAY_URL` e
+`GOVERNED_LLM_GATEWAY_API_KEY`) e não é dona de política de provider, modelo, retry ou fallback. A
 fronteira de confiança está especificada em
 [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) e
 [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md).
@@ -109,7 +109,7 @@ Três configurações, em ordem crescente do que exigem:
 | [**`personal-default`**](config/profiles/personal-default/README.md) | O mesmo, mais suas próprias chaves | Seis providers (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter) em um grupo autorizado, NVIDIA preferido por custo; é o perfil para chamar a partir das suas aplicações. |
 
 O baseline versionado é fail-closed: nenhum deployment habilitado, nenhum binding de provider, política
-desabilitada, nenhum principal ativo. Adicionar uma chave de provider por si só não habilita inferência —
+desabilitada, nenhum principal ativo. Adicionar uma chave de provider por si só não habilita inferência -
 um perfil precisa ser ativado explicitamente, de modo que disponibilidade operacional nunca vira
 autorização por acidente.
 
@@ -166,12 +166,12 @@ git clone https://github.com/brunovicco/policy-model-router.git
 cd governed-llm-gateway && uv sync --frozen
 ```
 
-Coloque no `.env` os dois segredos locais compartilhados que você inventa, mais as chaves de provider
+Coloque no `.env` os dois segredos locais compartilhados que você criou, mais as chaves de provider
 que você realmente tem:
 
 ```dotenv
-GATEWAY_DEMO_API_KEY=valor-local-aleatorio
-POLICY_ROUTER_DEMO_API_KEY=valor-local-aleatorio
+GATEWAY_DEMO_API_KEY=...
+POLICY_ROUTER_DEMO_API_KEY=...
 NVIDIA_API_KEY=...
 GEMINI_API_KEY=...
 OPENAI_API_KEY=...
@@ -190,7 +190,7 @@ uv run --frozen python scripts/personal_default_launcher.py
 ```
 
 Isso sobe e derruba os dois serviços juntos (assume `../policy-model-router`; sobrescreva com
-`POLICY_MODEL_ROUTER_ROOT`). Depois adicione o client fino ao seu projeto — não publicado no PyPI,
+`POLICY_MODEL_ROUTER_ROOT`). Depois adicione o client ao seu projeto - não publicado no PyPI,
 instale direto deste repositório:
 
 ```bash
@@ -227,7 +227,7 @@ asyncio.run(main())
 ```
 
 `max_output_tokens=2000` não é arbitrário: os deployments de NVIDIA, Gemini e Groq aqui gastam uma
-fatia variável, às vezes grande, do orçamento em raciocínio interno antes de qualquer texto visível —
+fatia variável, às vezes grande, do orçamento em raciocínio interno antes de qualquer texto visível -
 com um orçamento apertado, o conteúdo volta vazio numa fração mensurável das vezes. O runbook completo,
 o escopo atual (`rag.answer` em `balanced`) e o status de prova por provider estão no
 [README do perfil](config/profiles/personal-default/README.md).
@@ -263,10 +263,10 @@ dedicados do GitHub Actions. Testes com provider real continuam opt-in por desig
 
 Uma implementação de referência feita para ser executada e lida, não um produto hospedado:
 
-- **Não é infraestrutura de produção.** Sem terminação TLS, IAM/SSO de produção, gestão de sessão de browser, rate limiting ou política de CSRF. Todo caminho demonstrado roda como processos loopback locais.
-- **Não é SLA sobre nenhum provider.** Entradas de pricing e catálogo são metadados fixados, revisados em uma data, e podem se distanciar do catálogo real do provider.
-- **Benchmarks são fixtures, não tráfego de produção.** Eles informam elegibilidade de ranking dentro de um conjunto já autorizado — nunca autorização, e nunca substituto para feedback real de usuários.
-- **As provas com provider são reais.** Toda prova de inferência governada citada no checkpoint log é uma requisição real, com credenciais fornecidas pelo operador, pela cadeia completa política → Gateway → provider, com a evidência terminal inspecionada. Não é mock, não é stub, não é simulação sem credencial.
+- **Não é infraestrutura de produção**: sem terminação TLS, IAM/SSO de produção, gestão de sessão de browser, rate limiting ou política de CSRF. Todo caminho demonstrado roda como processos loopback locais.
+- **Não é SLA sobre nenhum provider**: entradas de pricing e catálogo são metadados fixados, revisados em uma data, e podem se distanciar do catálogo real do provider.
+- **Benchmarks são fixtures, não tráfego de produção**: eles informam elegibilidade de ranking dentro de um conjunto já autorizado - nunca autorização, e nunca substituto para feedback real de usuários.
+- **As provas com provider são reais**: toda prova de inferência governada citada no checkpoint log é uma requisição real, com credenciais, pela cadeia completa política → Gateway → provider, com a evidência terminal inspecionada. Não é mock, não é stub, não é simulação sem credencial.
 
 Status de fase, escopo adiado e a evidência datada por trás de cada afirmação vivem em
 [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) e
@@ -277,11 +277,11 @@ Status de fase, escopo adiado e a evidência datada por trás de cada afirmaçã
 Todo documento em `docs/project/` está agrupado e explicado no
 [índice da documentação](docs/project/README.md). Os caminhos mais curtos:
 
-- **Arquitetura** — [`ARCHITECTURE.md`](docs/project/ARCHITECTURE.md), o contrato de autorização em [`PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) e as decisões por trás de ambos em [`docs/adr/`](docs/adr/);
-- **Segurança e secrets** — [`SECURITY_MODEL.md`](docs/project/SECURITY_MODEL.md) e [`PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md);
-- **Deployment** — [`CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md), [`SHARED_RUNTIME_STATE.md`](docs/project/SHARED_RUNTIME_STATE.md) e [`SPEND_ACCOUNTING.md`](docs/project/SPEND_ACCOUNTING.md);
-- **Evidência** — [`GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) e [`EVALUATION.md`](docs/project/EVALUATION.md);
-- **Histórico de releases** — [`CHANGELOG.md`](CHANGELOG.md).
+- **Arquitetura** - [`ARCHITECTURE.md`](docs/project/ARCHITECTURE.md), o contrato de autorização em [`PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) e as decisões por trás de ambos em [`docs/adr/`](docs/adr/);
+- **Segurança e secrets** - [`SECURITY_MODEL.md`](docs/project/SECURITY_MODEL.md) e [`PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md);
+- **Deployment** - [`CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md), [`SHARED_RUNTIME_STATE.md`](docs/project/SHARED_RUNTIME_STATE.md) e [`SPEND_ACCOUNTING.md`](docs/project/SPEND_ACCOUNTING.md);
+- **Evidência** - [`GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) e [`EVALUATION.md`](docs/project/EVALUATION.md);
+- **Histórico de releases** - [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Licença
 

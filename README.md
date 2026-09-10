@@ -8,12 +8,12 @@
 
 > A provider-neutral LLM execution gateway that keeps **authorization, model selection, provider credentials, resilience and runtime evidence** out of application code.
 
-An application declares a workload and its requirements. The Gateway decides which authorized model
-serves it, calls the provider, and returns the answer with the evidence of how it was chosen. No
-provider SDK, no API key and no routing branch belongs in the consumer.
+An application declares a workload and its requirements, while the Gateway decides which authorized
+model serves it, calls the provider and returns the answer with the evidence of how it was chosen. No
+provider SDK, no API key and no `if provider == ...` in the consumer.
 
 ```text
-Application / Agent
+Application/Agent
         │
         │ workload + requirements + Gateway credential
         ▼
@@ -22,7 +22,7 @@ Policy Model Router (PDP)
         ▼
 Governed LLM Gateway (PEP)
         ├─ eligibility + deterministic ranking
-        ├─ health / circuit breaker
+        ├─ health/circuit breaker
         ├─ bounded retry + safe fallback
         ├─ provider translation
         └─ provenance + OpenTelemetry
@@ -50,7 +50,7 @@ A real local run of the [`personal-default`](config/profiles/personal-default/RE
 operator-supplied credentials. Every field is terminal execution evidence: routing and policy decision
 IDs, registry and ranking digests, the score snapshot that ranked the candidates, the fallback sequence
 actually taken, and the trace ID emitted. The Console's *View this request's trace in Grafana* link
-resolves to that exact trace — the matching waterfall is in
+resolves to that exact trace - the matching waterfall is in
 [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md).
 
 ## What it gives you
@@ -61,7 +61,7 @@ resolves to that exact trace — the matching waterfall is in
 | **Credentials in one place** | Provider keys belong to the Gateway deployment. Rotating one is a single change in a single place, with no consumer redeploy and no key to find scattered across repositories. |
 | **Authorization that holds** | Policy decides which model groups a workload may use. The Gateway can only narrow that set, never widen it, and fails closed when policy is unreachable. |
 | **Deterministic selection** | Ranking inside the authorized set is reproducible and explainable: same inputs, same deployment, with the reasons and the digests that produced it attached. |
-| **Resilience without surprises** | Health tracking, circuit breaking, bounded retry and fallback — all restricted to already-authorized deployments, and shareable across replicas so behavior stays deterministic when you scale out. |
+| **Resilience without surprises** | Health tracking, circuit breaking, bounded retry and fallback - all restricted to already-authorized deployments, and shareable across replicas so behavior stays deterministic when you scale out. |
 | **Cost ceilings** | Per-client, per-workload spend accounting from pinned pricing and reported usage, with budgets that refuse a request once a ceiling is reached. |
 | **Evidence for every request** | Terminal execution provenance plus metadata-only OpenTelemetry: what was authorized, what was selected, what actually ran, and the trace it emitted. |
 | **Interoperability both ways** | Native OpenAI Responses, Anthropic Messages and Gemini adapters, explicit OpenAI-compatible adapters, and an OpenAI-shaped ingress so an existing client can repoint its `base_url` here. |
@@ -76,7 +76,7 @@ resolves to that exact trace — the matching waterfall is in
 6. Terminal provenance and metadata-safe telemetry describe what happened. They never authorize a future request.
 
 An optional governance authority can narrow further what policy authorized; it can never expand it.
-The exact wire contract is in
+The exact contract is in
 [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md).
 
 The Gateway is deliberately not an agent framework, a RAG framework, an MCP tool executor, a
@@ -87,12 +87,12 @@ application runtime keeps ownership of tool authorization and side effects.
 
 Provider credentials are a deployment concern. A provider-runtime binding references a credential by
 name, and a server-side resolver turns that reference into the real value only inside the Gateway
-process — a sourced `.env` locally, or the same references injected from AWS Secrets Manager, Azure Key
+process - a sourced `.env` locally, or the same references injected from AWS Secrets Manager, Azure Key
 Vault, GCP Secret Manager or Vault in a real deployment. Rotating a provider key is therefore one
 change in one place: no consumer ships a new build, and no repository holds a provider secret.
 
-A consumer application receives exactly two variables — `GOVERNED_LLM_GATEWAY_URL` and
-`GOVERNED_LLM_GATEWAY_API_KEY` — and owns no provider, model, retry or fallback policy. The trust
+A consumer application receives exactly two variables (`GOVERNED_LLM_GATEWAY_URL` and
+`GOVERNED_LLM_GATEWAY_API_KEY`) and owns no provider, model, retry or fallback policy. The trust
 boundary is specified in
 [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) and
 [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md).
@@ -108,7 +108,7 @@ Three configurations, in increasing order of what they require:
 | [**`personal-default`**](config/profiles/personal-default/README.md) | The same, plus your own keys | Six providers (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter) in one authorized group, NVIDIA cost-preferred; the profile to call from your own applications. |
 
 The checked-in baseline is fail-closed: no enabled deployment, no provider binding, policy disabled,
-no live principal. Adding a provider key by itself does not enable inference — a profile has to be
+no live principal. Adding a provider key by itself does not enable inference - a profile has to be
 activated explicitly, so operational availability never becomes authorization by accident.
 
 ### Prerequisites
@@ -142,7 +142,7 @@ uv run --frozen python scripts/local_demo.py
 `Ctrl+C` stops it; the launcher owns cleanup of its child processes and its Compose project. For an
 automated startup/readiness/teardown proof, add `--smoke-test`.
 
-| Console — before connecting | Console — connected, operations-only baseline |
+| Console - before connecting | Console - connected, operations-only baseline |
 | --- | --- |
 | ![Gateway Console, disconnected](docs/assets/screenshots/gateway-console-disconnected.png) | ![Gateway Console, connected, showing the real operations-only baseline: phase2-empty registry, 0 deployments, 0 tracked processes](docs/assets/screenshots/gateway-console-connected.png) |
 
@@ -164,11 +164,11 @@ git clone https://github.com/brunovicco/policy-model-router.git
 cd governed-llm-gateway && uv sync --frozen
 ```
 
-Put the two local shared secrets you invent, plus the provider keys you actually have, in `.env`:
+Put the two local shared secrets you created, plus the provider keys you actually have, in `.env`:
 
 ```dotenv
-GATEWAY_DEMO_API_KEY=replace-with-a-random-local-value
-POLICY_ROUTER_DEMO_API_KEY=replace-with-a-random-local-value
+GATEWAY_DEMO_API_KEY=...
+POLICY_ROUTER_DEMO_API_KEY=...
 NVIDIA_API_KEY=...
 GEMINI_API_KEY=...
 OPENAI_API_KEY=...
@@ -187,7 +187,7 @@ uv run --frozen python scripts/personal_default_launcher.py
 ```
 
 That starts and tears down both services together (it assumes `../policy-model-router`; override with
-`POLICY_MODEL_ROUTER_ROOT`). Then add the thin client to your own project — not published to PyPI,
+`POLICY_MODEL_ROUTER_ROOT`). Then add the client to your own project - not published to PyPI,
 install straight from this repository:
 
 ```bash
@@ -244,7 +244,7 @@ budget returns empty content a measurable fraction of the time. The full runbook
 | `deploy/observability/` | Collector, Tempo and Grafana local provisioning |
 | `scripts/` | Quality, evidence and deterministic local-demo tooling |
 | `tests/` | Contract tests plus opt-in integration proofs against real servers |
-| `docs/` | Architecture, security boundaries and evidence contracts — start at [`docs/project/README.md`](docs/project/README.md) |
+| `docs/` | Architecture, security boundaries and evidence contracts - start at [`docs/project/README.md`](docs/project/README.md) |
 
 The default quality path is deterministic and credential-free:
 
@@ -260,10 +260,10 @@ workflows. Live-provider tests stay opt-in by design.
 
 A reference implementation built to be run and read, not a hosted product:
 
-- **Not production infrastructure.** No TLS termination, production IAM/SSO, browser session handling, rate limiting or CSRF policy. Every demonstrated path runs as local loopback processes.
-- **Not an SLA over any provider.** Pricing and catalog entries are pinned metadata reviewed on a date and can drift from the live provider catalog.
-- **Benchmarks are fixtures, not production traffic.** They inform ranking eligibility inside an already-authorized set — never authorization, and never a substitute for live user feedback.
-- **Provider proofs are real.** Every governed-inference proof cited in the checkpoint log is a real request with operator-supplied credentials through the full policy → Gateway → provider chain, with the terminal evidence inspected. Not a mock, not a stub, not a credential-free simulation.
+- **Not production infrastructure**: no TLS termination, production IAM/SSO, browser session handling, rate limiting or CSRF policy. Every demonstrated path runs as local loopback processes.
+- **Not an SLA over any provider**: pricing and catalog entries are pinned metadata reviewed on a date and can drift from the live provider catalog.
+- **Benchmarks are fixtures, not production traffic**: they inform ranking eligibility inside an already-authorized set - never authorization, and never a substitute for live user feedback.
+- **Provider proofs are real**: every governed-inference proof cited in the checkpoint log is a real request, with credentials, through the full policy → Gateway → provider chain, with the terminal evidence inspected. Not a mock, not a stub, not a credential-free simulation.
 
 Phase status, deferred scope and the dated evidence behind each claim live in
 [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) and
@@ -274,11 +274,11 @@ Phase status, deferred scope and the dated evidence behind each claim live in
 Every document under `docs/project/` is grouped and explained in its
 [documentation index](docs/project/README.md). The shortest paths through it:
 
-- **Architecture** — [`ARCHITECTURE.md`](docs/project/ARCHITECTURE.md), the authorization wire contract in [`PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md), and the decisions behind both in [`docs/adr/`](docs/adr/);
-- **Security and secrets** — [`SECURITY_MODEL.md`](docs/project/SECURITY_MODEL.md) and [`PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md);
-- **Deployment** — [`CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md), [`SHARED_RUNTIME_STATE.md`](docs/project/SHARED_RUNTIME_STATE.md) and [`SPEND_ACCOUNTING.md`](docs/project/SPEND_ACCOUNTING.md);
-- **Evidence** — [`GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) and [`EVALUATION.md`](docs/project/EVALUATION.md);
-- **Release history** — [`CHANGELOG.md`](CHANGELOG.md).
+- **Architecture** - [`ARCHITECTURE.md`](docs/project/ARCHITECTURE.md), the authorization contract in [`PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md), and the decisions behind both in [`docs/adr/`](docs/adr/);
+- **Security and secrets** - [`SECURITY_MODEL.md`](docs/project/SECURITY_MODEL.md) and [`PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md);
+- **Deployment** - [`CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md), [`SHARED_RUNTIME_STATE.md`](docs/project/SHARED_RUNTIME_STATE.md) and [`SPEND_ACCOUNTING.md`](docs/project/SPEND_ACCOUNTING.md);
+- **Evidence** - [`GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) and [`EVALUATION.md`](docs/project/EVALUATION.md);
+- **Release history** - [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 
