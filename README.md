@@ -36,6 +36,14 @@ Gateway allowed set ⊆ Policy Router authorized set
 
 The Gateway may narrow an authorized set. It may never widen upstream authorization.
 
+## One real governed request
+
+The caller declared only `workload`, `risk_level` and `data_classification`. The Policy Model Router authorized the `balanced` model group, the Gateway's deterministic ranking selected the deployment inside it, and the provider call, retry/fallback budget and trace emission all stayed server-side.
+
+![Gateway Console after a real governed request: authorized group "balanced" under policy 1.0.0, selected provider nvidia, model nvidia/nemotron-3-super-120b-a12b, deployment nvidia-nemotron-3-super-dev at attempt 1 with fallback 0, 1644 ms and 149 normalized tokens, plus routing decision, policy decision, registry digest, ranking policy, score snapshot, fallback sequence and trace ID](docs/assets/screenshots/console-trace-evidence.png)
+
+A real local run of the [`personal-default`](config/profiles/personal-default/README.md) profile with operator-supplied provider credentials — not a mockup and not a stub. Every field is terminal execution evidence: routing and policy decision IDs, registry and ranking digests, the score snapshot that ranked the candidates, the fallback sequence actually taken, and the trace ID the Gateway emitted. The Console's own *View this request's trace in Grafana* link resolves to that exact trace — the matching Grafana waterfall is in [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md). What this run does **not** claim is in [Non-claims](#non-claims).
+
 ## What this project demonstrates
 
 The repository is a practical reference implementation of an AI Platform execution layer rather than a thin multi-provider proxy.
@@ -93,7 +101,7 @@ It requires **no provider API key and no Policy Router credential** because it d
 
 Real screenshots from this exact demo, captured against a live local run (not mockups):
 
-| Console — before connecting | Console — connected, real operational state |
+| Console — before connecting | Console — connected, operations-only baseline (no inference route) |
 | --- | --- |
 | ![Gateway Console, disconnected](docs/assets/screenshots/gateway-console-disconnected.png) | ![Gateway Console, connected, showing the real operations-only baseline: phase2-empty registry, 0 deployments, 0 tracked processes](docs/assets/screenshots/gateway-console-connected.png) |
 

@@ -36,6 +36,14 @@ Gateway allowed set ⊆ Policy Router authorized set
 
 O Gateway pode restringir um conjunto autorizado. Ele nunca pode ampliar uma autorização recebida do upstream.
 
+## Uma requisição governada real
+
+A aplicação chamadora declarou apenas `workload`, `risk_level` e `data_classification`. O Policy Model Router autorizou o grupo de modelos `balanced`, o ranking determinístico do Gateway selecionou o deployment dentro dele, e a chamada ao provider, o orçamento de retry/fallback e a emissão do trace permaneceram inteiramente server-side.
+
+![Gateway Console após uma requisição governada real: grupo autorizado "balanced" sob a policy 1.0.0, provider selecionado nvidia, modelo nvidia/nemotron-3-super-120b-a12b, deployment nvidia-nemotron-3-super-dev na tentativa 1 com fallback 0, 1644 ms e 149 tokens normalizados, além de routing decision, policy decision, registry digest, ranking policy, score snapshot, fallback sequence e trace ID](docs/assets/screenshots/console-trace-evidence.png)
+
+Execução local real do perfil [`personal-default`](config/profiles/personal-default/README.md) com credenciais de provider fornecidas pelo operador — não é mockup nem stub. Cada campo é evidência terminal de execução: IDs de decisão de routing e de policy, digests de registry e de ranking, o score snapshot que ranqueou os candidatos, a sequência de fallback efetivamente percorrida e o trace ID emitido pelo Gateway. O próprio link *View this request's trace in Grafana* do Console resolve exatamente para esse trace — o waterfall correspondente no Grafana está em [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md). O que esta execução **não** afirma está em [Non-claims](#non-claims).
+
 ## O que este projeto demonstra
 
 O repositório funciona como uma implementação prática de uma camada de execução de AI Platform — e não apenas como um proxy multi-provider.
@@ -93,7 +101,7 @@ Ela **não exige API key de provider nem credencial do Policy Router**, porque p
 
 Screenshots reais dessa mesma demo, capturadas contra uma execução local de verdade (não são mockups):
 
-| Console — antes de conectar | Console — conectado, estado operacional real |
+| Console — antes de conectar | Console — conectado, baseline operations-only (sem rota de inferência) |
 | --- | --- |
 | ![Gateway Console, desconectado](docs/assets/screenshots/gateway-console-disconnected.png) | ![Gateway Console, conectado, mostrando o baseline real do operations-only: registry phase2-empty, 0 deployments, 0 processos rastreados](docs/assets/screenshots/gateway-console-connected.png) |
 

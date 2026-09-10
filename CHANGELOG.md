@@ -5,6 +5,15 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **README leads with a real governed request**: both READMEs opened on the operations-only demo
+  screenshots, whose connected view is honestly empty (`phase2-empty` registry, `0 deployments`,
+  `0 healthy`) — a first impression of a console with nothing in it. A new section above
+  "What this project demonstrates" leads with `console-trace-evidence.png`, which existed only in
+  `docs/project/GATEWAY_CONSOLE.md`: a real `personal-default` run showing the selected provider,
+  attempt/fallback counts, routing and policy decision IDs, registry and ranking digests, and the
+  emitted trace ID. The operations-only screenshots stay where they are; their column header now
+  says `operations-only baseline (no inference route)` so the empty registry reads as intentional
+  at a glance rather than three paragraphs later.
 - **Documentation restructure** (#240): consolidates 27 narrow per-workload/per-benchmark docs under
   `docs/evaluation/` into the already-comprehensive `BENCHMARK_MATRIX.md`, removes 3 completed phase
   reports and a duplicate `MODEL_REGISTRY.md`, and splits `docs/project/CURRENT_STATE.md` into a short
