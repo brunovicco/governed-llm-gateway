@@ -294,7 +294,7 @@ The Gateway is intentionally **not** an agent framework, RAG framework, MCP tool
 | Core platform — Phases 0–13 | **Complete** |
 | Real-project integrations — Phase 14 | **In progress**: two integrations complete; OpsLens intentionally deferred |
 | Local operational demo — OR-8 | **Complete** at the bounded operations-only local-demo scope |
-| Live-inference development profile | **Implemented in PC-33**, extended to six providers; every deployment individually proven with real credentials (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — see `docs/project/CURRENT_STATE.md` |
+| Live-inference development profile | **Implemented in PC-33**, extended to six providers; every deployment individually proven with real credentials (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — see `docs/project/CHECKPOINT_LOG.md` |
 | Personal-default profile (your own projects) | **Implemented**; NVIDIA cost-preferred ranking proven against four other simultaneously-enabled competing providers — see `config/profiles/personal-default/README.md` |
 | Broader operational-surface auth/security — OR-9 | **Minimum-appropriate hardening complete** through bounded increments PC-34..PC-51 plus a dedicated gap investigation (see `docs/project/CURRENT_STATE.md`); production IAM/TLS/SSO, session handling, rate limiting and CSRF remain explicit future work, not silently missing |
 | Final screenshots/demo/product-readiness validation — OR-10 | **Complete**: reproducible e2e validation, a security review of the session's new code and of the existing HTTP/adapter surface (no findings in either pass), the consolidated [non-claims](#non-claims) section, and real Console/Grafana screenshots of the operations-only demo — see `docs/project/CURRENT_STATE.md` |
@@ -312,7 +312,7 @@ Every item previously tracked here for a **portfolio/demo-ready live product pat
 4. ~~complete OR-10: reproducible end-to-end validation, a security review, the consolidated non-claims section, and real screenshots~~ — done;
 5. ~~decide and cut the `v1.0.0` release boundary~~ — done, see [`CHANGELOG.md`](CHANGELOG.md).
 
-See `docs/project/CURRENT_STATE.md` for the dated evidence behind each item. This closes the list that was open at v1.0.0's cut, not the roadmap as a whole — OR-9's production-only scope (TLS/IAM/SSO, session handling, rate limiting, CSRF) and Phase 14's remaining cases stay open by design; see [Non-claims](#non-claims).
+See `docs/project/CHECKPOINT_LOG.md` for the dated evidence behind each item. This closes the list that was open at v1.0.0's cut, not the roadmap as a whole — OR-9's production-only scope (TLS/IAM/SSO, session handling, rate limiting, CSRF) and Phase 14's remaining cases stay open by design; see [Non-claims](#non-claims).
 
 For **full roadmap completion**, Phase 14 also remains sequentially gated: OpsLens must be reconciled before RAGForge and later integrations are started unless that normative order is explicitly revised.
 
@@ -329,7 +329,7 @@ This repository does **not** claim to be:
 - **A complete Phase 14 rollout.** Two of five planned consumer integrations are complete; OpsLens is a validated-but-deliberately-deferred candidate pending its own repository stabilizing; RAGForge and the Verifiable AI Governance integration have not started, by explicit sequencing decision, not oversight.
 - **A finished OR-9.** OR-9 is bounded hardening for the operational surfaces this repo already exposes, not a production security certification. OR-10 (reproducible end-to-end validation, two security-review passes, and real demo screenshots) is complete; OR-9's production IAM/TLS/SSO, session handling, rate limiting and CSRF remain separate future work.
 
-What every governed-inference proof cited in `docs/project/CURRENT_STATE.md` **is**: a real request, with real operator-supplied provider credentials, executed through the full Policy Router → Gateway → provider chain, with the terminal routing/execution evidence inspected — not a mock, not a stub, and not a credential-free simulation.
+What every governed-inference proof cited in `docs/project/CHECKPOINT_LOG.md` **is**: a real request, with real operator-supplied provider credentials, executed through the full Policy Router → Gateway → provider chain, with the terminal routing/execution evidence inspected — not a mock, not a stub, and not a credential-free simulation.
 
 ## Validate the repository
 
@@ -363,6 +363,7 @@ Frontend, observability and integration proofs are also isolated in dedicated Gi
 If you are evaluating the repository, start here:
 
 - [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — authoritative current checkpoint;
+- [`docs/project/CHECKPOINT_LOG.md`](docs/project/CHECKPOINT_LOG.md) — the dated proof-by-proof history behind it;
 - [`docs/project/OPERATIONAL_READINESS.md`](docs/project/OPERATIONAL_READINESS.md) — local demo/operations readiness sequence;
 - [`config/profiles/live-development/README.md`](config/profiles/live-development/README.md) — governed live-development runbook;
 - [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) — how to call the Gateway from your own project, NVIDIA cost-preferred ranking;

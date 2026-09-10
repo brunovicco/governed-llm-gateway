@@ -296,7 +296,7 @@ O Gateway propositalmente **não é** um agent framework, RAG framework, executo
 | Plataforma core — Phases 0–13 | **Concluída** |
 | Integrações com projetos reais — Phase 14 | **Em andamento**: duas integrações concluídas; OpsLens deliberadamente deferido |
 | Demo operacional local — OR-8 | **Concluída** no escopo limitado operations-only |
-| Perfil de live-inference para desenvolvimento | **Implementado no PC-33**, estendido para seis providers; todo deployment provado individualmente com credenciais reais (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — ver `docs/project/CURRENT_STATE.md` |
+| Perfil de live-inference para desenvolvimento | **Implementado no PC-33**, estendido para seis providers; todo deployment provado individualmente com credenciais reais (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — ver `docs/project/CHECKPOINT_LOG.md` |
 | Perfil personal-default (seus próprios projetos) | **Implementado**; ranking com preferência de custo do NVIDIA provado concorrendo com quatro outros providers simultaneamente habilitados — ver `config/profiles/personal-default/README.md` |
 | Hardening mais amplo das superfícies operacionais — OR-9 | **Hardening mínimo apropriado concluído** através dos incrementos limitados PC-34..PC-51 mais uma investigação dedicada de lacunas (ver `docs/project/CURRENT_STATE.md`); IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF continuam como trabalho futuro explícito, não uma lacuna silenciosa |
 | Screenshots/demo/validação final de product readiness — OR-10 | **Concluída**: validação e2e reproduzível, revisão de segurança do código novo da sessão e da superfície HTTP/adapters já existente (sem findings em nenhuma das duas), a seção consolidada de [non-claims](#non-claims), e screenshots reais do Console/Grafana da demo operations-only — ver `docs/project/CURRENT_STATE.md` |
@@ -314,7 +314,7 @@ Todo item antes rastreado aqui para um caminho **live e demonstrável de portfó
 4. ~~concluir OR-10: validação end-to-end reproduzível, revisão de segurança, a seção consolidada de non-claims, e screenshots reais~~ — feito;
 5. ~~decidir e cortar a fronteira de `v1.0.0`~~ — feito, ver [`CHANGELOG.md`](CHANGELOG.md).
 
-Veja `docs/project/CURRENT_STATE.md` para a evidência datada por trás de cada item. Isso fecha a lista que estava aberta no corte da v1.0.0, não o roadmap como um todo — o escopo exclusivo de produção da OR-9 (TLS/IAM/SSO, gestão de sessão, rate limiting, CSRF) e os casos restantes da Phase 14 continuam abertos por design; veja [Non-claims](#non-claims).
+Veja `docs/project/CHECKPOINT_LOG.md` para a evidência datada por trás de cada item. Isso fecha a lista que estava aberta no corte da v1.0.0, não o roadmap como um todo — o escopo exclusivo de produção da OR-9 (TLS/IAM/SSO, gestão de sessão, rate limiting, CSRF) e os casos restantes da Phase 14 continuam abertos por design; veja [Non-claims](#non-claims).
 
 Para **concluir todo o roadmap**, a Phase 14 também continua sequencialmente bloqueada: OpsLens precisa ser reconciliado antes de iniciar RAGForge e as integrações seguintes, a menos que essa ordem normativa seja revisada explicitamente.
 
@@ -331,7 +331,7 @@ Este repositório **não** afirma ser:
 - **Um rollout completo da Phase 14.** Duas das cinco integrações de consumidor planejadas estão completas; o OpsLens é um candidato validado mas deliberadamente adiado até seu próprio repositório estabilizar; RAGForge e a integração com Verifiable AI Governance nem começaram, por decisão explícita de sequenciamento, não por omissão.
 - **Uma OR-9 finalizada.** A OR-9 é hardening limitado para as superfícies operacionais que este repositório já expõe, não uma certificação de segurança de produção. A OR-10 (validação end-to-end reproduzível, duas passadas de revisão de segurança, e screenshots reais da demo) está completa; IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF da OR-9 continuam como trabalho futuro separado.
 
-O que cada prova de inferência governada citada em `docs/project/CURRENT_STATE.md` **é**: uma requisição real, com credenciais reais de provider fornecidas pelo operador, executada através da cadeia completa Policy Router → Gateway → provider, com a evidência terminal de rota/execução inspecionada — não é mock, não é stub, e não é simulação sem credenciais.
+O que cada prova de inferência governada citada em `docs/project/CHECKPOINT_LOG.md` **é**: uma requisição real, com credenciais reais de provider fornecidas pelo operador, executada através da cadeia completa Policy Router → Gateway → provider, com a evidência terminal de rota/execução inspecionada — não é mock, não é stub, e não é simulação sem credenciais.
 
 ## Validar o repositório
 
@@ -365,6 +365,7 @@ Frontend, observabilidade e provas de integração também ficam isolados em wor
 Se você está avaliando o projeto, comece por:
 
 - [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — checkpoint atual autoritativo;
+- [`docs/project/CHECKPOINT_LOG.md`](docs/project/CHECKPOINT_LOG.md) — o histórico datado, prova por prova, por trás dele;
 - [`docs/project/OPERATIONAL_READINESS.md`](docs/project/OPERATIONAL_READINESS.md) — sequência de readiness/demo operacional;
 - [`config/profiles/live-development/README.md`](config/profiles/live-development/README.md) — runbook de live development governado;
 - [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) — como chamar o Gateway a partir do seu próprio projeto, ranking com preferência de custo do NVIDIA;

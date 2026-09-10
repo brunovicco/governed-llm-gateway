@@ -182,7 +182,7 @@ existed. Nothing had caught this because the existing credential-free `collector
 (`compose.collector-receipt.yml`) uses an entirely separate, non-internal-networked compose file, and no
 other workflow sends a real span through this specific stack from a host process. The fix adds
 `otel-collector` to the same `grafana-host-access` bridge network `grafana` already uses. See
-`docs/project/CURRENT_STATE.md` for the real trace captured proving the fix (Gateway → Collector → Tempo
+`docs/project/CHECKPOINT_LOG.md` for the real trace captured proving the fix (Gateway → Collector → Tempo
 → Grafana, rendered waterfall included).
 
 Real screenshots from this exact flow, captured against a live local run (not mockups): the Console after
