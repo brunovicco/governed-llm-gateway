@@ -5,6 +5,14 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **Documentation restructure** (#240): consolidates 27 narrow per-workload/per-benchmark docs under
+  `docs/evaluation/` into the already-comprehensive `BENCHMARK_MATRIX.md`, removes 3 completed phase
+  reports and a duplicate `MODEL_REGISTRY.md`, and splits `docs/project/CURRENT_STATE.md` into a short
+  evergreen status document plus a new dated, append-only `docs/project/CHECKPOINT_LOG.md`.
+- **Personal-default profile — full Anthropic and reasoning-strong proof coverage** (#239): every
+  deployment in every model group `personal-default` wires is now individually proven live in that
+  profile specifically (previously some were proven only in `live-development`), including
+  `security.analysis`, `code.generate` and `code.review`.
 - **PC-52 — Gateway Console per-request trace navigation** (#237): closes README item 2 and the OR-6
   per-trace-correlation gap. `ProviderExecution` gains an optional, strictly-validated `trace_id`; the
   Gateway threads its own real OTel span's trace ID through the terminal SSE event when tracing is
@@ -21,7 +29,9 @@ made.
   (OpenAI was already proven, the claim said otherwise) and proves the profile's actual remaining gap,
   OpenRouter, live. Every deployment in the `live-development` profile is now individually proven.
 
-With these three, every item in the README's post-v1.0.0 punch list is closed.
+The PC-33/OR-9/PC-52 group above closes every item in the README's post-v1.0.0 punch list. The
+personal-default proof coverage and documentation restructure are further hardening/cleanup on top of
+that closed list, not new punch-list items.
 
 ## v1.0.0 — 2026-09-09
 

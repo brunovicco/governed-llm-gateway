@@ -53,6 +53,30 @@ O repositório funciona como uma implementação prática de uma camada de execu
 | **Segurança** | Secrets de provider no servidor, fronteiras de autenticação de clientes, secret scanning e ausência de fallback allow-all |
 | **Qualidade de engenharia** | Tipagem strict, architecture checks, gates de segurança, testes automatizados e provas de CI com containers reais |
 
+## Como funciona a execução governada
+
+Uma requisição não escolhe simplesmente o modelo mais barato ou mais rápido disponível.
+
+1. O consumidor se autentica no Gateway.
+2. O Policy Model Router determina quais grupos lógicos de modelos o workload está autorizado a utilizar.
+3. O Gateway cruza essa autoridade com capacidades do registry, ambiente, dados/risco e elegibilidade de runtime.
+4. O ranking determinístico opera somente dentro do conjunto restante.
+5. Retry/fallback pode migrar apenas para outro deployment que já esteja autorizado e elegível.
+6. Requests/responses específicos de providers são normalizados por adapters.
+7. Proveniência terminal de execução e telemetria metadata-safe descrevem o que aconteceu; elas nunca autorizam uma nova requisição.
+
+Execução de business tools permanece fora do Gateway. O Gateway pode normalizar uma tool call, mas o runtime da aplicação/agente é responsável pela autorização da ferramenta e pelos side effects.
+
+Uma autoridade de governança opcional só pode restringir o que o Policy Model Router (PDP) autoriza; o Gateway (PEP) executa apenas dentro desse conjunto já restringido, normaliza a chamada ao provider, e emite em paralelo telemetria metadata-only (OTel Collector → Tempo → Grafana) e evidência de avaliação junto com a requisição real ao provider. Veja [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) para o contrato exato de wire.
+
+O Gateway propositalmente **não é** um agent framework, RAG framework, executor de tools MCP, plataforma de prompt management nem um produto genérico de API management. Sua responsabilidade é resolução e execução governada de modelos.
+
+### O modelo de secrets
+
+**Nunca coloque API keys reais em arquivos do Model Registry, JSON de provider runtime, READMEs, logs, traces ou no Git.** As credenciais de provider pertencem ao **deployment do Gateway**, nunca às aplicações consumidoras: um binding de provider-runtime referencia uma credencial pelo nome, e um resolver de secrets no servidor transforma essa referência no valor real só dentro do processo do Gateway — um `.env` carregado via `source` localmente, ou as mesmas referências de ambiente injetadas por um secret manager real (AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault, ...) em um deployment real.
+
+Uma aplicação consumidora recebe apenas duas variáveis, nunca uma chave de provider, e não é responsável pela seleção provider/model nem pela policy de retry/fallback: `GOVERNED_LLM_GATEWAY_URL` e `GOVERNED_LLM_GATEWAY_API_KEY`. Veja [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) e [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) para a fronteira completa de confiança.
+
 ## O que já é possível executar hoje
 
 ### 1. Demo local limitada da plataforma — pronta agora
@@ -97,6 +121,45 @@ Essa separação é intencional: disponibilidade operacional não pode virar aut
 ### 3. Seu próprio projeto — o perfil personal-default
 
 `config/profiles/personal-default/` é o perfil para chamar o Gateway a partir das suas próprias aplicações, não uma demo revisada. Ele conecta seis providers (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter) no mesmo grupo autorizado, com NVIDIA como padrão prático de custo; ranking determinístico com fallback limitado escolhe qualquer deployment autorizado que esteja elegível. Sua aplicação só declara `workload`, `risk_level` e `data_classification`. Veja ["Quick start: chamar o Gateway a partir do seu próprio projeto"](#quick-start-chamar-o-gateway-a-partir-do-seu-próprio-projeto) abaixo e [o README dele](config/profiles/personal-default/README.md) para o escopo completo e status de prova por provider.
+
+## Estado atual
+
+| Track | Estado |
+| --- | --- |
+| Plataforma core — Phases 0–13 | **Concluída** |
+| Integrações com projetos reais — Phase 14 | **Em andamento**: duas integrações concluídas; OpsLens deliberadamente deferido |
+| Demo operacional local — OR-8 | **Concluída** no escopo limitado operations-only |
+| Perfil de live-inference para desenvolvimento | **Implementado no PC-33**, estendido para seis providers; todo deployment provado individualmente com credenciais reais (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — ver `docs/project/CHECKPOINT_LOG.md` |
+| Perfil personal-default (seus próprios projetos) | **Implementado**; ranking com preferência de custo do NVIDIA provado concorrendo com quatro outros providers simultaneamente habilitados — ver `config/profiles/personal-default/README.md` |
+| Hardening mais amplo das superfícies operacionais — OR-9 | **Hardening mínimo apropriado concluído** através dos incrementos limitados PC-34..PC-51 mais uma investigação dedicada de lacunas (ver `docs/project/CURRENT_STATE.md`); IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF continuam como trabalho futuro explícito, não uma lacuna silenciosa |
+| Screenshots/demo/validação final de product readiness — OR-10 | **Concluída**: validação e2e reproduzível, revisão de segurança do código novo da sessão e da superfície HTTP/adapters já existente (sem findings em nenhuma das duas), a seção consolidada de [non-claims](#non-claims), e screenshots reais do Console/Grafana da demo operations-only — ver `docs/project/CURRENT_STATE.md` |
+| Correlação per-trace no Console | **Implementada no PC-52**; provada ao vivo contra um trace real capturado, no navegador, não só via SDK — ver `docs/project/CURRENT_STATE.md` |
+
+O checkpoint autoritativo é [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md). A lista de
+pendências que ainda estava aberta no corte da `v1.0.0` (prova opt-in com provider real, a decisão de
+navegação per-trace no Console, o hardening mínimo da OR-9, a validação da OR-10) está totalmente
+fechada — veja [`CHANGELOG.md`](CHANGELOG.md#unreleased) para o que cada item fechou e em qual PR, e
+`docs/project/CHECKPOINT_LOG.md` para a evidência datada por trás disso. Isso fecha a lista que estava
+aberta no corte da v1.0.0, não o roadmap como um todo — o escopo exclusivo de produção da OR-9
+(TLS/IAM/SSO, gestão de sessão, rate limiting, CSRF) e os casos restantes da Phase 14 continuam abertos
+por design; veja [Non-claims](#non-claims). Concluir todo o roadmap também continua sequencialmente
+bloqueado: OpsLens precisa ser reconciliado antes de iniciar RAGForge e as integrações seguintes, a menos
+que essa ordem normativa seja revisada explicitamente.
+
+## Non-claims
+
+Non-claims pontuais já existem perto da feature específica que limitam (o README de cada perfil, as linhas de OR-9/OR-10 acima). Esta seção é o lugar único para ler todas de uma vez.
+
+Este repositório **não** afirma ser:
+
+- **Infraestrutura de produção.** Sem terminação TLS, sem IAM/OAuth/OIDC/workload identity de produção, sem gestão de sessão de browser, sem rate limiting, sem política de CSRF. O hardening limitado PC-34–PC-51 da OR-9 estreita lacunas específicas nas superfícies que este repositório realmente expõe (respostas não-armazenáveis, sanitização de headers, corpos limitados); não completa nada do acima.
+- **Um SLA ou garantia de uptime de qualquer provider de modelo terceiro.** As entradas de pricing/catálogo de modelo são metadados fixados, revisados em datas específicas (ver o README de cada perfil), e podem se distanciar do catálogo real do provider; o pricing de NVIDIA/Groq/OpenRouter no `personal-default` é um placeholder aproximado pendente de atualização revisada separadamente.
+- **Um benchmark de tráfego real de produção.** Tudo em `benchmarks/` roda contra fixtures públicas/sintéticas com scoring determinístico, credential-free por padrão. É evidência para elegibilidade de ranking dentro de um conjunto já autorizado, nunca autorização, e nunca um substituto para feedback real de usuários.
+- **Um deployment multi-tenant ou remoto.** Todo caminho demonstrado (`scripts/local_demo.py`, `live-development`, `personal-default`) roda como processos loopback locais (`127.0.0.1`) que um operador inicia e encerra. Nada disso foi exercitado atrás de um reverse proxy real, load balancer ou DNS público.
+- **Um rollout completo da Phase 14.** Duas das cinco integrações de consumidor planejadas estão completas; o OpsLens é um candidato validado mas deliberadamente adiado até seu próprio repositório estabilizar; RAGForge e a integração com Verifiable AI Governance nem começaram, por decisão explícita de sequenciamento, não por omissão.
+- **Uma OR-9 finalizada.** A OR-9 é hardening limitado para as superfícies operacionais que este repositório já expõe, não uma certificação de segurança de produção. A OR-10 (validação end-to-end reproduzível, duas passadas de revisão de segurança, e screenshots reais da demo) está completa; IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF da OR-9 continuam como trabalho futuro separado.
+
+O que cada prova de inferência governada citada em `docs/project/CHECKPOINT_LOG.md` **é**: uma requisição real, com credenciais reais de provider fornecidas pelo operador, executada através da cadeia completa Policy Router → Gateway → provider, com a evidência terminal de rota/execução inspecionada — não é mock, não é stub, e não é simulação sem credenciais.
 
 ## Quick start: demo local operations-only
 
@@ -262,76 +325,6 @@ parte variável, às vezes grande, do orçamento "pensando" internamente antes d
 Nenhum SDK de provider, nenhuma API key e nenhum `if provider == ...` pertence ao seu projeto. Veja
 [o README dele](config/profiles/personal-default/README.md) para o runbook completo, o escopo atual
 (`rag.answer` em `balanced`) e o status de prova por provider.
-
-## O modelo de secrets
-
-**Nunca coloque API keys reais em arquivos do Model Registry, JSON de provider runtime, READMEs, logs, traces ou no Git.** As credenciais de provider pertencem ao **deployment do Gateway**, nunca às aplicações consumidoras: um binding de provider-runtime referencia uma credencial pelo nome, e um resolver de secrets no servidor transforma essa referência no valor real só dentro do processo do Gateway — um `.env` carregado via `source` localmente, ou as mesmas referências de ambiente injetadas por um secret manager real (AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault, ...) em um deployment real.
-
-Uma aplicação consumidora recebe apenas duas variáveis, nunca uma chave de provider, e não é responsável pela seleção provider/model nem pela policy de retry/fallback: `GOVERNED_LLM_GATEWAY_URL` e `GOVERNED_LLM_GATEWAY_API_KEY`. Veja [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) e [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) para a fronteira completa de confiança.
-
-## Como funciona a execução governada
-
-Uma requisição não escolhe simplesmente o modelo mais barato ou mais rápido disponível.
-
-1. O consumidor se autentica no Gateway.
-2. O Policy Model Router determina quais grupos lógicos de modelos o workload está autorizado a utilizar.
-3. O Gateway cruza essa autoridade com capacidades do registry, ambiente, dados/risco e elegibilidade de runtime.
-4. O ranking determinístico opera somente dentro do conjunto restante.
-5. Retry/fallback pode migrar apenas para outro deployment que já esteja autorizado e elegível.
-6. Requests/responses específicos de providers são normalizados por adapters.
-7. Proveniência terminal de execução e telemetria metadata-safe descrevem o que aconteceu; elas nunca autorizam uma nova requisição.
-
-Execução de business tools permanece fora do Gateway. O Gateway pode normalizar uma tool call, mas o runtime da aplicação/agente é responsável pela autorização da ferramenta e pelos side effects.
-
-## Fronteiras de arquitetura
-
-Uma autoridade de governança opcional só pode restringir o que o Policy Model Router (PDP) autoriza; o Gateway (PEP) executa apenas dentro desse conjunto já restringido, normaliza a chamada ao provider, e emite em paralelo telemetria metadata-only (OTel Collector → Tempo → Grafana) e evidência de avaliação junto com a requisição real ao provider. Veja [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) para o contrato exato de wire.
-
-O Gateway propositalmente **não é** um agent framework, RAG framework, executor de tools MCP, plataforma de prompt management nem um produto genérico de API management. Sua responsabilidade é resolução e execução governada de modelos.
-
-## Estado atual
-
-| Track | Estado |
-| --- | --- |
-| Plataforma core — Phases 0–13 | **Concluída** |
-| Integrações com projetos reais — Phase 14 | **Em andamento**: duas integrações concluídas; OpsLens deliberadamente deferido |
-| Demo operacional local — OR-8 | **Concluída** no escopo limitado operations-only |
-| Perfil de live-inference para desenvolvimento | **Implementado no PC-33**, estendido para seis providers; todo deployment provado individualmente com credenciais reais (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — ver `docs/project/CHECKPOINT_LOG.md` |
-| Perfil personal-default (seus próprios projetos) | **Implementado**; ranking com preferência de custo do NVIDIA provado concorrendo com quatro outros providers simultaneamente habilitados — ver `config/profiles/personal-default/README.md` |
-| Hardening mais amplo das superfícies operacionais — OR-9 | **Hardening mínimo apropriado concluído** através dos incrementos limitados PC-34..PC-51 mais uma investigação dedicada de lacunas (ver `docs/project/CURRENT_STATE.md`); IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF continuam como trabalho futuro explícito, não uma lacuna silenciosa |
-| Screenshots/demo/validação final de product readiness — OR-10 | **Concluída**: validação e2e reproduzível, revisão de segurança do código novo da sessão e da superfície HTTP/adapters já existente (sem findings em nenhuma das duas), a seção consolidada de [non-claims](#non-claims), e screenshots reais do Console/Grafana da demo operations-only — ver `docs/project/CURRENT_STATE.md` |
-| Correlação per-trace no Console | **Implementada no PC-52**; provada ao vivo contra um trace real capturado, no navegador, não só via SDK — ver `docs/project/CURRENT_STATE.md` |
-
-O checkpoint autoritativo é [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
-
-### Caminho live e demonstrável de portfólio/produto — completo
-
-Todo item antes rastreado aqui para um caminho **live e demonstrável de portfólio/produto** já está feito:
-
-1. ~~executar e registrar uma prova opt-in com provider real através do perfil PC-33, mantendo a CI obrigatória sem credenciais~~ — todo deployment do perfil está provado individualmente ao vivo (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic);
-2. ~~decidir se o Console atual deve ganhar uma visão limitada de live request/proveniência e navegação per-trace~~ — a visão de live request/proveniência já existia desde o PC-38; o PC-52 adiciona a navegação per-trace real, provada ao vivo no navegador contra um trace real capturado;
-3. ~~concluir o mínimo de hardening OR-9 necessário às superfícies demonstradas~~ — uma investigação dedicada não encontrou nenhuma lacuna não-produção além de PC-34..PC-51;
-4. ~~concluir OR-10: validação end-to-end reproduzível, revisão de segurança, a seção consolidada de non-claims, e screenshots reais~~ — feito;
-5. ~~decidir e cortar a fronteira de `v1.0.0`~~ — feito, ver [`CHANGELOG.md`](CHANGELOG.md).
-
-Veja `docs/project/CHECKPOINT_LOG.md` para a evidência datada por trás de cada item. Isso fecha a lista que estava aberta no corte da v1.0.0, não o roadmap como um todo — o escopo exclusivo de produção da OR-9 (TLS/IAM/SSO, gestão de sessão, rate limiting, CSRF) e os casos restantes da Phase 14 continuam abertos por design; veja [Non-claims](#non-claims).
-
-Para **concluir todo o roadmap**, a Phase 14 também continua sequencialmente bloqueada: OpsLens precisa ser reconciliado antes de iniciar RAGForge e as integrações seguintes, a menos que essa ordem normativa seja revisada explicitamente.
-
-## Non-claims
-
-Non-claims pontuais já existem perto da feature específica que limitam (o README de cada perfil, as linhas de OR-9/OR-10 acima). Esta seção é o lugar único para ler todas de uma vez.
-
-Este repositório **não** afirma ser:
-
-- **Infraestrutura de produção.** Sem terminação TLS, sem IAM/OAuth/OIDC/workload identity de produção, sem gestão de sessão de browser, sem rate limiting, sem política de CSRF. O hardening limitado PC-34–PC-51 da OR-9 estreita lacunas específicas nas superfícies que este repositório realmente expõe (respostas não-armazenáveis, sanitização de headers, corpos limitados); não completa nada do acima.
-- **Um SLA ou garantia de uptime de qualquer provider de modelo terceiro.** As entradas de pricing/catálogo de modelo são metadados fixados, revisados em datas específicas (ver o README de cada perfil), e podem se distanciar do catálogo real do provider; o pricing de NVIDIA/Groq/OpenRouter no `personal-default` é um placeholder aproximado pendente de atualização revisada separadamente.
-- **Um benchmark de tráfego real de produção.** Tudo em `benchmarks/` roda contra fixtures públicas/sintéticas com scoring determinístico, credential-free por padrão. É evidência para elegibilidade de ranking dentro de um conjunto já autorizado, nunca autorização, e nunca um substituto para feedback real de usuários.
-- **Um deployment multi-tenant ou remoto.** Todo caminho demonstrado (`scripts/local_demo.py`, `live-development`, `personal-default`) roda como processos loopback locais (`127.0.0.1`) que um operador inicia e encerra. Nada disso foi exercitado atrás de um reverse proxy real, load balancer ou DNS público.
-- **Um rollout completo da Phase 14.** Duas das cinco integrações de consumidor planejadas estão completas; o OpsLens é um candidato validado mas deliberadamente adiado até seu próprio repositório estabilizar; RAGForge e a integração com Verifiable AI Governance nem começaram, por decisão explícita de sequenciamento, não por omissão.
-- **Uma OR-9 finalizada.** A OR-9 é hardening limitado para as superfícies operacionais que este repositório já expõe, não uma certificação de segurança de produção. A OR-10 (validação end-to-end reproduzível, duas passadas de revisão de segurança, e screenshots reais da demo) está completa; IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF da OR-9 continuam como trabalho futuro separado.
-
-O que cada prova de inferência governada citada em `docs/project/CHECKPOINT_LOG.md` **é**: uma requisição real, com credenciais reais de provider fornecidas pelo operador, executada através da cadeia completa Policy Router → Gateway → provider, com a evidência terminal de rota/execução inspecionada — não é mock, não é stub, e não é simulação sem credenciais.
 
 ## Validar o repositório
 

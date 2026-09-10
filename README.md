@@ -53,6 +53,30 @@ The repository is a practical reference implementation of an AI Platform executi
 | **Security** | Server-side provider secrets, client authentication boundaries, secret scanning and no allow-all fallback |
 | **Engineering quality** | Strict typing, architecture checks, security gates, automated tests and real-container CI proofs |
 
+## How governed execution works
+
+A request does not simply choose the cheapest or fastest available model.
+
+1. The consumer authenticates to the Gateway.
+2. The Policy Model Router determines the logical model groups the workload is authorized to use.
+3. The Gateway intersects that authority with registry capability, environment, data/risk and runtime eligibility.
+4. Deterministic ranking operates only inside that remaining set.
+5. Retry/fallback may move only to another already-authorized eligible deployment.
+6. Provider-specific requests/responses are normalized behind adapters.
+7. Terminal execution provenance and metadata-safe telemetry describe what happened; they never authorize a future request.
+
+Business tool execution remains outside the Gateway. The Gateway can normalize a tool call, but the application/agent runtime owns tool authorization and side effects.
+
+An optional governance authority can only narrow what the Policy Model Router (PDP) authorizes; the Gateway (PEP) executes only inside that already-narrowed set, normalizes the provider call, and fans out metadata-only telemetry (OTel Collector → Tempo → Grafana) and evaluation evidence alongside the actual provider request. See [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) for the exact wire contract.
+
+The Gateway is intentionally **not** an agent framework, RAG framework, MCP tool executor, prompt-management platform or general API-management product. Its responsibility is governed model resolution and execution.
+
+### The secret model
+
+**Never put real API keys in Model Registry files, provider-runtime JSON, README files, logs, traces or Git.** Provider credentials belong to the **Gateway deployment**, never to consumer applications: a provider-runtime binding references a credential by name, and a server-side secret resolver turns that reference into the real value only inside the Gateway process — a sourced `.env` locally, or the same environment references injected by a real secret manager (AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault, ...) in a real deployment.
+
+A consumer application receives only two variables, never a provider key, and owns no provider/model selection or retry/fallback policy: `GOVERNED_LLM_GATEWAY_URL` and `GOVERNED_LLM_GATEWAY_API_KEY`. See [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) and [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) for the detailed trust boundary.
+
 ## What you can run today
 
 ### 1. Bounded local platform demo — ready now
@@ -97,6 +121,44 @@ This separation is intentional: operational availability never becomes authoriza
 ### 3. Your own project — the personal-default profile
 
 `config/profiles/personal-default/` is the profile for calling the Gateway from your own applications, not a reviewed demo. It wires six providers (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter) into the same authorized group, with NVIDIA cost-preferred as the practical default; deterministic ranking with bounded fallback picks whichever authorized deployment is actually eligible. Your application only ever declares `workload`, `risk_level` and `data_classification`. See ["Quick start: call the Gateway from your own project"](#quick-start-call-the-gateway-from-your-own-project) below and [its README](config/profiles/personal-default/README.md) for the full scope and per-provider proof status.
+
+## Current status
+
+| Track | Status |
+| --- | --- |
+| Core platform — Phases 0–13 | **Complete** |
+| Real-project integrations — Phase 14 | **In progress**: two integrations complete; OpsLens intentionally deferred |
+| Local operational demo — OR-8 | **Complete** at the bounded operations-only local-demo scope |
+| Live-inference development profile | **Implemented in PC-33**, extended to six providers; every deployment individually proven with real credentials (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — see `docs/project/CHECKPOINT_LOG.md` |
+| Personal-default profile (your own projects) | **Implemented**; NVIDIA cost-preferred ranking proven against four other simultaneously-enabled competing providers — see `config/profiles/personal-default/README.md` |
+| Broader operational-surface auth/security — OR-9 | **Minimum-appropriate hardening complete** through bounded increments PC-34..PC-51 plus a dedicated gap investigation (see `docs/project/CURRENT_STATE.md`); production IAM/TLS/SSO, session handling, rate limiting and CSRF remain explicit future work, not silently missing |
+| Final screenshots/demo/product-readiness validation — OR-10 | **Complete**: reproducible e2e validation, a security review of the session's new code and of the existing HTTP/adapter surface (no findings in either pass), the consolidated [non-claims](#non-claims) section, and real Console/Grafana screenshots of the operations-only demo — see `docs/project/CURRENT_STATE.md` |
+| Per-trace Console correlation | **Implemented in PC-52**; proven live against a real captured trace, in the browser, not just the SDK — see `docs/project/CURRENT_STATE.md` |
+
+The authoritative checkpoint is [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md). The
+punch list that was still open at the `v1.0.0` cut (opt-in real-provider proof, the Console per-trace
+navigation decision, minimum OR-9 hardening, OR-10 validation) is now fully closed — see
+[`CHANGELOG.md`](CHANGELOG.md#unreleased) for what each item closed and the PR it shipped in, and
+`docs/project/CHECKPOINT_LOG.md` for the dated evidence behind it. This closes the list that was open at
+v1.0.0's cut, not the roadmap as a whole — OR-9's production-only scope (TLS/IAM/SSO, session handling,
+rate limiting, CSRF) and Phase 14's remaining cases stay open by design; see [Non-claims](#non-claims).
+Full roadmap completion also stays sequentially gated: OpsLens must be reconciled before RAGForge and
+later integrations start, unless that normative order is explicitly revised.
+
+## Non-claims
+
+Scattered non-claims already exist next to the specific feature they bound (each profile's own README, the OR-9/OR-10 rows above). This section is the single place to read all of them at once.
+
+This repository does **not** claim to be:
+
+- **Production infrastructure.** No TLS termination, no production IAM/OAuth/OIDC/workload identity, no browser session management, no rate limiting, no CSRF policy. OR-9's bounded PC-34–PC-51 hardening narrows specific gaps on the surfaces this repo actually exposes (non-storable responses, header sanitization, bounded bodies); it does not complete any of the above.
+- **An SLA or uptime guarantee for any third-party model provider.** Provider pricing/model catalog entries are pinned metadata reviewed as of specific dates (see each profile's README) and can drift from the real provider catalog; NVIDIA/Groq/OpenRouter pricing in `personal-default` is an approximate placeholder pending a separately reviewed update.
+- **A benchmark of real production traffic.** Everything in `benchmarks/` runs against public/synthetic fixtures with deterministic scoring, credential-free by default. It is evidence for ranking eligibility inside an already-authorized set, never authorization, and never a substitute for live user feedback.
+- **A multi-tenant or remote deployment.** Every demonstrated path (`scripts/local_demo.py`, `live-development`, `personal-default`) runs as local loopback (`127.0.0.1`) processes an operator starts and stops. None of it has been exercised behind a real reverse proxy, load balancer, or public DNS name.
+- **A complete Phase 14 rollout.** Two of five planned consumer integrations are complete; OpsLens is a validated-but-deliberately-deferred candidate pending its own repository stabilizing; RAGForge and the Verifiable AI Governance integration have not started, by explicit sequencing decision, not oversight.
+- **A finished OR-9.** OR-9 is bounded hardening for the operational surfaces this repo already exposes, not a production security certification. OR-10 (reproducible end-to-end validation, two security-review passes, and real demo screenshots) is complete; OR-9's production IAM/TLS/SSO, session handling, rate limiting and CSRF remain separate future work.
+
+What every governed-inference proof cited in `docs/project/CHECKPOINT_LOG.md` **is**: a real request, with real operator-supplied provider credentials, executed through the full Policy Router → Gateway → provider chain, with the terminal routing/execution evidence inspected — not a mock, not a stub, and not a credential-free simulation.
 
 ## Quick start: local operations demo
 
@@ -260,76 +322,6 @@ directly, not theoretical). Give reasoning-style models real headroom.
 No provider SDK, no API key, and no `if provider == ...` branch belongs in your project. See
 [its README](config/profiles/personal-default/README.md) for the full runbook, current scope
 (`rag.answer` in `balanced`) and per-provider proof status.
-
-## The secret model
-
-**Never put real API keys in Model Registry files, provider-runtime JSON, README files, logs, traces or Git.** Provider credentials belong to the **Gateway deployment**, never to consumer applications: a provider-runtime binding references a credential by name, and a server-side secret resolver turns that reference into the real value only inside the Gateway process — a sourced `.env` locally, or the same environment references injected by a real secret manager (AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault, ...) in a real deployment.
-
-A consumer application receives only two variables, never a provider key, and owns no provider/model selection or retry/fallback policy: `GOVERNED_LLM_GATEWAY_URL` and `GOVERNED_LLM_GATEWAY_API_KEY`. See [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) and [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) for the detailed trust boundary.
-
-## How governed execution works
-
-A request does not simply choose the cheapest or fastest available model.
-
-1. The consumer authenticates to the Gateway.
-2. The Policy Model Router determines the logical model groups the workload is authorized to use.
-3. The Gateway intersects that authority with registry capability, environment, data/risk and runtime eligibility.
-4. Deterministic ranking operates only inside that remaining set.
-5. Retry/fallback may move only to another already-authorized eligible deployment.
-6. Provider-specific requests/responses are normalized behind adapters.
-7. Terminal execution provenance and metadata-safe telemetry describe what happened; they never authorize a future request.
-
-Business tool execution remains outside the Gateway. The Gateway can normalize a tool call, but the application/agent runtime owns tool authorization and side effects.
-
-## Architecture boundaries
-
-An optional governance authority can only narrow what the Policy Model Router (PDP) authorizes; the Gateway (PEP) executes only inside that already-narrowed set, normalizes the provider call, and fans out metadata-only telemetry (OTel Collector → Tempo → Grafana) and evaluation evidence alongside the actual provider request. See [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) for the exact wire contract.
-
-The Gateway is intentionally **not** an agent framework, RAG framework, MCP tool executor, prompt-management platform or general API-management product. Its responsibility is governed model resolution and execution.
-
-## Current status
-
-| Track | Status |
-| --- | --- |
-| Core platform — Phases 0–13 | **Complete** |
-| Real-project integrations — Phase 14 | **In progress**: two integrations complete; OpsLens intentionally deferred |
-| Local operational demo — OR-8 | **Complete** at the bounded operations-only local-demo scope |
-| Live-inference development profile | **Implemented in PC-33**, extended to six providers; every deployment individually proven with real credentials (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — see `docs/project/CHECKPOINT_LOG.md` |
-| Personal-default profile (your own projects) | **Implemented**; NVIDIA cost-preferred ranking proven against four other simultaneously-enabled competing providers — see `config/profiles/personal-default/README.md` |
-| Broader operational-surface auth/security — OR-9 | **Minimum-appropriate hardening complete** through bounded increments PC-34..PC-51 plus a dedicated gap investigation (see `docs/project/CURRENT_STATE.md`); production IAM/TLS/SSO, session handling, rate limiting and CSRF remain explicit future work, not silently missing |
-| Final screenshots/demo/product-readiness validation — OR-10 | **Complete**: reproducible e2e validation, a security review of the session's new code and of the existing HTTP/adapter surface (no findings in either pass), the consolidated [non-claims](#non-claims) section, and real Console/Grafana screenshots of the operations-only demo — see `docs/project/CURRENT_STATE.md` |
-| Per-trace Console correlation | **Implemented in PC-52**; proven live against a real captured trace, in the browser, not just the SDK — see `docs/project/CURRENT_STATE.md` |
-
-The authoritative checkpoint is [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md).
-
-### Portfolio/demo-ready live product path — complete
-
-Every item previously tracked here for a **portfolio/demo-ready live product path** is now done:
-
-1. ~~execute and record an opt-in real-provider proof through the PC-33 profile while keeping required CI credential-free~~ — every deployment in the profile is individually proven live (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic);
-2. ~~decide whether the current Console should gain a bounded live-request/provenance view and per-trace navigation~~ — the live-request/provenance view existed since PC-38; PC-52 adds real per-trace navigation, proven live in the browser against a real captured trace;
-3. ~~complete the minimum OR-9 security hardening appropriate to the demonstrated operational surfaces~~ — a dedicated investigation found no further non-production gap beyond PC-34..PC-51;
-4. ~~complete OR-10: reproducible end-to-end validation, a security review, the consolidated non-claims section, and real screenshots~~ — done;
-5. ~~decide and cut the `v1.0.0` release boundary~~ — done, see [`CHANGELOG.md`](CHANGELOG.md).
-
-See `docs/project/CHECKPOINT_LOG.md` for the dated evidence behind each item. This closes the list that was open at v1.0.0's cut, not the roadmap as a whole — OR-9's production-only scope (TLS/IAM/SSO, session handling, rate limiting, CSRF) and Phase 14's remaining cases stay open by design; see [Non-claims](#non-claims).
-
-For **full roadmap completion**, Phase 14 also remains sequentially gated: OpsLens must be reconciled before RAGForge and later integrations are started unless that normative order is explicitly revised.
-
-## Non-claims
-
-Scattered non-claims already exist next to the specific feature they bound (each profile's own README, the OR-9/OR-10 rows above). This section is the single place to read all of them at once.
-
-This repository does **not** claim to be:
-
-- **Production infrastructure.** No TLS termination, no production IAM/OAuth/OIDC/workload identity, no browser session management, no rate limiting, no CSRF policy. OR-9's bounded PC-34–PC-51 hardening narrows specific gaps on the surfaces this repo actually exposes (non-storable responses, header sanitization, bounded bodies); it does not complete any of the above.
-- **An SLA or uptime guarantee for any third-party model provider.** Provider pricing/model catalog entries are pinned metadata reviewed as of specific dates (see each profile's README) and can drift from the real provider catalog; NVIDIA/Groq/OpenRouter pricing in `personal-default` is an approximate placeholder pending a separately reviewed update.
-- **A benchmark of real production traffic.** Everything in `benchmarks/` runs against public/synthetic fixtures with deterministic scoring, credential-free by default. It is evidence for ranking eligibility inside an already-authorized set, never authorization, and never a substitute for live user feedback.
-- **A multi-tenant or remote deployment.** Every demonstrated path (`scripts/local_demo.py`, `live-development`, `personal-default`) runs as local loopback (`127.0.0.1`) processes an operator starts and stops. None of it has been exercised behind a real reverse proxy, load balancer, or public DNS name.
-- **A complete Phase 14 rollout.** Two of five planned consumer integrations are complete; OpsLens is a validated-but-deliberately-deferred candidate pending its own repository stabilizing; RAGForge and the Verifiable AI Governance integration have not started, by explicit sequencing decision, not oversight.
-- **A finished OR-9.** OR-9 is bounded hardening for the operational surfaces this repo already exposes, not a production security certification. OR-10 (reproducible end-to-end validation, two security-review passes, and real demo screenshots) is complete; OR-9's production IAM/TLS/SSO, session handling, rate limiting and CSRF remain separate future work.
-
-What every governed-inference proof cited in `docs/project/CHECKPOINT_LOG.md` **is**: a real request, with real operator-supplied provider credentials, executed through the full Policy Router → Gateway → provider chain, with the terminal routing/execution evidence inspected — not a mock, not a stub, and not a credential-free simulation.
 
 ## Validate the repository
 
