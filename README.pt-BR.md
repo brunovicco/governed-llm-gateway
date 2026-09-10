@@ -144,7 +144,7 @@ uv run --frozen python scripts/local_demo.py
 `Ctrl+C` encerra; o launcher é dono da limpeza dos processos filhos e do seu projeto Compose. Para uma
 prova automatizada de startup/readiness/teardown, adicione `--smoke-test`.
 
-| Console — antes de conectar | Console — conectado, baseline operations-only |
+| Console - antes de conectar | Console - conectado, baseline operations-only |
 | --- | --- |
 | ![Gateway Console, desconectado](docs/assets/screenshots/gateway-console-disconnected.png) | ![Gateway Console, conectado, mostrando o baseline operations-only real: registry phase2-empty, 0 deployments, 0 processos rastreados](docs/assets/screenshots/gateway-console-connected.png) |
 
@@ -153,6 +153,27 @@ prova automatizada de startup/readiness/teardown, adicione `--smoke-test`.
 Screenshots reais desta demo: a visão conectada é o baseline fail-closed genuíno (registry
 `phase2-empty`, zero deployments), e o dashboard não tem linhas porque este modo não expõe rota de
 inferência capaz de produzir um trace.
+
+### Container
+
+O `Dockerfile` constrói a Gateway API e o `compose.gateway.yml` a executa. A imagem carrega apenas
+código - nenhum registry, nenhum provider runtime, nenhuma configuração de política e nenhum comando
+padrão - então um container iniciado sem as flags explícitas de artefato sai com código diferente de
+zero em vez de servir algo não configurado.
+
+```bash
+docker build --tag governed-llm-gateway:local .
+
+export GATEWAY_LOCAL_DEMO_API_KEY=valor-local-aleatorio
+docker compose -f compose.gateway.yml up gateway-operations
+```
+
+Essa é a mesma superfície operations-only sem credencial. Ela escuta em `127.0.0.1` dentro do container,
+de modo que o `HEALTHCHECK` do próprio container a alcança e nada de fora alcança. A inferência governada
+roda sob o profile `governed` do compose e exige, além disso, credenciais de provider no ambiente, um
+Policy Model Router acessível e um perfil cujo endpoint de router resolva de dentro de um container - os
+comandos exatos estão em
+[`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md).
 
 ## Chamando a partir do seu projeto
 
@@ -247,7 +268,7 @@ o escopo atual (`rag.answer` em `balanced`) e o status de prova por provider est
 | `deploy/observability/` | Provisioning local de Collector, Tempo e Grafana |
 | `scripts/` | Ferramentas de quality, evidência e demo local determinística |
 | `tests/` | Testes de contrato mais provas de integração opt-in contra servidores reais |
-| `docs/` | Arquitetura, fronteiras de segurança e contratos de evidência — comece por [`docs/project/README.md`](docs/project/README.md) |
+| `docs/` | Arquitetura, fronteiras de segurança e contratos de evidência - comece por [`docs/project/README.md`](docs/project/README.md) |
 
 O caminho padrão de qualidade é determinístico e não exige credencial:
 

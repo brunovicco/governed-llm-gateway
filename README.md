@@ -152,6 +152,25 @@ Real screenshots of this exact demo: the connected view is the genuine fail-clos
 (`phase2-empty` registry, zero deployments), and the dashboard has no rows because this mode exposes no
 inference route to produce a trace.
 
+### Container
+
+`Dockerfile` builds the Gateway API and `compose.gateway.yml` runs it. The image carries code only - no
+registry, no provider runtime, no policy configuration and no default command - so a container started
+without explicit artifact flags exits non-zero instead of serving something unconfigured.
+
+```bash
+docker build --tag governed-llm-gateway:local .
+
+export GATEWAY_LOCAL_DEMO_API_KEY=any-random-local-value
+docker compose -f compose.gateway.yml up gateway-operations
+```
+
+That is the same credential-free operations-only surface. It binds `127.0.0.1` inside the container, so
+the container's own `HEALTHCHECK` reaches it and nothing outside does. Governed inference runs under the
+`governed` compose profile and additionally needs provider credentials in the environment, a reachable
+Policy Model Router, and a profile whose router endpoint resolves from inside a container - the exact
+commands are in [`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md).
+
 ## Calling it from your own project
 
 Two processes run: the Policy Model Router (a separate repository) and the Gateway. Your application
