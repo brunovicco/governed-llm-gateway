@@ -321,7 +321,7 @@ def attach_generate_route(
 
         with trace_context:
             if observability is None:
-                prepared = await _prepare_generation(
+                prepared = await prepare_generation(
                     active_coordinator,
                     api_key=gateway_api_key,
                     payload=payload,
@@ -343,7 +343,7 @@ def attach_generate_route(
                         },
                     )
                     try:
-                        prepared = await _prepare_generation(
+                        prepared = await prepare_generation(
                             active_coordinator,
                             api_key=gateway_api_key,
                             payload=payload,
@@ -394,13 +394,18 @@ def _select_generate_coordinator(
     return coordinator
 
 
-async def _prepare_generation(
+async def prepare_generation(
     coordinator: "GenerateCoordinator | ComplexityGenerateCoordinator",
     *,
     api_key: str,
     payload: GenerateRequestModel,
     complexity_mode: bool = False,
 ) -> PreparedStreamingExecution:
+    """Authenticate, authorize and rank before any HTTP response body can begin.
+
+    Shared by the native streaming route and the OpenAI-compatible ingress so both
+    reach execution through exactly one governed preflight.
+    """
     try:
         return await coordinator.prepare(
             api_key=api_key,

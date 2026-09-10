@@ -5,6 +5,24 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **OpenAI-compatible ingress** (`POST /v1/chat/completions`): a consumer can now repoint an
+  existing OpenAI client's `base_url` at the Gateway instead of adopting the thin SDK. It is
+  adoption friction removed, not a second execution path — the route translates onto the existing
+  `GenerateRequestModel` and reuses the same `GenerateCoordinator` preflight as `/v1/generate`, so
+  authentication, PDP authorization, ranking, fallback and evidence are the governed path unchanged.
+  `model` carries the **workload**, never a provider model. Shape validation refuses `openai/gpt-4`
+  and uppercase or undotted names, but a dotted model name like `gpt-5.6-luna` is shaped exactly
+  like a workload and passes — what refuses it is authorization, since an unregistered workload is
+  in no binding's `allowed_workloads`. That distinction is documented rather than glossed, because
+  relying on the pattern would be a protection that only looks like one. `risk_level` and
+  `data_classification` come from the deployment-owned client-auth binding, so a caller cannot lower
+  its own classification through this surface. Unknown fields, sampling controls included, are
+  rejected rather than silently dropped. Responses carry governed evidence in an `x_gateway` object
+  that OpenAI clients ignore. Adds `docs/project/OPENAI_COMPATIBLE_INGRESS.md`,
+  `tests/contract/test_openai_compatible_ingress.py` (20 cases) and
+  `tests/contract/test_openai_sdk_compatibility.py`, which drives the unmodified `openai` SDK
+  against a loopback instance — credential-free and networkless — so SDK compatibility is re-proven
+  on every run rather than asserted once.
 - **Streaming failure paths under test**: `/v1/generate` is SSE-only, so the streaming stack is the
   gateway's primary execution path — and it was its least-covered one, with the aggregate 83.8%
   hiding `application/streaming.py` at 68.45% and `adapters/openai_compatible.py` at 66.15%. Adds

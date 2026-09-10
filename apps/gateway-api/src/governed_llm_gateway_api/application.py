@@ -8,6 +8,7 @@ from .content_type_security import GovernedJsonContentTypeMiddleware
 from .credential_header_security import GatewayCredentialHeaderMiddleware
 from .generation_response_security import GenerationNoStoreMiddleware
 from .generation_security import GenerationRequestBodyLimitMiddleware
+from .openai_compatible_ingress import attach_openai_compatible_route
 from .route_explain import (
     ComplexityRouteExplainCoordinator,
     RouteExplainCoordinator,
@@ -44,4 +45,5 @@ def create_gateway_app(
         complexity_coordinator=complexity_generate_coordinator,
         observability=observability,
     )
+    attach_openai_compatible_route(app, generate_coordinator)
     return app
