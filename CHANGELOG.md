@@ -203,7 +203,7 @@ that closed list, not new punch-list items.
 ## v1.0.0 — 2026-09-09
 
 First versioned release. `1.0.0` marks a stable public contract for the workspace packages and a
-reusable open-source package, not a production-infrastructure claim — see [Non-claims](README.md#non-claims)
+reusable open-source package, not a production-infrastructure claim — see [Scope](README.md#scope)
 in the README for exactly what is and is not covered.
 
 All workspace packages move to `1.0.0` in lockstep: `governed-llm-gateway-contracts`,
@@ -235,7 +235,7 @@ All workspace packages move to `1.0.0` in lockstep: `governed-llm-gateway-contra
   the existing HTTP/adapter surface) with no findings in either pass; a consolidated Non-claims section;
   real Console/Grafana screenshots of the operations-only demo.
 
-### Not included (see [Non-claims](README.md#non-claims) for the full list)
+### Not included (see [Scope](README.md#scope) for the full list)
 
 Production infrastructure (TLS termination, production IAM/OAuth/OIDC, browser session management,
 rate limiting, CSRF policy), a third-party provider SLA, a benchmark of real production traffic, a

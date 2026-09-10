@@ -86,5 +86,5 @@ a small `tmpfs` for `/tmp`.
 An image is a packaging artifact, not a production posture. This adds no TLS termination, no
 production IAM/OIDC/workload identity, no session handling, no rate limiting and no CSRF
 policy, and the compose file publishes only to `127.0.0.1`. Every entry in the README's
-[Non-claims](../../README.md#non-claims) still stands. What the image does change is that the
+[Scope](../../README.md#scope) still stands. What the image does change is that the
 Gateway now has a reproducible deployment artifact instead of only local launcher scripts.
