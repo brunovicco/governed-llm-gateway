@@ -5,6 +5,17 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **Secret scan enumerates through Git, and is now itself under test**: `scripts/secret_scan.py`
+  walked the filesystem and excluded only `.git`, `.venv` and `uv.lock`, so it read paths that can
+  never reach a commit. A local `.env` holding a real provider key therefore failed
+  `scripts/quality_gate.py` on a developer machine while CI stayed green only because no `.env`
+  exists there, and every scan also read `node_modules/`, `dist/` and the tool caches. Candidates now
+  come from `git ls-files --cached --others --exclude-standard` — tracked files plus untracked files
+  that are not ignored, which is exactly the set a commit could carry. Enumeration fails closed
+  outside a Git working tree rather than silently narrowing, findings report a line number and never
+  print the matched value, and symlinks, deleted index entries, binary and oversized files are
+  skipped. Adds `tests/contract/test_secret_scan.py` (10 cases), the first coverage this security
+  control has had.
 - **README leads with a real governed request**: both READMEs opened on the operations-only demo
   screenshots, whose connected view is honestly empty (`phase2-empty` registry, `0 deployments`,
   `0 healthy`) — a first impression of a console with nothing in it. A new section above
