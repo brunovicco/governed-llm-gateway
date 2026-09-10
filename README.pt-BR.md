@@ -359,7 +359,7 @@ Frontend, observabilidade e provas de integração também ficam isolados em wor
 | `Dockerfile`, `compose.gateway.yml` | Imagem de container e deployment da Gateway API |
 | `deploy/observability/` | Provisioning local de Collector, Tempo e Grafana |
 | `scripts/` | Ferramentas de quality, evidência e demo local determinística |
-| `tests/` | Testes unitários, de contrato, integração e end-to-end |
+| `tests/` | Testes de contrato mais provas de integração opt-in contra servidores reais |
 | `docs/` | Arquitetura, fronteiras de segurança, roadmap e contratos de evidência |
 
 ## Leitura recomendada

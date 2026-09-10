@@ -356,7 +356,7 @@ Frontend, observability and integration proofs are also isolated in dedicated Gi
 | `Dockerfile`, `compose.gateway.yml` | Container image and deployment for the Gateway API |
 | `deploy/observability/` | Collector, Tempo and Grafana local provisioning |
 | `scripts/` | Quality, evidence and deterministic local-demo tooling |
-| `tests/` | Unit, contract, integration and end-to-end validation |
+| `tests/` | Contract tests plus opt-in integration proofs against real servers |
 | `docs/` | Architecture, security boundaries, roadmap and evidence contracts |
 
 ## Recommended reading

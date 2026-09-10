@@ -319,6 +319,14 @@ h2 {
   font-weight: 800;
 }
 
+.catalog-empty-cell {
+  padding: 28px 24px;
+  color: #90a3b5;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  text-align: center;
+}
+
 .table-note {
   max-width: 920px;
   margin: 6px 0 18px;

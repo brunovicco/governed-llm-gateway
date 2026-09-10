@@ -64,8 +64,6 @@ pythonpath = ["."]
 addopts = "-q --strict-markers --strict-config"
 markers = [
     "integration: tests that cross package/process boundaries",
-    "e2e: end-to-end gateway behavior",
-    "live_provider: requires external provider credentials and network access",
 ]
 
 [tool.coverage.run]

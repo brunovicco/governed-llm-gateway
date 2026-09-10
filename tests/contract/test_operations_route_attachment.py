@@ -21,7 +21,7 @@ class NeverCalledAuthorizer:
 class NeverCalledSnapshotReader:
     """Composition-only snapshot-reader double."""
 
-    def snapshot(self) -> OperationsSnapshot:
+    async def snapshot(self) -> OperationsSnapshot:
         raise AssertionError("snapshot must not run during composition")
 
 
