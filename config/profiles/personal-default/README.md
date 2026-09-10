@@ -61,7 +61,7 @@ after a permanent (non-retryable) failure.
   proven live, in this profile specifically (not only in `live-development`). The full six-deployment
   `balanced` group (all enabled at once, nothing disabled) has been booted end to end with
   `scripts/personal_default_launcher.py`, with NVIDIA winning against all five other providers
-  simultaneously eligible (`rejected_candidates: null`). See `docs/project/CURRENT_STATE.md`.
+  simultaneously eligible (`rejected_candidates: null`). See `docs/project/CHECKPOINT_LOG.md`.
 - `security.analysis`, `code.generate`, `code.review` (sharing `reasoning-strong`'s deployments) have
   each been individually exercised with a real live request, succeeding via Anthropic.
 - Real structured-output and real tool-calling requests were both proven end to end (a genuine JSON
@@ -70,7 +70,7 @@ after a permanent (non-retryable) failure.
   against this profile:
   - `gemini-3.8-flash`, `gpt-oss-120b` (Groq) and `nvidia/nemotron-3-super-120b-a12b` all spend a
     large, variable share of `max_output_tokens` on internal "thinking" before any visible/structured
-    text (see `docs/project/CURRENT_STATE.md` for the reproduced measurements). NVIDIA's `rag.answer`
+    text (see `docs/project/CHECKPOINT_LOG.md` for the reproduced measurements). NVIDIA's `rag.answer`
     deployment measurably returned empty `response.content` in roughly 2 of 5 real calls at
     `max_output_tokens: 128` and roughly half at `512`; `2000` was reliable across repeated calls. Give
     reasoning models real headroom, not a token count sized for the answer alone — this is not a rare

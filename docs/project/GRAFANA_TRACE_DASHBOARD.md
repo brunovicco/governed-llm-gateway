@@ -140,6 +140,6 @@ PC-27 does **not** prove or provide:
 
 PC-52 is the later reviewed increment this document anticipated for a Gateway Console deep link and
 trace-correlation contract — see `docs/project/GATEWAY_CONSOLE.md`'s "Per-request trace navigation"
-section and `docs/project/CURRENT_STATE.md` for the real trace it proved.
+section and `docs/project/CHECKPOINT_LOG.md` for the real trace it proved.
 
 Telemetry remains metadata-only by default, and evidence remains descriptive rather than authoritative.
