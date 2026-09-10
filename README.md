@@ -36,6 +36,19 @@ Gateway allowed set ⊆ Policy Router authorized set
 
 The Gateway may narrow an authorized set. It may never widen upstream authorization.
 
+## Contents
+
+[One real governed request](#one-real-governed-request) ·
+[What this project demonstrates](#what-this-project-demonstrates) ·
+[How governed execution works](#how-governed-execution-works) ·
+[What you can run today](#what-you-can-run-today) ·
+[Quick start: local demo](#quick-start-local-operations-demo) ·
+[Quick start: your own project](#quick-start-call-the-gateway-from-your-own-project) ·
+[Current status](#current-status) ·
+[Non-claims](#non-claims) ·
+[Repository map](#repository-map) ·
+[Where to read next](#where-to-read-next)
+
 ## One real governed request
 
 The caller declared only `workload`, `risk_level` and `data_classification`. The Policy Model Router authorized the `balanced` model group, the Gateway's deterministic ranking selected the deployment inside it, and the provider call, retry/fallback budget and trace emission all stayed server-side.
@@ -129,44 +142,6 @@ This separation is intentional: operational availability never becomes authoriza
 ### 3. Your own project — the personal-default profile
 
 `config/profiles/personal-default/` is the profile for calling the Gateway from your own applications, not a reviewed demo. It wires six providers (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter) into the same authorized group, with NVIDIA cost-preferred as the practical default; deterministic ranking with bounded fallback picks whichever authorized deployment is actually eligible. Your application only ever declares `workload`, `risk_level` and `data_classification`. See ["Quick start: call the Gateway from your own project"](#quick-start-call-the-gateway-from-your-own-project) below and [its README](config/profiles/personal-default/README.md) for the full scope and per-provider proof status.
-
-## Current status
-
-| Track | Status |
-| --- | --- |
-| Core platform — Phases 0–13 | **Complete** |
-| Real-project integrations — Phase 14 | **In progress**: two integrations complete; OpsLens intentionally deferred |
-| Local operational demo — OR-8 | **Complete** at the bounded operations-only local-demo scope |
-| Live-inference development profile | **Implemented in PC-33**, extended to six providers; every deployment individually proven with real credentials (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — see `docs/project/CHECKPOINT_LOG.md` |
-| Personal-default profile (your own projects) | **Implemented**; NVIDIA cost-preferred ranking proven against four other simultaneously-enabled competing providers — see `config/profiles/personal-default/README.md` |
-| Broader operational-surface auth/security — OR-9 | **Minimum-appropriate hardening complete** through bounded increments PC-34..PC-51 plus a dedicated gap investigation (see `docs/project/CURRENT_STATE.md`); production IAM/TLS/SSO, session handling, rate limiting and CSRF remain explicit future work, not silently missing |
-| Final screenshots/demo/product-readiness validation — OR-10 | **Complete**: reproducible e2e validation, a security review of the session's new code and of the existing HTTP/adapter surface (no findings in either pass), the consolidated [non-claims](#non-claims) section, and real Console/Grafana screenshots of the operations-only demo — see `docs/project/CURRENT_STATE.md` |
-| Per-trace Console correlation | **Implemented in PC-52**; proven live against a real captured trace, in the browser, not just the SDK — see `docs/project/CURRENT_STATE.md` |
-
-The authoritative checkpoint is [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md). The
-punch list that was still open at the `v1.0.0` cut (opt-in real-provider proof, the Console per-trace
-navigation decision, minimum OR-9 hardening, OR-10 validation) is now fully closed — see
-[`CHANGELOG.md`](CHANGELOG.md#unreleased) for what each item closed and the PR it shipped in, and
-`docs/project/CHECKPOINT_LOG.md` for the dated evidence behind it. This closes the list that was open at
-v1.0.0's cut, not the roadmap as a whole — OR-9's production-only scope (TLS/IAM/SSO, session handling,
-rate limiting, CSRF) and Phase 14's remaining cases stay open by design; see [Non-claims](#non-claims).
-Full roadmap completion also stays sequentially gated: OpsLens must be reconciled before RAGForge and
-later integrations start, unless that normative order is explicitly revised.
-
-## Non-claims
-
-Scattered non-claims already exist next to the specific feature they bound (each profile's own README, the OR-9/OR-10 rows above). This section is the single place to read all of them at once.
-
-This repository does **not** claim to be:
-
-- **Production infrastructure.** No TLS termination, no production IAM/OAuth/OIDC/workload identity, no browser session management, no rate limiting, no CSRF policy. OR-9's bounded PC-34–PC-51 hardening narrows specific gaps on the surfaces this repo actually exposes (non-storable responses, header sanitization, bounded bodies); it does not complete any of the above.
-- **An SLA or uptime guarantee for any third-party model provider.** Provider pricing/model catalog entries are pinned metadata reviewed as of specific dates (see each profile's README) and can drift from the real provider catalog; NVIDIA/Groq/OpenRouter pricing in `personal-default` is an approximate placeholder pending a separately reviewed update.
-- **A benchmark of real production traffic.** Everything in `benchmarks/` runs against public/synthetic fixtures with deterministic scoring, credential-free by default. It is evidence for ranking eligibility inside an already-authorized set, never authorization, and never a substitute for live user feedback.
-- **A multi-tenant or remote deployment.** Every demonstrated path (`scripts/local_demo.py`, `live-development`, `personal-default`) runs as local loopback (`127.0.0.1`) processes an operator starts and stops. None of it has been exercised behind a real reverse proxy, load balancer, or public DNS name.
-- **A complete Phase 14 rollout.** Two of five planned consumer integrations are complete; OpsLens is a validated-but-deliberately-deferred candidate pending its own repository stabilizing; RAGForge and the Verifiable AI Governance integration have not started, by explicit sequencing decision, not oversight.
-- **A finished OR-9.** OR-9 is bounded hardening for the operational surfaces this repo already exposes, not a production security certification. OR-10 (reproducible end-to-end validation, two security-review passes, and real demo screenshots) is complete; OR-9's production IAM/TLS/SSO, session handling, rate limiting and CSRF remain separate future work.
-
-What every governed-inference proof cited in `docs/project/CHECKPOINT_LOG.md` **is**: a real request, with real operator-supplied provider credentials, executed through the full Policy Router → Gateway → provider chain, with the terminal routing/execution evidence inspected — not a mock, not a stub, and not a credential-free simulation.
 
 ## Quick start: local operations demo
 
@@ -331,6 +306,48 @@ No provider SDK, no API key, and no `if provider == ...` branch belongs in your 
 [its README](config/profiles/personal-default/README.md) for the full runbook, current scope
 (`rag.answer` in `balanced`) and per-provider proof status.
 
+## Current status
+
+| Area | Status |
+| --- | --- |
+| **Core platform** — contracts, registry, authorization, ranking, resilience, streaming, telemetry, evaluation, SDK, governance | **Complete.** All thirteen roadmap phases are closed. |
+| **Governed live inference** | **Proven with real credentials.** Six provider deployments (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter), each exercised individually end to end through the full Policy Router → Gateway → provider chain. |
+| **Calling the Gateway from your own project** | **Working.** The `personal-default` profile ranks six providers inside one authorized group; NVIDIA cost-preferred selection was proven against four other simultaneously-enabled competitors. |
+| **Local operational demo** | **Complete** at its deliberate scope: read-only operations API, Console, Collector, Tempo and Grafana — no inference route, no credential required. |
+| **Console-to-trace correlation** | **Complete.** A request's trace link resolves to that exact trace in Grafana, proven in the browser and not only through the SDK. |
+| **Operational-surface hardening** | **Minimum appropriate hardening complete** for the surfaces this repository actually exposes. Production TLS, IAM/SSO, session handling, rate limiting and CSRF are explicit future work, not silently missing. |
+| **Real-project consumer integrations** | **In progress.** Two of five complete; OpsLens is validated but deliberately deferred until its own repository stabilizes; RAGForge and the Verifiable AI Governance integration are sequenced behind it by decision, not oversight. |
+| **End-to-end validation** | **Complete.** Reproducible validation run, two security-review passes over both new and pre-existing surfaces (no findings in either), the consolidated [non-claims](#non-claims) below, and real screenshots of the demo. |
+
+[`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) is the authoritative checkpoint;
+[`docs/project/CHECKPOINT_LOG.md`](docs/project/CHECKPOINT_LOG.md) is the dated, proof-by-proof history
+behind it, and [`CHANGELOG.md`](CHANGELOG.md#unreleased) records what each item closed and where it
+shipped.
+
+The punch list still open at the `v1.0.0` cut is now fully closed. That is not the same as the roadmap
+being finished: production-only hardening and the remaining integrations stay open by design, and the
+integration order is normative — OpsLens must be reconciled before RAGForge and the later cases start,
+unless that order is explicitly revised. See [Non-claims](#non-claims).
+
+Documents under `docs/project/` were written increment by increment and refer to internal identifiers
+(`Phase N`, `PC-n`, `OR-n`, `CR-n`). The [documentation index](docs/project/README.md) decodes those and
+says what each document answers.
+
+## Non-claims
+
+Non-claims also appear next to the specific feature they bound — in each profile's own README and in the status table above. This section is the single place to read all of them at once.
+
+This repository does **not** claim to be:
+
+- **Production infrastructure.** No TLS termination, no production IAM/OAuth/OIDC/workload identity, no browser session management, no rate limiting, no CSRF policy. The operational-surface hardening that was done narrows specific gaps on the surfaces this repository actually exposes — non-storable responses, header sanitization, bounded request bodies — and completes none of the above.
+- **An SLA or uptime guarantee for any third-party model provider.** Provider pricing/model catalog entries are pinned metadata reviewed as of specific dates (see each profile's README) and can drift from the real provider catalog; NVIDIA/Groq/OpenRouter pricing in `personal-default` is an approximate placeholder pending a separately reviewed update.
+- **A benchmark of real production traffic.** Everything in `benchmarks/` runs against public/synthetic fixtures with deterministic scoring, credential-free by default. It is evidence for ranking eligibility inside an already-authorized set, never authorization, and never a substitute for live user feedback.
+- **A multi-tenant or remote deployment.** Every demonstrated path (`scripts/local_demo.py`, `live-development`, `personal-default`) runs as local loopback (`127.0.0.1`) processes an operator starts and stops. None of it has been exercised behind a real reverse proxy, load balancer, or public DNS name.
+- **A complete set of consumer integrations.** Two of five planned integrations are complete; OpsLens is a validated-but-deliberately-deferred candidate pending its own repository stabilizing; RAGForge and the Verifiable AI Governance integration have not started, by explicit sequencing decision, not oversight.
+- **A security certification.** What was completed is bounded hardening of the operational surfaces this repository already exposes, plus end-to-end validation: a reproducible validation run, two security-review passes and real demo screenshots. Production IAM/TLS/SSO, session handling, rate limiting and CSRF remain separate, unstarted work.
+
+What every governed-inference proof cited in `docs/project/CHECKPOINT_LOG.md` **is**: a real request, with real operator-supplied provider credentials, executed through the full Policy Router → Gateway → provider chain, with the terminal routing/execution evidence inspected — not a mock, not a stub, and not a credential-free simulation.
+
 ## Validate the repository
 
 The default quality path is deterministic and credential-free:
@@ -357,26 +374,33 @@ Frontend, observability and integration proofs are also isolated in dedicated Gi
 | `deploy/observability/` | Collector, Tempo and Grafana local provisioning |
 | `scripts/` | Quality, evidence and deterministic local-demo tooling |
 | `tests/` | Contract tests plus opt-in integration proofs against real servers |
-| `docs/` | Architecture, security boundaries, roadmap and evidence contracts |
+| `docs/` | Architecture, security boundaries, roadmap and evidence contracts — start at [`docs/project/README.md`](docs/project/README.md) |
 
-## Recommended reading
+## Where to read next
 
-If you are evaluating the repository, start here:
+Every document under `docs/project/` is listed, grouped and explained in its
+[documentation index](docs/project/README.md). The shortest useful paths through it:
 
-- [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — authoritative current checkpoint;
-- [`docs/project/CHECKPOINT_LOG.md`](docs/project/CHECKPOINT_LOG.md) — the dated proof-by-proof history behind it;
-- [`docs/project/OPERATIONAL_READINESS.md`](docs/project/OPERATIONAL_READINESS.md) — local demo/operations readiness sequence;
-- [`config/profiles/live-development/README.md`](config/profiles/live-development/README.md) — governed live-development runbook;
-- [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) — how to call the Gateway from your own project, NVIDIA cost-preferred ranking;
-- [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — authorization boundary;
-- [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) — provider and secret model;
-- [`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md) — container image and deployment;
-- [`docs/project/OPENAI_COMPATIBLE_INGRESS.md`](docs/project/OPENAI_COMPATIBLE_INGRESS.md) — OpenAI-compatible ingress;
-- [`docs/project/SHARED_RUNTIME_STATE.md`](docs/project/SHARED_RUNTIME_STATE.md) — shared health and circuit state;
-- [`docs/project/SPEND_ACCOUNTING.md`](docs/project/SPEND_ACCOUNTING.md) — estimated spend and budgets;
-- [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md) — Console boundary;
-- [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) — real local Grafana/Tempo proof;
-- [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — benchmark/evidence architecture;
+**To run it against your own project**
+
+- [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) — the full runbook, current scope and per-provider proof status;
+- [`config/profiles/live-development/README.md`](config/profiles/live-development/README.md) — the reviewed live-development profile;
+- [`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md) — the container image and how it runs;
+- [`docs/project/OPENAI_COMPATIBLE_INGRESS.md`](docs/project/OPENAI_COMPATIBLE_INGRESS.md) — keeping an existing OpenAI client and repointing it here.
+
+**To evaluate the architecture**
+
+- [`docs/project/ARCHITECTURE.md`](docs/project/ARCHITECTURE.md) — how authorization, selection and execution are separated;
+- [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — the exact authorization wire contract;
+- [`docs/adr/`](docs/adr/) — the decisions, their alternatives and their consequences;
+- [`docs/project/SECURITY_MODEL.md`](docs/project/SECURITY_MODEL.md) and [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) — the secret and trust boundaries.
+
+**To check the evidence behind the claims**
+
+- [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — the authoritative checkpoint;
+- [`docs/project/CHECKPOINT_LOG.md`](docs/project/CHECKPOINT_LOG.md) — the dated, proof-by-proof history behind it;
+- [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) — the real local Grafana/Tempo trace proof;
+- [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — how benchmark evidence is produced and promoted without ever authorizing anything;
 - [`CHANGELOG.md`](CHANGELOG.md) — what each version includes.
 
 ## License

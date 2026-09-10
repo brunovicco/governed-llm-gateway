@@ -36,6 +36,19 @@ Gateway allowed set ⊆ Policy Router authorized set
 
 O Gateway pode restringir um conjunto autorizado. Ele nunca pode ampliar uma autorização recebida do upstream.
 
+## Conteúdo
+
+[Uma requisição governada real](#uma-requisição-governada-real) ·
+[O que este projeto demonstra](#o-que-este-projeto-demonstra) ·
+[Como funciona a execução governada](#como-funciona-a-execução-governada) ·
+[O que já é possível executar hoje](#o-que-já-é-possível-executar-hoje) ·
+[Quick start: demo local](#quick-start-demo-local-operations-only) ·
+[Quick start: seu próprio projeto](#quick-start-chamar-o-gateway-a-partir-do-seu-próprio-projeto) ·
+[Estado atual](#estado-atual) ·
+[Non-claims](#non-claims) ·
+[Mapa do repositório](#mapa-do-repositório) ·
+[Por onde continuar a leitura](#por-onde-continuar-a-leitura)
+
 ## Uma requisição governada real
 
 A aplicação chamadora declarou apenas `workload`, `risk_level` e `data_classification`. O Policy Model Router autorizou o grupo de modelos `balanced`, o ranking determinístico do Gateway selecionou o deployment dentro dele, e a chamada ao provider, o orçamento de retry/fallback e a emissão do trace permaneceram inteiramente server-side.
@@ -129,45 +142,6 @@ Essa separação é intencional: disponibilidade operacional não pode virar aut
 ### 3. Seu próprio projeto — o perfil personal-default
 
 `config/profiles/personal-default/` é o perfil para chamar o Gateway a partir das suas próprias aplicações, não uma demo revisada. Ele conecta seis providers (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter) no mesmo grupo autorizado, com NVIDIA como padrão prático de custo; ranking determinístico com fallback limitado escolhe qualquer deployment autorizado que esteja elegível. Sua aplicação só declara `workload`, `risk_level` e `data_classification`. Veja ["Quick start: chamar o Gateway a partir do seu próprio projeto"](#quick-start-chamar-o-gateway-a-partir-do-seu-próprio-projeto) abaixo e [o README dele](config/profiles/personal-default/README.md) para o escopo completo e status de prova por provider.
-
-## Estado atual
-
-| Track | Estado |
-| --- | --- |
-| Plataforma core — Phases 0–13 | **Concluída** |
-| Integrações com projetos reais — Phase 14 | **Em andamento**: duas integrações concluídas; OpsLens deliberadamente deferido |
-| Demo operacional local — OR-8 | **Concluída** no escopo limitado operations-only |
-| Perfil de live-inference para desenvolvimento | **Implementado no PC-33**, estendido para seis providers; todo deployment provado individualmente com credenciais reais (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic) — ver `docs/project/CHECKPOINT_LOG.md` |
-| Perfil personal-default (seus próprios projetos) | **Implementado**; ranking com preferência de custo do NVIDIA provado concorrendo com quatro outros providers simultaneamente habilitados — ver `config/profiles/personal-default/README.md` |
-| Hardening mais amplo das superfícies operacionais — OR-9 | **Hardening mínimo apropriado concluído** através dos incrementos limitados PC-34..PC-51 mais uma investigação dedicada de lacunas (ver `docs/project/CURRENT_STATE.md`); IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF continuam como trabalho futuro explícito, não uma lacuna silenciosa |
-| Screenshots/demo/validação final de product readiness — OR-10 | **Concluída**: validação e2e reproduzível, revisão de segurança do código novo da sessão e da superfície HTTP/adapters já existente (sem findings em nenhuma das duas), a seção consolidada de [non-claims](#non-claims), e screenshots reais do Console/Grafana da demo operations-only — ver `docs/project/CURRENT_STATE.md` |
-| Correlação per-trace no Console | **Implementada no PC-52**; provada ao vivo contra um trace real capturado, no navegador, não só via SDK — ver `docs/project/CURRENT_STATE.md` |
-
-O checkpoint autoritativo é [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md). A lista de
-pendências que ainda estava aberta no corte da `v1.0.0` (prova opt-in com provider real, a decisão de
-navegação per-trace no Console, o hardening mínimo da OR-9, a validação da OR-10) está totalmente
-fechada — veja [`CHANGELOG.md`](CHANGELOG.md#unreleased) para o que cada item fechou e em qual PR, e
-`docs/project/CHECKPOINT_LOG.md` para a evidência datada por trás disso. Isso fecha a lista que estava
-aberta no corte da v1.0.0, não o roadmap como um todo — o escopo exclusivo de produção da OR-9
-(TLS/IAM/SSO, gestão de sessão, rate limiting, CSRF) e os casos restantes da Phase 14 continuam abertos
-por design; veja [Non-claims](#non-claims). Concluir todo o roadmap também continua sequencialmente
-bloqueado: OpsLens precisa ser reconciliado antes de iniciar RAGForge e as integrações seguintes, a menos
-que essa ordem normativa seja revisada explicitamente.
-
-## Non-claims
-
-Non-claims pontuais já existem perto da feature específica que limitam (o README de cada perfil, as linhas de OR-9/OR-10 acima). Esta seção é o lugar único para ler todas de uma vez.
-
-Este repositório **não** afirma ser:
-
-- **Infraestrutura de produção.** Sem terminação TLS, sem IAM/OAuth/OIDC/workload identity de produção, sem gestão de sessão de browser, sem rate limiting, sem política de CSRF. O hardening limitado PC-34–PC-51 da OR-9 estreita lacunas específicas nas superfícies que este repositório realmente expõe (respostas não-armazenáveis, sanitização de headers, corpos limitados); não completa nada do acima.
-- **Um SLA ou garantia de uptime de qualquer provider de modelo terceiro.** As entradas de pricing/catálogo de modelo são metadados fixados, revisados em datas específicas (ver o README de cada perfil), e podem se distanciar do catálogo real do provider; o pricing de NVIDIA/Groq/OpenRouter no `personal-default` é um placeholder aproximado pendente de atualização revisada separadamente.
-- **Um benchmark de tráfego real de produção.** Tudo em `benchmarks/` roda contra fixtures públicas/sintéticas com scoring determinístico, credential-free por padrão. É evidência para elegibilidade de ranking dentro de um conjunto já autorizado, nunca autorização, e nunca um substituto para feedback real de usuários.
-- **Um deployment multi-tenant ou remoto.** Todo caminho demonstrado (`scripts/local_demo.py`, `live-development`, `personal-default`) roda como processos loopback locais (`127.0.0.1`) que um operador inicia e encerra. Nada disso foi exercitado atrás de um reverse proxy real, load balancer ou DNS público.
-- **Um rollout completo da Phase 14.** Duas das cinco integrações de consumidor planejadas estão completas; o OpsLens é um candidato validado mas deliberadamente adiado até seu próprio repositório estabilizar; RAGForge e a integração com Verifiable AI Governance nem começaram, por decisão explícita de sequenciamento, não por omissão.
-- **Uma OR-9 finalizada.** A OR-9 é hardening limitado para as superfícies operacionais que este repositório já expõe, não uma certificação de segurança de produção. A OR-10 (validação end-to-end reproduzível, duas passadas de revisão de segurança, e screenshots reais da demo) está completa; IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF da OR-9 continuam como trabalho futuro separado.
-
-O que cada prova de inferência governada citada em `docs/project/CHECKPOINT_LOG.md` **é**: uma requisição real, com credenciais reais de provider fornecidas pelo operador, executada através da cadeia completa Policy Router → Gateway → provider, com a evidência terminal de rota/execução inspecionada — não é mock, não é stub, e não é simulação sem credenciais.
 
 ## Quick start: demo local operations-only
 
@@ -334,6 +308,47 @@ Nenhum SDK de provider, nenhuma API key e nenhum `if provider == ...` pertence a
 [o README dele](config/profiles/personal-default/README.md) para o runbook completo, o escopo atual
 (`rag.answer` em `balanced`) e o status de prova por provider.
 
+## Estado atual
+
+| Área | Estado |
+| --- | --- |
+| **Plataforma core** — contratos, registry, autorização, ranking, resiliência, streaming, telemetria, avaliação, SDK, governança | **Concluída.** As treze fases do roadmap estão fechadas. |
+| **Inferência governada real** | **Provada com credenciais reais.** Seis deployments de provider (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter), cada um exercitado individualmente de ponta a ponta pela cadeia completa Policy Router → Gateway → provider. |
+| **Chamar o Gateway a partir do seu projeto** | **Funcionando.** O perfil `personal-default` ranqueia seis providers dentro de um único grupo autorizado; a seleção com preferência de custo do NVIDIA foi provada concorrendo com outros quatro simultaneamente habilitados. |
+| **Demo operacional local** | **Concluída** no escopo deliberado: API de operações read-only, Console, Collector, Tempo e Grafana — sem rota de inferência e sem exigir credencial. |
+| **Correlação Console → trace** | **Concluída.** O link de trace de uma requisição resolve exatamente aquele trace no Grafana, provado no navegador e não apenas via SDK. |
+| **Hardening das superfícies operacionais** | **Hardening mínimo apropriado concluído** para as superfícies que este repositório de fato expõe. TLS, IAM/SSO, gestão de sessão, rate limiting e CSRF de produção são trabalho futuro explícito, não uma lacuna silenciosa. |
+| **Integrações com projetos reais** | **Em andamento.** Duas de cinco concluídas; OpsLens está validado mas deliberadamente adiado até seu próprio repositório estabilizar; RAGForge e a integração com Verifiable AI Governance estão sequenciados atrás dele por decisão, não por omissão. |
+| **Validação end-to-end** | **Concluída.** Execução de validação reproduzível, duas passadas de revisão de segurança sobre o código novo e sobre a superfície já existente (sem findings em nenhuma), os [non-claims](#non-claims) consolidados abaixo, e screenshots reais da demo. |
+
+[`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) é o checkpoint autoritativo;
+[`docs/project/CHECKPOINT_LOG.md`](docs/project/CHECKPOINT_LOG.md) é o histórico datado, prova por prova,
+por trás dele, e [`CHANGELOG.md`](CHANGELOG.md#unreleased) registra o que cada item fechou e onde entrou.
+
+A lista de pendências ainda aberta no corte da `v1.0.0` está totalmente fechada. Isso não é o mesmo que o
+roadmap estar concluído: o hardening exclusivo de produção e as integrações restantes continuam abertos
+por design, e a ordem das integrações é normativa — OpsLens precisa ser reconciliado antes de RAGForge e
+dos casos seguintes, a menos que essa ordem seja revisada explicitamente. Veja [Non-claims](#non-claims).
+
+Os documentos em `docs/project/` foram escritos incremento a incremento e citam identificadores internos
+(`Phase N`, `PC-n`, `OR-n`, `CR-n`). O [índice da documentação](docs/project/README.md) decodifica esses
+identificadores e diz o que cada documento responde.
+
+## Non-claims
+
+Non-claims pontuais também aparecem perto da feature específica que limitam — no README de cada perfil e na tabela de estado acima. Esta seção é o lugar único para ler todas de uma vez.
+
+Este repositório **não** afirma ser:
+
+- **Infraestrutura de produção.** Sem terminação TLS, sem IAM/OAuth/OIDC/workload identity de produção, sem gestão de sessão de browser, sem rate limiting, sem política de CSRF. O hardening feito nas superfícies operacionais estreita lacunas específicas nas superfícies que este repositório realmente expõe — respostas não-armazenáveis, sanitização de headers, corpos limitados — e não completa nada do acima.
+- **Um SLA ou garantia de uptime de qualquer provider de modelo terceiro.** As entradas de pricing/catálogo de modelo são metadados fixados, revisados em datas específicas (ver o README de cada perfil), e podem se distanciar do catálogo real do provider; o pricing de NVIDIA/Groq/OpenRouter no `personal-default` é um placeholder aproximado pendente de atualização revisada separadamente.
+- **Um benchmark de tráfego real de produção.** Tudo em `benchmarks/` roda contra fixtures públicas/sintéticas com scoring determinístico, credential-free por padrão. É evidência para elegibilidade de ranking dentro de um conjunto já autorizado, nunca autorização, e nunca um substituto para feedback real de usuários.
+- **Um deployment multi-tenant ou remoto.** Todo caminho demonstrado (`scripts/local_demo.py`, `live-development`, `personal-default`) roda como processos loopback locais (`127.0.0.1`) que um operador inicia e encerra. Nada disso foi exercitado atrás de um reverse proxy real, load balancer ou DNS público.
+- **Um conjunto completo de integrações de consumidor.** Duas das cinco integrações planejadas estão completas; o OpsLens é um candidato validado mas deliberadamente adiado até seu próprio repositório estabilizar; RAGForge e a integração com Verifiable AI Governance nem começaram, por decisão explícita de sequenciamento, não por omissão.
+- **Uma certificação de segurança.** O que foi concluído é hardening limitado das superfícies operacionais que este repositório já expõe, mais a validação end-to-end: execução de validação reproduzível, duas passadas de revisão de segurança e screenshots reais da demo. IAM/TLS/SSO de produção, gestão de sessão, rate limiting e CSRF continuam como trabalho separado, ainda não iniciado.
+
+O que cada prova de inferência governada citada em `docs/project/CHECKPOINT_LOG.md` **é**: uma requisição real, com credenciais reais de provider fornecidas pelo operador, executada através da cadeia completa Policy Router → Gateway → provider, com a evidência terminal de rota/execução inspecionada — não é mock, não é stub, e não é simulação sem credenciais.
+
 ## Validar o repositório
 
 O quality path padrão é determinístico e não exige credenciais:
@@ -360,26 +375,33 @@ Frontend, observabilidade e provas de integração também ficam isolados em wor
 | `deploy/observability/` | Provisioning local de Collector, Tempo e Grafana |
 | `scripts/` | Ferramentas de quality, evidência e demo local determinística |
 | `tests/` | Testes de contrato mais provas de integração opt-in contra servidores reais |
-| `docs/` | Arquitetura, fronteiras de segurança, roadmap e contratos de evidência |
+| `docs/` | Arquitetura, fronteiras de segurança, roadmap e contratos de evidência — comece por [`docs/project/README.md`](docs/project/README.md) |
 
-## Leitura recomendada
+## Por onde continuar a leitura
 
-Se você está avaliando o projeto, comece por:
+Todo documento em `docs/project/` está listado, agrupado e explicado no
+[índice da documentação](docs/project/README.md). Os caminhos mais curtos e úteis:
 
-- [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — checkpoint atual autoritativo;
+**Para rodar no seu próprio projeto**
+
+- [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) — o runbook completo, o escopo atual e o status de prova por provider;
+- [`config/profiles/live-development/README.md`](config/profiles/live-development/README.md) — o perfil revisado de live development;
+- [`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md) — a imagem de container e como ela roda;
+- [`docs/project/OPENAI_COMPATIBLE_INGRESS.md`](docs/project/OPENAI_COMPATIBLE_INGRESS.md) — manter o cliente OpenAI existente e apontá-lo para cá.
+
+**Para avaliar a arquitetura**
+
+- [`docs/project/ARCHITECTURE.md`](docs/project/ARCHITECTURE.md) — como autorização, seleção e execução são separadas;
+- [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — o contrato de autorização exato;
+- [`docs/adr/`](docs/adr/) — as decisões, suas alternativas e suas consequências;
+- [`docs/project/SECURITY_MODEL.md`](docs/project/SECURITY_MODEL.md) e [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) — as fronteiras de secret e de confiança.
+
+**Para conferir a evidência por trás das afirmações**
+
+- [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — o checkpoint autoritativo;
 - [`docs/project/CHECKPOINT_LOG.md`](docs/project/CHECKPOINT_LOG.md) — o histórico datado, prova por prova, por trás dele;
-- [`docs/project/OPERATIONAL_READINESS.md`](docs/project/OPERATIONAL_READINESS.md) — sequência de readiness/demo operacional;
-- [`config/profiles/live-development/README.md`](config/profiles/live-development/README.md) — runbook de live development governado;
-- [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) — como chamar o Gateway a partir do seu próprio projeto, ranking com preferência de custo do NVIDIA;
-- [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — fronteira de autorização;
-- [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) — modelo de providers e secrets;
-- [`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md) — imagem de container e deployment;
-- [`docs/project/OPENAI_COMPATIBLE_INGRESS.md`](docs/project/OPENAI_COMPATIBLE_INGRESS.md) — ingresso compatível com OpenAI;
-- [`docs/project/SHARED_RUNTIME_STATE.md`](docs/project/SHARED_RUNTIME_STATE.md) — estado de health e circuito compartilhado;
-- [`docs/project/SPEND_ACCOUNTING.md`](docs/project/SPEND_ACCOUNTING.md) — gasto estimado e orçamentos;
-- [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md) — fronteira do Console;
-- [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) — prova local real com Grafana/Tempo;
-- [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — arquitetura de benchmarks/evidência;
+- [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) — a prova local real com Grafana/Tempo;
+- [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — como a evidência de benchmark é produzida e promovida sem nunca autorizar nada;
 - [`CHANGELOG.md`](CHANGELOG.md) — o que cada versão inclui.
 
 ## Licença
