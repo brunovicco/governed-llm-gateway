@@ -69,6 +69,50 @@ The domain decision — is this error transient, which counter does it belong to
 Python, in the one `is_transient_provider_error` classifier that retry, fallback and every
 health tracker share. Lua only moves state.
 
+## Response cache
+
+The same server can hold an exact-match response cache. It is off by default and a
+workload must opt in; an enabled policy that names no workload is rejected rather than
+treated as "cache everything".
+
+### A cache hit is not an authorization shortcut
+
+Lookup happens **after** the Policy Model Router has already authorized the request. The
+key binds the whole authorization context — workload, effective risk level and data
+classification, authorized model group, model-registry digest, ranking-policy digest,
+output budget, and a digest of the exact messages — so an entry produced under one
+authority is unreachable from another. Changing the registry or the ranking policy
+changes the key, because a different configuration may route elsewhere and a pre-change
+answer is no longer a current one.
+
+### Only public data is ever stored
+
+Caching writes prompt-derived material and model output to a server outside the gateway
+process. That is a data-residency decision, not a performance one, so `public` is a
+ceiling **in code**: no configuration raises it. Raising it would be a deliberate
+contract change with its own review. For a deployment under LGPD or BCB scrutiny, this
+is the difference between a cache that can be explained in review and one that cannot.
+
+The stored key is the content-addressed identity digest, never the prompt: someone
+reading the keyspace learns which authorized contexts were served, not what was asked.
+Entries always carry a TTL, bounded at 24 hours, because an unbounded store of model
+output is a retention decision nobody made deliberately.
+
+### Exact match, deliberately
+
+A hit requires the normalized messages to match exactly. Semantic caching over
+embeddings would save more and is not offered here: an approximate hit returns the answer
+to a *different* question, and introducing a probabilistic false positive into a path
+whose entire claim is determinism trades away the property the gateway exists to provide.
+That is a non-claim, not an oversight.
+
+### Shapes that never cache
+
+Requests carrying images, tool definitions or a structured-output schema are not cached.
+Each changes what a provider returns without being represented in the digest, so rather
+than widen the key to shapes this cache has not been reviewed for, those requests simply
+execute normally.
+
 ## Testing
 
 | Level | What runs | Where |

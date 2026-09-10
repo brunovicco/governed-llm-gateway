@@ -5,6 +5,20 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **Governed response cache**: an exact-match completion cache on the same RESP server, off by
+  default and opt-in per workload. Three properties define it. A cache hit is never an
+  authorization shortcut: lookup happens after the Policy Model Router has decided, and the key
+  binds the full authorization context — workload, effective risk and classification, authorized
+  model group, registry and ranking digests, output budget and a digest of the exact messages — so
+  an entry produced under one authority is unreachable from another, and a registry or policy
+  change invalidates stored answers because a different configuration may route elsewhere. Only
+  `public` data is ever stored, and that ceiling lives in code rather than configuration, because
+  writing prompt-derived material to a server outside the process is a data-residency decision
+  rather than a performance one. Entries are keyed by content-addressed digest, never by the
+  prompt, and always carry a bounded TTL. Semantic caching over embeddings is an explicit
+  non-claim: an approximate hit answers a different question, which is not a trade a gateway
+  selling determinism can make. Requests with images, tools or structured output do not cache,
+  since each changes the answer without being represented in the key.
 - **Shared health and circuit state across replicas**: `InMemoryHealthTracker` kept circuit state
   per process, so with more than one replica each worker learned independently that a provider was
   failing and the aggregate fallback behaviour stopped being deterministic — a contradiction of the
