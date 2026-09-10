@@ -1,10 +1,30 @@
 # Changelog
 
-## Unreleased
+## v1.1.0 — 2026-09-10
 
-Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
-made.
+Everything in this release is additive. The public contracts of `1.0.0` still hold: `ProviderExecution`
+gained a `cached` field with a default, `POST /v1/chat/completions` is a new surface next to the
+existing one, and the response cache and shared runtime state are both off unless a deployment turns
+them on. The one removal is `governed_llm_gateway_core.application.ports`, a compatibility re-export of
+`PolicyDecisionPort` that no module imported; the port itself is unchanged at
+`governed_llm_gateway_core.application.policy`.
 
+What this release adds, in one line: the Gateway now deploys as a container, keeps circuit state
+coherent across replicas, can cache and can refuse spending past a ceiling, accepts OpenAI-shaped
+requests, and ranks on evidence from a real benchmark run rather than static configuration.
+
+- **READMEs rewritten as a product page** (#242): the status table keyed by internal increment IDs is
+  gone -- phase status and dated evidence live in `CURRENT_STATE.md` and `CHECKPOINT_LOG.md` -- the
+  non-claims section is condensed into `Scope`, the secret model is stated as the capability it
+  provides (one place to rotate a provider credential, no consumer redeploy) rather than as a
+  prohibition, and the container build and run are documented in the README itself.
+- **Project documentation index and console vocabulary** (#241): `docs/project/README.md` groups all 49
+  project documents, says what question each answers, and decodes the `Phase`/`PC`/`OR`/`CR` prefixes
+  the documents use. The Console renders an empty deployment catalog as an explicit statement rather
+  than a blank table body, and `Rejected candidates` becomes `Excluded before selection`, since every
+  reason in that list is a ranking-stage exclusion applied after authorization and never a policy
+  denial. Removes dead surface: `tests/e2e/` held only a README, two declared pytest markers were
+  applied by no test, and `application/ports.py` re-exported a port for no importer.
 - **Estimated-spend accounting and budgets**: per-client, per-workload accumulation of what
   execution implied, with limits that refuse a request once a ceiling is reached. Amounts derive
   from the Model Registry's pinned pricing and the provider's reported usage, so they are the

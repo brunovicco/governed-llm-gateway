@@ -333,7 +333,7 @@ wheels = [
 
 [[package]]
 name = "governed-llm-gateway"
-version = "1.0.0"
+version = "1.1.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
@@ -356,7 +356,7 @@ dev = [
 
 [[package]]
 name = "governed-llm-gateway-api"
-version = "1.0.0"
+version = "1.1.0"
 source = { editable = "apps/gateway-api" }
 dependencies = [
     { name = "a2a-otel-kit" },
@@ -386,7 +386,7 @@ provides-extras = ["redis"]
 
 [[package]]
 name = "governed-llm-gateway-client"
-version = "1.0.0"
+version = "1.1.0"
 source = { editable = "packages/gateway-client" }
 dependencies = [
     { name = "governed-llm-gateway-contracts" },
@@ -401,12 +401,12 @@ requires-dist = [
 
 [[package]]
 name = "governed-llm-gateway-contracts"
-version = "1.0.0"
+version = "1.1.0"
 source = { editable = "packages/gateway-contracts" }
 
 [[package]]
 name = "governed-llm-gateway-core"
-version = "1.0.0"
+version = "1.1.0"
 source = { editable = "packages/gateway-core" }
 dependencies = [
     { name = "a2a-otel-kit" },
