@@ -49,10 +49,17 @@ from governed_llm_gateway_core.application.telemetry import (
 )
 from governed_llm_gateway_core.domain.model_registry import ModelRegistry
 from governed_llm_gateway_core.domain.ranking import RankingPolicy, RankingPolicyError
+from governed_llm_gateway_core.domain.response_cache import (
+    ResponseCacheIdentity,
+    ResponseCachePolicy,
+    is_cacheable_request,
+    messages_digest,
+)
 from governed_llm_gateway_core.domain.structured import (
     validate_structured_output_schema,
     validate_tool_definitions,
 )
+from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
 from pydantic import BaseModel, ConfigDict, Field
 
 from .route_explain import ClientAuthenticationError, EffectiveContextResolver
@@ -215,6 +222,9 @@ class PreparedStreamingExecution:
     decision: RankingDecision
     max_output_tokens: int
     provider_timeout_seconds: float
+    # None means this request is not cacheable. Built from the effective context, never
+    # from the caller's declared classification, which the binding may have raised.
+    cache_identity: ResponseCacheIdentity | None = None
 
 
 class NoEligibleStreamingDeploymentError(RuntimeError):
@@ -234,6 +244,7 @@ class GenerateCoordinator:
         registry: ModelRegistry,
         ranking_policy: RankingPolicy,
         defaults: PolicyProjectionDefaults,
+        cache_policy: ResponseCachePolicy | None = None,
     ) -> None:
         """Bind trusted context, deterministic routing inputs, runtime health, and execution."""
         self._context_resolver = context_resolver
@@ -243,6 +254,7 @@ class GenerateCoordinator:
         self._registry = registry
         self._ranking_policy = ranking_policy
         self._defaults = defaults
+        self._cache_policy = cache_policy or ResponseCachePolicy()
 
     async def prepare(
         self,
@@ -279,6 +291,13 @@ class GenerateCoordinator:
             decision=decision,
             max_output_tokens=payload.max_output_tokens,
             provider_timeout_seconds=payload.provider_timeout_seconds,
+            cache_identity=_cache_identity(
+                self._cache_policy,
+                request=request,
+                effective_context=effective_context,
+                decision=decision,
+                max_output_tokens=payload.max_output_tokens,
+            ),
         )
 
     def stream(
@@ -291,7 +310,49 @@ class GenerateCoordinator:
             prepared.decision,
             max_output_tokens=prepared.max_output_tokens,
             provider_timeout_seconds=prepared.provider_timeout_seconds,
+            cache_identity=prepared.cache_identity,
         )
+
+
+def _cache_identity(
+    policy: ResponseCachePolicy,
+    *,
+    request: GatewayRequest,
+    effective_context: EffectivePolicyContext,
+    decision: RankingDecision,
+    max_output_tokens: int,
+) -> ResponseCacheIdentity | None:
+    """Return a cache identity only when policy and request shape both permit one.
+
+    The classification checked here is the **effective** one. A caller that declares
+    ``public`` while its client-auth binding raises the floor must be judged on the
+    raised value, or the cache would store data the deployment classified higher.
+    """
+    if not policy.permits(
+        workload=effective_context.workload,
+        data_classification=effective_context.data_classification,
+    ):
+        return None
+    # Without a ranking digest there is nothing binding the entry to a routing policy,
+    # so a later policy change could not invalidate it. That is a miss, not a guess.
+    if decision.routing.ranking_policy_digest is None:
+        return None
+    if not is_cacheable_request(
+        request.messages,
+        structured_output_requested=request.structured_output is not None,
+        tools_requested=bool(request.tools),
+    ):
+        return None
+    return ResponseCacheIdentity(
+        workload=effective_context.workload,
+        risk_level=effective_context.risk_level,
+        data_classification=effective_context.data_classification,
+        authorized_model_group=decision.routing.authorized_model_group,
+        model_registry_digest=decision.routing.model_registry_digest,
+        ranking_policy_digest=decision.routing.ranking_policy_digest,
+        max_output_tokens=max_output_tokens,
+        messages_digest=messages_digest(request.messages),
+    )
 
 
 def attach_generate_route(
@@ -632,6 +693,8 @@ def _event_payload(event: GatewayStreamEvent) -> dict[str, object]:
             execution["finish_reason"] = event.execution.finish_reason
         if event.execution.trace_id is not None:
             execution["trace_id"] = event.execution.trace_id
+        if event.execution.cached:
+            execution["cached"] = True
         if event.execution.usage is not None:
             execution_usage: dict[str, object] = {
                 "input_tokens": event.execution.usage.input_tokens,

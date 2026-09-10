@@ -106,6 +106,29 @@ to a *different* question, and introducing a probabilistic false positive into a
 whose entire claim is determinism trades away the property the gateway exists to provide.
 That is a non-claim, not an oversight.
 
+### What a served hit reports
+
+A cache hit produces the same event lifecycle a provider call would, and terminal
+evidence names the deployment that **originally produced the content**, because that is
+what generated it. `ProviderExecution.cached` is what keeps that from reading as a fresh
+call — without it the operational record would claim a provider was called when it was
+not, which is a worse failure than not caching at all.
+
+Two details follow from that:
+
+- **Latency is this request's, not the original's.** A stored latency would misreport
+  what just happened, so a hit reports the cache read.
+- **Usage is the original call's.** It describes the answer's size, and the `cached`
+  marker is what tells spend accounting not to count those tokens a second time.
+
+A stored answer is served only when ranking would have selected the **same deployment**
+anyway. The identity already binds the registry and ranking digests, so a divergence
+means runtime health moved the selection — and replaying a decision that no longer holds
+would contradict the routing provenance in the same event. The gateway executes instead.
+
+A cache write that fails is swallowed: the caller already has the complete answer, and
+losing it to a storage error would trade a future optimisation for a present failure.
+
 ### Shapes that never cache
 
 Requests carrying images, tool definitions or a structured-output schema are not cached.

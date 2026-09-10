@@ -5,6 +5,22 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **Response cache wired into the governed streaming path**: the cache is now consulted and
+  populated by real requests rather than only being available. `ProviderExecution` gains `cached`,
+  because a served hit reports the deployment that originally produced the content and without that
+  marker the operational record would claim a provider call that never happened; the flag threads
+  through the SSE wire and the thin client's codec. Latency on a hit is this request's, usage is the
+  original call's, and the marker is what tells spend accounting not to count those tokens twice.
+  The cache identity is built in the coordinator from the **effective** authorization context, so a
+  caller declaring `public` under a binding that raises the floor is judged on the raised value —
+  the alternative would store data the deployment classified higher. A stored answer is served only
+  when ranking would still select the same deployment: the existing contract invariant that terminal
+  evidence must match routing provenance caught the inconsistency, and rather than weaken it the
+  cache now falls through to a real execution when runtime health has moved the selection. A cache
+  write failure is swallowed, since the caller already holds the complete answer. Adds
+  `tests/contract/test_streaming_cache_integration.py` (11 cases) and
+  `tests/contract/test_cache_identity_authorization.py` (7 cases); the four assertions that carry
+  the governance weight were each confirmed against deliberately mutated source.
 - **Governed response cache**: an exact-match completion cache on the same RESP server, off by
   default and opt-in per workload. Three properties define it. A cache hit is never an
   authorization shortcut: lookup happens after the Policy Model Router has decided, and the key

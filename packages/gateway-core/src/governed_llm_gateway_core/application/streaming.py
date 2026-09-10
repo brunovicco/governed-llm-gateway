@@ -6,6 +6,7 @@ import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import aclosing, nullcontext
 from dataclasses import replace
+from uuid import UUID
 
 from governed_llm_gateway_contracts import (
     Capability,
@@ -20,6 +21,7 @@ from governed_llm_gateway_contracts import (
 )
 
 from governed_llm_gateway_core.domain.resilience import RetryPolicy
+from governed_llm_gateway_core.domain.response_cache import ResponseCacheIdentity
 
 from .health import DeploymentHealthPort
 from .observability import ObservabilityPort
@@ -45,6 +47,7 @@ from .provider import (
 )
 from .ranking import RankedCandidate, RankingDecision, RankingInvariantViolation
 from .resilience import ProviderResolutionError, ProviderResolver
+from .response_cache import CachedResponse, ResponseCachePort
 from .telemetry import (
     GatewaySpanEventName,
     GatewaySpanName,
@@ -68,6 +71,8 @@ class StreamingExecutionService:
         observability: ObservabilityPort | None = None,
         operational_recorder: OperationalAttemptRecorder | None = None,
         utc_clock: UtcClock = utc_now,
+        cache: ResponseCachePort | None = None,
+        cache_ttl_seconds: int = 300,
     ) -> None:
         """Bind resilience controls plus optional local telemetry/evidence recording."""
         self._health = health
@@ -78,6 +83,48 @@ class StreamingExecutionService:
         self._observability = observability
         self._operational_recorder = operational_recorder
         self._utc_clock = utc_clock
+        self._cache = cache
+        self._cache_ttl_seconds = cache_ttl_seconds
+
+    async def _store_best_effort(
+        self,
+        identity: ResponseCacheIdentity | None,
+        content: list[str] | None,
+        *,
+        execution: ProviderExecution,
+        request_id: UUID,
+    ) -> None:
+        """Store a completed answer, and never let the cache break a served request.
+
+        A write failure loses a future optimisation. Letting it escape here would lose an
+        answer the caller has already received in full, so it is swallowed deliberately
+        rather than propagated.
+        """
+        if self._cache is None or identity is None or not content:
+            return
+        text = "".join(content)
+        if not text:
+            return
+        usage = execution.usage
+        try:
+            await self._cache.put(
+                identity,
+                CachedResponse(
+                    content=text,
+                    input_tokens=0 if usage is None else usage.input_tokens,
+                    output_tokens=0 if usage is None else usage.output_tokens,
+                    provider=execution.provider,
+                    model=execution.model,
+                    deployment=execution.deployment,
+                    api_family=execution.api_family or "unknown",
+                    finish_reason=execution.finish_reason or "stop",
+                    cached_at=self._utc_clock(),
+                    source_request_id=request_id,
+                ),
+                ttl_seconds=self._cache_ttl_seconds,
+            )
+        except Exception:
+            return
 
     async def stream(
         self,
@@ -86,8 +133,14 @@ class StreamingExecutionService:
         *,
         max_output_tokens: int,
         provider_timeout_seconds: float = 30.0,
+        cache_identity: ResponseCacheIdentity | None = None,
     ) -> AsyncGenerator[GatewayStreamEvent]:
-        """Yield a deterministic gateway stream and stop replay once semantic output is visible."""
+        """Yield a deterministic gateway stream and stop replay once semantic output is visible.
+
+        ``cache_identity`` is supplied only by a caller that already holds the effective
+        authorization context and has checked the cache policy against it. Absent one,
+        nothing is read or written — the cacheable decision is never inferred here.
+        """
         if not request.requirements.streaming:
             raise ValueError("streaming execution requires WorkloadRequirements.streaming")
         if max_output_tokens <= 0:
@@ -106,11 +159,28 @@ class StreamingExecutionService:
             )
             return
 
+        if self._cache is not None and cache_identity is not None:
+            hit = await self._cache.get(cache_identity)
+            # A stored answer is served only when ranking would have chosen the same
+            # deployment anyway. Terminal evidence must agree with routing provenance, and
+            # naming a deployment that did not produce this content would break that. The
+            # identity already binds the registry and ranking digests, so a divergence here
+            # means runtime health moved the selection — in which case the honest answer is
+            # to execute rather than replay a decision that no longer holds.
+            if hit is not None and hit.deployment == decision.selected.deployment.deployment_id:
+                for cached_event in _cached_events(request, decision, hit):
+                    yield cached_event
+                return
+
         candidates = (decision.selected, *decision.alternatives)
         bounded = candidates[: self._retry_policy.max_fallbacks + 1]
         for candidate in bounded:
             _validate_streaming_candidate(candidate, decision)
 
+        # Only a request that may be stored accumulates its own output.
+        cached_content: list[str] | None = (
+            [] if self._cache is not None and cache_identity is not None else None
+        )
         fallback_sequence: list[str] = []
         last_error: ProviderError | None = None
         last_execution: ProviderExecution | None = None
@@ -258,6 +328,10 @@ class StreamingExecutionService:
                                             {"llm.ttft_ms": _latency_ms(started_at, self._clock())},
                                         )
                                     semantic_output = True
+                                    if cached_content is not None and isinstance(
+                                        event, ProviderContentDelta
+                                    ):
+                                        cached_content.append(event.delta)
                                     if not public_started:
                                         sequence += 1
                                         public_started = True
@@ -365,6 +439,12 @@ class StreamingExecutionService:
                                         fallback_index=len(fallback_sequence) - 1,
                                         api_family=deployment.api_family,
                                         max_output_tokens=provider_request.max_output_tokens,
+                                    )
+                                    await self._store_best_effort(
+                                        cache_identity,
+                                        cached_content,
+                                        execution=execution,
+                                        request_id=request.request_id,
                                     )
                                     sequence += 1
                                     yield GatewayStreamEvent(
@@ -607,6 +687,62 @@ def _semantic_gateway_event(
         request_id=request.request_id,
         sequence_number=sequence_number,
         tool_call=event.call,
+    )
+
+
+def _cached_events(
+    request: GatewayRequest,
+    decision: RankingDecision,
+    hit: CachedResponse,
+) -> tuple[GatewayStreamEvent, ...]:
+    """Replay a stored completion as the same lifecycle a provider call would produce.
+
+    The execution identity names the deployment that originally produced the content,
+    because that is what generated it, and ``cached`` is what stops that from reading as
+    a fresh call. Latency is this request's cache read rather than the original call's,
+    since a stored latency would misreport what just happened. Usage is the original
+    call's: it describes the answer's size, and the ``cached`` marker is what tells
+    spend accounting not to count those tokens again.
+    """
+    usage = Usage(input_tokens=hit.input_tokens, output_tokens=hit.output_tokens)
+    execution = ProviderExecution(
+        provider=hit.provider,
+        model=hit.model,
+        deployment=hit.deployment,
+        status=ExecutionStatus.SUCCEEDED,
+        latency_ms=0,
+        usage=usage,
+        finish_reason=hit.finish_reason,
+        api_family=hit.api_family,
+        cached=True,
+    )
+    return (
+        GatewayStreamEvent(
+            event_type=StreamEventType.RESPONSE_STARTED,
+            request_id=request.request_id,
+            sequence_number=1,
+            routing=decision.routing,
+        ),
+        GatewayStreamEvent(
+            event_type=StreamEventType.CONTENT_DELTA,
+            request_id=request.request_id,
+            sequence_number=2,
+            delta=hit.content,
+        ),
+        GatewayStreamEvent(
+            event_type=StreamEventType.USAGE_COMPLETED,
+            request_id=request.request_id,
+            sequence_number=3,
+            usage=usage,
+        ),
+        GatewayStreamEvent(
+            event_type=StreamEventType.RESPONSE_COMPLETED,
+            request_id=request.request_id,
+            sequence_number=4,
+            routing=decision.routing,
+            execution=execution,
+            finish_reason=hit.finish_reason,
+        ),
     )
 
 
