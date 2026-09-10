@@ -1,7 +1,7 @@
 """Explicit FastAPI application composition for governed Gateway HTTP surfaces."""
 
-from a2a_otel_kit import Observability
 from fastapi import FastAPI
+from governed_llm_gateway_core.application.observability import ObservabilityPort
 
 from .complexity_generate import ComplexityGenerateCoordinator
 from .content_type_security import GovernedJsonContentTypeMiddleware
@@ -24,7 +24,7 @@ def create_gateway_app(
     *,
     complexity_route_explain_coordinator: ComplexityRouteExplainCoordinator | None = None,
     complexity_generate_coordinator: ComplexityGenerateCoordinator | None = None,
-    observability: Observability | None = None,
+    observability: ObservabilityPort | None = None,
 ) -> FastAPI:
     """Compose existing governed HTTP routes without resolving config, secrets, or providers."""
     app = create_app(

@@ -9,7 +9,6 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Protocol
 
-from a2a_otel_kit import Observability
 from governed_llm_gateway_contracts import GatewayRequest, RoutingProvenance
 
 from governed_llm_gateway_core.domain.model_registry import ModelDeployment
@@ -22,6 +21,7 @@ from governed_llm_gateway_core.domain.resilience import (
     RetryPolicy,
 )
 
+from .observability import ObservabilityPort
 from .operational_evidence import OperationalAttemptRecorder, UtcClock
 from .operational_recording import (
     invalidate_operational_completeness_best_effort,
@@ -39,10 +39,6 @@ from .ranking import RankedCandidate, RankingDecision, RankingInvariantViolation
 from .telemetry import (
     GatewaySpanEventName,
     GatewaySpanName,
-    add_gateway_span_event,
-    mark_span_failure,
-    mark_span_success,
-    set_gateway_span_attributes,
 )
 
 Clock = Callable[[], float]
@@ -238,7 +234,7 @@ class ResilientExecutionService:
         *,
         clock: Clock = time.monotonic,
         sleeper: Sleeper = asyncio.sleep,
-        observability: Observability | None = None,
+        observability: ObservabilityPort | None = None,
         operational_recorder: OperationalAttemptRecorder | None = None,
         utc_clock: UtcClock = utc_now,
     ) -> None:
@@ -340,8 +336,7 @@ class ResilientExecutionService:
                 retry_delay_after_span: float | None = None
                 with span_context as span:
                     if span is not None:
-                        set_gateway_span_attributes(
-                            span,
+                        span.set_attributes(
                             {
                                 "llm.workload": request.workload,
                                 "llm.provider": candidate.deployment.provider,
@@ -400,11 +395,10 @@ class ResilientExecutionService:
                             }
                             if exc.status_code is not None:
                                 failure_attributes["http.status_code"] = exc.status_code
-                            set_gateway_span_attributes(span, failure_attributes)
-                            mark_span_failure(span, exc.code.value)
+                            span.set_attributes(failure_attributes)
+                            span.mark_failure(exc.code.value)
                             if can_retry and retry_delay is not None:
-                                add_gateway_span_event(
-                                    span,
+                                span.add_event(
                                     GatewaySpanEventName.RETRY.value,
                                     {
                                         "retry_count": attempt_number,
@@ -413,8 +407,7 @@ class ResilientExecutionService:
                                     },
                                 )
                             elif transient and candidate_index + 1 < len(bounded_candidates):
-                                add_gateway_span_event(
-                                    span,
+                                span.add_event(
                                     GatewaySpanEventName.FALLBACK.value,
                                     {
                                         "llm.fallback_count": len(fallback_sequence),
@@ -467,15 +460,14 @@ class ResilientExecutionService:
                         )
                         self._health.record_success(deployment_id, latency_ms=latency_ms)
                         if span is not None:
-                            set_gateway_span_attributes(
-                                span,
+                            span.set_attributes(
                                 {
                                     "llm.latency_ms": latency_ms,
                                     "llm.usage.input_count": response.usage.input_tokens,
                                     "llm.usage.output_count": response.usage.output_tokens,
                                 },
                             )
-                            mark_span_success(span)
+                            span.mark_success()
                         attempts.append(
                             ExecutionAttempt(
                                 deployment_id=deployment_id,

@@ -101,6 +101,11 @@ allowed-imports = ["stdlib", "governed_llm_gateway_contracts", "governed_llm_gat
 deny-dynamic-imports = true
 
 [[tool.engineering-harness.architecture.boundaries]]
+path = "packages/gateway-core/src/governed_llm_gateway_core/application"
+allowed-imports = ["stdlib", "governed_llm_gateway_contracts", "governed_llm_gateway_core"]
+deny-dynamic-imports = true
+
+[[tool.engineering-harness.architecture.boundaries]]
 path = "packages/gateway-client/src/governed_llm_gateway_client"
 allowed-imports = [
     "stdlib",

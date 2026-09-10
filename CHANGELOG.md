@@ -5,6 +5,22 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **Observability behind a port**: the application layer imported `a2a_otel_kit.Observability`
+  directly in `policy.py`, `resilience.py` and `streaming.py`, and `application/telemetry.py`
+  additionally reached for `a2a_otel_kit.sanitize_attributes` and OpenTelemetry's `Span`, `Status`
+  and `StatusCode` — the one place in the workspace where a telemetry backend leaked into
+  application code. `architecture_check.py` never caught it because it guarded only contracts and
+  domain. Adds `application/observability.py` with a `GatewaySpan`/`ObservabilityPort` pair, reduces
+  `application/telemetry.py` to the vocabulary the application actually owns (span names, event
+  names, the attribute allowlist) with no infrastructure import at all, and moves the binding to
+  `adapters/observability_otel.py`. Sanitization deliberately stays with the library that owns it:
+  the gateway contributes its allowlist as data and `sanitize_attributes` merges it with the kit's
+  defaults, so the two vocabularies cannot drift. `server.py` wraps the configured kit exactly once,
+  and every layer below sees only the port. The free span helpers are gone; call sites use span
+  methods. `architecture_check.py` and `pyproject.toml` now declare the application boundary, and
+  two contract tests cover it — one asserting the layer imports no telemetry backend, one asserting
+  the binding is reachable from exactly the three adapters that legitimately hold it. Both were
+  confirmed to fail against a deliberately planted violation before being kept.
 - **Container deployment artifact**: adds `Dockerfile`, `.dockerignore`, `compose.gateway.yml`,
   `docs/project/CONTAINER_DEPLOYMENT.md` and a `image` CI workflow. The Gateway previously had no
   deployment artifact at all — only local launcher scripts. The image carries code only: no

@@ -13,6 +13,7 @@ import uvicorn
 from a2a_otel_kit.application.settings import ObservabilitySettings
 from a2a_otel_kit.entrypoints.observability import Observability
 from fastapi import FastAPI
+from governed_llm_gateway_core.adapters.observability_otel import OpenTelemetryObservability
 
 from .deployment_activation import GovernedDeploymentSettings, activate_governed_deployment
 from .process_health import attach_process_health_routes
@@ -131,11 +132,16 @@ def run_governed_server(
     if not isinstance(settings, GovernedServerSettings):
         raise TypeError("settings must use GovernedServerSettings")
     observability = _configure_observability_best_effort(settings.observability)
+    # The composition root is the only place that knows the concrete telemetry kit; every
+    # layer below this line sees ObservabilityPort.
+    observability_port = (
+        None if observability is None else OpenTelemetryObservability(observability)
+    )
     try:
         services = activate_governed_deployment(
             settings.deployment,
             environ=environ,
-            observability=observability,
+            observability=observability_port,
         )
         attach_process_health_routes(services.app)
         selected_runner = UvicornServerRunner() if runner is None else runner

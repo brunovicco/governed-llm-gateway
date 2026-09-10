@@ -24,6 +24,9 @@ from governed_llm_gateway_contracts import (
     RiskLevel,
     RoutingProvenance,
 )
+from governed_llm_gateway_core.adapters.observability_otel import (
+    OpenTelemetryObservability,
+)
 from governed_llm_gateway_core.application.ranking import RankingDecision
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -150,7 +153,7 @@ def test_gateway_request_span_records_sanitized_pre_stream_http_failure() -> Non
     attach_generate_route(
         app,
         cast(GenerateCoordinator, PreStreamFailureCoordinator()),
-        observability=observability,
+        observability=OpenTelemetryObservability(observability),
     )
 
     response = TestClient(app).post(
@@ -178,7 +181,7 @@ def test_stream_span_records_category_without_unexpected_exception_message() -> 
         async for _ in _sse_body(
             coordinator,
             _prepared(),
-            observability=observability,
+            observability=OpenTelemetryObservability(observability),
         ):
             pass
 

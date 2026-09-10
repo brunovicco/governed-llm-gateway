@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import UUID
 
-from a2a_otel_kit import Observability, continue_trace, inject_trace_context
+from a2a_otel_kit import continue_trace, inject_trace_context
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from governed_llm_gateway_contracts import (
@@ -37,6 +37,7 @@ from governed_llm_gateway_core.application import (
     PolicyProjectionDefaults,
     PolicyProjectionError,
 )
+from governed_llm_gateway_core.application.observability import ObservabilityPort
 from governed_llm_gateway_core.application.ranking import (
     RankingDecision,
     RankingInvariantViolation,
@@ -45,11 +46,6 @@ from governed_llm_gateway_core.application.ranking import (
 from governed_llm_gateway_core.application.streaming import StreamingExecutionService
 from governed_llm_gateway_core.application.telemetry import (
     GatewaySpanName,
-    current_trace_id,
-    mark_span_cancelled,
-    mark_span_failure,
-    mark_span_success,
-    set_gateway_span_attributes,
 )
 from governed_llm_gateway_core.domain.model_registry import ModelRegistry
 from governed_llm_gateway_core.domain.ranking import RankingPolicy, RankingPolicyError
@@ -303,7 +299,7 @@ def attach_generate_route(
     coordinator: GenerateCoordinator,
     *,
     complexity_coordinator: "ComplexityGenerateCoordinator | None" = None,
-    observability: Observability | None = None,
+    observability: ObservabilityPort | None = None,
 ) -> None:
     """Attach governed SSE generation with opt-in complexity routing and tracing."""
 
@@ -340,8 +336,7 @@ def attach_generate_route(
                     },
                     record_exception=False,
                 ) as span:
-                    set_gateway_span_attributes(
-                        span,
+                    span.set_attributes(
                         {
                             "llm.workload": payload.workload,
                             "llm.streaming": True,
@@ -355,19 +350,18 @@ def attach_generate_route(
                             complexity_mode=mode == "complexity",
                         )
                     except HTTPException as exc:
-                        set_gateway_span_attributes(span, {"http.status_code": exc.status_code})
-                        mark_span_failure(span, _http_error_code(exc))
+                        span.set_attributes({"http.status_code": exc.status_code})
+                        span.mark_failure(_http_error_code(exc))
                         raise
                     except Exception:
-                        mark_span_failure(span, "gateway_unexpected_error")
+                        span.mark_failure("gateway_unexpected_error")
                         raise
 
-                    set_gateway_span_attributes(
-                        span,
+                    span.set_attributes(
                         _routing_attributes(prepared.decision),
                     )
                     inject_trace_context(stream_parent_carrier)
-                    mark_span_success(span)
+                    span.mark_success()
 
         return StreamingResponse(
             _sse_body(
@@ -462,7 +456,7 @@ async def _sse_body(
     coordinator: "GenerateCoordinator | ComplexityGenerateCoordinator",
     prepared: PreparedStreamingExecution,
     *,
-    observability: Observability | None = None,
+    observability: ObservabilityPort | None = None,
     trace_carrier: dict[str, str] | None = None,
 ) -> AsyncGenerator[str]:
     if observability is None:
@@ -484,8 +478,7 @@ async def _sse_body(
             record_exception=False,
         ) as span,
     ):
-        set_gateway_span_attributes(
-            span,
+        span.set_attributes(
             {
                 "llm.workload": prepared.request.workload,
                 "llm.streaming": True,
@@ -498,8 +491,7 @@ async def _sse_body(
             async with aclosing(stream) as events:
                 async for event in events:
                     if event.usage is not None:
-                        set_gateway_span_attributes(
-                            span,
+                        span.set_attributes(
                             {
                                 "llm.usage.input_count": event.usage.input_tokens,
                                 "llm.usage.output_count": event.usage.output_tokens,
@@ -507,24 +499,21 @@ async def _sse_body(
                         )
                     if event.event_type is StreamEventType.RESPONSE_FAILED:
                         terminal = True
-                        set_gateway_span_attributes(
-                            span,
+                        span.set_attributes(
                             {"llm.partial": event.partial},
                         )
-                        mark_span_failure(
-                            span,
+                        span.mark_failure(
                             event.error.code if event.error is not None else "stream_failed",
                         )
                     elif event.event_type is StreamEventType.RESPONSE_COMPLETED:
                         terminal = True
                         if event.routing is not None:
-                            set_gateway_span_attributes(
-                                span,
+                            span.set_attributes(
                                 _routing_attributes_from_provenance(event.routing),
                             )
-                        mark_span_success(span)
+                        span.mark_success()
                         if event.execution is not None:
-                            trace_id = current_trace_id(span)
+                            trace_id = span.trace_id
                             if trace_id is not None:
                                 event = replace(
                                     event,
@@ -532,14 +521,14 @@ async def _sse_body(
                                 )
                     yield _encode_sse(event)
         except asyncio.CancelledError:
-            mark_span_cancelled(span)
+            span.mark_cancelled()
             raise
         except Exception:
-            mark_span_failure(span, "stream_unexpected_error")
+            span.mark_failure("stream_unexpected_error")
             raise
         finally:
             if not terminal:
-                set_gateway_span_attributes(span, {"llm.partial": False})
+                span.set_attributes({"llm.partial": False})
 
 
 def _trace_carrier(request: Request) -> dict[str, str]:

@@ -31,8 +31,11 @@ from governed_llm_gateway_contracts import (
     RoutingProvenance,
     StreamEventType,
 )
+from governed_llm_gateway_core.adapters.observability_otel import (
+    OpenTelemetryGatewaySpan,
+    OpenTelemetryObservability,
+)
 from governed_llm_gateway_core.application.ranking import RankingDecision
-from governed_llm_gateway_core.application.telemetry import current_trace_id
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -156,7 +159,11 @@ def test_generate_route_stamps_terminal_execution_with_continued_trace_id() -> N
     observability = _observability()
     fake = _TraceIdGenerateCoordinator(_prepared())
     app = FastAPI()
-    attach_generate_route(app, cast(GenerateCoordinator, fake), observability=observability)
+    attach_generate_route(
+        app,
+        cast(GenerateCoordinator, fake),
+        observability=OpenTelemetryObservability(observability),
+    )
 
     response = TestClient(app).post(
         "/v1/generate",
@@ -190,7 +197,7 @@ def test_generate_route_leaves_trace_id_absent_when_observability_disabled() -> 
 
 
 def test_current_trace_id_returns_none_for_an_invalid_span_context() -> None:
-    assert current_trace_id(INVALID_SPAN) is None
+    assert OpenTelemetryGatewaySpan(INVALID_SPAN).trace_id is None
 
 
 def test_api_payload_and_client_codec_round_trip_trace_id() -> None:

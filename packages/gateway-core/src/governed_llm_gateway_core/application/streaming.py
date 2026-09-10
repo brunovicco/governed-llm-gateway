@@ -7,7 +7,6 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import aclosing, nullcontext
 from dataclasses import replace
 
-from a2a_otel_kit import Observability
 from governed_llm_gateway_contracts import (
     Capability,
     ExecutionStatus,
@@ -22,6 +21,7 @@ from governed_llm_gateway_contracts import (
 
 from governed_llm_gateway_core.domain.resilience import RetryPolicy
 
+from .observability import ObservabilityPort
 from .operational_evidence import OperationalAttemptRecorder, UtcClock
 from .operational_recording import (
     invalidate_operational_completeness_best_effort,
@@ -46,11 +46,6 @@ from .resilience import InMemoryHealthTracker, ProviderResolutionError, Provider
 from .telemetry import (
     GatewaySpanEventName,
     GatewaySpanName,
-    add_gateway_span_event,
-    mark_span_cancelled,
-    mark_span_failure,
-    mark_span_success,
-    set_gateway_span_attributes,
 )
 
 Clock = Callable[[], float]
@@ -68,7 +63,7 @@ class StreamingExecutionService:
         retry_policy: RetryPolicy | None = None,
         clock: Clock = time.monotonic,
         sleeper: Sleeper = asyncio.sleep,
-        observability: Observability | None = None,
+        observability: ObservabilityPort | None = None,
         operational_recorder: OperationalAttemptRecorder | None = None,
         utc_clock: UtcClock = utc_now,
     ) -> None:
@@ -212,8 +207,7 @@ class StreamingExecutionService:
                 retry_delay_after_span: float | None = None
                 with span_context as span:
                     if span is not None:
-                        set_gateway_span_attributes(
-                            span,
+                        span.set_attributes(
                             {
                                 "llm.workload": request.workload,
                                 "llm.provider": deployment.provider,
@@ -258,8 +252,7 @@ class StreamingExecutionService:
                                     | ProviderToolCallCompleted,
                                 ):
                                     if not semantic_output and span is not None:
-                                        set_gateway_span_attributes(
-                                            span,
+                                        span.set_attributes(
                                             {"llm.ttft_ms": _latency_ms(started_at, self._clock())},
                                         )
                                     semantic_output = True
@@ -293,8 +286,7 @@ class StreamingExecutionService:
                                         )
                                     usage_seen = True
                                     if span is not None:
-                                        set_gateway_span_attributes(
-                                            span,
+                                        span.set_attributes(
                                             {
                                                 "llm.usage.input_count": event.usage.input_tokens,
                                                 "llm.usage.output_count": event.usage.output_tokens,
@@ -329,11 +321,10 @@ class StreamingExecutionService:
                                         latency_ms=latency_ms,
                                     )
                                     if span is not None:
-                                        set_gateway_span_attributes(
-                                            span,
+                                        span.set_attributes(
                                             {"llm.latency_ms": latency_ms},
                                         )
-                                        mark_span_success(span)
+                                        span.mark_success()
                                     if final_usage is None:
                                         raise _invalid_stream_event(
                                             deployment.provider,
@@ -400,7 +391,7 @@ class StreamingExecutionService:
                                 utc_clock=self._utc_clock,
                             )
                         if span is not None:
-                            mark_span_cancelled(span)
+                            span.mark_cancelled()
                         raise
                     except GeneratorExit:
                         if provider_attempt_started and not attempt_terminal_recorded:
@@ -444,8 +435,8 @@ class StreamingExecutionService:
                             }
                             if exc.status_code is not None:
                                 failure_attributes["http.status_code"] = exc.status_code
-                            set_gateway_span_attributes(span, failure_attributes)
-                            mark_span_failure(span, exc.code.value)
+                            span.set_attributes(failure_attributes)
+                            span.mark_failure(exc.code.value)
 
                         if semantic_output:
                             sequence += 1
@@ -476,8 +467,7 @@ class StreamingExecutionService:
                                 retry_after_seconds=exc.retry_after_seconds,
                             )
                             if span is not None:
-                                add_gateway_span_event(
-                                    span,
+                                span.add_event(
                                     GatewaySpanEventName.RETRY.value,
                                     {
                                         "retry_count": attempt_number,
@@ -488,8 +478,7 @@ class StreamingExecutionService:
                             retry_delay_after_span = delay
                         elif transient:
                             if span is not None and candidate_index + 1 < len(bounded):
-                                add_gateway_span_event(
-                                    span,
+                                span.add_event(
                                     GatewaySpanEventName.FALLBACK.value,
                                     {
                                         "llm.fallback_count": len(fallback_sequence),

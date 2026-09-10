@@ -13,6 +13,8 @@ from fastapi import FastAPI
 from governed_llm_gateway_api import server as server_module
 from governed_llm_gateway_api.deployment_activation import GovernedDeploymentSettings
 from governed_llm_gateway_api.server import parse_server_args, run_governed_server
+from governed_llm_gateway_core.adapters.observability_otel import OpenTelemetryObservability
+from governed_llm_gateway_core.application.observability import ObservabilityPort
 
 
 class RecordingRunner:
@@ -168,7 +170,7 @@ def test_enabled_observability_is_injected_and_shutdown_after_runner_return(
     fake_observability = RecordingObservability()
     expected_observability = cast(Observability, fake_observability)
     configured: list[ObservabilitySettings] = []
-    injected: list[Observability | None] = []
+    injected: list[ObservabilityPort | None] = []
 
     def fake_configure(value: ObservabilitySettings) -> Observability:
         configured.append(value)
@@ -178,7 +180,7 @@ def test_enabled_observability_is_injected_and_shutdown_after_runner_return(
         value: GovernedDeploymentSettings,
         *,
         environ: Mapping[str, str] | None = None,
-        observability: Observability | None = None,
+        observability: ObservabilityPort | None = None,
     ) -> SimpleNamespace:
         del value, environ
         injected.append(observability)
@@ -190,7 +192,10 @@ def test_enabled_observability_is_injected_and_shutdown_after_runner_return(
     run_governed_server(settings, environ={}, runner=runner)
 
     assert configured == [settings.observability]
-    assert injected == [expected_observability]
+    assert len(injected) == 1
+    injected_port = injected[0]
+    assert isinstance(injected_port, OpenTelemetryObservability)
+    assert injected_port.observability is expected_observability
     assert fake_observability.shutdown_calls == [5.0]
     assert runner.app is app
 
@@ -203,7 +208,7 @@ def test_observability_configuration_failure_degrades_to_null_telemetry(
     app = FastAPI()
     runner = RecordingRunner()
     settings = parse_server_args(_otel_argv(tmp_path.resolve()))
-    injected: list[Observability | None] = []
+    injected: list[ObservabilityPort | None] = []
 
     def fake_configure(value: ObservabilitySettings) -> Observability:
         del value
@@ -213,7 +218,7 @@ def test_observability_configuration_failure_degrades_to_null_telemetry(
         value: GovernedDeploymentSettings,
         *,
         environ: Mapping[str, str] | None = None,
-        observability: Observability | None = None,
+        observability: ObservabilityPort | None = None,
     ) -> SimpleNamespace:
         del value, environ
         injected.append(observability)
@@ -246,10 +251,11 @@ def test_activation_failure_still_shuts_down_owned_observability(
         value: GovernedDeploymentSettings,
         *,
         environ: Mapping[str, str] | None = None,
-        observability: Observability | None = None,
+        observability: ObservabilityPort | None = None,
     ) -> SimpleNamespace:
         del value, environ
-        assert observability is expected_observability
+        assert isinstance(observability, OpenTelemetryObservability)
+        assert observability.observability is expected_observability
         raise ActivationError("activation failed")
 
     monkeypatch.setattr(Observability, "configure", staticmethod(fake_configure))
@@ -279,10 +285,11 @@ def test_shutdown_failure_never_masks_runner_failure(
         value: GovernedDeploymentSettings,
         *,
         environ: Mapping[str, str] | None = None,
-        observability: Observability | None = None,
+        observability: ObservabilityPort | None = None,
     ) -> SimpleNamespace:
         del value, environ
-        assert observability is expected_observability
+        assert isinstance(observability, OpenTelemetryObservability)
+        assert observability.observability is expected_observability
         return SimpleNamespace(app=app)
 
     monkeypatch.setattr(Observability, "configure", staticmethod(fake_configure))
@@ -314,10 +321,11 @@ def test_shutdown_failure_after_normal_runner_return_is_best_effort(
         value: GovernedDeploymentSettings,
         *,
         environ: Mapping[str, str] | None = None,
-        observability: Observability | None = None,
+        observability: ObservabilityPort | None = None,
     ) -> SimpleNamespace:
         del value, environ
-        assert observability is expected_observability
+        assert isinstance(observability, OpenTelemetryObservability)
+        assert observability.observability is expected_observability
         return SimpleNamespace(app=app)
 
     monkeypatch.setattr(Observability, "configure", staticmethod(fake_configure))

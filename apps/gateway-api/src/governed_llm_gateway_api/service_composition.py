@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 
-from a2a_otel_kit import Observability
 from fastapi import FastAPI
 from governed_llm_gateway_core.adapters import ComplexityRoutingDocument
 from governed_llm_gateway_core.application import (
@@ -14,6 +13,7 @@ from governed_llm_gateway_core.application import (
     PolicyProjectionDefaults,
     RouteExplainService,
 )
+from governed_llm_gateway_core.application.observability import ObservabilityPort
 from governed_llm_gateway_core.application.streaming import StreamingExecutionService
 from governed_llm_gateway_core.domain.complexity import DeterministicComplexityEvaluator
 from governed_llm_gateway_core.domain.evidence_ranking import EvidenceDrivenRankingPolicy
@@ -86,7 +86,7 @@ def compose_governed_gateway_services(
     defaults: PolicyProjectionDefaults,
     complexity_routing: ComplexityRoutingDocument | None = None,
     operational_evidence: OperationalEvidenceSnapshot | None = None,
-    observability: Observability | None = None,
+    observability: ObservabilityPort | None = None,
     retry_policy: RetryPolicy | None = None,
     health: InMemoryHealthTracker | None = None,
 ) -> GovernedGatewayServices:
