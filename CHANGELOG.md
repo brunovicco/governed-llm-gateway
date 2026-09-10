@@ -5,6 +5,22 @@
 Changes on `main` since `v1.0.0`. No version has been cut for these yet; no `v1.1.0` decision has been
 made.
 
+- **Streaming failure paths under test**: `/v1/generate` is SSE-only, so the streaming stack is the
+  gateway's primary execution path — and it was its least-covered one, with the aggregate 83.8%
+  hiding `application/streaming.py` at 68.45% and `adapters/openai_compatible.py` at 66.15%. Adds
+  `tests/contract/test_streaming_failure_paths.py` (11 cases) covering the properties that make
+  partial delivery safe: a provider failure after content has already reached the caller must not
+  retry or fall back, a truncated stream must not resemble a completed one, usage evidence is
+  required before completion, caller cancellation must close the provider stream and propagate, the
+  three streaming-capability guards must refuse rather than silently downgrade, and an open circuit
+  must be skipped without being called. Adds
+  `tests/contract/test_provider_payload_hardening.py` (16 cases) for the provider trust boundary,
+  where every tool-call rejection path was unexercised: malformed shapes, non-JSON arguments, a tool
+  the caller never declared, arguments violating the declared schema, and error text that must never
+  reach a sanitized `ProviderError`. `application/streaming.py` 68.45% -> 76.03%,
+  `openai_compatible.py` 66.15% -> 87.50%, `gemini_streaming.py` 70.59% -> 79.19%, total 83.87% ->
+  84.35%. The two central safety assertions were verified against deliberately mutated source before
+  being kept, so they fail when the property they describe is removed.
 - **Observability behind a port**: the application layer imported `a2a_otel_kit.Observability`
   directly in `policy.py`, `resilience.py` and `streaming.py`, and `application/telemetry.py`
   additionally reached for `a2a_otel_kit.sanitize_attributes` and OpenTelemetry's `Span`, `Status`
