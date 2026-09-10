@@ -47,7 +47,7 @@ facts was established — proof records, security reviews, real bugs found and f
   surfaces is complete (bounded increments PC-34 through PC-51 plus a dedicated gap investigation found
   no further non-production gap). Production browser identity/session handling, OAuth/OIDC/workload
   identity, TLS termination, rate limiting, CSRF policy and any future mutation authority remain
-  separate, explicit future work — see [Non-claims](../../README.md#non-claims).
+  separate, explicit future work — see [Scope](../../README.md#scope).
 - **OR-10** (product-readiness validation) — complete: reproducible end-to-end validation, two focused
   security reviews (this repository's own new code, and the existing HTTP/adapter surface — no findings
   in either pass), a consolidated Non-claims section, and real Console/Grafana screenshots.

@@ -8,7 +8,9 @@
 
 > A provider-neutral LLM execution gateway that keeps **authorization, model selection, provider credentials, resilience and runtime evidence** out of application code.
 
-Applications and agents call one governed execution boundary instead of embedding OpenAI, Anthropic, Gemini, NVIDIA, Groq or OpenRouter-specific credentials and routing logic in every service.
+An application declares a workload and its requirements. The Gateway decides which authorized model
+serves it, calls the provider, and returns the answer with the evidence of how it was chosen. No
+provider SDK, no API key and no routing branch belongs in the consumer.
 
 ```text
 Application / Agent
@@ -28,243 +30,168 @@ Governed LLM Gateway (PEP)
 LLM providers
 ```
 
-The permanent authority rule is:
-
 ```text
 Gateway allowed set ⊆ Policy Router authorized set
 ```
 
-The Gateway may narrow an authorized set. It may never widen upstream authorization.
+The Gateway may narrow an authorized set. It may never widen it.
 
-## Contents
-
-[One real governed request](#one-real-governed-request) ·
-[What this project demonstrates](#what-this-project-demonstrates) ·
-[How governed execution works](#how-governed-execution-works) ·
-[What you can run today](#what-you-can-run-today) ·
-[Quick start: local demo](#quick-start-local-operations-demo) ·
-[Quick start: your own project](#quick-start-call-the-gateway-from-your-own-project) ·
-[Current status](#current-status) ·
-[Non-claims](#non-claims) ·
-[Repository map](#repository-map) ·
-[Where to read next](#where-to-read-next)
+[One real governed request](#one-real-governed-request) · [What it gives you](#what-it-gives-you) · [How it works](#how-it-works) · [Running it](#running-it) · [Calling it from your own project](#calling-it-from-your-own-project) · [Repository map](#repository-map) · [Scope](#scope) · [Where to read next](#where-to-read-next)
 
 ## One real governed request
 
-The caller declared only `workload`, `risk_level` and `data_classification`. The Policy Model Router authorized the `balanced` model group, the Gateway's deterministic ranking selected the deployment inside it, and the provider call, retry/fallback budget and trace emission all stayed server-side.
+The caller declared only `workload`, `risk_level` and `data_classification`. Policy authorized the
+`balanced` model group, deterministic ranking selected the deployment inside it, and the provider call,
+the retry/fallback budget and the trace emission all stayed server-side.
 
 ![Gateway Console after a real governed request: authorized group "balanced" under policy 1.0.0, selected provider nvidia, model nvidia/nemotron-3-super-120b-a12b, deployment nvidia-nemotron-3-super-dev at attempt 1 with fallback 0, 1644 ms and 149 normalized tokens, plus routing decision, policy decision, registry digest, ranking policy, score snapshot, fallback sequence and trace ID](docs/assets/screenshots/console-trace-evidence.png)
 
-A real local run of the [`personal-default`](config/profiles/personal-default/README.md) profile with operator-supplied provider credentials — not a mockup and not a stub. Every field is terminal execution evidence: routing and policy decision IDs, registry and ranking digests, the score snapshot that ranked the candidates, the fallback sequence actually taken, and the trace ID the Gateway emitted. The Console's own *View this request's trace in Grafana* link resolves to that exact trace — the matching Grafana waterfall is in [`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md). What this run does **not** claim is in [Non-claims](#non-claims).
+A real local run of the [`personal-default`](config/profiles/personal-default/README.md) profile with
+operator-supplied credentials. Every field is terminal execution evidence: routing and policy decision
+IDs, registry and ranking digests, the score snapshot that ranked the candidates, the fallback sequence
+actually taken, and the trace ID emitted. The Console's *View this request's trace in Grafana* link
+resolves to that exact trace — the matching waterfall is in
+[`docs/project/GATEWAY_CONSOLE.md`](docs/project/GATEWAY_CONSOLE.md).
 
-## What this project demonstrates
+## What it gives you
 
-The repository is a practical reference implementation of an AI Platform execution layer rather than a thin multi-provider proxy.
-
-| Area | Demonstrated capability |
+| Capability | What it means in practice |
 | --- | --- |
-| **AI Platform architecture** | Provider-neutral contracts, model registry, explicit composition roots and thin consumer SDK |
-| **Governed execution** | PDP/PEP separation, deterministic authorization boundary and fail-closed behavior |
-| **Model routing** | Capability/environment filtering, deterministic ranking and route explainability |
-| **Reliability** | Runtime health, circuit breaking, bounded retry, safe fallback, streaming and cancellation |
-| **LLM interoperability** | Native OpenAI Responses, Anthropic Messages, Gemini and explicit OpenAI-compatible adapters |
-| **Structured model I/O** | Structured-output validation and normalized tool-call contracts without taking ownership of tool execution |
-| **Observability** | Metadata-only OpenTelemetry, real Collector → Tempo proof and file-provisioned Grafana trace dashboard |
-| **Evaluation** | Deterministic benchmark contracts, immutable evidence and explicit promotion/rollback boundaries |
-| **Security** | Server-side provider secrets, client authentication boundaries, secret scanning and no allow-all fallback |
-| **Engineering quality** | Strict typing, architecture checks, security gates, automated tests and real-container CI proofs |
+| **One integration point** | Consumers speak one provider-neutral contract. Adding, replacing or disabling a provider is a registry change, not an edit in every service that calls a model. |
+| **Credentials in one place** | Provider keys belong to the Gateway deployment. Rotating one is a single change in a single place, with no consumer redeploy and no key to find scattered across repositories. |
+| **Authorization that holds** | Policy decides which model groups a workload may use. The Gateway can only narrow that set, never widen it, and fails closed when policy is unreachable. |
+| **Deterministic selection** | Ranking inside the authorized set is reproducible and explainable: same inputs, same deployment, with the reasons and the digests that produced it attached. |
+| **Resilience without surprises** | Health tracking, circuit breaking, bounded retry and fallback — all restricted to already-authorized deployments, and shareable across replicas so behavior stays deterministic when you scale out. |
+| **Cost ceilings** | Per-client, per-workload spend accounting from pinned pricing and reported usage, with budgets that refuse a request once a ceiling is reached. |
+| **Evidence for every request** | Terminal execution provenance plus metadata-only OpenTelemetry: what was authorized, what was selected, what actually ran, and the trace it emitted. |
+| **Interoperability both ways** | Native OpenAI Responses, Anthropic Messages and Gemini adapters, explicit OpenAI-compatible adapters, and an OpenAI-shaped ingress so an existing client can repoint its `base_url` here. |
 
-## How governed execution works
+## How it works
 
-A request does not simply choose the cheapest or fastest available model.
-
-1. The consumer authenticates to the Gateway.
-2. The Policy Model Router determines the logical model groups the workload is authorized to use.
+1. The consumer authenticates to the Gateway and declares a workload, not a model.
+2. The Policy Model Router determines which logical model groups that workload may use.
 3. The Gateway intersects that authority with registry capability, environment, data/risk and runtime eligibility.
-4. Deterministic ranking operates only inside that remaining set.
-5. Retry/fallback may move only to another already-authorized eligible deployment.
-6. Provider-specific requests/responses are normalized behind adapters.
-7. Terminal execution provenance and metadata-safe telemetry describe what happened; they never authorize a future request.
+4. Deterministic ranking selects inside what remains; retry and fallback may move only to another already-authorized eligible deployment.
+5. Provider-specific requests and responses are normalized behind adapters.
+6. Terminal provenance and metadata-safe telemetry describe what happened. They never authorize a future request.
 
-Business tool execution remains outside the Gateway. The Gateway can normalize a tool call, but the application/agent runtime owns tool authorization and side effects.
+An optional governance authority can narrow further what policy authorized; it can never expand it.
+The exact wire contract is in
+[`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md).
 
-An optional governance authority can only narrow what the Policy Model Router (PDP) authorizes; the Gateway (PEP) executes only inside that already-narrowed set, normalizes the provider call, and fans out metadata-only telemetry (OTel Collector → Tempo → Grafana) and evaluation evidence alongside the actual provider request. See [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) for the exact wire contract.
+The Gateway is deliberately not an agent framework, a RAG framework, an MCP tool executor, a
+prompt-management platform or an API-management product. It can normalize a tool call, but the
+application runtime keeps ownership of tool authorization and side effects.
 
-The Gateway is intentionally **not** an agent framework, RAG framework, MCP tool executor, prompt-management platform or general API-management product. Its responsibility is governed model resolution and execution.
+### Provider credentials in one place
 
-### The secret model
+Provider credentials are a deployment concern. A provider-runtime binding references a credential by
+name, and a server-side resolver turns that reference into the real value only inside the Gateway
+process — a sourced `.env` locally, or the same references injected from AWS Secrets Manager, Azure Key
+Vault, GCP Secret Manager or Vault in a real deployment. Rotating a provider key is therefore one
+change in one place: no consumer ships a new build, and no repository holds a provider secret.
 
-**Never put real API keys in Model Registry files, provider-runtime JSON, README files, logs, traces or Git.** Provider credentials belong to the **Gateway deployment**, never to consumer applications: a provider-runtime binding references a credential by name, and a server-side secret resolver turns that reference into the real value only inside the Gateway process — a sourced `.env` locally, or the same environment references injected by a real secret manager (AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, Vault, ...) in a real deployment.
+A consumer application receives exactly two variables — `GOVERNED_LLM_GATEWAY_URL` and
+`GOVERNED_LLM_GATEWAY_API_KEY` — and owns no provider, model, retry or fallback policy. The trust
+boundary is specified in
+[`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) and
+[`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md).
 
-A consumer application receives only two variables, never a provider key, and owns no provider/model selection or retry/fallback policy: `GOVERNED_LLM_GATEWAY_URL` and `GOVERNED_LLM_GATEWAY_API_KEY`. See [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) and [`docs/project/GATEWAY_CLIENT_AUTHENTICATION.md`](docs/project/GATEWAY_CLIENT_AUTHENTICATION.md) for the detailed trust boundary.
+## Running it
 
-## What you can run today
+Three configurations, in increasing order of what they require:
 
-### 1. Bounded local platform demo — ready now
+| Configuration | Requires | What it shows |
+| --- | --- | --- |
+| **Local operations demo** | Nothing but the toolchain | The read-only Operations API, the Console, and the Collector → Tempo → Grafana chain. Exposes no inference route, so it needs no credential. |
+| [**`live-development`**](config/profiles/live-development/README.md) | An external policy router and provider credentials | One reviewed consumer, deterministic ranking, two native provider deployments in one authorized group. |
+| [**`personal-default`**](config/profiles/personal-default/README.md) | The same, plus your own keys | Six providers (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter) in one authorized group, NVIDIA cost-preferred; the profile to call from your own applications. |
 
-The repository includes a deterministic one-command **operations-only** local demo that starts:
-
-- the read-only Gateway Operations API;
-- the React/TypeScript Gateway Console;
-- OpenTelemetry Collector;
-- Tempo;
-- Grafana with the provisioned Gateway trace dashboard.
-
-It requires **no provider API key and no Policy Router credential** because it deliberately exposes no inference route. This makes the platform/control/evidence surfaces demonstrable without introducing a fake allow-all authorization path.
-
-Real screenshots from this exact demo, captured against a live local run (not mockups):
-
-| Console — before connecting | Console — connected, operations-only baseline (no inference route) |
-| --- | --- |
-| ![Gateway Console, disconnected](docs/assets/screenshots/gateway-console-disconnected.png) | ![Gateway Console, connected, showing the real operations-only baseline: phase2-empty registry, 0 deployments, 0 tracked processes](docs/assets/screenshots/gateway-console-connected.png) |
-
-The connected view is the real fail-closed baseline, not a staged one — `phase2-empty` registry, `0 deployments` (see [Non-claims](#non-claims)).
-
-![Local Grafana trace dashboard, provisioned by this demo](docs/assets/screenshots/grafana-trace-dashboard.png)
-
-The real, queryable local Grafana/Tempo dashboard shows no rows here because this demo mode exposes no inference route to generate a trace — see [`live-development`](config/profiles/live-development/README.md) or [`personal-default`](config/profiles/personal-default/README.md) for a request that actually produces one.
-
-### 2. Governed live inference — explicit development profile
-
-The checked-in default deployment baseline remains intentionally fail-closed:
-
-- `config/model_registry.yaml` has no enabled deployments;
-- `config/providers/runtime.json` has no provider bindings;
-- `config/policy/router.json` is disabled;
-- checked-in default client-auth artifacts contain no live principals/secrets.
-
-Therefore **adding `OPENAI_API_KEY` or another provider key by itself still does not enable live inference**.
-
-For an explicit opt-in path, `config/profiles/live-development/` provides a reviewed secret-free profile for one `development` / `public` / `rag.answer` consumer with an external Policy Model Router boundary, deterministic ranking, and two native provider deployments in the same authorized `balanced` group. See [its README](config/profiles/live-development/README.md) for the startup/request flow — it is a development/demo configuration, not a production TLS/IAM/SLA claim, and required CI stays credential-free.
-
-This separation is intentional: operational availability never becomes authorization by accident.
-
-### 3. Your own project — the personal-default profile
-
-`config/profiles/personal-default/` is the profile for calling the Gateway from your own applications, not a reviewed demo. It wires six providers (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter) into the same authorized group, with NVIDIA cost-preferred as the practical default; deterministic ranking with bounded fallback picks whichever authorized deployment is actually eligible. Your application only ever declares `workload`, `risk_level` and `data_classification`. See ["Quick start: call the Gateway from your own project"](#quick-start-call-the-gateway-from-your-own-project) below and [its README](config/profiles/personal-default/README.md) for the full scope and per-provider proof status.
-
-## Quick start: local operations demo
+The checked-in baseline is fail-closed: no enabled deployment, no provider binding, policy disabled,
+no live principal. Adding a provider key by itself does not enable inference — a profile has to be
+activated explicitly, so operational availability never becomes authorization by accident.
 
 ### Prerequisites
 
-- Python **3.13+** (the workspace currently supports Python 3.13–3.14);
-- [uv](https://docs.astral.sh/uv/);
-- Docker with Docker Compose;
-- Node.js 24 + npm.
+Python **3.13+** (3.13–3.14 supported), [uv](https://docs.astral.sh/uv/), Docker with Compose, and
+Node.js 24 with npm.
 
-### Start
+### Local operations demo
 
 ```bash
 git clone https://github.com/brunovicco/governed-llm-gateway.git
 cd governed-llm-gateway
-
 cp .env.example .env
 ```
 
-Edit `.env` and set a random local-only value:
-
-```dotenv
-GATEWAY_LOCAL_DEMO_API_KEY=replace-with-a-random-local-value
-```
-
-The Python runtime does **not** automatically load `.env`. Export it into the process environment before starting:
+Set `GATEWAY_LOCAL_DEMO_API_KEY` in `.env` to any random local value. The Python runtime does not load
+`.env` by itself, so export it first:
 
 ```bash
-set -a
-source .env
-set +a
-
+set -a; source .env; set +a
 uv run --frozen python scripts/local_demo.py
 ```
 
-When readiness succeeds, open:
+| Surface | URL |
+| --- | --- |
+| Gateway Console | `http://127.0.0.1:5173` |
+| Gateway readiness | `http://127.0.0.1:8000/readyz` |
+| Operations API | `http://127.0.0.1:8000/v1/ops/overview` |
+| Grafana | `http://127.0.0.1:3000` |
 
-| Surface | URL | Purpose |
-| --- | --- | --- |
-| Gateway Console | `http://127.0.0.1:5173` | Read-only operational view |
-| Gateway readiness | `http://127.0.0.1:8000/readyz` | Process readiness |
-| Operations API | `http://127.0.0.1:8000/v1/ops/overview` | Authenticated bounded operational state |
-| Grafana | `http://127.0.0.1:3000` | Local trace visualization |
+`Ctrl+C` stops it; the launcher owns cleanup of its child processes and its Compose project. For an
+automated startup/readiness/teardown proof, add `--smoke-test`.
 
-Press `Ctrl+C` to stop the interactive demo. The launcher owns cleanup of its child processes and dedicated Compose project.
+| Console — before connecting | Console — connected, operations-only baseline |
+| --- | --- |
+| ![Gateway Console, disconnected](docs/assets/screenshots/gateway-console-disconnected.png) | ![Gateway Console, connected, showing the real operations-only baseline: phase2-empty registry, 0 deployments, 0 tracked processes](docs/assets/screenshots/gateway-console-connected.png) |
 
-For an automated startup/readiness/teardown proof:
+![Local Grafana trace dashboard, provisioned by this demo](docs/assets/screenshots/grafana-trace-dashboard.png)
 
-```bash
-uv run --frozen python scripts/local_demo.py --smoke-test
-```
+Real screenshots of this exact demo: the connected view is the genuine fail-closed baseline
+(`phase2-empty` registry, zero deployments), and the dashboard has no rows because this mode exposes no
+inference route to produce a trace.
 
-For governed provider execution, use the separate [`live-development` profile runbook](config/profiles/live-development/README.md); it intentionally requires an external PDP and server-side provider credentials.
+## Calling it from your own project
 
-## Quick start: call the Gateway from your own project
-
-This is the actual "no friction" path: your application never picks a provider or model, only a
-`workload`. It requires two running processes — the Policy Model Router (a separate repository) and the
-Gateway — plus your consumer project pointed at the Gateway's URL and credential.
-
-### 1. Install both services
+Two processes run: the Policy Model Router (a separate repository) and the Gateway. Your application
+points at the Gateway's URL and credential.
 
 ```bash
 git clone https://github.com/brunovicco/governed-llm-gateway.git
-cd governed-llm-gateway
-uv sync --frozen
-
-git clone https://github.com/brunovicco/policy-model-router.git ../policy-model-router
-cd ../policy-model-router
-uv sync --frozen
-cd ../governed-llm-gateway
+git clone https://github.com/brunovicco/policy-model-router.git
+(cd policy-model-router && uv sync --frozen)
+cd governed-llm-gateway && uv sync --frozen
 ```
 
-### 2. Configure
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
+Put the two local shared secrets you invent, plus the provider keys you actually have, in `.env`:
 
 ```dotenv
 GATEWAY_DEMO_API_KEY=replace-with-a-random-local-value
 POLICY_ROUTER_DEMO_API_KEY=replace-with-a-random-local-value
-NVIDIA_API_KEY=your-real-nvidia-key
-GEMINI_API_KEY=your-real-gemini-key
-OPENAI_API_KEY=your-real-openai-key
-ANTHROPIC_API_KEY=your-real-anthropic-key
-GROQ_API_KEY=your-real-groq-key
-OPENROUTER_API_KEY=your-real-openrouter-key
+NVIDIA_API_KEY=...
+GEMINI_API_KEY=...
+OPENAI_API_KEY=...
+ANTHROPIC_API_KEY=...
+GROQ_API_KEY=...
+OPENROUTER_API_KEY=...
 ```
 
-`GATEWAY_DEMO_API_KEY`/`POLICY_ROUTER_DEMO_API_KEY` are local shared secrets you invent; the six
-provider keys are real credentials (NVIDIA has a free tier at [build.nvidia.com](https://build.nvidia.com)).
-A missing key for an **enabled** deployment fails the whole process closed at startup — if you don't
-have all six, disable the corresponding deployment(s) in `model_registry.yaml` (`enabled: false`) and
-remove the matching binding from `provider_runtime.json` first.
-
-### 3. Start the Policy Router and the Gateway
+A missing key for an **enabled** deployment fails the process closed at startup. With fewer than six
+providers, disable the others in `model_registry.yaml` (`enabled: false`) and remove their bindings
+from `provider_runtime.json` first. NVIDIA has a free tier at [build.nvidia.com](https://build.nvidia.com).
 
 ```bash
-cd governed-llm-gateway
 set -a; source .env; set +a
 uv run --frozen python scripts/personal_default_launcher.py
 ```
 
-This one command starts both services (assumes `../policy-model-router` from step 1; override with
-`POLICY_MODEL_ROUTER_ROOT`) and tears both down on Ctrl+C. See [its README](config/profiles/personal-default/README.md#running-it)
-for the two-terminal manual equivalent and the `--smoke-test` switch.
-
-### 4. Call it from your own project
-
-Add the thin client (not published to PyPI; install straight from this repository):
+That starts and tears down both services together (it assumes `../policy-model-router`; override with
+`POLICY_MODEL_ROUTER_ROOT`). Then add the thin client to your own project — not published to PyPI,
+install straight from this repository:
 
 ```bash
 uv add "governed-llm-gateway-client @ git+https://github.com/brunovicco/governed-llm-gateway.git#subdirectory=packages/gateway-client"
-```
-
-Your consumer project needs only two environment variables — never a provider key:
-
-```dotenv
-GOVERNED_LLM_GATEWAY_URL=http://127.0.0.1:8000
-GOVERNED_LLM_GATEWAY_API_KEY=<the same GATEWAY_DEMO_API_KEY from step 2>
 ```
 
 ```python
@@ -289,75 +216,18 @@ async def main() -> None:
         )
 
     print(response.content)
-    # Decided by the Gateway's ranking, not by your code — NVIDIA under normal conditions,
-    # automatically falling back to another authorized provider otherwise.
+    # Chosen by the Gateway's ranking, not by your code.
     print(response.execution.provider, response.execution.model, response.execution.deployment)
 
 
 asyncio.run(main())
 ```
 
-`max_output_tokens: 2000` is not arbitrary: NVIDIA, Gemini and Groq's deployments here spend a variable,
-sometimes large share of the budget on internal "thinking" before any visible text — a tight budget
-like `128` measurably returns empty `response.content` a meaningful fraction of the time (reproduced
-directly, not theoretical). Give reasoning-style models real headroom.
-
-No provider SDK, no API key, and no `if provider == ...` branch belongs in your project. See
-[its README](config/profiles/personal-default/README.md) for the full runbook, current scope
-(`rag.answer` in `balanced`) and per-provider proof status.
-
-## Current status
-
-| Area | Status |
-| --- | --- |
-| **Core platform** — contracts, registry, authorization, ranking, resilience, streaming, telemetry, evaluation, SDK, governance | **Complete.** All thirteen roadmap phases are closed. |
-| **Governed live inference** | **Proven with real credentials.** Six provider deployments (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter), each exercised individually end to end through the full Policy Router → Gateway → provider chain. |
-| **Calling the Gateway from your own project** | **Working.** The `personal-default` profile ranks six providers inside one authorized group; NVIDIA cost-preferred selection was proven against four other simultaneously-enabled competitors. |
-| **Local operational demo** | **Complete** at its deliberate scope: read-only operations API, Console, Collector, Tempo and Grafana — no inference route, no credential required. |
-| **Console-to-trace correlation** | **Complete.** A request's trace link resolves to that exact trace in Grafana, proven in the browser and not only through the SDK. |
-| **Operational-surface hardening** | **Minimum appropriate hardening complete** for the surfaces this repository actually exposes. Production TLS, IAM/SSO, session handling, rate limiting and CSRF are explicit future work, not silently missing. |
-| **Real-project consumer integrations** | **In progress.** Two of five complete; OpsLens is validated but deliberately deferred until its own repository stabilizes; RAGForge and the Verifiable AI Governance integration are sequenced behind it by decision, not oversight. |
-| **End-to-end validation** | **Complete.** Reproducible validation run, two security-review passes over both new and pre-existing surfaces (no findings in either), the consolidated [non-claims](#non-claims) below, and real screenshots of the demo. |
-
-[`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) is the authoritative checkpoint;
-[`docs/project/CHECKPOINT_LOG.md`](docs/project/CHECKPOINT_LOG.md) is the dated, proof-by-proof history
-behind it, and [`CHANGELOG.md`](CHANGELOG.md#unreleased) records what each item closed and where it
-shipped.
-
-The punch list still open at the `v1.0.0` cut is now fully closed. That is not the same as the roadmap
-being finished: production-only hardening and the remaining integrations stay open by design, and the
-integration order is normative — OpsLens must be reconciled before RAGForge and the later cases start,
-unless that order is explicitly revised. See [Non-claims](#non-claims).
-
-Documents under `docs/project/` were written increment by increment and refer to internal identifiers
-(`Phase N`, `PC-n`, `OR-n`, `CR-n`). The [documentation index](docs/project/README.md) decodes those and
-says what each document answers.
-
-## Non-claims
-
-Non-claims also appear next to the specific feature they bound — in each profile's own README and in the status table above. This section is the single place to read all of them at once.
-
-This repository does **not** claim to be:
-
-- **Production infrastructure.** No TLS termination, no production IAM/OAuth/OIDC/workload identity, no browser session management, no rate limiting, no CSRF policy. The operational-surface hardening that was done narrows specific gaps on the surfaces this repository actually exposes — non-storable responses, header sanitization, bounded request bodies — and completes none of the above.
-- **An SLA or uptime guarantee for any third-party model provider.** Provider pricing/model catalog entries are pinned metadata reviewed as of specific dates (see each profile's README) and can drift from the real provider catalog; NVIDIA/Groq/OpenRouter pricing in `personal-default` is an approximate placeholder pending a separately reviewed update.
-- **A benchmark of real production traffic.** Everything in `benchmarks/` runs against public/synthetic fixtures with deterministic scoring, credential-free by default. It is evidence for ranking eligibility inside an already-authorized set, never authorization, and never a substitute for live user feedback.
-- **A multi-tenant or remote deployment.** Every demonstrated path (`scripts/local_demo.py`, `live-development`, `personal-default`) runs as local loopback (`127.0.0.1`) processes an operator starts and stops. None of it has been exercised behind a real reverse proxy, load balancer, or public DNS name.
-- **A complete set of consumer integrations.** Two of five planned integrations are complete; OpsLens is a validated-but-deliberately-deferred candidate pending its own repository stabilizing; RAGForge and the Verifiable AI Governance integration have not started, by explicit sequencing decision, not oversight.
-- **A security certification.** What was completed is bounded hardening of the operational surfaces this repository already exposes, plus end-to-end validation: a reproducible validation run, two security-review passes and real demo screenshots. Production IAM/TLS/SSO, session handling, rate limiting and CSRF remain separate, unstarted work.
-
-What every governed-inference proof cited in `docs/project/CHECKPOINT_LOG.md` **is**: a real request, with real operator-supplied provider credentials, executed through the full Policy Router → Gateway → provider chain, with the terminal routing/execution evidence inspected — not a mock, not a stub, and not a credential-free simulation.
-
-## Validate the repository
-
-The default quality path is deterministic and credential-free:
-
-```bash
-uv sync --frozen
-uv run python scripts/quality_gate.py
-```
-
-Frontend, observability and integration proofs are also isolated in dedicated GitHub Actions workflows. Live-provider tests remain opt-in by design.
+`max_output_tokens=2000` is not arbitrary: the NVIDIA, Gemini and Groq deployments here spend a
+variable, sometimes large share of the budget on internal reasoning before any visible text, so a tight
+budget returns empty content a measurable fraction of the time. The full runbook, the current scope
+(`rag.answer` in `balanced`) and the per-provider proof status are in
+[its README](config/profiles/personal-default/README.md).
 
 ## Repository map
 
@@ -374,34 +244,41 @@ Frontend, observability and integration proofs are also isolated in dedicated Gi
 | `deploy/observability/` | Collector, Tempo and Grafana local provisioning |
 | `scripts/` | Quality, evidence and deterministic local-demo tooling |
 | `tests/` | Contract tests plus opt-in integration proofs against real servers |
-| `docs/` | Architecture, security boundaries, roadmap and evidence contracts — start at [`docs/project/README.md`](docs/project/README.md) |
+| `docs/` | Architecture, security boundaries and evidence contracts — start at [`docs/project/README.md`](docs/project/README.md) |
+
+The default quality path is deterministic and credential-free:
+
+```bash
+uv sync --frozen
+uv run python scripts/quality_gate.py
+```
+
+Frontend, observability, container and real-server integration proofs run in dedicated GitHub Actions
+workflows. Live-provider tests stay opt-in by design.
+
+## Scope
+
+A reference implementation built to be run and read, not a hosted product:
+
+- **Not production infrastructure.** No TLS termination, production IAM/SSO, browser session handling, rate limiting or CSRF policy. Every demonstrated path runs as local loopback processes.
+- **Not an SLA over any provider.** Pricing and catalog entries are pinned metadata reviewed on a date and can drift from the live provider catalog.
+- **Benchmarks are fixtures, not production traffic.** They inform ranking eligibility inside an already-authorized set — never authorization, and never a substitute for live user feedback.
+- **Provider proofs are real.** Every governed-inference proof cited in the checkpoint log is a real request with operator-supplied credentials through the full policy → Gateway → provider chain, with the terminal evidence inspected. Not a mock, not a stub, not a credential-free simulation.
+
+Phase status, deferred scope and the dated evidence behind each claim live in
+[`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) and
+[`docs/project/CHECKPOINT_LOG.md`](docs/project/CHECKPOINT_LOG.md).
 
 ## Where to read next
 
-Every document under `docs/project/` is listed, grouped and explained in its
-[documentation index](docs/project/README.md). The shortest useful paths through it:
+Every document under `docs/project/` is grouped and explained in its
+[documentation index](docs/project/README.md). The shortest paths through it:
 
-**To run it against your own project**
-
-- [`config/profiles/personal-default/README.md`](config/profiles/personal-default/README.md) — the full runbook, current scope and per-provider proof status;
-- [`config/profiles/live-development/README.md`](config/profiles/live-development/README.md) — the reviewed live-development profile;
-- [`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md) — the container image and how it runs;
-- [`docs/project/OPENAI_COMPATIBLE_INGRESS.md`](docs/project/OPENAI_COMPATIBLE_INGRESS.md) — keeping an existing OpenAI client and repointing it here.
-
-**To evaluate the architecture**
-
-- [`docs/project/ARCHITECTURE.md`](docs/project/ARCHITECTURE.md) — how authorization, selection and execution are separated;
-- [`docs/architecture/PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md) — the exact authorization wire contract;
-- [`docs/adr/`](docs/adr/) — the decisions, their alternatives and their consequences;
-- [`docs/project/SECURITY_MODEL.md`](docs/project/SECURITY_MODEL.md) and [`docs/project/PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md) — the secret and trust boundaries.
-
-**To check the evidence behind the claims**
-
-- [`docs/project/CURRENT_STATE.md`](docs/project/CURRENT_STATE.md) — the authoritative checkpoint;
-- [`docs/project/CHECKPOINT_LOG.md`](docs/project/CHECKPOINT_LOG.md) — the dated, proof-by-proof history behind it;
-- [`docs/project/GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) — the real local Grafana/Tempo trace proof;
-- [`docs/project/EVALUATION.md`](docs/project/EVALUATION.md) — how benchmark evidence is produced and promoted without ever authorizing anything;
-- [`CHANGELOG.md`](CHANGELOG.md) — what each version includes.
+- **Architecture** — [`ARCHITECTURE.md`](docs/project/ARCHITECTURE.md), the authorization wire contract in [`PDP_PEP_CONTRACT_DRAFT.md`](docs/architecture/PDP_PEP_CONTRACT_DRAFT.md), and the decisions behind both in [`docs/adr/`](docs/adr/);
+- **Security and secrets** — [`SECURITY_MODEL.md`](docs/project/SECURITY_MODEL.md) and [`PROVIDER_RUNTIME_CONFIGURATION.md`](docs/project/PROVIDER_RUNTIME_CONFIGURATION.md);
+- **Deployment** — [`CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md), [`SHARED_RUNTIME_STATE.md`](docs/project/SHARED_RUNTIME_STATE.md) and [`SPEND_ACCOUNTING.md`](docs/project/SPEND_ACCOUNTING.md);
+- **Evidence** — [`GRAFANA_TRACE_DASHBOARD.md`](docs/project/GRAFANA_TRACE_DASHBOARD.md) and [`EVALUATION.md`](docs/project/EVALUATION.md);
+- **Release history** — [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 
