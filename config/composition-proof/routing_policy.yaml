@@ -1,0 +1,49 @@
+# Routing policy mounted into the Policy Model Router for the PDP/PEP composition proof.
+#
+# The Router ships its own example policy, and this proof deliberately does not use it: the
+# Gateway's request contract requires a *dotted* workload identifier ("credit.cashflow-analysis"),
+# while the Router's example policy names workloads with underscores. Both are valid on their own
+# side - the Router accepts any policy identifier - so a composed deployment has to settle on the
+# dotted form, and that is the kind of thing only running the two together makes visible.
+#
+# Two groups, not one, so a successful decision is visibly a selection: `fast-small` is authorized
+# only up to medium risk, so the proof's high-risk request eliminates it and it comes back in
+# `rejected_candidates` with the reason. It is mapped to a workload of its own because the Router
+# rejects a policy containing a group no workload can reach - a group provisioned deliberately
+# ahead of its workload has to say so with `staged: true`, and this one is not that.
+schema_version: "1.0"
+policy_id: "composition-proof-routing"
+policy_version: "1.0.0"
+
+model_groups:
+  reasoning-medium:
+    authorized_data_classifications: [public, internal, confidential]
+    authorized_risk_levels: [low, medium, high]
+    supports_structured_output: false
+    supports_tool_calling: true
+    max_context_tokens: 64000
+    typical_latency_ms: 15000
+    input_cost_usd_per_million_tokens: "0.50"
+    output_cost_usd_per_million_tokens: "1.50"
+    available: true
+    allowed_agents: []
+
+  fast-small:
+    authorized_data_classifications: [public, internal]
+    authorized_risk_levels: [low, medium]
+    supports_structured_output: false
+    supports_tool_calling: true
+    max_context_tokens: 16000
+    typical_latency_ms: 3000
+    input_cost_usd_per_million_tokens: "0.10"
+    output_cost_usd_per_million_tokens: "0.40"
+    available: true
+    allowed_agents: []
+
+workloads:
+  credit.cashflow-analysis:
+    model_group: reasoning-medium
+    requires_tool_calling: false
+  credit.document-extraction:
+    model_group: fast-small
+    requires_tool_calling: false

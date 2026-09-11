@@ -69,9 +69,11 @@ Two things remain deliberately out of scope and are not regressions:
 - the PDP consumes `authorization_id` single use, so the replay boundary now spans two services.
   An envelope already spent elsewhere must not be forwarded; nothing here spends one twice, but
   nothing here can see another consumer's spend either;
-- a live cross-repository test against a Policy Model Router with enforcement on. Credential-free CI
-  cannot run one, so the wire shape is pinned by contract tests on this side and by the Router's own
-  `AuthorizedModelRouteRequest` contract on the other.
+- a live cross-repository test *in CI*. Default CI has no second repository checked out and no
+  Docker-in-Docker. The composed path is exercised by hand instead, through
+  `compose.pdp-composition.yml` and `scripts/composition_proof.py` - see
+  `PDP_COMPOSITION_PROOF.md`, which also records the three composition facts that run surfaced and
+  no single-repository test could have.
 
 ## Completed gateway foundations after Phase 13
 

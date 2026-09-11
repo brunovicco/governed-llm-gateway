@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **The two services in the authority chain now run against each other**: `compose.pdp-composition.yml`
+  stands up a real Policy Model Router with `RUNTIME_AUTHORIZATION_REQUIRED=true` and Redis behind it,
+  and `scripts/composition_proof.py` drives the Gateway's own PDP adapter against it through four
+  scenarios -- a forwarded envelope is authorized, the same request without one is refused, an envelope
+  signed by a key the Gateway trusts and the Router does not is refused, and replaying the accepted
+  envelope is refused. This is the only place the two hand-written mirrors of the Verifiable AI
+  Governance contract meet: neither repository may import the other, the canonical signing bytes must
+  stay byte-identical, and no CI on either side would catch a one-field drift. The run surfaced three
+  facts no single-repository test could produce -- the request identity has to come from the signed
+  claims, workload identifiers have to be dotted for both contracts to accept them, and every model
+  group in a routing policy has to be reachable from a workload. `docs/project/PDP_COMPOSITION_PROOF.md`
+  records what it proves, what it deliberately does not, and why the test-only issuer fixture is not a
+  Governance implementation.
 - **The gateway forwards runtime authorization to the Policy Decision Point**: `PolicyRequestMetadata`
   gained an optional `ForwardableGovernanceAuthorization` — the verified facts plus the signed
   envelope exactly as received — and the PDP adapter posts the Policy Model Router's wrapped

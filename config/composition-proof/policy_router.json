@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "config_version": "composition-proof-20260911",
+  "enabled": true,
+  "endpoint": "http://127.0.0.1:8001/route",
+  "timeout_seconds": 5.0,
+  "bindings": [
+    {
+      "client_id": "composition-proof-client",
+      "credential_reference": "POLICY_ROUTER_COMPOSITION_API_KEY"
+    }
+  ]
+}

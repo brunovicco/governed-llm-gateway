@@ -175,8 +175,7 @@ Remains after the preceding integration cases.
 - benchmark-side provider/model forcing;
 - credential-bearing live-provider benchmark execution in default CI;
 - payload/prompt/completion capture as default telemetry/evidence;
-- a live cross-repository test against a Policy Model Router running with
-  `RUNTIME_AUTHORIZATION_REQUIRED=true`. Forwarding the signed runtime-authorization envelope is
-  implemented and covered by contract tests on this side; exercising it against a real enforcing
-  Router needs credentials that default CI does not have. See `ROADMAP.md`, "Runtime authorization
-  is forwarded to the PDP".
+- running the cross-repository composition proof *in CI*. Default CI has no second repository
+  checked out and no Docker-in-Docker, so `compose.pdp-composition.yml` and
+  `scripts/composition_proof.py` are run by hand against a real Policy Model Router with
+  `RUNTIME_AUTHORIZATION_REQUIRED=true`. See `PDP_COMPOSITION_PROOF.md`.
