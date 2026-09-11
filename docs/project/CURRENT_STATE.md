@@ -174,4 +174,10 @@ Remains after the preceding integration cases.
 - provider-native tool-result continuation without canonical provider state;
 - benchmark-side provider/model forcing;
 - credential-bearing live-provider benchmark execution in default CI;
-- payload/prompt/completion capture as default telemetry/evidence.
+- payload/prompt/completion capture as default telemetry/evidence;
+- forwarding the signed runtime-authorization envelope to the Policy Model Router. The PDP adapter
+  posts the flat `ModelRouteRequest`, so a Policy Model Router running with
+  `RUNTIME_AUTHORIZATION_REQUIRED=true` returns `403 runtime_authorization_required` and the
+  gateway fails closed before any provider call. The supported composition today is a
+  non-enforcing PDP plus the gateway's own Phase 13 governance enforcement. See `ROADMAP.md`,
+  "Open gap - the gateway does not forward runtime authorization to the PDP".
