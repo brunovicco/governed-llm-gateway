@@ -8,6 +8,7 @@ from governed_llm_gateway_contracts import ComplexityAssessment, GatewayRequest
 
 from governed_llm_gateway_core.domain.complexity_quality import ComplexityQualityPolicy
 from governed_llm_gateway_core.domain.evidence_ranking import EvidenceDrivenRankingPolicy
+from governed_llm_gateway_core.domain.governance import ForwardableGovernanceAuthorization
 from governed_llm_gateway_core.domain.model_registry import ModelRegistry
 from governed_llm_gateway_core.domain.resilience import DeploymentHealthSnapshot
 from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
@@ -77,6 +78,7 @@ class ComplexityRouteExplainService:
         max_output_tokens_estimated: int,
         defaults: PolicyProjectionDefaults,
         runtime_health: Mapping[str, DeploymentHealthSnapshot] | None = None,
+        runtime_authorization: ForwardableGovernanceAuthorization | None = None,
     ) -> ComplexityRouteExplainDecision:
         """Compose the complete post-authorization complexity routing chain."""
         policy_request = project_policy_request(
@@ -85,6 +87,7 @@ class ComplexityRouteExplainService:
             context_tokens_estimated=context_tokens_estimated,
             max_output_tokens_estimated=max_output_tokens_estimated,
             defaults=defaults,
+            runtime_authorization=runtime_authorization,
         )
         authorized = await self._policy_enforcement.authorize_candidates(
             request,
@@ -93,6 +96,7 @@ class ComplexityRouteExplainService:
             context_tokens_estimated=context_tokens_estimated,
             max_output_tokens_estimated=max_output_tokens_estimated,
             defaults=defaults,
+            runtime_authorization=runtime_authorization,
         )
         assessment = self._complexity_evaluator.assess(
             request,

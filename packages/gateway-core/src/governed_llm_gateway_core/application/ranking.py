@@ -20,6 +20,7 @@ from governed_llm_gateway_core.domain.evidence_ranking import (
     manual_override_id,
     score_provenance_mode,
 )
+from governed_llm_gateway_core.domain.governance import ForwardableGovernanceAuthorization
 from governed_llm_gateway_core.domain.model_registry import (
     ModelDeployment,
     ModelRegistry,
@@ -257,6 +258,7 @@ class RouteExplainService:
         max_output_tokens_estimated: int,
         defaults: PolicyProjectionDefaults,
         runtime_health: Mapping[str, DeploymentHealthSnapshot] | None = None,
+        runtime_authorization: ForwardableGovernanceAuthorization | None = None,
     ) -> RankingDecision:
         """Return the routing explanation and never call a provider."""
         policy_request = project_policy_request(
@@ -265,6 +267,7 @@ class RouteExplainService:
             context_tokens_estimated=context_tokens_estimated,
             max_output_tokens_estimated=max_output_tokens_estimated,
             defaults=defaults,
+            runtime_authorization=runtime_authorization,
         )
         authorized = await self._policy_enforcement.authorize_candidates(
             request,
@@ -273,6 +276,7 @@ class RouteExplainService:
             context_tokens_estimated=context_tokens_estimated,
             max_output_tokens_estimated=max_output_tokens_estimated,
             defaults=defaults,
+            runtime_authorization=runtime_authorization,
         )
         return self._ranking.rank(
             request,

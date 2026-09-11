@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from governed_llm_gateway_contracts import DataClassification, RiskLevel
 
 from governed_llm_gateway_core.domain.governance import (
+    ForwardableGovernanceAuthorization,
     GovernancePolicyProvenance,
     GovernanceRequestBinding,
     VerifiedGovernanceAuthorization,
@@ -142,6 +143,20 @@ def verify_governance_authorization_text(
     keys: StaticGovernanceKeyResolver,
 ) -> VerifiedGovernanceAuthorization:
     """Parse, verify, and project one VAIG v1 JSON authorization envelope."""
+    return verify_governance_authorization_envelope(text, keys=keys).authorization
+
+
+def verify_governance_authorization_envelope(
+    text: str,
+    *,
+    keys: StaticGovernanceKeyResolver,
+) -> ForwardableGovernanceAuthorization:
+    """Verify one VAIG v1 envelope and keep the document alongside the projected facts.
+
+    The document is retained exactly as parsed so a downstream Policy Decision Point can verify
+    the same signature over the same claims. Strict parsing already rejected duplicate keys and
+    unknown fields, so the retained object is the received envelope and nothing else.
+    """
     try:
         payload = cast(
             object,
@@ -175,10 +190,13 @@ def verify_governance_authorization_text(
             "governance authorization signature verification failed"
         ) from exc
 
-    return _project_verified_authorization(
-        protected=protected,
-        claims=claims,
-        signing_bytes=signing_bytes,
+    return ForwardableGovernanceAuthorization(
+        authorization=_project_verified_authorization(
+            protected=protected,
+            claims=claims,
+            signing_bytes=signing_bytes,
+        ),
+        document=root,
     )
 
 
@@ -280,6 +298,7 @@ def _project_verified_authorization(
         audience=audience,
         key_id=_require_identifier(protected["kid"], "protected.kid"),
         signing_digest=hashlib.sha256(signing_bytes).hexdigest(),
+        issued_at=issued_at,
         not_before=not_before,
         expires_at=expires_at,
         initiative_id=_require_uuid(subject["initiative_id"], "subject.initiative_id"),

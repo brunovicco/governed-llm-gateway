@@ -1,9 +1,11 @@
 """Verified governance authorization facts and fail-closed scope enforcement."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+from types import MappingProxyType
 from uuid import UUID
 
 from governed_llm_gateway_contracts import DataClassification, RiskLevel
@@ -76,6 +78,7 @@ class VerifiedGovernanceAuthorization:
     audience: tuple[str, ...]
     key_id: str
     signing_digest: str
+    issued_at: datetime
     not_before: datetime
     expires_at: datetime
     initiative_id: UUID
@@ -104,8 +107,12 @@ class VerifiedGovernanceAuthorization:
                 raise ValueError(f"{name} must be a normalized non-empty string")
         if not self.audience or any(not item or item.strip() != item for item in self.audience):
             raise ValueError("governance audience must contain normalized non-empty identifiers")
+        if self.issued_at.tzinfo is None or self.issued_at.utcoffset() is None:
+            raise ValueError("governance issued_at must be timezone-aware")
         if self.not_before.tzinfo is None or self.not_before.utcoffset() is None:
             raise ValueError("governance not_before must be timezone-aware")
+        if self.not_before < self.issued_at:
+            raise ValueError("governance not_before must not precede issued_at")
         if self.expires_at.tzinfo is None or self.expires_at.utcoffset() is None:
             raise ValueError("governance expires_at must be timezone-aware")
         if self.expires_at <= self.not_before:
@@ -114,6 +121,34 @@ class VerifiedGovernanceAuthorization:
             raise ValueError("governance authorization must include at least one model group")
         if any(not group or group.strip() != group for group in self.authorized_model_groups):
             raise ValueError("governance model groups must be normalized non-empty identifiers")
+
+
+@dataclass(frozen=True, slots=True)
+class ForwardableGovernanceAuthorization:
+    """A verified authorization kept together with the verbatim envelope that carried it.
+
+    A downstream Policy Decision Point verifies the Ed25519 signature itself, so it needs the
+    document as it was received rather than a projection of it. Rebuilding an envelope out of
+    ``VerifiedGovernanceAuthorization`` would produce bytes this gateway chose, which is exactly
+    what a signature exists to rule out. Nothing here re-signs, amends or extends the envelope:
+    forwarding grants no authority the caller did not already hold.
+    """
+
+    authorization: VerifiedGovernanceAuthorization
+    document: Mapping[str, object]
+
+    def __post_init__(self) -> None:
+        """Require an intact envelope that describes this exact verified authorization."""
+        if set(self.document) != {"protected", "claims", "signature"}:
+            raise ValueError(
+                "governance envelope must carry exactly protected, claims and signature"
+            )
+        claims = self.document["claims"]
+        if not isinstance(claims, Mapping):
+            raise ValueError("governance envelope claims must be an object")
+        if claims.get("authorization_id") != str(self.authorization.authorization_id):
+            raise ValueError("governance envelope does not describe the verified authorization")
+        object.__setattr__(self, "document", MappingProxyType(dict(self.document)))
 
 
 @dataclass(frozen=True, slots=True)

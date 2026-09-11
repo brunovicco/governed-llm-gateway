@@ -33,6 +33,7 @@ def _authorization() -> VerifiedGovernanceAuthorization:
         audience=("governed-llm-gateway",),
         key_id="governance-key-1",
         signing_digest="a" * 64,
+        issued_at=NOW - timedelta(seconds=30),
         not_before=NOW - timedelta(seconds=30),
         expires_at=NOW + timedelta(seconds=300),
         initiative_id=UUID("22222222-2222-4222-8222-222222222222"),
