@@ -37,6 +37,7 @@ is recorded in [`CHECKPOINT_LOG.md`](CHECKPOINT_LOG.md), which is append-only.
 | [`THREAT_MODEL.md`](THREAT_MODEL.md) | Which abuse cases are controlled, and which are deferred to a named phase |
 | [`GATEWAY_CLIENT_AUTHENTICATION.md`](GATEWAY_CLIENT_AUTHENTICATION.md) | How a consumer authenticates without ever holding a provider credential |
 | [`POLICY_ROUTER_RUNTIME.md`](POLICY_ROUTER_RUNTIME.md) | How the Gateway reaches the external policy decision point, and why that connection cannot authorize anything |
+| [`PDP_COMPOSITION_PROOF.md`](PDP_COMPOSITION_PROOF.md) | How to run the Gateway against a real enforcing Policy Model Router, and what that run proves |
 | [`OPERATIONS_ACCESS.md`](OPERATIONS_ACCESS.md) | Why permission to run a workload is not permission to see process-wide state |
 | [`OPERATIONS_ACCESS_ARTIFACT.md`](OPERATIONS_ACCESS_ARTIFACT.md) | How a deployment declares, without secrets, who may read operations state |
 | [`HTTP_CACHE_POLICY.md`](HTTP_CACHE_POLICY.md) | Why authenticated evidence responses are never storable |
