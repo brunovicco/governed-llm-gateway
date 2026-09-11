@@ -32,6 +32,43 @@ The permanent invariant remains:
 
 Governance authorization may narrow that set further but may never expand it. Ranking, health, retry/fallback, benchmark promotion, SDK transport, telemetry and runtime evidence are never independent authorization sources.
 
+### Open gap — the gateway does not forward runtime authorization to the PDP
+
+The chain above is broken at one hop whenever the Policy Model Router is configured to enforce
+signed runtime authorization, which is mandatory for its own `staging` and `production`
+environments.
+
+`PolicyRouterAdapter.authorize` posts the flat `ModelRouteRequest` body. `PolicyDecisionPort`
+accepts `PolicyRequestMetadata`, which has no slot for a signed envelope, so nothing carries one to
+the PDP. A Policy Model Router with `RUNTIME_AUTHORIZATION_REQUIRED=true` answers that body with
+`403 runtime_authorization_required`, which this gateway correctly classifies as a non-retryable
+authorization failure with zero provider calls. Both sides behave exactly as designed, and the
+composed system serves no traffic.
+
+This is not a Phase 13 regression. Phase 13 made the gateway *verify* the Verifiable AI Governance
+`SignedRuntimeAuthorization` v1 envelope for its own enforcement, and
+`GovernanceEnforcedExecutor.execute` already receives a `VerifiedGovernanceAuthorization`. The
+gateway therefore already holds the artifact the PDP wants; the gap is only that the PDP port has
+no way to pass it along.
+
+Scope when this is picked up:
+
+- widen `PolicyRequestMetadata` (or the port) to carry the already-verified envelope;
+- send the Policy Model Router's wrapped `{request, authorization}` body when one is present, and
+  the flat body when it is not, so non-enforcing PDP deployments keep working unchanged;
+- keep forwarding a pass-through: the gateway must not mint, re-sign, or amend the envelope, and a
+  PDP denial stays a denial - `Gateway allowed set ⊆ Policy Router authorized set` is unaffected,
+  because forwarding grants no authority the caller did not already hold;
+- note that the PDP consumes the authorization ID single-use. The gateway must not send an envelope
+  it has already spent elsewhere, and the replay boundary now spans two services;
+- add a cross-repository contract test against a Policy Model Router configured with enforcement
+  on, since credential-free CI would otherwise never exercise this path.
+
+Until then, the supported composition is a Policy Model Router deployment with
+`RUNTIME_AUTHORIZATION_REQUIRED=false`, and the gateway's own governance enforcement carries the
+signed boundary. Do not work around the 403 by relaxing the PDP in a deployment that is supposed to
+enforce it.
+
 ## Completed gateway foundations after Phase 13
 
 Consumer-driven, provider-neutral hardening completed before the workload benchmark expansion:
@@ -174,7 +211,9 @@ Do not start Case 4 while Case 3 is intentionally deferred unless the integratio
 
 ### Case 5 — Verifiable AI Governance — NOT STARTED
 
-Remains after the preceding consumer cases.
+Remains after the preceding consumer cases. Carries the open PDP runtime-authorization forwarding
+gap recorded under `Permanent authority sequence`: an end-to-end governed chain cannot be
+demonstrated until the gateway forwards the signed envelope to the Policy Model Router.
 
 ## Operational-readiness checkpoint
 
