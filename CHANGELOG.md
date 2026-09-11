@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- **The gateway forwards runtime authorization to the Policy Decision Point**: `PolicyRequestMetadata`
+  gained an optional `ForwardableGovernanceAuthorization` — the verified facts plus the signed
+  envelope exactly as received — and the PDP adapter posts the Policy Model Router's wrapped
+  `{request, authorization}` body when one is present. Without it the flat body goes out unchanged,
+  so a non-enforcing Router deployment sees no difference. Before this, a Router with
+  `RUNTIME_AUTHORIZATION_REQUIRED=true` (mandatory in its own staging and production) answered `403`
+  and the composed system served no traffic while both sides behaved as designed. The envelope is
+  never rebuilt from the projection — bytes this gateway chose are exactly what a signature exists to
+  rule out — and a contract test verifies the forwarded copy against the key that verified the
+  original. Forwarding grants no authority: no minting, no re-signing, and a PDP denial stays a
+  denial. Because the Router binds `requested_at`, `workflow_id` and `task_id` to the signed claims,
+  a forwarded request takes its identity from those claims rather than from this gateway's clock and
+  request id, the response correlation check reads the same identity that went on the wire, and
+  `PolicyRequestMetadata` refuses at construction — naming the field — any request the signed binding
+  does not describe, rather than spending a round trip to be told so. `VerifiedGovernanceAuthorization`
+  gained `issued_at`, which the verifier read but did not retain.
+
 ## v1.1.0 — 2026-09-10
 
 Everything in this release is additive. The public contracts of `1.0.0` still hold: `ProviderExecution`

@@ -243,12 +243,24 @@ class PolicyRouterHttpAdapter:
                 retryable=False,
             )
 
-        request_id = str(request.request_id)
+        # A forwarded envelope fixes the request identity: the Policy Model Router compares
+        # `requested_at`, `workflow_id` and `task_id` against the signed claims and answers
+        # `request_binding_mismatch` on any difference. This adapter's own clock and request id
+        # would differ by construction, so the signed values are what goes on the wire. Every
+        # other field is already required to agree by `PolicyRequestMetadata`.
+        forwarded = request.runtime_authorization
+        workflow_id, task_id = _wire_request_identity(request)
+        requested_at_text = (
+            requested_at.isoformat().replace("+00:00", "Z")
+            if forwarded is None
+            else forwarded.authorization.issued_at.isoformat().replace("+00:00", "Z")
+        )
+
         payload: dict[str, object] = {
             "schema_version": "1.0",
-            "requested_at": requested_at.isoformat().replace("+00:00", "Z"),
-            "workflow_id": request_id,
-            "task_id": request_id,
+            "requested_at": requested_at_text,
+            "workflow_id": workflow_id,
+            "task_id": task_id,
             "agent_name": request.client_id,
             "workload": request.workload,
             "risk_level": request.risk_level.value,
@@ -259,6 +271,11 @@ class PolicyRouterHttpAdapter:
             "max_latency_ms": request.max_latency_ms,
             "max_cost_usd": str(request.max_cost_usd),
         }
+        body: Mapping[str, object] = (
+            payload
+            if forwarded is None
+            else {"request": payload, "authorization": dict(forwarded.document)}
+        )
         headers = {
             "accept": "application/json",
             "content-type": "application/json",
@@ -269,7 +286,7 @@ class PolicyRouterHttpAdapter:
             response = await self._transport.post_json(
                 url=self._endpoint,
                 headers=headers,
-                payload=payload,
+                payload=body,
                 timeout_seconds=self._timeout_seconds,
             )
         except PolicyTransportFailure as exc:
@@ -322,6 +339,20 @@ def _policy_error(
     )
 
 
+def _wire_request_identity(request: PolicyRequestMetadata) -> tuple[str, str]:
+    """Return the ``(workflow_id, task_id)`` pair this adapter puts on the wire.
+
+    Both the outgoing body and the correlation checks on the answer read the identity from here,
+    so a forwarded envelope cannot send one pair and then reject the echo of another.
+    """
+    forwarded = request.runtime_authorization
+    if forwarded is None:
+        identity = str(request.request_id)
+        return identity, identity
+    signed = forwarded.authorization.request
+    return signed.workflow_id, signed.task_id
+
+
 def _parse_success(
     payload: Mapping[str, object] | None,
     request: PolicyRequestMetadata,
@@ -330,10 +361,10 @@ def _parse_success(
         raise _invalid_response("Policy Model Router success response had no JSON object")
     _require_exact_fields(payload, _SUCCESS_FIELDS, "route decision")
     _require_schema_version(payload)
-    request_id = str(request.request_id)
-    if _require_string(payload["workflow_id"], "workflow_id") != request_id:
+    workflow_id, task_id = _wire_request_identity(request)
+    if _require_string(payload["workflow_id"], "workflow_id") != workflow_id:
         raise _invalid_response("Policy Model Router workflow_id did not match the request")
-    if _require_string(payload["task_id"], "task_id") != request_id:
+    if _require_string(payload["task_id"], "task_id") != task_id:
         raise _invalid_response("Policy Model Router task_id did not match the request")
     environment = _require_string(payload["environment"], "environment")
     if environment != request.environment:
@@ -384,10 +415,10 @@ def _raise_unprocessable(
     typed = cast(dict[str, object], decision)
     _require_exact_fields(typed, _REJECTION_FIELDS, "route rejection")
     _require_schema_version(typed)
-    request_id = str(request.request_id)
-    if _require_string(typed["workflow_id"], "workflow_id") != request_id:
+    workflow_id, task_id = _wire_request_identity(request)
+    if _require_string(typed["workflow_id"], "workflow_id") != workflow_id:
         raise _invalid_response("Policy Model Router rejection workflow_id did not match request")
-    if _require_string(typed["task_id"], "task_id") != request_id:
+    if _require_string(typed["task_id"], "task_id") != task_id:
         raise _invalid_response("Policy Model Router rejection task_id did not match request")
     if _require_string(typed["workload"], "workload") != request.workload:
         raise _invalid_response("Policy Model Router rejection workload did not match request")

@@ -37,6 +37,7 @@ def _authorization(
         audience=audience,
         key_id="governance-key-1",
         signing_digest="a" * 64,
+        issued_at=not_before,
         not_before=not_before,
         expires_at=expires_at,
         initiative_id=UUID("22222222-2222-4222-8222-222222222222"),

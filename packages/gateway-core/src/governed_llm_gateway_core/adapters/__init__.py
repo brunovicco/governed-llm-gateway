@@ -19,6 +19,7 @@ from .gemini import GeminiAdapter
 from .governance_authorization import (
     GovernanceAuthorizationVerificationError,
     StaticGovernanceKeyResolver,
+    verify_governance_authorization_envelope,
     verify_governance_authorization_text,
 )
 from .model_registry_yaml import load_model_registry, load_model_registry_text
@@ -112,5 +113,6 @@ __all__ = [
     "load_ranking_policy",
     "load_ranking_policy_text",
     "validate_provider_runtime_registry",
+    "verify_governance_authorization_envelope",
     "verify_governance_authorization_text",
 ]

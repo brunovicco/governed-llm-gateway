@@ -20,6 +20,7 @@ from governed_llm_gateway_core.domain.authorization import (
     authorized_registry_candidates,
     enforce_selected_group,
 )
+from governed_llm_gateway_core.domain.governance import ForwardableGovernanceAuthorization
 from governed_llm_gateway_core.domain.model_registry import ModelDeployment, ModelRegistry
 from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
 
@@ -101,6 +102,7 @@ class PolicyRequestMetadata:
     structured_output_required: bool
     max_latency_ms: int
     max_cost_usd: Decimal
+    runtime_authorization: ForwardableGovernanceAuthorization | None = None
 
     def __post_init__(self) -> None:
         """Validate the subset required by Policy Model Router API 1.0."""
@@ -118,6 +120,49 @@ class PolicyRequestMetadata:
             raise ValueError("max_latency_ms must be positive")
         if self.max_cost_usd <= 0:
             raise ValueError("max_cost_usd must be positive")
+        if self.runtime_authorization is not None:
+            _require_signed_binding_agreement(self, self.runtime_authorization)
+
+
+def _require_signed_binding_agreement(
+    metadata: PolicyRequestMetadata,
+    forwardable: ForwardableGovernanceAuthorization,
+) -> None:
+    """Refuse to forward an envelope that does not describe this request.
+
+    The Policy Model Router re-checks every one of these against the signed claims and answers
+    ``request_binding_mismatch``. Catching the disagreement here costs one comparison and names the
+    field, where the remote answer is a single opaque denial after a network round trip. It never
+    widens anything: a request that fails this check is one the PDP would have refused.
+    """
+    signed = forwardable.authorization.request
+    checks: tuple[tuple[str, bool], ...] = (
+        ("workload", signed.workload == metadata.workload),
+        ("risk_level", forwardable.authorization.risk_level == metadata.risk_level),
+        (
+            "data_classification",
+            forwardable.authorization.data_classification == metadata.data_classification,
+        ),
+        (
+            "context_tokens_estimated",
+            signed.context_tokens_estimated == metadata.context_tokens_estimated,
+        ),
+        (
+            "max_output_tokens_estimated",
+            signed.max_output_tokens_estimated == metadata.max_output_tokens_estimated,
+        ),
+        (
+            "structured_output_required",
+            signed.structured_output_required == metadata.structured_output_required,
+        ),
+        ("max_latency_ms", signed.max_latency_ms == metadata.max_latency_ms),
+        ("max_cost_usd", metadata.max_cost_usd * Decimal(1_000_000) == signed.max_cost_usd_micros),
+    )
+    mismatched = tuple(name for name, agrees in checks if not agrees)
+    if mismatched:
+        raise ValueError(
+            "runtime authorization does not bind this policy request: " + ", ".join(mismatched)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +222,7 @@ def project_policy_request(
     context_tokens_estimated: int,
     max_output_tokens_estimated: int,
     defaults: PolicyProjectionDefaults,
+    runtime_authorization: ForwardableGovernanceAuthorization | None = None,
 ) -> PolicyRequestMetadata:
     """Project only trusted policy metadata; prompt/message content is intentionally unreachable."""
     if request.request_id.int == 0:
@@ -225,6 +271,7 @@ def project_policy_request(
         structured_output_required=request.requirements.structured_output,
         max_latency_ms=max_latency_ms,
         max_cost_usd=max_cost_usd,
+        runtime_authorization=runtime_authorization,
     )
 
 
@@ -250,6 +297,7 @@ class PolicyEnforcementService:
         context_tokens_estimated: int,
         max_output_tokens_estimated: int,
         defaults: PolicyProjectionDefaults,
+        runtime_authorization: ForwardableGovernanceAuthorization | None = None,
     ) -> AuthorizedCandidateSet:
         """Return the registry intersection with the PDP-authorized logical model group."""
         metadata = project_policy_request(
@@ -258,6 +306,7 @@ class PolicyEnforcementService:
             context_tokens_estimated=context_tokens_estimated,
             max_output_tokens_estimated=max_output_tokens_estimated,
             defaults=defaults,
+            runtime_authorization=runtime_authorization,
         )
         decision = await self._authorize(metadata)
         candidates = authorized_registry_candidates(registry, decision.authorization)
@@ -320,6 +369,7 @@ class PolicyEnforcementService:
         max_output_tokens_estimated: int,
         defaults: PolicyProjectionDefaults,
         provider_timeout_seconds: float = 30.0,
+        runtime_authorization: ForwardableGovernanceAuthorization | None = None,
     ) -> PolicyEnforcedExecution:
         """Authorize before any provider call and reject an out-of-group selected deployment."""
         authorized = await self.authorize_candidates(
@@ -329,6 +379,7 @@ class PolicyEnforcementService:
             context_tokens_estimated=context_tokens_estimated,
             max_output_tokens_estimated=max_output_tokens_estimated,
             defaults=defaults,
+            runtime_authorization=runtime_authorization,
         )
         try:
             deployment = registry.by_id(selected_deployment_id)

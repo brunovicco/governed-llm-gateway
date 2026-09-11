@@ -14,6 +14,7 @@ from .complexity import (
 )
 from .complexity_quality import ComplexityQualityPolicy, ComplexityQualityPolicyError
 from .governance import (
+    ForwardableGovernanceAuthorization,
     GovernanceAuthorizationViolation,
     GovernanceDenialReason,
     GovernancePolicyProvenance,
@@ -76,6 +77,7 @@ __all__ = [
     "DuplicateRegistryKeyError",
     "EffectivePolicyContext",
     "FallbackSafetyState",
+    "ForwardableGovernanceAuthorization",
     "GovernanceAuthorizationViolation",
     "GovernanceDenialReason",
     "GovernancePolicyProvenance",
