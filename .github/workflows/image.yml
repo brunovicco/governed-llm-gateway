@@ -54,6 +54,16 @@ jobs:
       - name: Build image
         run: docker build --tag governed-llm-gateway:ci .
 
+      - name: Require protocol adapters to be packaged in the runtime image
+        run: |
+          docker run --rm --entrypoint python governed-llm-gateway:ci -c '
+          from governed_llm_gateway_api.anthropic_messages_ingress import ANTHROPIC_MESSAGES_PATH
+          from governed_llm_gateway_api.openai_responses_ingress import OPENAI_RESPONSES_PATH
+          assert ANTHROPIC_MESSAGES_PATH == "/v1/messages"
+          assert OPENAI_RESPONSES_PATH == "/v1/responses"
+          print("provider-compatible protocol adapters are packaged")
+          '
+
       - name: Require the image to carry no deployment configuration
         run: |
           docker run --rm --entrypoint sh governed-llm-gateway:ci -c '
@@ -97,3 +107,79 @@ jobs:
           docker logs "$container"
           echo "operations-only container never became healthy" >&2
           exit 1
+
+      - name: Require the governed Compose stack and protocol routes
+        env:
+          GATEWAY_LOCAL_DEMO_API_KEY: local-demo-compose-smoke
+          GATEWAY_DEMO_API_KEY: gateway-protocol-smoke
+          POLICY_ROUTER_DEMO_API_KEY: router-protocol-smoke
+          NVIDIA_API_KEY: provider-smoke-placeholder
+          GEMINI_API_KEY: provider-smoke-placeholder
+          OPENAI_API_KEY: provider-smoke-placeholder
+          ANTHROPIC_API_KEY: provider-smoke-placeholder
+          GROQ_API_KEY: provider-smoke-placeholder
+          OPENROUTER_API_KEY: provider-smoke-placeholder
+          APPROVED_RANKING_ARTIFACT_ID: sha256:4d58f86b791267b2d38c6a95edad576ab35a5b97a8ee43a78a9d527ac8ee56ad
+        run: |
+          cleanup() {
+            docker compose -f compose.gateway.yml --profile governed down --volumes --remove-orphans
+          }
+          trap cleanup EXIT
+
+          docker compose -f compose.gateway.yml --profile governed up --detach --build policy-model-router gateway
+
+          for _ in $(seq 1 60); do
+            router_status="$(docker compose -f compose.gateway.yml --profile governed ps --format json policy-model-router | python -c 'import json,sys; rows=[json.loads(line) for line in sys.stdin if line.strip()]; print(rows[0].get("Health","") if rows else "")')"
+            gateway_status="$(docker compose -f compose.gateway.yml --profile governed ps --format json gateway | python -c 'import json,sys; rows=[json.loads(line) for line in sys.stdin if line.strip()]; print(rows[0].get("Health","") if rows else "")')"
+            if [ "$router_status" = "healthy" ] && [ "$gateway_status" = "healthy" ]; then
+              break
+            fi
+            if [ "$router_status" = "unhealthy" ] || [ "$gateway_status" = "unhealthy" ]; then
+              docker compose -f compose.gateway.yml --profile governed logs
+              echo "governed Compose service became unhealthy" >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+          curl --fail --silent --show-error http://127.0.0.1:8001/readyz >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:8000/livez >/dev/null
+
+          python - <<'PY'
+          import json
+          import urllib.error
+          import urllib.request
+
+          def post(path, payload, headers):
+              request = urllib.request.Request(
+                  "http://127.0.0.1:8000" + path,
+                  data=json.dumps(payload).encode(),
+                  headers={"Content-Type": "application/json", **headers},
+                  method="POST",
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=5) as response:
+                      return response.status
+              except urllib.error.HTTPError as exc:
+                  return exc.code
+
+          checks = (
+              (
+                  "/v1/messages",
+                  {"model": "governed-agent", "max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]},
+                  {"x-api-key": "intentionally-invalid", "anthropic-version": "2023-06-01"},
+              ),
+              (
+                  "/v1/responses",
+                  {"model": "governed-agent", "input": "ping"},
+                  {"Authorization": "Bearer intentionally-invalid"},
+              ),
+          )
+          for route, payload, headers in checks:
+              status = post(route, payload, headers)
+              if status == 404:
+                  raise SystemExit(route + " was not registered in the governed container")
+              if status < 400 or status >= 500:
+                  raise SystemExit(route + " returned unexpected smoke-test status " + str(status))
+              print(route + ": registered; invalid credential rejected with HTTP " + str(status))
+          PY
