@@ -11,6 +11,7 @@ from benchmarks.contracts import (
     BenchmarkCase,
     BenchmarkObservation,
     BenchmarkQualityMetric,
+    BenchmarkSnapshot,
     BenchmarkTarget,
     BenchmarkWorkload,
     ObservationStatus,
@@ -42,7 +43,7 @@ class ReviewedSnapshotLoadingTests(unittest.TestCase):
                 load_snapshot(path)
 
 
-def _snapshot():
+def _snapshot() -> BenchmarkSnapshot:
     case = BenchmarkCase(
         case_id="reviewed-snapshot.001",
         workload=BenchmarkWorkload.MULTI_STEP_TOOL_USE,
