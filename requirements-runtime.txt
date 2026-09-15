@@ -3,7 +3,8 @@ a2a-otel-kit==0.6.0
 cryptography==50.0.0
 FastAPI==0.141.1
 httpx==0.28.1
-jsonschema==4.26.0
+jsonschema[format-nongpl]==4.26.0
 Pydantic==2.13.5
+regex==2026.9.10
 PyYAML==6.0.3
 uvicorn==0.52.4

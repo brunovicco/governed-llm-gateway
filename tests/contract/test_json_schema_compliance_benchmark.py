@@ -145,7 +145,12 @@ def test_json_schema_compliance_contract_rejects_invalid_reference_example() -> 
 
 def test_json_schema_compliance_contract_reuses_phase7_schema_boundary() -> None:
     case = load_dataset(_DATASET_PATH).cases[0]
-    drifted_schema: dict[str, JsonValue] = {"type": "string", "pattern": "^unsafe-drift$"}
+    drifted_schema: dict[str, JsonValue] = {
+        "type": "object",
+        "patternProperties": {
+            "^unsafe-drift$": {"type": "string"},
+        },
+    }
     drifted = replace(case, metadata={**case.metadata, "output_schema": drifted_schema})
 
     with pytest.raises(ValueError, match="reviewed Phase 7 subset"):
