@@ -142,7 +142,7 @@ class AnthropicMessageModel(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    role: Literal["user", "assistant"]
+    role: Literal["user", "assistant", "system"]
     content: str | tuple[AnthropicContentBlockModel, ...]
 
     def to_contract(self) -> Message:
