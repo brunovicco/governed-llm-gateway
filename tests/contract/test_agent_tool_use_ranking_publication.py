@@ -3,6 +3,7 @@
 import unittest
 from pathlib import Path
 
+from governed_llm_gateway_contracts import Capability
 from governed_llm_gateway_core.adapters import load_model_registry
 
 from benchmarks.contracts import BenchmarkWorkload
@@ -44,7 +45,7 @@ class AgentToolUseRankingPublicationTests(unittest.TestCase):
             self.assertEqual(deployment.provider, target.provider)
             self.assertEqual(deployment.model_id, target.model)
             self.assertEqual(deployment.api_family, target.api_family)
-            self.assertTrue(deployment.capabilities.tool_calling)
+            self.assertIn(Capability.TOOL_CALLING, deployment.capabilities)
 
     def test_target_prefix_and_artifact_filename_fail_closed(self) -> None:
         with self.assertRaises(ValueError):
