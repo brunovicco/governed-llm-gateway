@@ -155,8 +155,10 @@ Screenshots reais desta demo: a visão conectada é o baseline fail-closed genu�
 inferência capaz de produzir um trace.
 
 Claude Code e Codex podem usar o mesmo coordenador governado pelos adapters
-`POST /v1/messages` e `POST /v1/responses`. O provider/modelo concreto continua vindo apenas do
-conjunto autorizado pelo PDP externo e da elegibilidade/ranking do Gateway. Consulte o
+`POST /v1/messages` e `POST /v1/responses`. O valor de `model` é apenas um alias de compatibilidade:
+ele nunca seleciona nem autoriza um modelo concreto. O provider/modelo efetivo continua vindo apenas
+do contexto autenticado do cliente, do conjunto autorizado pelo PDP externo e da elegibilidade/ranking
+do Gateway. Consulte o
 [guia de protocolos e multimodalidade](docs/project/PROTOCOL_MULTIMODAL_GATEWAY.md) para o escopo,
 as fronteiras de segurança e a configuração exata dos clientes.
 
