@@ -340,6 +340,93 @@ class AnthropicIngressTests(unittest.TestCase):
         )
         self.assertEqual(response.json()["stop_reason"], "tool_use")
 
+    def test_tool_strictness_preserves_anthropic_client_semantics(self) -> None:
+        coordinator = RecordingCoordinator()
+
+        response = _client("anthropic", coordinator).post(
+            "/v1/messages",
+            headers={
+                "x-api-key": CREDENTIAL,
+                "anthropic-version": "2023-06-01",
+            },
+            json={
+                "model": "governed-agent",
+                "max_tokens": 50,
+                "tools": [
+                    {
+                        "name": "Artifact",
+                        "description": "Work with one artifact.",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "field": {
+                                    "type": "string",
+                                    "pattern": r'^(?!__.*__$)[^"\\./[\]]{1,200}$',
+                                }
+                            },
+                            "required": ["field"],
+                            "additionalProperties": False,
+                        },
+                    }
+                ],
+                "messages": [{"role": "user", "content": "hello"}],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        request = coordinator.payloads[0].to_gateway_request()
+        self.assertEqual(len(request.tools), 1)
+        self.assertEqual(request.tools[0].name, "Artifact")
+        self.assertFalse(request.tools[0].strict)
+
+        properties = cast(
+            dict[str, object],
+            request.tools[0].input_schema["properties"],
+        )
+        field_schema = cast(dict[str, object], properties["field"])
+
+        self.assertEqual(
+            field_schema["pattern"],
+            r'^(?!__.*__$)[^"\\./[\]]{1,200}$',
+        )
+
+    def test_explicit_anthropic_strict_tool_is_preserved(self) -> None:
+        coordinator = RecordingCoordinator()
+
+        response = _client("anthropic", coordinator).post(
+            "/v1/messages",
+            headers={
+                "x-api-key": CREDENTIAL,
+                "anthropic-version": "2023-06-01",
+            },
+            json={
+                "model": "governed-agent",
+                "max_tokens": 50,
+                "tools": [
+                    {
+                        "name": "lookup",
+                        "description": "Look up one record.",
+                        "strict": True,
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                            },
+                            "required": ["id"],
+                            "additionalProperties": False,
+                        },
+                    }
+                ],
+                "messages": [{"role": "user", "content": "hello"}],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        request = coordinator.payloads[0].to_gateway_request()
+        self.assertEqual(len(request.tools), 1)
+        self.assertEqual(request.tools[0].name, "lookup")
+        self.assertTrue(request.tools[0].strict)
+
     def test_stream_uses_messages_event_sequence_without_done_sentinel(self) -> None:
         response = _client("anthropic", RecordingCoordinator()).post(
             "/v1/messages",
@@ -381,6 +468,77 @@ class AnthropicIngressTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["error"]["type"], "invalid_request_error")
         self.assertFalse(coordinator.payloads)
+
+    def test_tool_use_cache_control_is_accepted_as_non_semantic_metadata(self) -> None:
+        coordinator = RecordingCoordinator(_events(tool=True))
+
+        response = _client("anthropic", coordinator).post(
+            "/v1/messages",
+            headers={
+                "x-api-key": CREDENTIAL,
+                "anthropic-version": "2023-06-01",
+            },
+            json={
+                "model": "governed-agent",
+                "max_tokens": 50,
+                "tools": [
+                    {
+                        "name": "lookup",
+                        "description": "Look up one record.",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                            },
+                            "required": ["id"],
+                            "additionalProperties": False,
+                        },
+                    }
+                ],
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "call-1",
+                                "name": "lookup",
+                                "input": {"id": "42"},
+                                "cache_control": {
+                                    "type": "ephemeral",
+                                },
+                            }
+                        ],
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "call-1",
+                                "content": "found",
+                                "cache_control": {
+                                    "type": "ephemeral",
+                                },
+                            }
+                        ],
+                    },
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        request = coordinator.payloads[0].to_gateway_request()
+
+        self.assertTrue(request.requirements.tool_calling)
+        self.assertTrue(
+            any(
+                isinstance(block, ToolResultBlock)
+                for message in request.messages
+                for block in message.canonical_blocks
+            )
+        )
 
 
 class OpenAIResponsesIngressTests(unittest.TestCase):
