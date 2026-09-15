@@ -38,10 +38,12 @@ Caller-supplied schemas are untrusted input. Before network execution the gatewa
 - limits recursive schema depth;
 - rejects remote `$ref` and `$dynamicRef` resolution;
 - permits local fragment references only;
-- rejects `pattern` and `patternProperties` in Phase 7 rather than evaluating caller-controlled regular
-  expressions;
-- rejects `format` in Phase 7 rather than accepting a constraint that the default validator would not
-  enforce.
+- permits `pattern` only through bounded local evaluation: patterns are limited to 512 characters,
+  compiled by the Unicode-capable `regex` engine, and evaluated with a 10 ms timeout;
+- fails closed when a pattern is invalid, unsupported, or exceeds the evaluation timeout;
+- continues to reject `patternProperties`;
+- permits only explicitly allowlisted `format` values with local enforcement; `uri` is currently
+  supported and all other format values remain rejected.
 
 The gateway never performs network retrieval while validating a schema. Phase 7 therefore implements
 a documented safe subset of Draft 2020-12 rather than claiming unrestricted schema compatibility.
@@ -103,6 +105,21 @@ or reasoning state.
 This is especially important for APIs that require exact provider-generated blocks, signatures, or
 correlation state on subsequent turns. Such state must not be reconstructed from guesses.
 
+### 8. Anthropic protocol compatibility does not elevate client authority
+
+At the Anthropic Messages boundary, tool strictness is preserved as declared by the caller. An omitted
+`strict` field remains non-strict, while explicit `strict: true` or `strict: false` is preserved in the
+canonical tool definition. The gateway must not strengthen an omitted client constraint merely because
+the provider-neutral contract has a different default.
+
+Provider prompt-cache metadata such as `cache_control` may be accepted on supported Anthropic content
+blocks for protocol compatibility, but it is non-semantic metadata and does not grant routing,
+authorization, tool-execution, or governance authority.
+
+Regardless of provider-native strict mode, normalized tool calls are still validated locally against
+the original canonical tool schema before they are returned to the caller. Provider constrained
+decoding therefore does not replace the gateway's fail-closed validation boundary.
+
 ## Consequences
 
 - Applications receive one stable tool-call representation across provider API families.
@@ -110,7 +127,8 @@ correlation state on subsequent turns. Such state must not be reconstructed from
 - The Phase 7 schema contract is intentionally narrower than unrestricted Draft 2020-12.
 - The gateway remains a model PEP/executor, not a business action executor.
 - OpenAI-compatible endpoints cannot silently gain structured-output/tool capabilities.
-- Schema validation introduces `jsonschema` as a runtime dependency in `gateway-core` only.
+- Schema validation uses `jsonschema[format-nongpl]` plus the bounded `regex` engine as runtime
+  dependencies in `gateway-core`.
 - Provider-native tool-result continuation may require a later explicit canonical transcript/state
   contract before it can be enabled safely.
 - Streaming tool-call deltas and partial structured output remain Phase 8.
@@ -130,8 +148,8 @@ Rejected because provider responses remain external/untrusted input at the gatew
 
 Rejected because caller-controlled regular expressions can create disproportionate validation cost,
 and accepting `format` without an explicit checker would overstate what the local validator enforces.
-A later phase may widen the supported schema subset only with explicit safety, compatibility, and test
-evidence.
+The supported subset may be widened only when the gateway provides explicit bounds, local enforcement,
+fail-closed behavior, compatibility evidence, and regression tests.
 
 ### Execute business tools inside the gateway
 
