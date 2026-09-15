@@ -23,6 +23,8 @@ class ClaudeCodeConformanceTests(unittest.TestCase):
         parsed = AnthropicMessagesRequestModel.model_validate(normalized)
 
         self.assertEqual(parsed.model, "governed-agent")
+        self.assertIsNotNone(parsed.metadata)
+        assert parsed.metadata is not None
         self.assertEqual(parsed.metadata.user_id, "claude-code-session")
 
     def test_structured_title_request_accepts_effort_without_routing_authority(self) -> None:
@@ -49,7 +51,10 @@ class ClaudeCodeConformanceTests(unittest.TestCase):
         }
 
         normalized = normalize_claude_code_payload(payload)
-        self.assertNotIn("effort", normalized["output_config"])
+        normalized_output_config = normalized["output_config"]
+        self.assertIsInstance(normalized_output_config, dict)
+        assert isinstance(normalized_output_config, dict)
+        self.assertNotIn("effort", normalized_output_config)
         parsed = AnthropicMessagesRequestModel.model_validate(normalized)
         generated = parsed.to_generation_payload(workload="agent.tool-use")
 
