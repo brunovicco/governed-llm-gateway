@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -31,6 +31,7 @@ from governed_llm_gateway_contracts import (
     WorkloadRequirements,
 )
 from governed_llm_gateway_core.application.provider import (
+    PreparedProviderStream,
     ProviderContentDelta,
     ProviderFeatureSupport,
     ProviderRequest,
@@ -69,7 +70,13 @@ class EvidenceStreamingProvider:
         del request
         raise AssertionError("terminal evidence test requires streaming execution")
 
-    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+    def prepare_stream(self, request: ProviderRequest) -> PreparedProviderStream:
+        return PreparedProviderStream(
+            request=request,
+            _factory=lambda: self.stream(request),
+        )
+
+    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
         """Emit one successful provider lifecycle with explicit provider-normalized cost."""
         del request
         yield ProviderResponseStarted(response_id="provider-response")
@@ -191,14 +198,12 @@ def test_runtime_terminal_execution_preserves_measured_identity_usage_latency_an
     )
 
     async def collect() -> list[GatewayStreamEvent]:
-        return [
-            event
-            async for event in service.stream(
-                _request(),
-                _decision(deployment),
-                max_output_tokens=64,
-            )
-        ]
+        plan = service.prepare(
+            _request(),
+            _decision(deployment),
+            max_output_tokens=64,
+        )
+        return [event async for event in service.stream(plan)]
 
     events = asyncio.run(collect())
     usage_event = next(

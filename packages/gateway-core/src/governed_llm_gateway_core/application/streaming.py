@@ -5,7 +5,7 @@ import hashlib
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import aclosing, nullcontext
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from uuid import UUID
 
 from governed_llm_gateway_contracts import (
@@ -33,6 +33,7 @@ from .operational_recording import (
     utc_now,
 )
 from .provider import (
+    PreparedProviderStream,
     ProviderContentDelta,
     ProviderError,
     ProviderErrorCode,
@@ -56,6 +57,36 @@ from .telemetry import (
 
 Clock = Callable[[], float]
 Sleeper = Callable[[float], Awaitable[None]]
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedStreamingCandidate:
+    """One fully resolved candidate in the authorized execution sequence."""
+
+    candidate: RankedCandidate
+    provider_request: ProviderRequest
+    provider_stream: PreparedProviderStream
+
+
+@dataclass(frozen=True, slots=True)
+class StreamingExecutionPlan:
+    """Immutable deterministic state prepared before streaming begins."""
+
+    request: GatewayRequest
+    decision: RankingDecision
+    candidates: tuple[PreparedStreamingCandidate, ...]
+    replay_safe: bool
+    max_output_tokens: int
+    provider_timeout_seconds: float
+
+
+class StreamingPreflightError(RuntimeError):
+    """Sanitized deterministic failure discovered before streaming begins."""
+
+    def __init__(self, *, code: str, message: str) -> None:
+        """Create a stable, sanitized preflight failure."""
+        super().__init__(message)
+        self.code = code
 
 
 class StreamingExecutionService:
@@ -86,6 +117,97 @@ class StreamingExecutionService:
         self._utc_clock = utc_clock
         self._cache = cache
         self._cache_ttl_seconds = cache_ttl_seconds
+
+    def prepare(
+        self,
+        request: GatewayRequest,
+        decision: RankingDecision,
+        *,
+        max_output_tokens: int,
+        provider_timeout_seconds: float = 30.0,
+    ) -> StreamingExecutionPlan:
+        """Resolve and validate the execution sequence before HTTP commit."""
+        if not request.requirements.streaming:
+            raise ValueError("streaming execution requires WorkloadRequirements.streaming")
+        if max_output_tokens <= 0:
+            raise ValueError("max_output_tokens must be positive")
+        if provider_timeout_seconds <= 0:
+            raise ValueError("provider_timeout_seconds must be positive")
+        if decision.selected is None:
+            raise StreamingPreflightError(
+                code="no_eligible_streaming_deployment",
+                message=("no eligible authorized streaming deployment is available"),
+            )
+
+        candidates = (decision.selected, *decision.alternatives)
+        replay_safe = not any(
+            message.role.value == "tool"
+            or any(isinstance(block, ToolResultBlock) for block in message.canonical_blocks)
+            for message in request.messages
+        )
+        bounded = (
+            candidates[: self._retry_policy.max_fallbacks + 1] if replay_safe else candidates[:1]
+        )
+
+        prepared: list[PreparedStreamingCandidate] = []
+        for candidate in bounded:
+            _validate_streaming_candidate(candidate, decision)
+
+            try:
+                resolved = self._resolver.resolve(candidate.deployment)
+            except ProviderResolutionError as exc:
+                raise StreamingPreflightError(
+                    code="provider_adapter_unavailable",
+                    message=("selected deployment has no configured provider adapter"),
+                ) from exc
+
+            if not isinstance(resolved, ProviderStreamingPort):
+                raise StreamingPreflightError(
+                    code="streaming_not_supported",
+                    message=("selected provider adapter does not implement streaming"),
+                )
+            if not resolved.feature_support.native_streaming:
+                raise StreamingPreflightError(
+                    code="streaming_not_supported",
+                    message=("selected provider API family has no verified streaming support"),
+                )
+            if not resolved.feature_support.streaming_usage:
+                raise StreamingPreflightError(
+                    code="streaming_usage_unavailable",
+                    message=("selected provider cannot finalize normalized streaming usage"),
+                )
+
+            provider_request = _provider_request(
+                request,
+                model=candidate.deployment.model_id,
+                max_output_tokens=max_output_tokens,
+                timeout_seconds=provider_timeout_seconds,
+            )
+            try:
+                provider_stream = resolved.prepare_stream(provider_request)
+            except ProviderError as exc:
+                if exc.code is ProviderErrorCode.INVALID_REQUEST:
+                    raise StreamingPreflightError(
+                        code="invalid_provider_request",
+                        message="selected provider rejected the prepared request",
+                    ) from exc
+                raise
+            prepared.append(
+                PreparedStreamingCandidate(
+                    candidate=candidate,
+                    provider_request=provider_request,
+                    provider_stream=provider_stream,
+                )
+            )
+
+        return StreamingExecutionPlan(
+            request=request,
+            decision=decision,
+            candidates=tuple(prepared),
+            replay_safe=replay_safe,
+            max_output_tokens=max_output_tokens,
+            provider_timeout_seconds=provider_timeout_seconds,
+        )
 
     async def _store_best_effort(
         self,
@@ -129,36 +251,19 @@ class StreamingExecutionService:
 
     async def stream(
         self,
-        request: GatewayRequest,
-        decision: RankingDecision,
+        plan: StreamingExecutionPlan,
         *,
-        max_output_tokens: int,
-        provider_timeout_seconds: float = 30.0,
         cache_identity: ResponseCacheIdentity | None = None,
     ) -> AsyncGenerator[GatewayStreamEvent]:
-        """Yield a deterministic gateway stream and stop replay once semantic output is visible.
+        """Execute a prepared plan and stop replay once semantic output is visible.
 
         ``cache_identity`` is supplied only by a caller that already holds the effective
         authorization context and has checked the cache policy against it. Absent one,
         nothing is read or written — the cacheable decision is never inferred here.
         """
-        if not request.requirements.streaming:
-            raise ValueError("streaming execution requires WorkloadRequirements.streaming")
-        if max_output_tokens <= 0:
-            raise ValueError("max_output_tokens must be positive")
-        if provider_timeout_seconds <= 0:
-            raise ValueError("provider_timeout_seconds must be positive")
-        if decision.selected is None:
-            yield _failed_event(
-                request=request,
-                sequence_number=1,
-                routing=decision.routing,
-                code="no_eligible_streaming_deployment",
-                message="no eligible authorized streaming deployment is available",
-                retryable=False,
-                partial=False,
-            )
-            return
+        request = plan.request
+        decision = plan.decision
+        selected = plan.candidates[0].candidate
 
         if self._cache is not None and cache_identity is not None:
             hit = await self._cache.get(cache_identity)
@@ -168,22 +273,10 @@ class StreamingExecutionService:
             # identity already binds the registry and ranking digests, so a divergence here
             # means runtime health moved the selection — in which case the honest answer is
             # to execute rather than replay a decision that no longer holds.
-            if hit is not None and hit.deployment == decision.selected.deployment.deployment_id:
+            if hit is not None and hit.deployment == selected.deployment.deployment_id:
                 for cached_event in _cached_events(request, decision, hit):
                     yield cached_event
                 return
-
-        candidates = (decision.selected, *decision.alternatives)
-        replay_safe = not any(
-            message.role.value == "tool"
-            or any(isinstance(block, ToolResultBlock) for block in message.canonical_blocks)
-            for message in request.messages
-        )
-        bounded = (
-            candidates[: self._retry_policy.max_fallbacks + 1] if replay_safe else candidates[:1]
-        )
-        for candidate in bounded:
-            _validate_streaming_candidate(candidate, decision)
 
         # Only a request that may be stored accumulates its own output.
         cached_content: list[str] | None = (
@@ -194,7 +287,9 @@ class StreamingExecutionService:
         last_execution: ProviderExecution | None = None
         last_routing = decision.routing
 
-        for candidate_index, candidate in enumerate(bounded):
+        for candidate_index, prepared_candidate in enumerate(plan.candidates):
+            candidate = prepared_candidate.candidate
+            provider_request = prepared_candidate.provider_request
             deployment = candidate.deployment
             deployment_id = deployment.deployment_id
             if not await self._health.allow_request(deployment_id):
@@ -203,64 +298,13 @@ class StreamingExecutionService:
             routing = _routing_for_candidate(decision, candidate, fallback_sequence)
             last_routing = routing
 
-            try:
-                resolved = self._resolver.resolve(deployment)
-            except ProviderResolutionError:
-                yield _failed_event(
-                    request=request,
-                    sequence_number=1,
-                    routing=routing,
-                    code="provider_adapter_unavailable",
-                    message="selected deployment has no configured provider adapter",
-                    retryable=False,
-                    partial=False,
-                )
-                return
-            if not isinstance(resolved, ProviderStreamingPort):
-                yield _failed_event(
-                    request=request,
-                    sequence_number=1,
-                    routing=routing,
-                    code="streaming_not_supported",
-                    message="selected provider adapter does not implement streaming",
-                    retryable=False,
-                    partial=False,
-                )
-                return
-            if not resolved.feature_support.native_streaming:
-                yield _failed_event(
-                    request=request,
-                    sequence_number=1,
-                    routing=routing,
-                    code="streaming_not_supported",
-                    message="selected provider API family has no verified streaming support",
-                    retryable=False,
-                    partial=False,
-                )
-                return
-            if not resolved.feature_support.streaming_usage:
-                yield _failed_event(
-                    request=request,
-                    sequence_number=1,
-                    routing=routing,
-                    code="streaming_usage_unavailable",
-                    message="selected provider cannot finalize normalized streaming usage",
-                    retryable=False,
-                    partial=False,
-                )
-                return
-
-            attempt_limit = self._retry_policy.max_attempts_per_deployment if replay_safe else 1
+            attempt_limit = (
+                self._retry_policy.max_attempts_per_deployment if plan.replay_safe else 1
+            )
             for attempt_number in range(1, attempt_limit + 1):
                 if not await self._health.allow_request(deployment_id):
                     break
 
-                provider_request = _provider_request(
-                    request,
-                    model=deployment.model_id,
-                    max_output_tokens=max_output_tokens,
-                    timeout_seconds=provider_timeout_seconds,
-                )
                 provider_started = False
                 provider_response_id: str | None = None
                 public_started = False
@@ -311,8 +355,8 @@ class StreamingExecutionService:
                         )
                     try:
                         provider_attempt_started = True
-                        provider_stream = resolved.stream(provider_request)
-                        async with aclosing(provider_stream) as events:
+                        runtime_stream = prepared_candidate.provider_stream.stream()
+                        async with aclosing(runtime_stream) as events:
                             async for event in events:
                                 if isinstance(event, ProviderResponseStarted):
                                     if provider_started:
@@ -549,7 +593,7 @@ class StreamingExecutionService:
 
                         transient = is_transient_provider_error(exc)
                         can_retry = (
-                            replay_safe
+                            plan.replay_safe
                             and transient
                             and attempt_number < attempt_limit
                             and await self._health.allow_request(deployment_id)
@@ -573,7 +617,7 @@ class StreamingExecutionService:
                                 )
                             retry_delay_after_span = delay
                         elif transient:
-                            if span is not None and candidate_index + 1 < len(bounded):
+                            if span is not None and candidate_index + 1 < len(plan.candidates):
                                 span.add_event(
                                     GatewaySpanEventName.FALLBACK.value,
                                     {
@@ -606,7 +650,7 @@ class StreamingExecutionService:
                     await self._sleeper(retry_delay_after_span)
                     continue
 
-        retryable = last_error.retryable if last_error is not None and replay_safe else False
+        retryable = last_error.retryable if last_error is not None and plan.replay_safe else False
         code = last_error.code.value if last_error is not None else "streaming_candidates_exhausted"
         yield _failed_event(
             request=request,

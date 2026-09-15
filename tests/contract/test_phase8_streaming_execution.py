@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -23,6 +23,7 @@ from governed_llm_gateway_contracts import (
     WorkloadRequirements,
 )
 from governed_llm_gateway_core.application.provider import (
+    PreparedProviderStream,
     ProviderContentDelta,
     ProviderError,
     ProviderErrorCode,
@@ -67,7 +68,13 @@ class SequenceStreamingProvider:
         del request
         raise AssertionError("streaming tests must not call generate")
 
-    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+    def prepare_stream(self, request: ProviderRequest) -> PreparedProviderStream:
+        return PreparedProviderStream(
+            request=request,
+            _factory=lambda: self.stream(request),
+        )
+
+    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
         self.calls.append(request)
         attempt = self.attempts.pop(0)
         try:
@@ -183,14 +190,8 @@ def _rate_limit() -> ProviderError:
 async def _collect(
     service: StreamingExecutionService, decision: RankingDecision
 ) -> list[GatewayStreamEvent]:
-    return [
-        event
-        async for event in service.stream(
-            _request(),
-            decision,
-            max_output_tokens=64,
-        )
-    ]
+    plan = service.prepare(_request(), decision, max_output_tokens=64)
+    return [event async for event in service.stream(plan)]
 
 
 def test_successful_stream_has_one_deterministic_terminal_lifecycle() -> None:
@@ -344,14 +345,8 @@ async def _collect_request(
     request: GatewayRequest,
     decision: RankingDecision,
 ) -> list[GatewayStreamEvent]:
-    return [
-        event
-        async for event in service.stream(
-            request,
-            decision,
-            max_output_tokens=64,
-        )
-    ]
+    plan = service.prepare(request, decision, max_output_tokens=64)
+    return [event async for event in service.stream(plan)]
 
 
 def test_client_close_closes_provider_stream_without_recording_provider_failure() -> None:
@@ -364,7 +359,12 @@ def test_client_close_closes_provider_stream_without_recording_provider_failure(
     )
 
     async def scenario() -> None:
-        stream = service.stream(_request(), _decision(deployment), max_output_tokens=64)
+        plan = service.prepare(
+            _request(),
+            _decision(deployment),
+            max_output_tokens=64,
+        )
+        stream = service.stream(plan)
         first = await anext(stream)
         assert first.event_type is StreamEventType.RESPONSE_STARTED
         await stream.aclose()

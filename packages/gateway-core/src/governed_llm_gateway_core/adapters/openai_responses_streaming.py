@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from governed_llm_gateway_contracts import MessageRole, ToolCall
 
 from governed_llm_gateway_core.application.provider import (
+    PreparedProviderStream,
     ProviderContentDelta,
     ProviderError,
     ProviderErrorCode,
@@ -28,7 +29,12 @@ from governed_llm_gateway_core.domain.structured import (
 )
 
 from .http_json import JsonTransport, TransportFailure
-from .http_sse import HttpxSseTransport, SseTransport
+from .http_sse import (
+    HttpxSseTransport,
+    PreparedSseRequest,
+    SseTransport,
+    prepare_sse_request,
+)
 from .openai_responses import (
     OpenAIResponsesAdapter,
     _openai_input_messages,
@@ -75,8 +81,8 @@ class OpenAIResponsesStreamingAdapter(OpenAIResponsesAdapter):
         super().__init__(api_key=api_key, endpoint=endpoint, transport=transport)
         self._sse_transport = sse_transport or HttpxSseTransport()
 
-    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
-        """Yield provider-neutral Responses events and close the upstream stream on cancellation."""
+    def prepare_stream(self, request: ProviderRequest) -> PreparedProviderStream:
+        """Build validated Responses payload state without opening a connection."""
         require_supported_request_features("openai", request, self.feature_support)
         instructions = "\n\n".join(
             message.text_content
@@ -131,17 +137,37 @@ class OpenAIResponsesStreamingAdapter(OpenAIResponsesAdapter):
             if request.parallel_tool_calling:
                 payload["parallel_tool_calls"] = True
 
+        endpoint = self._endpoint
+        headers = {
+            "authorization": f"Bearer {self._api_key}",
+            "accept": "text/event-stream",
+            "content-type": "application/json",
+        }
+        sse_request = prepare_sse_request(
+            url=endpoint,
+            headers=headers,
+            payload=payload,
+            timeout_seconds=request.timeout_seconds,
+        )
+        return PreparedProviderStream(
+            request=request,
+            _factory=lambda: self._stream_prepared(request, sse_request),
+        )
+
+    def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
+        """Prepare and open one provider-neutral Responses stream."""
+        return self.prepare_stream(request).stream()
+
+    async def _stream_prepared(
+        self,
+        request: ProviderRequest,
+        sse_request: PreparedSseRequest,
+    ) -> AsyncGenerator[ProviderStreamEvent]:
+        """Perform provider I/O from payload state validated during preflight."""
         stream = await open_provider_sse(
             provider="openai",
             transport=self._sse_transport,
-            url=self._endpoint,
-            headers={
-                "authorization": f"Bearer {self._api_key}",
-                "accept": "text/event-stream",
-                "content-type": "application/json",
-            },
-            payload=payload,
-            timeout_seconds=request.timeout_seconds,
+            request=sse_request,
         )
 
         response_id: str | None = None

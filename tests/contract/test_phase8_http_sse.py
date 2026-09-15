@@ -1,4 +1,5 @@
 import asyncio
+import json
 from collections.abc import AsyncIterable, AsyncIterator, Callable
 
 import httpx
@@ -7,7 +8,12 @@ from governed_llm_gateway_core.adapters.http_json import (
     TransportFailure,
     TransportFailureKind,
 )
-from governed_llm_gateway_core.adapters.http_sse import HttpxSseTransport, SseEvent
+from governed_llm_gateway_core.adapters.http_sse import (
+    HttpxSseTransport,
+    PreparedSseRequest,
+    SseEvent,
+    prepare_sse_request,
+)
 
 
 class ChunkStream(httpx.AsyncByteStream):
@@ -59,6 +65,36 @@ async def _collect(stream: AsyncIterable[SseEvent]) -> list[SseEvent]:
     return [event async for event in stream]
 
 
+def _prepared_request(
+    *,
+    url: str = "https://provider.example/stream",
+    headers: dict[str, str] | None = None,
+    payload: dict[str, object] | None = None,
+    timeout_seconds: float = 1.0,
+) -> PreparedSseRequest:
+    return prepare_sse_request(
+        url=url,
+        headers=headers or {},
+        payload=payload or {},
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def test_sse_preflight_serializes_an_immutable_body_snapshot() -> None:
+    nested: dict[str, object] = {"value": "before"}
+    payload: dict[str, object] = {"nested": nested}
+
+    prepared = _prepared_request(payload=payload)
+    nested["value"] = "after"
+
+    assert json.loads(prepared.body) == {"nested": {"value": "before"}}
+
+
+def test_sse_preflight_rejects_unserializable_payload() -> None:
+    with pytest.raises(ValueError, match="could not be constructed"):
+        _prepared_request(payload={"invalid": object()})
+
+
 def test_httpx_sse_transport_frames_events_and_sanitizes_headers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -87,10 +123,11 @@ def test_httpx_sse_transport_frames_events_and_sanitizes_headers(
 
     async def scenario() -> tuple[list[SseEvent], int, dict[str, str]]:
         stream = await HttpxSseTransport().open_sse(
-            url="https://provider.example/stream",
-            headers={"authorization": "Bearer secret"},
-            payload={"stream": True},
-            timeout_seconds=2.0,
+            _prepared_request(
+                headers={"authorization": "Bearer secret"},
+                payload={"stream": True},
+                timeout_seconds=2.0,
+            )
         )
         events = await _collect(stream)
         status = stream.status_code
@@ -130,12 +167,7 @@ def test_httpx_sse_transport_accepts_crlf_and_cr_event_boundaries(
     _install_mock_client(monkeypatch, handler)
 
     async def scenario() -> list[SseEvent]:
-        stream = await HttpxSseTransport().open_sse(
-            url="https://provider.example/stream",
-            headers={},
-            payload={},
-            timeout_seconds=1.0,
-        )
+        stream = await HttpxSseTransport().open_sse(_prepared_request())
         try:
             return await _collect(stream)
         finally:
@@ -155,22 +187,24 @@ def test_httpx_sse_transport_accepts_crlf_and_cr_event_boundaries(
         ("https://user@provider.example/stream", 1.0),
         ("https://user:pass@provider.example/stream", 1.0),
         ("https://provider.example/stream#fragment", 1.0),
+        ("https://provider.example:invalid/stream", 1.0),
         ("https://provider.example/stream", 0.0),
     ],
 )
-def test_httpx_sse_transport_rejects_unsafe_endpoint_or_timeout(
+def test_sse_preflight_rejects_unsafe_endpoint_or_timeout(
     url: str,
     timeout_seconds: float,
 ) -> None:
     with pytest.raises(ValueError):
-        asyncio.run(
-            HttpxSseTransport().open_sse(
-                url=url,
-                headers={},
-                payload={},
-                timeout_seconds=timeout_seconds,
-            )
+        _prepared_request(
+            url=url,
+            timeout_seconds=timeout_seconds,
         )
+
+
+def test_sse_preflight_rejects_invalid_header_bytes() -> None:
+    with pytest.raises(ValueError, match="could not be constructed"):
+        _prepared_request(headers={"authorization": "Bearer invalid\nvalue"})
 
 
 @pytest.mark.parametrize(
@@ -197,14 +231,7 @@ def test_httpx_sse_transport_normalizes_open_failures_and_closes_client(
     clients = _install_mock_client(monkeypatch, handler)
 
     with pytest.raises(TransportFailure) as captured:
-        asyncio.run(
-            HttpxSseTransport().open_sse(
-                url="https://provider.example/stream",
-                headers={},
-                payload={},
-                timeout_seconds=1.0,
-            )
-        )
+        asyncio.run(HttpxSseTransport().open_sse(_prepared_request()))
 
     assert captured.value.kind is expected_kind
     assert len(clients) == 1
@@ -239,12 +266,7 @@ def test_httpx_sse_stream_normalizes_read_failures(
     _install_mock_client(monkeypatch, handler)
 
     async def scenario() -> None:
-        stream = await HttpxSseTransport().open_sse(
-            url="https://provider.example/stream",
-            headers={},
-            payload={},
-            timeout_seconds=1.0,
-        )
+        stream = await HttpxSseTransport().open_sse(_prepared_request())
         try:
             with pytest.raises(TransportFailure) as captured:
                 await anext(stream.__aiter__())
@@ -269,12 +291,7 @@ def test_httpx_sse_stream_rejects_oversized_event(
     _install_mock_client(monkeypatch, handler)
 
     async def scenario() -> None:
-        stream = await HttpxSseTransport().open_sse(
-            url="https://provider.example/stream",
-            headers={},
-            payload={},
-            timeout_seconds=1.0,
-        )
+        stream = await HttpxSseTransport().open_sse(_prepared_request())
         try:
             with pytest.raises(TransportFailure) as captured:
                 await anext(stream.__aiter__())
@@ -300,12 +317,7 @@ def test_httpx_sse_stream_bounds_unterminated_line_before_source_is_exhausted(
     _install_mock_client(monkeypatch, handler)
 
     async def scenario() -> None:
-        stream = await HttpxSseTransport().open_sse(
-            url="https://provider.example/stream",
-            headers={},
-            payload={},
-            timeout_seconds=1.0,
-        )
+        stream = await HttpxSseTransport().open_sse(_prepared_request())
         try:
             with pytest.raises(TransportFailure) as captured:
                 await anext(stream.__aiter__())

@@ -8,7 +8,7 @@ safe rather than the happy path already covered by test_phase8_streaming_executi
 import asyncio
 import contextlib
 import unittest
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -28,6 +28,7 @@ from governed_llm_gateway_contracts import (
     WorkloadRequirements,
 )
 from governed_llm_gateway_core.application.provider import (
+    PreparedProviderStream,
     ProviderContentDelta,
     ProviderError,
     ProviderErrorCode,
@@ -50,7 +51,10 @@ from governed_llm_gateway_core.application.resilience import (
     InMemoryHealthTracker,
     StaticProviderResolver,
 )
-from governed_llm_gateway_core.application.streaming import StreamingExecutionService
+from governed_llm_gateway_core.application.streaming import (
+    StreamingExecutionService,
+    StreamingPreflightError,
+)
 from governed_llm_gateway_core.domain.model_registry import ModelDeployment, PricingMetadata
 from governed_llm_gateway_core.domain.resilience import CircuitBreakerPolicy, RetryPolicy
 
@@ -72,7 +76,13 @@ class ScriptedStreamingProvider:
         del request
         raise AssertionError("streaming tests must not call generate")
 
-    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+    def prepare_stream(self, request: ProviderRequest) -> PreparedProviderStream:
+        return PreparedProviderStream(
+            request=request,
+            _factory=lambda: self.stream(request),
+        )
+
+    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
         self.calls.append(request)
         attempt = self.attempts.pop(0)
         try:
@@ -102,6 +112,19 @@ class DeclaredCapabilityProvider(ScriptedStreamingProvider):
         self.feature_support = ProviderFeatureSupport(
             native_streaming=native_streaming,
             streaming_usage=streaming_usage,
+        )
+
+
+class InvalidPreflightProvider(ScriptedStreamingProvider):
+    """Provider whose deterministic request construction rejects preflight."""
+
+    def prepare_stream(self, request: ProviderRequest) -> PreparedProviderStream:
+        del request
+        raise ProviderError(
+            provider="provider-b",
+            code=ProviderErrorCode.INVALID_REQUEST,
+            message="provider-specific request shape is invalid",
+            retryable=False,
         )
 
 
@@ -207,7 +230,8 @@ def _service(
 async def _collect(
     service: StreamingExecutionService, decision: RankingDecision
 ) -> list[GatewayStreamEvent]:
-    return [event async for event in service.stream(_request(), decision, max_output_tokens=64)]
+    plan = service.prepare(_request(), decision, max_output_tokens=64)
+    return [event async for event in service.stream(plan)]
 
 
 def _rate_limit(provider: str = "provider-a") -> ProviderError:
@@ -317,7 +341,12 @@ class CancellationTests(unittest.TestCase):
 
         async def _abandon_after_first_delta() -> list[StreamEventType]:
             seen: list[StreamEventType] = []
-            stream = service.stream(_request(), _decision(deployment), max_output_tokens=64)
+            plan = service.prepare(
+                _request(),
+                _decision(deployment),
+                max_output_tokens=64,
+            )
+            stream = service.stream(plan)
             async with contextlib.aclosing(stream) as events:
                 async for event in events:
                     seen.append(event.event_type)
@@ -334,7 +363,7 @@ class CancellationTests(unittest.TestCase):
         deployment = _deployment("deployment-a", "provider-a")
 
         class CancellingProvider(ScriptedStreamingProvider):
-            async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+            async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
                 self.calls.append(request)
                 yield ProviderResponseStarted(response_id="cancelling")
                 raise asyncio.CancelledError
@@ -346,29 +375,85 @@ class CancellationTests(unittest.TestCase):
             asyncio.run(_collect(service, _decision(deployment)))
 
 
+class PreparedExecutionPlanTests(unittest.TestCase):
+    def test_stream_consumes_provider_request_built_during_preflight(self) -> None:
+        deployment = _deployment("deployment-a", "provider-a")
+        provider = ScriptedStreamingProvider(
+            (
+                ProviderResponseStarted(response_id="prepared"),
+                ProviderContentDelta(delta="answer"),
+                ProviderUsageCompleted(usage=ProviderUsage(input_tokens=1, output_tokens=1)),
+                ProviderResponseCompleted(
+                    response_id="prepared",
+                    finish_reason="stop",
+                ),
+            ),
+        )
+        service = _service((deployment, provider))
+        plan = service.prepare(
+            _request(),
+            _decision(deployment),
+            max_output_tokens=64,
+        )
+
+        async def _run() -> list[GatewayStreamEvent]:
+            return [event async for event in service.stream(plan)]
+
+        events = asyncio.run(_run())
+
+        self.assertEqual(
+            events[-1].event_type,
+            StreamEventType.RESPONSE_COMPLETED,
+        )
+        self.assertEqual(
+            provider.calls,
+            [plan.candidates[0].provider_request],
+        )
+
+    def test_all_bounded_fallbacks_finish_preflight_before_iteration(self) -> None:
+        primary = _deployment("deployment-a", "provider-a")
+        fallback = _deployment("deployment-b", "provider-b")
+        primary_provider = ScriptedStreamingProvider(())
+        fallback_provider = InvalidPreflightProvider(())
+        service = _service(
+            (primary, primary_provider),
+            (fallback, fallback_provider),
+            retry_policy=RetryPolicy(max_attempts_per_deployment=1, max_fallbacks=1),
+        )
+
+        with self.assertRaises(StreamingPreflightError) as caught:
+            service.prepare(
+                _request(),
+                _decision(primary, fallback),
+                max_output_tokens=64,
+            )
+
+        self.assertEqual(caught.exception.code, "invalid_provider_request")
+        self.assertEqual(primary_provider.calls, [])
+        self.assertEqual(fallback_provider.calls, [])
+
+
 class CapabilityGuardTests(unittest.TestCase):
-    def test_non_streaming_adapter_is_refused_rather_than_downgraded(self) -> None:
+    def test_non_streaming_adapter_is_refused_before_stream_iteration(self) -> None:
         deployment = _deployment("deployment-a", "provider-a")
         service = _service((deployment, NonStreamingProvider()))
 
-        events = asyncio.run(_collect(service, _decision(deployment)))
-
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0].event_type, StreamEventType.RESPONSE_FAILED)
-        self.assertEqual(
-            events[0].error.code if events[0].error else None, "streaming_not_supported"
-        )
+        with self.assertRaisesRegex(RuntimeError, "streaming"):
+            service.prepare(
+                _request(),
+                _decision(deployment),
+                max_output_tokens=64,
+            )
 
     def test_adapter_without_verified_native_streaming_is_refused(self) -> None:
         deployment = _deployment("deployment-a", "provider-a")
         provider = DeclaredCapabilityProvider(native_streaming=False, streaming_usage=True)
         service = _service((deployment, provider))
 
-        events = asyncio.run(_collect(service, _decision(deployment)))
+        with self.assertRaises(StreamingPreflightError) as caught:
+            service.prepare(_request(), _decision(deployment), max_output_tokens=64)
 
-        self.assertEqual(
-            events[0].error.code if events[0].error else None, "streaming_not_supported"
-        )
+        self.assertEqual(caught.exception.code, "streaming_not_supported")
         self.assertEqual(provider.calls, [])
 
     def test_adapter_that_cannot_finalize_usage_is_refused(self) -> None:
@@ -377,11 +462,10 @@ class CapabilityGuardTests(unittest.TestCase):
         provider = DeclaredCapabilityProvider(native_streaming=True, streaming_usage=False)
         service = _service((deployment, provider))
 
-        events = asyncio.run(_collect(service, _decision(deployment)))
+        with self.assertRaises(StreamingPreflightError) as caught:
+            service.prepare(_request(), _decision(deployment), max_output_tokens=64)
 
-        self.assertEqual(
-            events[0].error.code if events[0].error else None, "streaming_usage_unavailable"
-        )
+        self.assertEqual(caught.exception.code, "streaming_usage_unavailable")
         self.assertEqual(provider.calls, [])
 
 

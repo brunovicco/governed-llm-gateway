@@ -15,7 +15,6 @@ from governed_llm_gateway_contracts import (
     PolicyProvenance,
     RiskLevel,
     RoutingProvenance,
-    StreamEventType,
     WorkloadRequirements,
 )
 from governed_llm_gateway_core.application.ranking import (
@@ -28,7 +27,10 @@ from governed_llm_gateway_core.application.resilience import (
     InMemoryHealthTracker,
     StaticProviderResolver,
 )
-from governed_llm_gateway_core.application.streaming import StreamingExecutionService
+from governed_llm_gateway_core.application.streaming import (
+    StreamingExecutionService,
+    StreamingPreflightError,
+)
 from governed_llm_gateway_core.domain.model_registry import ModelDeployment, PricingMetadata
 
 REQUEST_ID = UUID("99999999-9999-4999-8999-999999999999")
@@ -140,15 +142,13 @@ async def _collect(
     max_output_tokens: int = 64,
     provider_timeout_seconds: float = 30.0,
 ) -> list[GatewayStreamEvent]:
-    return [
-        event
-        async for event in service.stream(
-            request,
-            decision,
-            max_output_tokens=max_output_tokens,
-            provider_timeout_seconds=provider_timeout_seconds,
-        )
-    ]
+    plan = service.prepare(
+        request,
+        decision,
+        max_output_tokens=max_output_tokens,
+        provider_timeout_seconds=provider_timeout_seconds,
+    )
+    return [event async for event in service.stream(plan)]
 
 
 def test_streaming_service_rejects_request_without_streaming_requirement() -> None:
@@ -184,35 +184,28 @@ def test_streaming_service_rejects_non_positive_execution_limits(
         )
 
 
-def test_streaming_service_returns_failure_when_ranking_has_no_selection() -> None:
+def test_streaming_service_rejects_ranking_without_selection_during_preflight() -> None:
     deployment = _deployment()
 
-    events = asyncio.run(
-        _collect(
-            _service(),
-            _request(),
-            _decision(deployment, selected=False),
+    with pytest.raises(StreamingPreflightError) as caught:
+        asyncio.run(
+            _collect(
+                _service(),
+                _request(),
+                _decision(deployment, selected=False),
+            )
         )
-    )
 
-    assert len(events) == 1
-    assert events[0].event_type is StreamEventType.RESPONSE_FAILED
-    assert events[0].partial is False
-    assert events[0].error is not None
-    assert events[0].error.code == "no_eligible_streaming_deployment"
+    assert caught.value.code == "no_eligible_streaming_deployment"
 
 
-def test_streaming_service_fails_closed_when_provider_adapter_is_missing() -> None:
+def test_streaming_service_rejects_missing_provider_adapter_during_preflight() -> None:
     deployment = _deployment()
 
-    events = asyncio.run(_collect(_service(), _request(), _decision(deployment)))
+    with pytest.raises(StreamingPreflightError) as caught:
+        asyncio.run(_collect(_service(), _request(), _decision(deployment)))
 
-    assert len(events) == 1
-    assert events[0].event_type is StreamEventType.RESPONSE_FAILED
-    assert events[0].error is not None
-    assert events[0].error.code == "provider_adapter_unavailable"
-    assert events[0].routing is not None
-    assert events[0].routing.fallback_sequence == ("deployment-a",)
+    assert caught.value.code == "provider_adapter_unavailable"
 
 
 def test_streaming_service_rejects_ranked_candidate_without_streaming_capability() -> None:

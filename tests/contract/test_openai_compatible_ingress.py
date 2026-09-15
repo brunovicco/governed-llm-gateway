@@ -41,6 +41,7 @@ from governed_llm_gateway_core.application.ranking import (
     RankingDecision,
     ScoreBreakdown,
 )
+from governed_llm_gateway_core.application.streaming import StreamingExecutionPlan
 from governed_llm_gateway_core.domain.model_registry import ModelDeployment, PricingMetadata
 
 REQUEST_ID = UUID("55555555-5555-4555-8555-555555555555")
@@ -106,26 +107,32 @@ def _prepared() -> PreparedStreamingExecution:
         ),
         estimated_cost_usd=Decimal("0.01"),
     )
+    request = GatewayRequest(
+        schema_version="1.0",
+        request_id=REQUEST_ID,
+        workload="rag.answer",
+        risk_level=RiskLevel.LOW,
+        data_classification=DataClassification.PUBLIC,
+        requirements=WorkloadRequirements(streaming=True),
+        messages=(Message(role=MessageRole.USER, content="hello"),),
+    )
+    decision = RankingDecision(
+        routing=_routing(),
+        ranking_policy_digest="d" * 64,
+        score_snapshot_id="static-v1",
+        selected=candidate,
+        alternatives=(),
+        rejected_candidates=(),
+    )
     return PreparedStreamingExecution(
-        request=GatewayRequest(
-            schema_version="1.0",
-            request_id=REQUEST_ID,
-            workload="rag.answer",
-            risk_level=RiskLevel.LOW,
-            data_classification=DataClassification.PUBLIC,
-            requirements=WorkloadRequirements(streaming=True),
-            messages=(Message(role=MessageRole.USER, content="hello"),),
-        ),
-        decision=RankingDecision(
-            routing=_routing(),
-            ranking_policy_digest="d" * 64,
-            score_snapshot_id="static-v1",
-            selected=candidate,
-            alternatives=(),
-            rejected_candidates=(),
-        ),
-        max_output_tokens=32,
-        provider_timeout_seconds=1.0,
+        plan=StreamingExecutionPlan(
+            request=request,
+            decision=decision,
+            candidates=(),
+            replay_safe=True,
+            max_output_tokens=32,
+            provider_timeout_seconds=1.0,
+        )
     )
 
 

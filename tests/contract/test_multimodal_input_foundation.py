@@ -36,7 +36,11 @@ from governed_llm_gateway_core.adapters.anthropic_streaming import (
 )
 from governed_llm_gateway_core.adapters.gemini_streaming import GeminiStreamingAdapter
 from governed_llm_gateway_core.adapters.http_json import JsonHttpResponse
-from governed_llm_gateway_core.adapters.http_sse import SseEvent, SseStream
+from governed_llm_gateway_core.adapters.http_sse import (
+    PreparedSseRequest,
+    SseEvent,
+    SseStream,
+)
 from governed_llm_gateway_core.adapters.openai_compatible_streaming import (
     OpenAICompatibleStreamingAdapter,
 )
@@ -128,18 +132,16 @@ class FakeSseTransport:
 
     async def open_sse(
         self,
-        *,
-        url: str,
-        headers: Mapping[str, str],
-        payload: Mapping[str, object],
-        timeout_seconds: float,
+        request: PreparedSseRequest,
     ) -> SseStream:
+        payload = json.loads(request.body)
+        assert isinstance(payload, dict)
         self.calls.append(
             {
-                "url": url,
-                "headers": dict(headers),
-                "payload": dict(payload),
-                "timeout_seconds": timeout_seconds,
+                "url": request.url,
+                "headers": dict(request.headers),
+                "payload": payload,
+                "timeout_seconds": request.timeout_seconds,
             }
         )
         return self.stream
@@ -148,13 +150,9 @@ class FakeSseTransport:
 class RejectingSseTransport:
     async def open_sse(
         self,
-        *,
-        url: str,
-        headers: Mapping[str, str],
-        payload: Mapping[str, object],
-        timeout_seconds: float,
+        request: PreparedSseRequest,
     ) -> SseStream:
-        del url, headers, payload, timeout_seconds
+        del request
         raise AssertionError("unsupported image input must fail before provider I/O")
 
 

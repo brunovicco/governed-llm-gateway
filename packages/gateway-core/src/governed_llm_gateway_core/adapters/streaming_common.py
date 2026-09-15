@@ -10,7 +10,7 @@ from governed_llm_gateway_core.application.provider import (
 )
 
 from .http_json import JsonHttpResponse, TransportFailure
-from .http_sse import SseEvent, SseStream, SseTransport
+from .http_sse import PreparedSseRequest, SseEvent, SseStream, SseTransport
 from .provider_common import (
     normalize_transport_failure,
     require_non_negative_int,
@@ -22,19 +22,11 @@ async def open_provider_sse(
     *,
     provider: str,
     transport: SseTransport,
-    url: str,
-    headers: Mapping[str, str],
-    payload: Mapping[str, object],
-    timeout_seconds: float,
+    request: PreparedSseRequest,
 ) -> SseStream:
     """Open a provider stream and fail closed on non-success HTTP status."""
     try:
-        stream = await transport.open_sse(
-            url=url,
-            headers=headers,
-            payload=payload,
-            timeout_seconds=timeout_seconds,
-        )
+        stream = await transport.open_sse(request)
     except TransportFailure as exc:
         raise normalize_transport_failure(provider, exc) from exc
 

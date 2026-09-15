@@ -36,6 +36,7 @@ from governed_llm_gateway_core.adapters.observability_otel import (
     OpenTelemetryObservability,
 )
 from governed_llm_gateway_core.application.ranking import RankingDecision
+from governed_llm_gateway_core.application.streaming import StreamingExecutionPlan
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -97,10 +98,14 @@ def _request() -> GatewayRequest:
 def _prepared() -> PreparedStreamingExecution:
     decision = cast(RankingDecision, SimpleNamespace(routing=_routing()))
     return PreparedStreamingExecution(
-        request=_request(),
-        decision=decision,
-        max_output_tokens=32,
-        provider_timeout_seconds=1.0,
+        plan=StreamingExecutionPlan(
+            request=_request(),
+            decision=decision,
+            candidates=(),
+            replay_safe=True,
+            max_output_tokens=32,
+            provider_timeout_seconds=1.0,
+        )
     )
 
 

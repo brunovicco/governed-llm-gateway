@@ -14,7 +14,11 @@ from governed_llm_gateway_contracts import Message, MessageRole, ToolDefinition
 from governed_llm_gateway_core.adapters import OpenAICompatibleAdapter
 from governed_llm_gateway_core.adapters.gemini_streaming import GeminiStreamingAdapter
 from governed_llm_gateway_core.adapters.http_json import JsonHttpResponse
-from governed_llm_gateway_core.adapters.http_sse import SseEvent, SseStream
+from governed_llm_gateway_core.adapters.http_sse import (
+    PreparedSseRequest,
+    SseEvent,
+    SseStream,
+)
 from governed_llm_gateway_core.application.provider import (
     ProviderError,
     ProviderErrorCode,
@@ -192,13 +196,9 @@ class _FakeSseTransport:
 
     async def open_sse(
         self,
-        *,
-        url: str,
-        headers: Mapping[str, str],
-        payload: Mapping[str, object],
-        timeout_seconds: float,
+        request: PreparedSseRequest,
     ) -> SseStream:
-        del url, headers, payload, timeout_seconds
+        del request
         return self.stream
 
 

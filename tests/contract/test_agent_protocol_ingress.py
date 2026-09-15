@@ -42,6 +42,10 @@ from governed_llm_gateway_core.application.ranking import (
     RankingDecision,
     ScoreBreakdown,
 )
+from governed_llm_gateway_core.application.streaming import (
+    StreamingExecutionPlan,
+    StreamingPreflightError,
+)
 from governed_llm_gateway_core.domain.model_registry import ModelDeployment, PricingMetadata
 
 REQUEST_ID = UUID("77777777-7777-4777-8777-777777777777")
@@ -111,18 +115,23 @@ def _prepared() -> PreparedStreamingExecution:
         requirements=WorkloadRequirements(streaming=True),
         messages=(Message(role=MessageRole.USER, content="hello"),),
     )
+    decision = RankingDecision(
+        routing=_routing(),
+        ranking_policy_digest="d" * 64,
+        score_snapshot_id="static-v1",
+        selected=candidate,
+        alternatives=(),
+        rejected_candidates=(),
+    )
     return PreparedStreamingExecution(
-        request=request,
-        decision=RankingDecision(
-            routing=_routing(),
-            ranking_policy_digest="d" * 64,
-            score_snapshot_id="static-v1",
-            selected=candidate,
-            alternatives=(),
-            rejected_candidates=(),
-        ),
-        max_output_tokens=64,
-        provider_timeout_seconds=1.0,
+        plan=StreamingExecutionPlan(
+            request=request,
+            decision=decision,
+            candidates=(),
+            replay_safe=True,
+            max_output_tokens=64,
+            provider_timeout_seconds=1.0,
+        )
     )
 
 
@@ -231,6 +240,36 @@ class RecordingCoordinator:
             yield event
 
 
+class RejectingPreflightCoordinator(RecordingCoordinator):
+    """Simulate deterministic provider construction failure before response creation."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.stream_called = False
+
+    async def prepare(
+        self,
+        *,
+        api_key: str,
+        payload: ProtocolGenerationPayload,
+    ) -> PreparedStreamingExecution:
+        self.keys.append(api_key)
+        self.payloads.append(payload)
+        raise StreamingPreflightError(
+            code="invalid_provider_request",
+            message="selected provider rejected the prepared request",
+        )
+
+    async def stream(
+        self,
+        prepared: PreparedStreamingExecution,
+    ) -> AsyncGenerator[GatewayStreamEvent]:
+        del prepared
+        self.stream_called = True
+        if False:
+            yield cast(GatewayStreamEvent, object())
+
+
 def _client(protocol: str, coordinator: RecordingCoordinator) -> TestClient:
     app = FastAPI()
     if protocol == "anthropic":
@@ -253,6 +292,26 @@ def _sse_events(text: str) -> list[tuple[str, dict[str, Any]]]:
 
 
 class AnthropicIngressTests(unittest.TestCase):
+    def test_invalid_provider_request_returns_error_before_streaming_200(self) -> None:
+        coordinator = RejectingPreflightCoordinator()
+
+        response = _client("anthropic", coordinator).post(
+            "/v1/messages",
+            headers={"x-api-key": CREDENTIAL, "anthropic-version": "2023-06-01"},
+            json={
+                "model": "governed-agent",
+                "max_tokens": 50,
+                "stream": True,
+                "messages": [{"role": "user", "content": "hello"}],
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.headers["content-type"], "application/json")
+        self.assertEqual(response.json()["error"]["type"], "invalid_request_error")
+        self.assertIn("invalid_provider_request", response.json()["error"]["message"])
+        self.assertFalse(coordinator.stream_called)
+
     def test_non_streaming_message_uses_alias_and_same_governed_payload(self) -> None:
         coordinator = RecordingCoordinator()
         response = _client("anthropic", coordinator).post(

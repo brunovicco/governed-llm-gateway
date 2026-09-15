@@ -74,21 +74,17 @@ class ComplexityGenerateCoordinator:
             raise NoEligibleStreamingDeploymentError(
                 "no eligible complexity-authorized streaming deployment is available"
             )
-        return PreparedStreamingExecution(
-            request=request,
-            decision=ranking,
+        plan = self._streaming_service.prepare(
+            request,
+            ranking,
             max_output_tokens=payload.max_output_tokens,
             provider_timeout_seconds=payload.provider_timeout_seconds,
         )
+        return PreparedStreamingExecution(plan=plan)
 
     def stream(
         self,
         prepared: PreparedStreamingExecution,
     ) -> AsyncGenerator[GatewayStreamEvent]:
         """Execute only the ranking result already narrowed by complexity routing."""
-        return self._streaming_service.stream(
-            prepared.request,
-            prepared.decision,
-            max_output_tokens=prepared.max_output_tokens,
-            provider_timeout_seconds=prepared.provider_timeout_seconds,
-        )
+        return self._streaming_service.stream(prepared.plan)

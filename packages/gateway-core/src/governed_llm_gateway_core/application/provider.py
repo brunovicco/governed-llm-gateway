@@ -1,6 +1,6 @@
 """Provider-neutral execution boundary for model inference."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
@@ -285,6 +285,21 @@ ProviderStreamEvent = (
 )
 
 
+ProviderStreamFactory = Callable[[], AsyncGenerator[ProviderStreamEvent]]
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedProviderStream:
+    """Opaque, reusable provider stream state built without provider I/O."""
+
+    request: ProviderRequest
+    _factory: ProviderStreamFactory = field(repr=False, compare=False)
+
+    def stream(self) -> AsyncGenerator[ProviderStreamEvent]:
+        """Open one runtime attempt from the already-validated provider state."""
+        return self._factory()
+
+
 class ProviderError(RuntimeError):
     """Safe typed provider failure without raw response bodies or secrets."""
 
@@ -321,6 +336,10 @@ class ProviderStreamingPort(Protocol):
 
     feature_support: ProviderFeatureSupport
 
+    def prepare_stream(self, request: ProviderRequest) -> PreparedProviderStream:
+        """Build immutable provider-specific state without performing provider I/O."""
+        ...
+
     def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
-        """Yield normalized provider events and close upstream resources on cancellation."""
+        """Compatibility entry point that prepares, then opens, one provider stream."""
         ...

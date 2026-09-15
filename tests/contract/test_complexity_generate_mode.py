@@ -42,7 +42,10 @@ from governed_llm_gateway_core.application import (
     PolicyRequestMetadata,
     RankingDecision,
 )
-from governed_llm_gateway_core.application.streaming import StreamingExecutionService
+from governed_llm_gateway_core.application.streaming import (
+    StreamingExecutionPlan,
+    StreamingExecutionService,
+)
 from governed_llm_gateway_core.domain import (
     CircuitState,
     DeploymentHealthSnapshot,
@@ -180,10 +183,14 @@ class FakeHttpCoordinator:
         assert api_key == _API_KEY
         self.prepare_calls += 1
         return PreparedStreamingExecution(
-            request=payload.to_gateway_request(),
-            decision=cast(RankingDecision, object()),
-            max_output_tokens=payload.max_output_tokens,
-            provider_timeout_seconds=payload.provider_timeout_seconds,
+            plan=StreamingExecutionPlan(
+                request=payload.to_gateway_request(),
+                decision=cast(RankingDecision, object()),
+                candidates=(),
+                replay_safe=True,
+                max_output_tokens=payload.max_output_tokens,
+                provider_timeout_seconds=payload.provider_timeout_seconds,
+            )
         )
 
     async def stream(
@@ -317,6 +324,25 @@ def _payload() -> dict[str, object]:
     }
 
 
+class _PlanOnlyStreamingService:
+    def prepare(
+        self,
+        request: GatewayRequest,
+        decision: RankingDecision,
+        *,
+        max_output_tokens: int,
+        provider_timeout_seconds: float,
+    ) -> StreamingExecutionPlan:
+        return StreamingExecutionPlan(
+            request=request,
+            decision=decision,
+            candidates=(),
+            replay_safe=True,
+            max_output_tokens=max_output_tokens,
+            provider_timeout_seconds=provider_timeout_seconds,
+        )
+
+
 def _complexity_coordinator(
     events: list[str],
     *,
@@ -335,7 +361,7 @@ def _complexity_coordinator(
     return ComplexityGenerateCoordinator(
         context_resolver=Resolver(),
         route_service=route_service,
-        streaming_service=cast(StreamingExecutionService, object()),
+        streaming_service=cast(StreamingExecutionService, _PlanOnlyStreamingService()),
         health=cast(InMemoryHealthTracker, FixedHealth(high_unhealthy=high_unhealthy)),
         registry=_registry(),
         ranking_policy=_ranking_policy(),

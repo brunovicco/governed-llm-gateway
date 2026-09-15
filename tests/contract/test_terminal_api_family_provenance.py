@@ -1,7 +1,7 @@
 """Contract tests for terminal provider execution provenance."""
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -26,6 +26,7 @@ from governed_llm_gateway_contracts import (
     WorkloadRequirements,
 )
 from governed_llm_gateway_core.application.provider import (
+    PreparedProviderStream,
     ProviderContentDelta,
     ProviderError,
     ProviderErrorCode,
@@ -62,7 +63,13 @@ class _StreamingProvider:
         del request
         raise AssertionError("test requires streaming execution")
 
-    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+    def prepare_stream(self, request: ProviderRequest) -> PreparedProviderStream:
+        return PreparedProviderStream(
+            request=request,
+            _factory=lambda: self.stream(request),
+        )
+
+    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
         assert request.max_output_tokens == 64
         yield ProviderResponseStarted(response_id="provider-response")
         yield ProviderContentDelta(delta="ok")
@@ -77,7 +84,13 @@ class _FailingStreamingProvider:
         del request
         raise AssertionError("test requires streaming execution")
 
-    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+    def prepare_stream(self, request: ProviderRequest) -> PreparedProviderStream:
+        return PreparedProviderStream(
+            request=request,
+            _factory=lambda: self.stream(request),
+        )
+
+    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
         assert request.max_output_tokens == 64
         raise ProviderError(
             provider="provider-a",
@@ -179,16 +192,12 @@ def _collect(provider: ProviderPort) -> tuple[GatewayStreamEvent, ...]:
     )
 
     async def collect() -> tuple[GatewayStreamEvent, ...]:
-        return tuple(
-            [
-                event
-                async for event in service.stream(
-                    _request(),
-                    _decision(deployment),
-                    max_output_tokens=64,
-                )
-            ]
+        plan = service.prepare(
+            _request(),
+            _decision(deployment),
+            max_output_tokens=64,
         )
+        return tuple([event async for event in service.stream(plan)])
 
     return asyncio.run(collect())
 

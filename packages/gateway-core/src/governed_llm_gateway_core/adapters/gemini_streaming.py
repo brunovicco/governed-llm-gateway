@@ -7,6 +7,7 @@ from urllib.parse import quote
 from governed_llm_gateway_contracts import MessageRole, ToolCall
 
 from governed_llm_gateway_core.application.provider import (
+    PreparedProviderStream,
     ProviderContentDelta,
     ProviderError,
     ProviderErrorCode,
@@ -30,7 +31,12 @@ from governed_llm_gateway_core.domain.structured import (
 
 from .gemini import GeminiAdapter, _google_contents, _require_external_url_image_model_support
 from .http_json import JsonTransport, TransportFailure
-from .http_sse import HttpxSseTransport, SseTransport
+from .http_sse import (
+    HttpxSseTransport,
+    PreparedSseRequest,
+    SseTransport,
+    prepare_sse_request,
+)
 from .provider_common import (
     normalize_transport_failure,
     require_non_negative_int,
@@ -64,8 +70,8 @@ class GeminiStreamingAdapter(GeminiAdapter):
         super().__init__(api_key=api_key, base_url=base_url, transport=transport)
         self._sse_transport = sse_transport or HttpxSseTransport()
 
-    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
-        """Yield normalized Gemini stream events and require final usage metadata."""
+    def prepare_stream(self, request: ProviderRequest) -> PreparedProviderStream:
+        """Build validated Gemini payload state without opening a connection."""
         require_supported_request_features("google", request, self.feature_support)
         _require_external_url_image_model_support(request)
         system = "\n\n".join(
@@ -107,17 +113,37 @@ class GeminiStreamingAdapter(GeminiAdapter):
 
         model_path = quote(request.model.removeprefix("models/"), safe="-._")
         endpoint = f"{self._base_url}/{model_path}:streamGenerateContent?alt=sse"
+        headers = {
+            "x-goog-api-key": self._api_key,
+            "accept": "text/event-stream",
+            "content-type": "application/json",
+        }
+        sse_request = prepare_sse_request(
+            url=endpoint,
+            headers=headers,
+            payload=payload,
+            timeout_seconds=request.timeout_seconds,
+        )
+
+        return PreparedProviderStream(
+            request=request,
+            _factory=lambda: self._stream_prepared(request, sse_request),
+        )
+
+    def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
+        """Prepare and open one normalized Gemini stream."""
+        return self.prepare_stream(request).stream()
+
+    async def _stream_prepared(
+        self,
+        request: ProviderRequest,
+        sse_request: PreparedSseRequest,
+    ) -> AsyncGenerator[ProviderStreamEvent]:
+        """Perform provider I/O from payload state validated during preflight."""
         upstream = await open_provider_sse(
             provider="google",
             transport=self._sse_transport,
-            url=endpoint,
-            headers={
-                "x-goog-api-key": self._api_key,
-                "accept": "text/event-stream",
-                "content-type": "application/json",
-            },
-            payload=payload,
-            timeout_seconds=request.timeout_seconds,
+            request=sse_request,
         )
 
         response_id: str | None = None
