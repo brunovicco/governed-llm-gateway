@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 
 class ClaudeCodeBlankToolDescriptionTests(unittest.TestCase):
-    def test_blank_descriptions_receive_constant_non_authoritative_placeholder(self) -> None:
+    def test_tool_descriptions_are_normalized_without_gaining_authority(self) -> None:
         payload = {
             "model": "governed-agent",
             "max_tokens": 32000,
@@ -41,6 +41,15 @@ class ClaudeCodeBlankToolDescriptionTests(unittest.TestCase):
                         "additionalProperties": False,
                     },
                 },
+                {
+                    "name": "padded_description",
+                    "description": "  Useful built-in tool description.\n",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": False,
+                    },
+                },
             ],
             "thinking": {"type": "adaptive"},
             "output_config": {"effort": "high"},
@@ -52,16 +61,19 @@ class ClaudeCodeBlankToolDescriptionTests(unittest.TestCase):
         assert isinstance(tools, list)
         first_tool = tools[0]
         second_tool = tools[1]
+        third_tool = tools[2]
         assert isinstance(first_tool, dict)
         assert isinstance(second_tool, dict)
+        assert isinstance(third_tool, dict)
         self.assertEqual(first_tool["description"], "Claude Code tool")
         self.assertEqual(second_tool["description"], "Claude Code tool")
+        self.assertEqual(third_tool["description"], "Useful built-in tool description.")
 
         parsed = AnthropicMessagesRequestModel.model_validate(normalized)
         generated = parsed.to_generation_payload(workload="agent.tool-use")
         request = generated.to_gateway_request()
 
-        self.assertEqual(len(request.tools), 2)
+        self.assertEqual(len(request.tools), 3)
         self.assertTrue(request.requirements.tool_calling)
 
     def test_non_string_description_remains_fail_closed(self) -> None:

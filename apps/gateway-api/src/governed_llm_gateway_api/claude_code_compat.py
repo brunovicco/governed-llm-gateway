@@ -168,12 +168,14 @@ def _normalize_tools(payload: dict[str, object]) -> None:
             normalized.append(item)
             continue
         tool = dict(item)
-        # Claude Code may omit or emit a blank description for built-in tools. A
-        # constant normalized placeholder satisfies the canonical contract without
-        # adding routing authority. Non-string values remain for strict validation.
+        # Claude Code built-in descriptions can be omitted, blank, or padded with
+        # boundary whitespace. Normalize only the string representation needed by the
+        # canonical contract; non-string values remain for strict ingress validation.
         description = tool.get("description")
-        description_is_blank = isinstance(description, str) and not description.strip()
-        if "description" not in tool or description_is_blank:
+        if isinstance(description, str):
+            normalized_description = description.strip()
+            tool["description"] = normalized_description or _DEFAULT_TOOL_DESCRIPTION
+        elif "description" not in tool:
             tool["description"] = _DEFAULT_TOOL_DESCRIPTION
         normalized.append(tool)
     payload["tools"] = normalized
