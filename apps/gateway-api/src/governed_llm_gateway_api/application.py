@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from governed_llm_gateway_core.application.observability import ObservabilityPort
 
 from .anthropic_messages_ingress import attach_anthropic_messages_route
+from .claude_code_compat import ClaudeCodeCompatibilityMiddleware
 from .complexity_generate import ComplexityGenerateCoordinator
 from .content_type_security import GovernedJsonContentTypeMiddleware
 from .credential_header_security import GatewayCredentialHeaderMiddleware
@@ -42,6 +43,7 @@ def create_gateway_app(
     app.add_middleware(GatewayCredentialHeaderMiddleware)
     app.add_middleware(RouteExplainNoStoreMiddleware)
     app.add_middleware(GenerationNoStoreMiddleware)
+    app.add_middleware(ClaudeCodeCompatibilityMiddleware)
     attach_generate_route(
         app,
         generate_coordinator,
