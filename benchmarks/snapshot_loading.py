@@ -70,7 +70,10 @@ def _target(value: object) -> BenchmarkTarget:
         configuration=_string(payload.get("configuration"), "target.configuration"),
         source_date=date.fromisoformat(_string(payload.get("source_date"), "target.source_date")),
         api_family=_optional_string(payload.get("api_family")),
-        max_output_tokens=_optional_int(payload.get("max_output_tokens"), "target.max_output_tokens"),
+        max_output_tokens=_optional_int(
+            payload.get("max_output_tokens"),
+            "target.max_output_tokens",
+        ),
     )
 
 
@@ -128,7 +131,10 @@ def _scorecard(value: object) -> Scorecard:
         total_output_units=_int(payload.get("total_output_units"), "scorecard.total_output_units"),
         total_cost_usd=_decimal(payload.get("total_cost_usd"), "scorecard.total_cost_usd"),
         rate_limit_errors=_int(payload.get("rate_limit_errors"), "scorecard.rate_limit_errors"),
-        fallback_frequency=_decimal(payload.get("fallback_frequency"), "scorecard.fallback_frequency"),
+        fallback_frequency=_decimal(
+            payload.get("fallback_frequency"),
+            "scorecard.fallback_frequency",
+        ),
         provider_error_counts=_string_int_mapping(payload.get("provider_error_counts")),
         mean_quality_metrics=_quality_metrics(payload.get("mean_quality_metrics")),
     )
