@@ -7,7 +7,10 @@ PC-6 adds one explicit FastAPI composition factory for the existing Governed LLM
 `create_gateway_app(...)` mounts:
 
 - `POST /v1/route/explain`;
-- `POST /v1/generate`.
+- `POST /v1/generate`;
+- `POST /v1/chat/completions`;
+- `POST /v1/messages`;
+- `POST /v1/responses`.
 
 The factory receives already-constructed coordinators. It does not load files, read environment variables, resolve credentials, construct the Policy Router adapter, enumerate models, build ranking evidence, or create provider candidates.
 
@@ -25,7 +28,10 @@ reviewed application dependencies
                  ↓
              FastAPI app
         ├─ /v1/route/explain
-        └─ /v1/generate
+        ├─ /v1/generate
+        ├─ /v1/chat/completions
+        ├─ /v1/messages
+        └─ /v1/responses
 ```
 
 The same optional observability instance is passed to both HTTP surfaces so application composition does not introduce a second telemetry path.

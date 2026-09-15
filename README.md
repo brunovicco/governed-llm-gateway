@@ -152,6 +152,28 @@ Real screenshots of this exact demo: the connected view is the genuine fail-clos
 (`phase2-empty` registry, zero deployments), and the dashboard has no rows because this mode exposes no
 inference route to produce a trace.
 
+Claude Code and Codex can use the same governed coordinator through native-shaped
+`POST /v1/messages` and `POST /v1/responses` adapters. Their `model` value is only a compatibility
+alias: it never selects or authorizes a concrete model. The concrete provider/model still comes only
+from the authenticated client context, external PDP's authorized set and Gateway eligibility/ranking.
+See the
+[protocol and multimodal guide](docs/project/PROTOCOL_MULTIMODAL_GATEWAY.md) for the supported subset,
+security boundaries and exact client configuration.
+
+### Client compatibility
+
+| Client / protocol | Evidence-backed status |
+| --- | --- |
+| Native Gateway API | Supported; existing compatibility retained |
+| Anthropic Messages API | Contract-tested stateless subset |
+| Claude Code | Representative request and native SSE subset contract-tested; no live CLI claim |
+| OpenAI Responses API | Contract-tested stateless subset |
+| Codex | Current HTTP request/replay and native SSE subset contract-tested against official client source; no live CLI claim |
+| Images | HTTPS references and bounded inline input supported where the selected deployment/adapter permits |
+| Audio/documents | Canonical and capability-gated; fail closed unless registry and adapter explicitly permit them |
+| Function tools/results | Ordinary calls and text results supported; application remains responsible for execution |
+| Streaming | Provider stream → canonical events → protocol-native SSE |
+
 ### Container
 
 `Dockerfile` builds the Gateway API and `compose.gateway.yml` runs it. The image carries code only - no
@@ -167,20 +189,22 @@ docker compose -f compose.gateway.yml up gateway-operations
 
 That is the same credential-free operations-only surface. It binds `127.0.0.1` inside the container, so
 the container's own `HEALTHCHECK` reaches it and nothing outside does. Governed inference runs under the
-`governed` compose profile and additionally needs provider credentials in the environment, a reachable
-Policy Model Router, and a profile whose router endpoint resolves from inside a container - the exact
-commands are in [`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md).
+`governed` compose profile. It builds this Gateway and pulls a reviewed Policy Model Router release by
+immutable digest, so normal startup needs only this repository plus local gateway/PDP/provider
+credentials. Exact commands are in
+[`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md).
 
 ## Calling it from your own project
 
-Two processes run: the Policy Model Router (a separate repository) and the Gateway. Your application
-points at the Gateway's URL and credential.
+Two services run: the external Policy Model Router and the Gateway, but normal governed startup needs
+only this repository. Compose pulls the reviewed Router image by immutable digest; your application
+talks only to the Gateway URL and credential. A sibling Router checkout is needed only for explicit
+cross-repository development/composition work.
 
 ```bash
 git clone https://github.com/brunovicco/governed-llm-gateway.git
-git clone https://github.com/brunovicco/policy-model-router.git
-(cd policy-model-router && uv sync --frozen)
-cd governed-llm-gateway && uv sync --frozen
+cd governed-llm-gateway
+cp .env.example .env
 ```
 
 Put the two local shared secrets you created, plus the provider keys you actually have, in `.env`:
@@ -202,12 +226,14 @@ from `provider_runtime.json` first. NVIDIA has a free tier at [build.nvidia.com]
 
 ```bash
 set -a; source .env; set +a
-uv run --frozen python scripts/personal_default_launcher.py
+export APPROVED_RANKING_ARTIFACT_ID=sha256:4d58f86b791267b2d38c6a95edad576ab35a5b97a8ee43a78a9d527ac8ee56ad
+docker compose -f compose.gateway.yml --profile governed up --build gateway policy-model-router
 ```
 
-That starts and tears down both services together (it assumes `../policy-model-router`; override with
-`POLICY_MODEL_ROUTER_ROOT`). Then add the client to your own project - not published to PyPI,
-install straight from this repository:
+The normal path above does not require a Policy Model Router source checkout. The source-based
+`scripts/personal_default_launcher.py` and `compose.pdp-composition.yml` remain available for
+cross-repository development. Then add the client to your own project - not published to PyPI, install
+straight from this repository:
 
 ```bash
 uv add "governed-llm-gateway-client @ git+https://github.com/brunovicco/governed-llm-gateway.git#subdirectory=packages/gateway-client"

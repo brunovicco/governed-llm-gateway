@@ -16,6 +16,10 @@ from governed_llm_gateway_contracts import (
     RiskLevel,
     RoutingProvenance,
     StreamEventType,
+    ToolCall,
+    ToolResult,
+    ToolResultBlock,
+    ToolUseBlock,
     WorkloadRequirements,
 )
 from governed_llm_gateway_core.application.provider import (
@@ -281,6 +285,73 @@ def test_failure_after_content_delta_never_retries_or_falls_back() -> None:
     assert events[-1].error.retryable is False
     assert len(primary_provider.calls) == 1
     assert fallback_provider.calls == []
+
+
+def test_tool_result_request_never_retries_or_falls_back_before_output() -> None:
+    """The application may already have executed a side effect before this continuation."""
+    primary = _deployment("deployment-a", "provider-a")
+    fallback = _deployment("deployment-b", "provider-b")
+    primary_provider = SequenceStreamingProvider(
+        (ProviderResponseStarted(response_id="failed"), _rate_limit()),
+        _successful_stream("must-not-retry"),
+    )
+    fallback_provider = SequenceStreamingProvider(_successful_stream("must-not-fallback"))
+    service = StreamingExecutionService(
+        health=InMemoryHealthTracker(),
+        resolver=StaticProviderResolver(
+            {
+                (primary.provider, primary.api_family): primary_provider,
+                (fallback.provider, fallback.api_family): fallback_provider,
+            }
+        ),
+        retry_policy=RetryPolicy(max_attempts_per_deployment=2, max_fallbacks=1),
+    )
+    request = GatewayRequest(
+        schema_version="1.0",
+        request_id=REQUEST_ID,
+        workload="agent.orchestration",
+        risk_level=RiskLevel.MEDIUM,
+        data_classification=DataClassification.PUBLIC,
+        requirements=WorkloadRequirements(tool_calling=True, streaming=True),
+        messages=(
+            Message(
+                role=MessageRole.ASSISTANT,
+                content="",
+                blocks=(ToolUseBlock(ToolCall("call-1", "lookup", {})),),
+            ),
+            Message(
+                role=MessageRole.TOOL,
+                content="",
+                blocks=(ToolResultBlock(ToolResult("call-1", "done")),),
+            ),
+        ),
+    )
+
+    events = asyncio.run(
+        _collect_request(service, request=request, decision=_decision(primary, fallback))
+    )
+
+    assert events[-1].event_type is StreamEventType.RESPONSE_FAILED
+    assert events[-1].error is not None
+    assert events[-1].error.retryable is False
+    assert len(primary_provider.calls) == 1
+    assert fallback_provider.calls == []
+
+
+async def _collect_request(
+    service: StreamingExecutionService,
+    *,
+    request: GatewayRequest,
+    decision: RankingDecision,
+) -> list[GatewayStreamEvent]:
+    return [
+        event
+        async for event in service.stream(
+            request,
+            decision,
+            max_output_tokens=64,
+        )
+    ]
 
 
 def test_client_close_closes_provider_stream_without_recording_provider_failure() -> None:

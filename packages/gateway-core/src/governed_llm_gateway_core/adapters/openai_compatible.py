@@ -3,7 +3,7 @@
 import json
 from collections.abc import Mapping
 
-from governed_llm_gateway_contracts import ToolCall
+from governed_llm_gateway_contracts import TextBlock, ToolCall, ToolResultBlock, ToolUseBlock
 
 from governed_llm_gateway_core.adapters.http_json import (
     JsonTransport,
@@ -61,6 +61,7 @@ class OpenAICompatibleAdapter:
         self.feature_support = ProviderFeatureSupport(
             native_structured_output=supports_native_structured_output,
             native_tool_calling=supports_native_tool_calling,
+            native_tool_result_input=supports_native_tool_calling,
         )
 
     async def generate(self, request: ProviderRequest) -> ProviderResponse:
@@ -77,10 +78,7 @@ class OpenAICompatibleAdapter:
 
         payload: dict[str, object] = {
             "model": request.model,
-            "messages": [
-                {"role": message.role.value, "content": message.content}
-                for message in request.messages
-            ],
+            "messages": _openai_chat_messages(request),
             self._max_tokens_field: request.max_output_tokens,
         }
         if request.structured_output is not None:
@@ -99,11 +97,12 @@ class OpenAICompatibleAdapter:
             }
         if request.tools:
             for tool in request.tools:
-                _require_openai_strict_schema(
-                    tool.input_schema,
-                    label=f"tool {tool.name}",
-                    provider=self._provider,
-                )
+                if tool.strict:
+                    _require_openai_strict_schema(
+                        tool.input_schema,
+                        label=f"tool {tool.name}",
+                        provider=self._provider,
+                    )
             payload["tools"] = [
                 {
                     "type": "function",
@@ -111,11 +110,13 @@ class OpenAICompatibleAdapter:
                         "name": tool.name,
                         "description": tool.description,
                         "parameters": dict(tool.input_schema),
-                        "strict": True,
+                        "strict": tool.strict,
                     },
                 }
                 for tool in request.tools
             ]
+            if request.parallel_tool_calling:
+                payload["parallel_tool_calls"] = True
 
         try:
             response = await self._transport.post_json(
@@ -257,6 +258,52 @@ class OpenAICompatibleAdapter:
             message=f"{self._provider} {detail}",
             retryable=False,
         )
+
+
+def _openai_chat_messages(request: ProviderRequest) -> list[dict[str, object]]:
+    """Translate canonical text/tool transcript blocks into chat-completions messages."""
+    messages: list[dict[str, object]] = []
+    for message in request.messages:
+        text = "\n".join(
+            block.text for block in message.canonical_blocks if isinstance(block, TextBlock)
+        )
+        tool_uses = tuple(
+            block.call for block in message.canonical_blocks if isinstance(block, ToolUseBlock)
+        )
+        tool_results = tuple(
+            block.result for block in message.canonical_blocks if isinstance(block, ToolResultBlock)
+        )
+        if text or tool_uses or not message.canonical_blocks:
+            translated: dict[str, object] = {
+                "role": message.role.value,
+                "content": text or None,
+            }
+            if tool_uses:
+                translated["tool_calls"] = [
+                    {
+                        "id": call.call_id,
+                        "type": "function",
+                        "function": {
+                            "name": call.name,
+                            "arguments": json.dumps(
+                                call.arguments,
+                                sort_keys=True,
+                                separators=(",", ":"),
+                            ),
+                        },
+                    }
+                    for call in tool_uses
+                ]
+            messages.append(translated)
+        messages.extend(
+            {
+                "role": "tool",
+                "tool_call_id": result.call_id,
+                "content": result.content,
+            }
+            for result in tool_results
+        )
+    return messages
 
 
 def _require_openai_strict_schema(

@@ -400,6 +400,9 @@ class PolicyEnforcementService:
             messages=request.messages,
             max_output_tokens=max_output_tokens_estimated,
             timeout_seconds=provider_timeout_seconds,
+            structured_output=request.structured_output,
+            tools=request.tools,
+            parallel_tool_calling=request.requirements.parallel_tool_calling,
         )
         response = await provider.generate(provider_request)
         return PolicyEnforcedExecution(

@@ -98,6 +98,7 @@ def request(
     *,
     structured: bool = False,
     tools: bool = False,
+    parallel: bool = False,
     model: str = "test-model",
 ) -> ProviderRequest:
     return ProviderRequest(
@@ -105,6 +106,7 @@ def request(
         messages=(Message(role=MessageRole.USER, content="What is the weather?"),),
         structured_output=structured_schema() if structured else None,
         tools=(weather_tool(),) if tools else (),
+        parallel_tool_calling=parallel,
     )
 
 
@@ -156,6 +158,7 @@ def test_tool_contracts_contain_no_execution_hook() -> None:
         "name",
         "description",
         "input_schema",
+        "strict",
     }
     assert {field.name for field in fields(ToolCall)} == {"call_id", "name", "arguments"}
     assert {field.name for field in fields(ToolResult)} == {"call_id", "content", "is_error"}
@@ -249,6 +252,88 @@ def test_openai_normalizes_and_validates_tool_call_without_executing_it() -> Non
             "strict": True,
         }
     ]
+
+
+def test_openai_forwards_codex_non_strict_tool_without_strict_schema_rejection() -> None:
+    transport = FakeTransport(
+        {
+            "status": "completed",
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": "ready"}],
+                }
+            ],
+        }
+    )
+    adapter = OpenAIResponsesAdapter(api_key="secret", transport=transport)
+    non_strict_tool = ToolDefinition(
+        name="lookup",
+        description="Look up one record.",
+        input_schema={
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+        },
+        strict=False,
+    )
+
+    response = asyncio.run(
+        adapter.generate(
+            ProviderRequest(
+                model="test-model",
+                messages=(Message(role=MessageRole.USER, content="Look up 42"),),
+                tools=(non_strict_tool,),
+            )
+        )
+    )
+
+    assert response.text == "ready"
+    payload = transport.calls[0]["payload"]
+    assert isinstance(payload, dict)
+    assert payload["tools"] == [
+        {
+            "type": "function",
+            "name": "lookup",
+            "description": "Look up one record.",
+            "parameters": {
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+            },
+            "strict": False,
+        }
+    ]
+
+
+def test_native_adapters_emit_explicit_parallel_tool_controls_when_required() -> None:
+    openai_transport = FakeTransport(
+        {
+            "status": "completed",
+            "output": [{"type": "message", "content": [{"type": "output_text", "text": "ok"}]}],
+        }
+    )
+    asyncio.run(
+        OpenAIResponsesAdapter(api_key="secret", transport=openai_transport).generate(
+            request(tools=True, parallel=True)
+        )
+    )
+    openai_payload = openai_transport.calls[0]["payload"]
+    assert isinstance(openai_payload, dict)
+    assert openai_payload["parallel_tool_calls"] is True
+
+    anthropic_transport = FakeTransport(
+        {"content": [{"type": "text", "text": "ok"}], "stop_reason": "end_turn"}
+    )
+    asyncio.run(
+        AnthropicMessagesAdapter(api_key="secret", transport=anthropic_transport).generate(
+            request(tools=True, parallel=True)
+        )
+    )
+    anthropic_payload = anthropic_transport.calls[0]["payload"]
+    assert isinstance(anthropic_payload, dict)
+    assert anthropic_payload["tool_choice"] == {
+        "type": "auto",
+        "disable_parallel_tool_use": False,
+    }
 
 
 def test_anthropic_maps_current_output_config_and_tool_schema() -> None:

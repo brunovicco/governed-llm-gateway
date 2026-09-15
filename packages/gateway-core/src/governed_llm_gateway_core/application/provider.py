@@ -7,11 +7,14 @@ from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 from governed_llm_gateway_contracts import (
+    AudioBlock,
+    DocumentBlock,
+    ImageBlock,
     Message,
-    MessageRole,
     StructuredOutputSchema,
     ToolCall,
     ToolDefinition,
+    ToolResultBlock,
 )
 
 from governed_llm_gateway_core.domain.structured import (
@@ -60,6 +63,10 @@ class ProviderFeatureSupport:
     native_structured_output: bool = False
     native_tool_calling: bool = False
     native_image_input: bool = False
+    native_inline_image_input: bool = False
+    native_audio_input: bool = False
+    native_document_input: bool = False
+    native_tool_result_input: bool = False
     native_streaming: bool = False
     streaming_usage: bool = False
 
@@ -104,6 +111,7 @@ class ProviderRequest:
     timeout_seconds: float = 30.0
     structured_output: StructuredOutputSchema | None = None
     tools: tuple[ToolDefinition, ...] = ()
+    parallel_tool_calling: bool = False
 
     def __post_init__(self) -> None:
         """Validate bounded provider-neutral execution input."""
@@ -111,10 +119,13 @@ class ProviderRequest:
             raise ValueError("provider model must be a non-empty normalized string")
         if not self.messages:
             raise ValueError("provider request must contain at least one message")
-        if any(message.role is MessageRole.TOOL for message in self.messages):
+        if any(
+            message.role.value == "tool"
+            and not any(isinstance(block, ToolResultBlock) for block in message.blocks)
+            for message in self.messages
+        ):
             raise ValueError(
-                "tool-result message continuation is not representable "
-                "without prior tool-call state"
+                "tool-result message continuation requires a canonical correlated tool-result block"
             )
         if self.max_output_tokens <= 0:
             raise ValueError("max_output_tokens must be positive")
@@ -124,11 +135,55 @@ class ProviderRequest:
             validate_structured_output_schema(self.structured_output)
         if self.tools:
             validate_tool_definitions(self.tools)
+        if self.parallel_tool_calling and not self.tools:
+            raise ValueError("parallel tool calling requires tool definitions")
 
     @property
     def has_image_input(self) -> bool:
         """Return whether the request contains provider-neutral image input."""
-        return any(message.images for message in self.messages)
+        return any(
+            isinstance(block, ImageBlock)
+            for message in self.messages
+            for block in message.canonical_blocks
+        )
+
+    @property
+    def has_inline_image_input(self) -> bool:
+        """Return whether any image uses bounded inline bytes rather than an HTTPS reference."""
+        from governed_llm_gateway_contracts import Base64Source
+
+        return any(
+            isinstance(block, ImageBlock) and isinstance(block.source, Base64Source)
+            for message in self.messages
+            for block in message.canonical_blocks
+        )
+
+    @property
+    def has_audio_input(self) -> bool:
+        """Return whether the request contains canonical audio input."""
+        return any(
+            isinstance(block, AudioBlock)
+            for message in self.messages
+            for block in message.canonical_blocks
+        )
+
+    @property
+    def has_document_input(self) -> bool:
+        """Return whether the request contains canonical document input."""
+        return any(
+            isinstance(block, DocumentBlock)
+            for message in self.messages
+            for block in message.canonical_blocks
+        )
+
+    @property
+    def has_tool_results(self) -> bool:
+        """Return whether replay could duplicate a tool-side effect already performed externally."""
+        return any(
+            isinstance(block, ToolResultBlock)
+            for message in self.messages
+            for block in message.canonical_blocks
+        )
 
 
 @dataclass(frozen=True, slots=True)

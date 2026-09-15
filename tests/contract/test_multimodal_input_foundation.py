@@ -8,13 +8,21 @@ import pytest
 from governed_llm_gateway_api import GenerateRequestModel
 from governed_llm_gateway_client.client import _build_generate_payload
 from governed_llm_gateway_contracts import (
+    Base64Source,
     DataClassification,
     GatewayRequest,
+    ImageBlock,
     ImageInput,
     ImageMediaType,
     Message,
     MessageRole,
     RiskLevel,
+    TextBlock,
+    ToolCall,
+    ToolDefinition,
+    ToolResult,
+    ToolResultBlock,
+    ToolUseBlock,
     WorkloadRequirements,
 )
 from governed_llm_gateway_core.adapters import (
@@ -316,6 +324,78 @@ def test_thin_sdk_serializes_images_provider_neutrally() -> None:
     ]
     assert "provider" not in payload
     assert "model" not in payload
+
+
+def test_thin_sdk_preserves_new_capability_requirements_when_requested() -> None:
+    payload = _build_generate_payload(
+        workload="agent.tool-use",
+        messages=(_message(),),
+        risk_level=RiskLevel.LOW,
+        data_classification=DataClassification.PUBLIC,
+        requirements=WorkloadRequirements(
+            tool_calling=True,
+            audio=True,
+            document=True,
+            parallel_tool_calling=True,
+        ),
+        limits=None,
+        agent_identity=None,
+        tools=(),
+        structured_output=None,
+        context_tokens_estimated=64,
+        max_output_tokens=128,
+        provider_timeout_seconds=30.0,
+        request_id=REQUEST_ID,
+    )
+
+    assert payload["requirements"] == {
+        "tool_calling": True,
+        "structured_output": False,
+        "vision": False,
+        "audio": True,
+        "document": True,
+        "parallel_tool_calling": True,
+        "min_context_tokens": 0,
+    }
+    canonical = GenerateRequestModel.model_validate(payload).to_gateway_request()
+    assert canonical.requirements.audio is True
+    assert canonical.requirements.document is True
+    assert canonical.requirements.parallel_tool_calling is True
+
+
+def test_thin_sdk_preserves_explicit_non_strict_tool_semantics() -> None:
+    tool = ToolDefinition(
+        name="lookup",
+        description="Look up one record.",
+        input_schema={"type": "object"},
+        strict=False,
+    )
+    payload = _build_generate_payload(
+        workload="agent.tool-use",
+        messages=(_message(),),
+        risk_level=RiskLevel.LOW,
+        data_classification=DataClassification.PUBLIC,
+        requirements=WorkloadRequirements(tool_calling=True),
+        limits=None,
+        agent_identity=None,
+        tools=(tool,),
+        structured_output=None,
+        context_tokens_estimated=64,
+        max_output_tokens=128,
+        provider_timeout_seconds=30.0,
+        request_id=REQUEST_ID,
+    )
+
+    assert payload["tools"] == [
+        {
+            "name": "lookup",
+            "description": "Look up one record.",
+            "input_schema": {"type": "object"},
+            "strict": False,
+        }
+    ]
+    canonical = GenerateRequestModel.model_validate(payload).to_gateway_request()
+    assert canonical.tools[0].strict is False
 
 
 def test_text_only_sdk_wire_shape_is_unchanged() -> None:
@@ -661,3 +741,106 @@ def test_openai_compatible_streaming_fails_closed_before_image_provider_io() -> 
 
     assert caught.value.code is ProviderErrorCode.INVALID_REQUEST
     assert caught.value.retryable is False
+
+
+def test_openai_responses_translates_inline_image_and_tool_result_state() -> None:
+    transport = FakeJsonTransport()
+    adapter = OpenAIResponsesAdapter(api_key="secret", transport=transport)
+    request = ProviderRequest(
+        model="vision-model",
+        messages=(
+            Message(
+                role=MessageRole.USER,
+                content="",
+                blocks=(
+                    TextBlock("inspect"),
+                    ImageBlock(ImageMediaType.PNG, Base64Source("aGVsbG8=")),
+                ),
+            ),
+            Message(
+                role=MessageRole.ASSISTANT,
+                content="",
+                blocks=(ToolUseBlock(ToolCall(call_id="call-1", name="lookup", arguments={})),),
+            ),
+            Message(
+                role=MessageRole.TOOL,
+                content="",
+                blocks=(ToolResultBlock(ToolResult(call_id="call-1", content="found")),),
+            ),
+        ),
+    )
+
+    asyncio.run(adapter.generate(request))
+
+    payload = transport.calls[0]["payload"]
+    assert isinstance(payload, dict)
+    assert payload["input"] == [
+        {
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": "inspect"},
+                {"type": "input_image", "image_url": "data:image/png;base64,aGVsbG8="},
+            ],
+        },
+        {
+            "type": "function_call",
+            "call_id": "call-1",
+            "name": "lookup",
+            "arguments": "{}",
+        },
+        {"type": "function_call_output", "call_id": "call-1", "output": "found"},
+    ]
+
+
+def test_anthropic_translates_inline_image_and_tool_result_state() -> None:
+    transport = FakeJsonTransport(
+        JsonHttpResponse(
+            status_code=200,
+            headers={},
+            payload={
+                "id": "msg-1",
+                "content": [{"type": "text", "text": "done"}],
+                "usage": {"input_tokens": 4, "output_tokens": 1},
+            },
+        )
+    )
+    adapter = AnthropicMessagesAdapter(api_key="secret", transport=transport)
+    request = ProviderRequest(
+        model="claude-model",
+        messages=(
+            Message(
+                role=MessageRole.USER,
+                content="",
+                blocks=(ImageBlock(ImageMediaType.PNG, Base64Source("aGVsbG8=")),),
+            ),
+            Message(
+                role=MessageRole.ASSISTANT,
+                content="",
+                blocks=(ToolUseBlock(ToolCall(call_id="call-1", name="lookup", arguments={})),),
+            ),
+            Message(
+                role=MessageRole.USER,
+                content="",
+                blocks=(ToolResultBlock(ToolResult(call_id="call-1", content="found")),),
+            ),
+        ),
+    )
+
+    asyncio.run(adapter.generate(request))
+
+    payload = transport.calls[0]["payload"]
+    assert isinstance(payload, dict)
+    messages = payload["messages"]
+    assert isinstance(messages, list)
+    assert messages[0]["content"][0]["source"] == {
+        "type": "base64",
+        "media_type": "image/png",
+        "data": "aGVsbG8=",
+    }
+    assert messages[1]["content"][0] == {
+        "type": "tool_use",
+        "id": "call-1",
+        "name": "lookup",
+        "input": {},
+    }
+    assert messages[2]["content"][0]["tool_use_id"] == "call-1"

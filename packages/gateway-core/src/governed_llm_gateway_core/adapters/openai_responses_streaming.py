@@ -57,6 +57,8 @@ class OpenAIResponsesStreamingAdapter(OpenAIResponsesAdapter):
         native_structured_output=True,
         native_tool_calling=True,
         native_image_input=True,
+        native_inline_image_input=True,
+        native_tool_result_input=True,
         native_streaming=True,
         streaming_usage=True,
     )
@@ -77,7 +79,9 @@ class OpenAIResponsesStreamingAdapter(OpenAIResponsesAdapter):
         """Yield provider-neutral Responses events and close the upstream stream on cancellation."""
         require_supported_request_features("openai", request, self.feature_support)
         instructions = "\n\n".join(
-            message.content for message in request.messages if message.role is MessageRole.SYSTEM
+            message.text_content
+            for message in request.messages
+            if message.role is MessageRole.SYSTEM and message.text_content
         )
         input_messages = _openai_input_messages(request)
         if not input_messages:
@@ -112,17 +116,20 @@ class OpenAIResponsesStreamingAdapter(OpenAIResponsesAdapter):
             }
         if request.tools:
             for tool in request.tools:
-                _require_openai_strict_schema(tool.input_schema, label=f"tool {tool.name}")
+                if tool.strict:
+                    _require_openai_strict_schema(tool.input_schema, label=f"tool {tool.name}")
             payload["tools"] = [
                 {
                     "type": "function",
                     "name": tool.name,
                     "description": tool.description,
                     "parameters": dict(tool.input_schema),
-                    "strict": True,
+                    "strict": tool.strict,
                 }
                 for tool in request.tools
             ]
+            if request.parallel_tool_calling:
+                payload["parallel_tool_calls"] = True
 
         stream = await open_provider_sse(
             provider="openai",

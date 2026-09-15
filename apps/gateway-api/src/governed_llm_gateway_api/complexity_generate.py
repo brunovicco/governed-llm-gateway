@@ -14,7 +14,7 @@ from governed_llm_gateway_core.domain.model_registry import ModelRegistry
 
 from .route_explain import EffectiveContextResolver
 from .stream_generate import (
-    GenerateRequestModel,
+    GenerationPayload,
     NoEligibleStreamingDeploymentError,
     PreparedStreamingExecution,
 )
@@ -47,7 +47,7 @@ class ComplexityGenerateCoordinator:
         self,
         *,
         api_key: str,
-        payload: GenerateRequestModel,
+        payload: GenerationPayload,
     ) -> PreparedStreamingExecution:
         """Finish auth, PDP, complexity narrowing, and ranking before SSE begins."""
         request = payload.to_gateway_request()

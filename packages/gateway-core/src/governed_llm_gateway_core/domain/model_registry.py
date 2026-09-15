@@ -31,6 +31,15 @@ _DEPLOYMENT_FIELDS = frozenset(
     }
 )
 _CAPABILITY_FIELDS = frozenset(capability.value for capability in Capability)
+_REQUIRED_CAPABILITY_FIELDS = frozenset(
+    {
+        Capability.TEXT.value,
+        Capability.VISION.value,
+        Capability.TOOL_CALLING.value,
+        Capability.STRUCTURED_OUTPUT.value,
+        Capability.STREAMING.value,
+    }
+)
 _PRICING_FIELDS = frozenset(
     {
         "input_usd_per_million_tokens",
@@ -237,14 +246,13 @@ def _parse_capabilities(value: object, deployment_id: str) -> frozenset[Capabili
     _require_fields(
         payload,
         _CAPABILITY_FIELDS,
-        _CAPABILITY_FIELDS,
+        _REQUIRED_CAPABILITY_FIELDS,
         f"{deployment_id}.capabilities",
     )
     enabled: set[Capability] = set()
     for capability in Capability:
-        if _require_bool(
-            payload[capability.value], f"{deployment_id}.capabilities.{capability.value}"
-        ):
+        raw = payload.get(capability.value, False)
+        if _require_bool(raw, f"{deployment_id}.capabilities.{capability.value}"):
             enabled.add(capability)
     return frozenset(enabled)
 
@@ -311,6 +319,22 @@ def _validate_capability_combination(
         raise ModelRegistryError(
             f"{deployment_id} vision capability and image modality must be declared together"
         )
+    for capability, modality in (
+        (Capability.AUDIO, Modality.AUDIO),
+        (Capability.DOCUMENT, Modality.DOCUMENT),
+    ):
+        if (capability in capabilities) != (modality in modalities):
+            raise ModelRegistryError(
+                f"{deployment_id} {capability.value} capability and {modality.value} modality "
+                "must be declared together"
+            )
+    if (
+        Capability.PARALLEL_TOOL_CALLING in capabilities
+        and Capability.TOOL_CALLING not in capabilities
+    ):
+        raise ModelRegistryError(
+            f"{deployment_id} parallel_tool_calling requires tool_calling capability"
+        )
 
 
 def _canonical_deployment(deployment: ModelDeployment) -> dict[str, object]:
@@ -326,14 +350,29 @@ def _canonical_deployment(deployment: ModelDeployment) -> dict[str, object]:
             "source_date": deployment.pricing.source_date.isoformat(),
             "snapshot_version": deployment.pricing.snapshot_version,
         }
+    capabilities = {
+        capability.value: capability in deployment.capabilities
+        for capability in (
+            Capability.TEXT,
+            Capability.VISION,
+            Capability.TOOL_CALLING,
+            Capability.STRUCTURED_OUTPUT,
+            Capability.STREAMING,
+        )
+    }
+    for capability in (
+        Capability.AUDIO,
+        Capability.DOCUMENT,
+        Capability.PARALLEL_TOOL_CALLING,
+    ):
+        if capability in deployment.capabilities:
+            capabilities[capability.value] = True
     return {
         "provider": deployment.provider,
         "model_id": deployment.model_id,
         "model_group": deployment.model_group,
         "api_family": deployment.api_family,
-        "capabilities": {
-            capability.value: capability in deployment.capabilities for capability in Capability
-        },
+        "capabilities": capabilities,
         "context_tokens": deployment.context_tokens,
         "modalities": sorted(modality.value for modality in deployment.modalities),
         "pricing": pricing,

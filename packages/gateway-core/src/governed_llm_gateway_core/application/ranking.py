@@ -420,6 +420,12 @@ def _missing_capabilities(
         required.append(Capability.STRUCTURED_OUTPUT)
     if request.requirements.streaming:
         required.append(Capability.STREAMING)
+    if request.requirements.audio:
+        required.append(Capability.AUDIO)
+    if request.requirements.document:
+        required.append(Capability.DOCUMENT)
+    if request.requirements.parallel_tool_calling:
+        required.append(Capability.PARALLEL_TOOL_CALLING)
     return tuple(capability for capability in required if capability not in deployment.capabilities)
 
 

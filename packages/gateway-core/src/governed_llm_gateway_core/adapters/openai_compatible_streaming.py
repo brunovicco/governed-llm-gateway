@@ -28,7 +28,11 @@ from governed_llm_gateway_core.domain.structured import (
 
 from .http_json import JsonTransport, TransportFailure
 from .http_sse import HttpxSseTransport, SseTransport
-from .openai_compatible import OpenAICompatibleAdapter, _require_openai_strict_schema
+from .openai_compatible import (
+    OpenAICompatibleAdapter,
+    _openai_chat_messages,
+    _require_openai_strict_schema,
+)
 from .provider_common import (
     normalize_transport_failure,
     require_non_negative_int,
@@ -74,6 +78,7 @@ class OpenAICompatibleStreamingAdapter(OpenAICompatibleAdapter):
         self.feature_support = ProviderFeatureSupport(
             native_structured_output=supports_native_structured_output,
             native_tool_calling=supports_native_tool_calling,
+            native_tool_result_input=supports_native_tool_calling,
             native_streaming=supports_streaming,
             streaming_usage=supports_stream_usage,
         )
@@ -98,10 +103,7 @@ class OpenAICompatibleStreamingAdapter(OpenAICompatibleAdapter):
 
         payload: dict[str, object] = {
             "model": request.model,
-            "messages": [
-                {"role": message.role.value, "content": message.content}
-                for message in request.messages
-            ],
+            "messages": _openai_chat_messages(request),
             self._max_tokens_field: request.max_output_tokens,
             "stream": True,
             "stream_options": {"include_usage": True},
@@ -122,11 +124,12 @@ class OpenAICompatibleStreamingAdapter(OpenAICompatibleAdapter):
             }
         if request.tools:
             for tool in request.tools:
-                _require_openai_strict_schema(
-                    tool.input_schema,
-                    label=f"tool {tool.name}",
-                    provider=self._provider,
-                )
+                if tool.strict:
+                    _require_openai_strict_schema(
+                        tool.input_schema,
+                        label=f"tool {tool.name}",
+                        provider=self._provider,
+                    )
             payload["tools"] = [
                 {
                     "type": "function",
@@ -134,11 +137,13 @@ class OpenAICompatibleStreamingAdapter(OpenAICompatibleAdapter):
                         "name": tool.name,
                         "description": tool.description,
                         "parameters": dict(tool.input_schema),
-                        "strict": True,
+                        "strict": tool.strict,
                     },
                 }
                 for tool in request.tools
             ]
+            if request.parallel_tool_calling:
+                payload["parallel_tool_calls"] = True
 
         upstream = await open_provider_sse(
             provider=self._provider,

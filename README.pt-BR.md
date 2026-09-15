@@ -154,6 +154,28 @@ Screenshots reais desta demo: a visão conectada é o baseline fail-closed genu�
 `phase2-empty`, zero deployments), e o dashboard não tem linhas porque este modo não expõe rota de
 inferência capaz de produzir um trace.
 
+Claude Code e Codex podem usar o mesmo coordenador governado pelos adapters
+`POST /v1/messages` e `POST /v1/responses`. O valor de `model` é apenas um alias de compatibilidade:
+ele nunca seleciona nem autoriza um modelo concreto. O provider/modelo efetivo continua vindo apenas
+do contexto autenticado do cliente, do conjunto autorizado pelo PDP externo e da elegibilidade/ranking
+do Gateway. Consulte o
+[guia de protocolos e multimodalidade](docs/project/PROTOCOL_MULTIMODAL_GATEWAY.md) para o escopo,
+as fronteiras de segurança e a configuração exata dos clientes.
+
+### Compatibilidade de clientes
+
+| Cliente / protocolo | Status baseado em evidência |
+| --- | --- |
+| API nativa do Gateway | Suportada; compatibilidade existente preservada |
+| Anthropic Messages API | Subconjunto stateless testado por contrato |
+| Claude Code | Request e SSE representativos testados por contrato; sem alegação de CLI live |
+| OpenAI Responses API | Subconjunto stateless testado por contrato |
+| Codex | Request/replay HTTP atual e SSE testados contra o código oficial do cliente; sem alegação de CLI live |
+| Imagens | Referências HTTPS e inline limitado onde deployment/adapter permitirem |
+| Áudio/documentos | Canônicos e capability-gated; falham fechados sem opt-in do registry e adapter |
+| Funções/resultados | Chamadas comuns e resultados textuais; a aplicação executa o efeito |
+| Streaming | Stream do provider → eventos canônicos → SSE nativo do protocolo |
+
 ### Container
 
 O `Dockerfile` constrói a Gateway API e o `compose.gateway.yml` a executa. A imagem carrega apenas
@@ -170,21 +192,20 @@ docker compose -f compose.gateway.yml up gateway-operations
 
 Essa é a mesma superfície operations-only sem credencial. Ela escuta em `127.0.0.1` dentro do container,
 de modo que o `HEALTHCHECK` do próprio container a alcança e nada de fora alcança. A inferência governada
-roda sob o profile `governed` do compose e exige, além disso, credenciais de provider no ambiente, um
-Policy Model Router acessível e um perfil cujo endpoint de router resolva de dentro de um container - os
-comandos exatos estão em
+roda sob o profile `governed`: o Compose constrói o Gateway e baixa o Policy Model Router revisado por
+digest imutável. O startup normal exige somente este repositório e credenciais locais de Gateway, PDP e
+providers. Os comandos exatos estão em
 [`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md).
 
 ## Chamando a partir do seu projeto
 
-Dois processos rodam: o Policy Model Router (repositório separado) e o Gateway. Sua aplicação aponta
-para a URL e a credencial do Gateway.
+Dois serviços rodam: o Policy Model Router externo e o Gateway. Sua aplicação aponta para a URL e a
+credencial do Gateway; o fluxo normal baixa a imagem pinada do Router e não exige seu repositório.
 
 ```bash
 git clone https://github.com/brunovicco/governed-llm-gateway.git
-git clone https://github.com/brunovicco/policy-model-router.git
-(cd policy-model-router && uv sync --frozen)
-cd governed-llm-gateway && uv sync --frozen
+cd governed-llm-gateway
+cp .env.example .env
 ```
 
 Coloque no `.env` os dois segredos locais compartilhados que você criou, mais as chaves de provider
@@ -207,12 +228,13 @@ do `provider_runtime.json` antes. A NVIDIA tem tier gratuito em [build.nvidia.co
 
 ```bash
 set -a; source .env; set +a
-uv run --frozen python scripts/personal_default_launcher.py
+export APPROVED_RANKING_ARTIFACT_ID=sha256:4d58f86b791267b2d38c6a95edad576ab35a5b97a8ee43a78a9d527ac8ee56ad
+docker compose -f compose.gateway.yml --profile governed up --build gateway policy-model-router
 ```
 
-Isso sobe e derruba os dois serviços juntos (assume `../policy-model-router`; sobrescreva com
-`POLICY_MODEL_ROUTER_ROOT`). Depois adicione o client ao seu projeto - não publicado no PyPI,
-instale direto deste repositório:
+O workflow `compose.pdp-composition.yml` e `scripts/personal_default_launcher.py` preservam o modo de
+desenvolvimento cross-repository com checkout irmão. Depois adicione o client ao seu projeto - não
+publicado no PyPI, instale direto deste repositório:
 
 ```bash
 uv add "governed-llm-gateway-client @ git+https://github.com/brunovicco/governed-llm-gateway.git#subdirectory=packages/gateway-client"

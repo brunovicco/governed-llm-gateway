@@ -2,7 +2,16 @@
 
 from collections.abc import Mapping
 
-from governed_llm_gateway_contracts import MessageRole, ToolCall
+from governed_llm_gateway_contracts import (
+    Base64Source,
+    HttpsUrlSource,
+    ImageBlock,
+    MessageRole,
+    TextBlock,
+    ToolCall,
+    ToolResultBlock,
+    ToolUseBlock,
+)
 
 from governed_llm_gateway_core.adapters.http_json import (
     JsonTransport,
@@ -41,6 +50,8 @@ class AnthropicMessagesAdapter:
         native_structured_output=True,
         native_tool_calling=True,
         native_image_input=True,
+        native_inline_image_input=True,
+        native_tool_result_input=True,
     )
 
     def __init__(
@@ -65,7 +76,9 @@ class AnthropicMessagesAdapter:
         """Generate text, image analysis, structured output, or client-side tool calls."""
         require_supported_request_features("anthropic", request, self.feature_support)
         system = "\n\n".join(
-            message.content for message in request.messages if message.role is MessageRole.SYSTEM
+            message.text_content
+            for message in request.messages
+            if message.role is MessageRole.SYSTEM and message.text_content
         )
         messages = _anthropic_messages(request)
         if not messages:
@@ -96,10 +109,15 @@ class AnthropicMessagesAdapter:
                     "name": tool.name,
                     "description": tool.description,
                     "input_schema": dict(tool.input_schema),
-                    "strict": True,
+                    "strict": tool.strict,
                 }
                 for tool in request.tools
             ]
+            if request.parallel_tool_calling:
+                payload["tool_choice"] = {
+                    "type": "auto",
+                    "disable_parallel_tool_use": False,
+                }
 
         try:
             response = await self._transport.post_json(
@@ -148,21 +166,48 @@ def _anthropic_messages(request: ProviderRequest) -> list[dict[str, object]]:
     for message in request.messages:
         if message.role is MessageRole.SYSTEM:
             continue
-        if not message.images:
+        if not message.blocks and not message.images:
             messages.append({"role": message.role.value, "content": message.content})
             continue
-        content: list[dict[str, object]] = [
-            {
-                "type": "image",
-                "source": {
-                    "type": "url",
-                    "url": image.url,
-                },
-            }
-            for image in message.images
-        ]
-        content.append({"type": "text", "text": message.content})
-        messages.append({"role": message.role.value, "content": content})
+        content: list[dict[str, object]] = []
+        for block in message.canonical_blocks:
+            if isinstance(block, TextBlock):
+                content.append({"type": "text", "text": block.text})
+            elif isinstance(block, ImageBlock):
+                if isinstance(block.source, HttpsUrlSource):
+                    source: dict[str, object] = {"type": "url", "url": block.source.url}
+                elif isinstance(block.source, Base64Source):
+                    if block.media_type is None:  # pragma: no cover - contract invariant
+                        raise AssertionError("inline image media type is required")
+                    source = {
+                        "type": "base64",
+                        "media_type": block.media_type.value,
+                        "data": block.source.data,
+                    }
+                else:  # pragma: no cover - immutable contract validation owns this invariant
+                    raise AssertionError("unreachable image source")
+                content.append({"type": "image", "source": source})
+            elif isinstance(block, ToolUseBlock):
+                content.append(
+                    {
+                        "type": "tool_use",
+                        "id": block.call.call_id,
+                        "name": block.call.name,
+                        "input": dict(block.call.arguments),
+                    }
+                )
+            elif isinstance(block, ToolResultBlock):
+                content.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block.result.call_id,
+                        "content": block.result.content,
+                        "is_error": block.result.is_error,
+                    }
+                )
+        if content:
+            role = "user" if message.role is MessageRole.TOOL else message.role.value
+            messages.append({"role": role, "content": content})
     return messages
 
 

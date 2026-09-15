@@ -3,7 +3,16 @@
 from collections.abc import Mapping
 from urllib.parse import quote
 
-from governed_llm_gateway_contracts import MessageRole, ToolCall
+from governed_llm_gateway_contracts import (
+    Base64Source,
+    HttpsUrlSource,
+    ImageBlock,
+    MessageRole,
+    TextBlock,
+    ToolCall,
+    ToolResultBlock,
+    ToolUseBlock,
+)
 
 from governed_llm_gateway_core.adapters.http_json import (
     JsonTransport,
@@ -41,6 +50,8 @@ class GeminiAdapter:
         native_structured_output=True,
         native_tool_calling=True,
         native_image_input=True,
+        native_inline_image_input=True,
+        native_tool_result_input=True,
     )
 
     def __init__(
@@ -62,7 +73,9 @@ class GeminiAdapter:
         require_supported_request_features("google", request, self.feature_support)
         _require_external_url_image_model_support(request)
         system = "\n\n".join(
-            message.content for message in request.messages if message.role is MessageRole.SYSTEM
+            message.text_content
+            for message in request.messages
+            if message.role is MessageRole.SYSTEM and message.text_content
         )
         contents = _google_contents(request)
         if not contents:
@@ -144,19 +157,67 @@ class GeminiAdapter:
 def _google_contents(request: ProviderRequest) -> list[dict[str, object]]:
     """Translate provider-neutral messages into native Gemini content parts."""
     contents: list[dict[str, object]] = []
+    tool_names = {
+        block.call.call_id: block.call.name
+        for message in request.messages
+        for block in message.canonical_blocks
+        if isinstance(block, ToolUseBlock)
+    }
     for message in request.messages:
         if message.role is MessageRole.SYSTEM:
             continue
-        parts: list[dict[str, object]] = [
-            {
-                "fileData": {
-                    "mimeType": image.media_type.value,
-                    "fileUri": image.url,
-                }
-            }
-            for image in message.images
-        ]
-        parts.append({"text": message.content})
+        parts: list[dict[str, object]] = []
+        for block in message.canonical_blocks:
+            if isinstance(block, TextBlock):
+                parts.append({"text": block.text})
+            elif isinstance(block, ImageBlock):
+                if block.media_type is None:
+                    raise _invalid_request(
+                        "google requires a declared image media type for image input"
+                    )
+                if isinstance(block.source, HttpsUrlSource):
+                    parts.append(
+                        {
+                            "fileData": {
+                                "mimeType": block.media_type.value,
+                                "fileUri": block.source.url,
+                            }
+                        }
+                    )
+                elif isinstance(block.source, Base64Source):
+                    parts.append(
+                        {
+                            "inlineData": {
+                                "mimeType": block.media_type.value,
+                                "data": block.source.data,
+                            }
+                        }
+                    )
+            elif isinstance(block, ToolUseBlock):
+                parts.append(
+                    {
+                        "functionCall": {
+                            "id": block.call.call_id,
+                            "name": block.call.name,
+                            "args": dict(block.call.arguments),
+                        }
+                    }
+                )
+            elif isinstance(block, ToolResultBlock):
+                parts.append(
+                    {
+                        "functionResponse": {
+                            "id": block.result.call_id,
+                            "name": tool_names[block.result.call_id],
+                            "response": {
+                                "output": block.result.content,
+                                "is_error": block.result.is_error,
+                            },
+                        }
+                    }
+                )
+        if not parts:
+            continue
         contents.append(
             {
                 "role": "model" if message.role is MessageRole.ASSISTANT else "user",
@@ -168,7 +229,12 @@ def _google_contents(request: ProviderRequest) -> list[dict[str, object]]:
 
 def _require_external_url_image_model_support(request: ProviderRequest) -> None:
     """Fail before provider I/O for Gemini 2.0, which lacks external-URL file input."""
-    if not request.has_image_input:
+    has_external_image = any(
+        isinstance(block, ImageBlock) and isinstance(block.source, HttpsUrlSource)
+        for message in request.messages
+        for block in message.canonical_blocks
+    )
+    if not has_external_image:
         return
     model = request.model.removeprefix("models/")
     if model == "gemini-2.0" or model.startswith("gemini-2.0-"):
@@ -248,6 +314,15 @@ def _invalid_response(message: str) -> ProviderError:
     return ProviderError(
         provider="google",
         code=ProviderErrorCode.INVALID_RESPONSE,
+        message=message,
+        retryable=False,
+    )
+
+
+def _invalid_request(message: str) -> ProviderError:
+    return ProviderError(
+        provider="google",
+        code=ProviderErrorCode.INVALID_REQUEST,
         message=message,
         retryable=False,
     )

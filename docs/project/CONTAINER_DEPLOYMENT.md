@@ -57,20 +57,19 @@ today — a deliberate limitation, not a configuration mistake.
 
 ## Run: governed inference
 
-Opt-in through the `governed` compose profile, because it needs three things the file cannot
-supply on its own:
+Opt-in through the `governed` Compose profile. Normal local startup needs only this repository.
+Compose builds the Gateway and pulls the reviewed Policy Model Router `0.5.0` image by immutable
+multi-platform digest; it does not use `latest` and it does not copy Router code into this repository.
+The operator supplies:
 
 1. provider credentials in the environment for every enabled deployment;
-2. a reachable Policy Model Router;
-3. a profile whose `policy_router.json` endpoint resolves **from inside a container**. The
-   checked-in `personal-default` profile points at `127.0.0.1:8001`, which inside a container
-   is the container itself. Point it at `host.docker.internal:8001` — mapped in the compose
-   file — or at the PDP's own service name first.
+2. separate Gateway-consumer and Gateway-to-PDP credentials;
+3. a non-empty local operations-demo key because Compose validates the unselected service definition.
 
 ```bash
 set -a; source .env; set +a
-export APPROVED_RANKING_ARTIFACT_ID="$(python3 -c 'import json;print(json.load(open("config/profiles/personal-default/approved_ranking.json"))["artifact_id"])')"
-docker compose -f compose.gateway.yml --profile governed up gateway
+export APPROVED_RANKING_ARTIFACT_ID=sha256:4d58f86b791267b2d38c6a95edad576ab35a5b97a8ee43a78a9d527ac8ee56ad
+docker compose -f compose.gateway.yml --profile governed up --build gateway policy-model-router
 ```
 
 The approved ranking artifact ID is passed explicitly rather than discovered, so an artifact
@@ -78,8 +77,17 @@ that changes without the pin being updated fails the container closed at startup
 [the profile README](../../config/profiles/personal-default/README.md) for how that artifact
 is regenerated.
 
-Both services run with `read_only: true`, `no-new-privileges`, all capabilities dropped, and
-a small `tmpfs` for `/tmp`.
+The Compose-specific Gateway artifact points to `http://127.0.0.1:8000/route`. The two containers
+share one network namespace, allowing literal-loopback transport without weakening the runtime's
+HTTPS-or-loopback validation; the Gateway listens on port 8002 in that namespace and is published as
+`127.0.0.1:8000`. The normal host profile remains unchanged. Both services run with
+`read_only: true`, `no-new-privileges`, all capabilities dropped, loopback-only published ports, and
+a small `tmpfs` for `/tmp`. The Router policy is deployment-owned configuration, not imported
+authorization logic.
+
+For cross-repository development, `compose.pdp-composition.yml` deliberately keeps the sibling-source
+workflow and builds the Router checkout. It tests a different concern: byte-compatible signed runtime
+authorization across the two repositories.
 
 ## What this is not
 

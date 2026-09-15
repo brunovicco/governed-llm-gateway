@@ -393,6 +393,9 @@ def _build_generate_payload(
         structured_output=base_requirements.structured_output,
         vision=base_requirements.vision,
         streaming=True,
+        audio=base_requirements.audio,
+        document=base_requirements.document,
+        parallel_tool_calling=base_requirements.parallel_tool_calling,
         min_context_tokens=base_requirements.min_context_tokens,
     )
     try:
@@ -440,6 +443,28 @@ def _serialize_generate_request(
             "name": request.structured_output.name,
             "schema": dict(request.structured_output.schema),
         }
+    requirements_payload: dict[str, object] = {
+        "tool_calling": request.requirements.tool_calling,
+        "structured_output": request.requirements.structured_output,
+        "vision": request.requirements.vision,
+        "min_context_tokens": request.requirements.min_context_tokens,
+    }
+    if request.requirements.audio:
+        requirements_payload["audio"] = True
+    if request.requirements.document:
+        requirements_payload["document"] = True
+    if request.requirements.parallel_tool_calling:
+        requirements_payload["parallel_tool_calling"] = True
+    tool_payloads: list[dict[str, object]] = []
+    for tool in request.tools:
+        tool_payload: dict[str, object] = {
+            "name": tool.name,
+            "description": tool.description,
+            "input_schema": dict(tool.input_schema),
+        }
+        if not tool.strict:
+            tool_payload["strict"] = False
+        tool_payloads.append(tool_payload)
     return {
         "schema_version": request.schema_version,
         "request_id": str(request.request_id),
@@ -447,23 +472,11 @@ def _serialize_generate_request(
         "risk_level": request.risk_level.value,
         "data_classification": request.data_classification.value,
         "stream": True,
-        "requirements": {
-            "tool_calling": request.requirements.tool_calling,
-            "structured_output": request.requirements.structured_output,
-            "vision": request.requirements.vision,
-            "min_context_tokens": request.requirements.min_context_tokens,
-        },
+        "requirements": requirements_payload,
         "limits": limits,
         "messages": [_serialize_message(message) for message in request.messages],
         "agent_identity": request.agent_identity,
-        "tools": [
-            {
-                "name": tool.name,
-                "description": tool.description,
-                "input_schema": dict(tool.input_schema),
-            }
-            for tool in request.tools
-        ],
+        "tools": tool_payloads,
         "structured_output": structured_output,
         "context_tokens_estimated": context_tokens_estimated,
         "max_output_tokens": max_output_tokens,

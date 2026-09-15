@@ -17,6 +17,7 @@ from governed_llm_gateway_contracts import (
     ProviderExecution,
     RoutingProvenance,
     StreamEventType,
+    ToolResultBlock,
     Usage,
 )
 
@@ -173,7 +174,14 @@ class StreamingExecutionService:
                 return
 
         candidates = (decision.selected, *decision.alternatives)
-        bounded = candidates[: self._retry_policy.max_fallbacks + 1]
+        replay_safe = not any(
+            message.role.value == "tool"
+            or any(isinstance(block, ToolResultBlock) for block in message.canonical_blocks)
+            for message in request.messages
+        )
+        bounded = (
+            candidates[: self._retry_policy.max_fallbacks + 1] if replay_safe else candidates[:1]
+        )
         for candidate in bounded:
             _validate_streaming_candidate(candidate, decision)
 
@@ -242,7 +250,8 @@ class StreamingExecutionService:
                 )
                 return
 
-            for attempt_number in range(1, self._retry_policy.max_attempts_per_deployment + 1):
+            attempt_limit = self._retry_policy.max_attempts_per_deployment if replay_safe else 1
+            for attempt_number in range(1, attempt_limit + 1):
                 if not await self._health.allow_request(deployment_id):
                     break
 
@@ -288,7 +297,11 @@ class StreamingExecutionService:
                                 "llm.attempt_number": attempt_number,
                                 "llm.fallback_count": len(fallback_sequence) - 1,
                                 "llm.streaming": True,
+                                "client.protocol": request.client_protocol.value,
                                 "routing.decision_id": routing.routing_decision_id,
+                                "routing.policy_id": routing.policy.policy_id,
+                                "routing.policy_version": routing.policy.policy_version,
+                                "routing.policy_digest": routing.policy.policy_digest,
                                 "routing.model_group": routing.authorized_model_group,
                                 "registry.digest": routing.model_registry_digest,
                                 "ranking.policy_version": routing.ranking_policy_version,
@@ -536,8 +549,9 @@ class StreamingExecutionService:
 
                         transient = is_transient_provider_error(exc)
                         can_retry = (
-                            transient
-                            and attempt_number < self._retry_policy.max_attempts_per_deployment
+                            replay_safe
+                            and transient
+                            and attempt_number < attempt_limit
                             and await self._health.allow_request(deployment_id)
                         )
                         if can_retry:
@@ -592,7 +606,7 @@ class StreamingExecutionService:
                     await self._sleeper(retry_delay_after_span)
                     continue
 
-        retryable = last_error.retryable if last_error is not None else False
+        retryable = last_error.retryable if last_error is not None and replay_safe else False
         code = last_error.code.value if last_error is not None else "streaming_candidates_exhausted"
         yield _failed_event(
             request=request,
@@ -620,6 +634,7 @@ def _provider_request(
         timeout_seconds=timeout_seconds,
         structured_output=request.structured_output,
         tools=request.tools,
+        parallel_tool_calling=request.requirements.parallel_tool_calling,
     )
 
 

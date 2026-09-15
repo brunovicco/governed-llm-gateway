@@ -38,6 +38,14 @@ class MessageRole(StrEnum):
     TOOL = "tool"
 
 
+class ClientProtocol(StrEnum):
+    """Northbound protocol provenance; never an authorization or routing input."""
+
+    NATIVE = "native"
+    ANTHROPIC_MESSAGES = "anthropic-messages"
+    OPENAI_RESPONSES = "openai-responses"
+
+
 class ExecutionStatus(StrEnum):
     """Provider-neutral terminal execution status."""
 
@@ -83,6 +91,9 @@ class Capability(StrEnum):
     TOOL_CALLING = "tool_calling"
     STRUCTURED_OUTPUT = "structured_output"
     STREAMING = "streaming"
+    AUDIO = "audio"
+    DOCUMENT = "document"
+    PARALLEL_TOOL_CALLING = "parallel_tool_calling"
 
 
 class Modality(StrEnum):
@@ -90,6 +101,8 @@ class Modality(StrEnum):
 
     TEXT = "text"
     IMAGE = "image"
+    AUDIO = "audio"
+    DOCUMENT = "document"
 
 
 class ImageMediaType(StrEnum):
@@ -98,3 +111,20 @@ class ImageMediaType(StrEnum):
     JPEG = "image/jpeg"
     PNG = "image/png"
     WEBP = "image/webp"
+
+
+class AudioMediaType(StrEnum):
+    """Provider-neutral audio media types accepted as bounded inline bytes."""
+
+    MPEG = "audio/mpeg"
+    WAV = "audio/wav"
+    OGG = "audio/ogg"
+    WEBM = "audio/webm"
+
+
+class DocumentMediaType(StrEnum):
+    """Provider-neutral document media types accepted as bounded inline bytes."""
+
+    PDF = "application/pdf"
+    PLAIN_TEXT = "text/plain"
+    JSON = "application/json"

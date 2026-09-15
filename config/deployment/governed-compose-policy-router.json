@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "config_version": "governed-compose-20260915",
+  "enabled": true,
+  "endpoint": "http://127.0.0.1:8000/route",
+  "timeout_seconds": 5.0,
+  "bindings": [
+    {
+      "client_id": "gateway-demo",
+      "credential_reference": "POLICY_ROUTER_DEMO_API_KEY"
+    }
+  ]
+}

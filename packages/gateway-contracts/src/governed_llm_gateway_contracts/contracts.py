@@ -1,5 +1,7 @@
 """Immutable provider-neutral contracts for the Governed LLM Gateway."""
 
+import base64
+import binascii
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -8,7 +10,10 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 from .enums import (
+    AudioMediaType,
+    ClientProtocol,
     DataClassification,
+    DocumentMediaType,
     ExecutionStatus,
     ImageMediaType,
     MessageRole,
@@ -24,6 +29,26 @@ _TRACE_ID_PATTERN = r"[0-9a-f]{32}"
 _MAX_IMAGE_URL_LENGTH = 2048
 _MAX_IMAGES_PER_MESSAGE = 8
 _MAX_IMAGES_PER_REQUEST = 16
+_MAX_INLINE_MEDIA_BYTES = 4 * 1024 * 1024
+_MAX_INLINE_MEDIA_ENCODED_LENGTH = 6 * 1024 * 1024
+
+
+def _validate_https_url(url: str, *, label: str) -> None:
+    if not url or url.strip() != url:
+        raise ValueError(f"{label} URL must be a normalized non-empty string")
+    if len(url) > _MAX_IMAGE_URL_LENGTH:
+        raise ValueError(f"{label} URL exceeds the maximum supported length")
+    try:
+        parsed = urlsplit(url)
+        _ = parsed.port
+    except ValueError as exc:
+        raise ValueError(f"{label} URL is invalid") from exc
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ValueError(f"{label} URL must be an absolute HTTPS URL")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError(f"{label} URL must not contain userinfo")
+    if parsed.query or parsed.fragment:
+        raise ValueError(f"{label} URL must not contain query or fragment")
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,39 +62,207 @@ class ImageInput:
         """Reject ambiguous or credential-bearing image references before provider I/O."""
         if not isinstance(self.media_type, ImageMediaType):
             raise ValueError("image media_type must use the provider-neutral vocabulary")
-        if not self.url or self.url.strip() != self.url:
-            raise ValueError("image URL must be a normalized non-empty string")
-        if len(self.url) > _MAX_IMAGE_URL_LENGTH:
-            raise ValueError("image URL exceeds the maximum supported length")
+        _validate_https_url(self.url, label="image")
+
+
+@dataclass(frozen=True, slots=True)
+class HttpsUrlSource:
+    """An HTTPS media reference which adapters forward but the gateway never fetches."""
+
+    url: str
+
+    def __post_init__(self) -> None:
+        """Reject unsafe or ambiguous remote references."""
+        _validate_https_url(self.url, label="media")
+
+
+@dataclass(frozen=True, slots=True)
+class Base64Source:
+    """Bounded canonical base64 bytes validated before provider selection or I/O."""
+
+    data: str
+
+    def __post_init__(self) -> None:
+        """Decode only for validation and enforce both encoded and decoded ceilings."""
+        if not self.data or self.data.strip() != self.data:
+            raise ValueError("base64 media data must be a normalized non-empty string")
+        if len(self.data) > _MAX_INLINE_MEDIA_ENCODED_LENGTH:
+            raise ValueError("base64 media data exceeds the encoded-size limit")
         try:
-            parsed = urlsplit(self.url)
-            _ = parsed.port
-        except ValueError as exc:
-            raise ValueError("image URL is invalid") from exc
-        if parsed.scheme != "https" or not parsed.hostname:
-            raise ValueError("image URL must be an absolute HTTPS URL")
-        if parsed.username is not None or parsed.password is not None:
-            raise ValueError("image URL must not contain userinfo")
-        if parsed.query or parsed.fragment:
-            raise ValueError("image URL must not contain query or fragment")
+            decoded = base64.b64decode(self.data, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError("base64 media data is invalid") from exc
+        if len(decoded) > _MAX_INLINE_MEDIA_BYTES:
+            raise ValueError("base64 media data exceeds the decoded-size limit")
+
+
+MediaSource = HttpsUrlSource | Base64Source
+
+
+@dataclass(frozen=True, slots=True)
+class TextBlock:
+    """Canonical text content block."""
+
+    text: str
+
+    def __post_init__(self) -> None:
+        """Reject empty deltas at the canonical boundary."""
+        if not self.text:
+            raise ValueError("text block must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ImageBlock:
+    """Canonical image block using an unfetched HTTPS URL or bounded inline bytes.
+
+    URL-oriented client protocols do not always declare a media type. Keeping that value
+    unknown is safer than inventing one; inline bytes always require an explicit type.
+    """
+
+    media_type: ImageMediaType | None
+    source: MediaSource
+
+    def __post_init__(self) -> None:
+        """Require a controlled media type and source-compatible metadata."""
+        if self.media_type is not None and not isinstance(self.media_type, ImageMediaType):
+            raise ValueError("image block media_type is invalid")
+        if not isinstance(self.source, HttpsUrlSource | Base64Source):
+            raise ValueError("image block source is invalid")
+        if isinstance(self.source, Base64Source) and self.media_type is None:
+            raise ValueError("inline image blocks require a media_type")
+
+
+@dataclass(frozen=True, slots=True)
+class AudioBlock:
+    """Canonical audio block; remote audio fetching is intentionally unsupported."""
+
+    media_type: AudioMediaType
+    source: Base64Source
+
+    def __post_init__(self) -> None:
+        """Require bounded inline bytes and a controlled audio media type."""
+        if not isinstance(self.media_type, AudioMediaType):
+            raise ValueError("audio block media_type is invalid")
+        if not isinstance(self.source, Base64Source):
+            raise ValueError("audio blocks require bounded base64 data")
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentBlock:
+    """Canonical document block; remote document fetching is intentionally unsupported."""
+
+    media_type: DocumentMediaType
+    source: Base64Source
+    filename: str | None = None
+
+    def __post_init__(self) -> None:
+        """Require bounded inline bytes and a safe optional basename."""
+        if not isinstance(self.media_type, DocumentMediaType):
+            raise ValueError("document block media_type is invalid")
+        if not isinstance(self.source, Base64Source):
+            raise ValueError("document blocks require bounded base64 data")
+        if self.filename is not None and (
+            not self.filename.strip()
+            or self.filename.strip() != self.filename
+            or "/" in self.filename
+            or "\\" in self.filename
+        ):
+            raise ValueError("document filename must be a normalized basename")
+
+
+@dataclass(frozen=True, slots=True)
+class ToolUseBlock:
+    """Canonical assistant tool-use block retained for tool-result continuation."""
+
+    call: "ToolCall"
+
+    def __post_init__(self) -> None:
+        """Reject structurally invalid transcript blocks at construction time."""
+        if not isinstance(self.call, ToolCall):
+            raise ValueError("tool-use block call is invalid")
+
+
+@dataclass(frozen=True, slots=True)
+class ToolResultBlock:
+    """Canonical application-supplied tool-result block; the gateway never executes it."""
+
+    result: "ToolResult"
+
+    def __post_init__(self) -> None:
+        """Reject structurally invalid transcript blocks at construction time."""
+        if not isinstance(self.result, ToolResult):
+            raise ValueError("tool-result block result is invalid")
+
+
+ContentBlock = TextBlock | ImageBlock | AudioBlock | DocumentBlock | ToolUseBlock | ToolResultBlock
 
 
 @dataclass(frozen=True, slots=True)
 class Message:
-    """Provider-neutral message with bounded optional image-understanding input."""
+    """Provider-neutral message supporting legacy text/images and canonical content blocks."""
 
     role: MessageRole
     content: str
     images: tuple[ImageInput, ...] = ()
+    blocks: tuple[ContentBlock, ...] = ()
 
     def __post_init__(self) -> None:
-        """Keep the first multimodal contract bounded to user-supplied URL images."""
+        """Reject ambiguous mixed representations and invalid role/block combinations."""
+        if self.blocks and (self.content or self.images):
+            raise ValueError("message must use legacy content/images or canonical blocks, not both")
         if len(self.images) > _MAX_IMAGES_PER_MESSAGE:
             raise ValueError("message exceeds the maximum image count")
         if any(not isinstance(image, ImageInput) for image in self.images):
             raise ValueError("message images must use the provider-neutral ImageInput contract")
         if self.images and self.role is not MessageRole.USER:
             raise ValueError("image input is supported only on user messages")
+        if any(
+            not isinstance(
+                block,
+                TextBlock
+                | ImageBlock
+                | AudioBlock
+                | DocumentBlock
+                | ToolUseBlock
+                | ToolResultBlock,
+            )
+            for block in self.blocks
+        ):
+            raise ValueError("message blocks must use the canonical content-block contracts")
+        if (
+            any(isinstance(block, ImageBlock | AudioBlock | DocumentBlock) for block in self.blocks)
+            and self.role is not MessageRole.USER
+        ):
+            raise ValueError("media input blocks are supported only on user messages")
+        if any(isinstance(block, ToolUseBlock) for block in self.blocks) and (
+            self.role is not MessageRole.ASSISTANT
+        ):
+            raise ValueError("tool-use blocks require the assistant role")
+        if any(isinstance(block, ToolResultBlock) for block in self.blocks) and self.role not in {
+            MessageRole.USER,
+            MessageRole.TOOL,
+        }:
+            raise ValueError("tool-result blocks require the user or tool role")
+
+    @property
+    def canonical_blocks(self) -> tuple[ContentBlock, ...]:
+        """Return one unambiguous canonical block sequence for legacy and new callers."""
+        if self.blocks:
+            return self.blocks
+        blocks: list[ContentBlock] = [
+            ImageBlock(media_type=image.media_type, source=HttpsUrlSource(image.url))
+            for image in self.images
+        ]
+        if self.content:
+            blocks.append(TextBlock(self.content))
+        return tuple(blocks)
+
+    @property
+    def text_content(self) -> str:
+        """Join canonical text blocks for API families with a separate system field."""
+        return "\n".join(
+            block.text for block in self.canonical_blocks if isinstance(block, TextBlock)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,12 +273,17 @@ class WorkloadRequirements:
     structured_output: bool = False
     vision: bool = False
     streaming: bool = False
+    audio: bool = False
+    document: bool = False
+    parallel_tool_calling: bool = False
     min_context_tokens: int = 0
 
     def __post_init__(self) -> None:
         """Validate context-token requirements."""
         if self.min_context_tokens < 0:
             raise ValueError("min_context_tokens must be non-negative")
+        if self.parallel_tool_calling and not self.tool_calling:
+            raise ValueError("parallel_tool_calling requires tool_calling capability")
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,6 +323,7 @@ class ToolDefinition:
     name: str
     description: str
     input_schema: Mapping[str, object]
+    strict: bool = True
 
     def __post_init__(self) -> None:
         """Validate provider-neutral tool identity and root input shape."""
@@ -134,6 +333,8 @@ class ToolDefinition:
             raise ValueError("tool description must be a normalized non-empty string")
         if self.input_schema.get("type") != "object":
             raise ValueError("tool input_schema root type must be object")
+        if not isinstance(self.strict, bool):
+            raise ValueError("tool strict flag must be boolean")
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,11 +387,14 @@ class GatewayRequest:
     agent_identity: str | None = None
     tools: tuple[ToolDefinition, ...] = ()
     structured_output: StructuredOutputSchema | None = None
+    client_protocol: ClientProtocol = ClientProtocol.NATIVE
 
     def __post_init__(self) -> None:
         """Validate schema version, workload identity, and optional execution contracts."""
         if self.schema_version != "1.0":
             raise ValueError("unsupported schema_version")
+        if not isinstance(self.client_protocol, ClientProtocol):
+            raise ValueError("client_protocol must use the controlled vocabulary")
         if not self.workload or self.workload.strip() != self.workload:
             raise ValueError("workload must be a non-empty normalized identifier")
         segments = self.workload.split(".")
@@ -203,11 +407,44 @@ class GatewayRequest:
             raise ValueError("tool definitions require tool_calling capability")
         if self.structured_output is not None and not self.requirements.structured_output:
             raise ValueError("structured output schema requires structured_output capability")
-        image_count = sum(len(message.images) for message in self.messages)
+        blocks = tuple(block for message in self.messages for block in message.canonical_blocks)
+        image_count = sum(isinstance(block, ImageBlock) for block in blocks)
         if image_count > _MAX_IMAGES_PER_REQUEST:
             raise ValueError("request exceeds the maximum image count")
         if image_count and not self.requirements.vision:
             raise ValueError("image input requires vision capability")
+        if any(isinstance(block, AudioBlock) for block in blocks) and not self.requirements.audio:
+            raise ValueError("audio input requires audio capability")
+        if (
+            any(isinstance(block, DocumentBlock) for block in blocks)
+            and not self.requirements.document
+        ):
+            raise ValueError("document input requires document capability")
+        tool_uses = tuple(block.call for block in blocks if isinstance(block, ToolUseBlock))
+        tool_results = tuple(block.result for block in blocks if isinstance(block, ToolResultBlock))
+        if (tool_uses or tool_results) and not self.requirements.tool_calling:
+            raise ValueError("tool transcript blocks require tool_calling capability")
+        use_ids: set[str] = set()
+        result_ids: set[str] = set()
+        for message in self.messages:
+            message_uses = tuple(
+                block.call for block in message.canonical_blocks if isinstance(block, ToolUseBlock)
+            )
+            if len(message_uses) > 1 and not self.requirements.parallel_tool_calling:
+                raise ValueError("multiple tool calls require parallel_tool_calling capability")
+            for block in message.canonical_blocks:
+                if isinstance(block, ToolUseBlock):
+                    if block.call.call_id in use_ids:
+                        raise ValueError("tool-use call identifiers must be unique")
+                    use_ids.add(block.call.call_id)
+                elif isinstance(block, ToolResultBlock):
+                    if block.result.call_id not in use_ids:
+                        raise ValueError(
+                            "each tool result must correlate to a prior tool-use block"
+                        )
+                    if block.result.call_id in result_ids:
+                        raise ValueError("tool-result call identifiers must be unique")
+                    result_ids.add(block.result.call_id)
 
 
 @dataclass(frozen=True, slots=True)
