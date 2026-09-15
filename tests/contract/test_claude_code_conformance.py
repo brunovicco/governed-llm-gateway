@@ -98,7 +98,10 @@ class ClaudeCodeConformanceTests(unittest.TestCase):
         self.assertIsInstance(normalized_tools, list)
         assert isinstance(normalized_tools, list)
         self.assertTrue(
-            all(isinstance(tool, dict) and tool["description"] == "" for tool in normalized_tools)
+            all(
+                isinstance(tool, dict) and tool["description"] == "Claude Code tool"
+                for tool in normalized_tools
+            )
         )
 
         parsed = AnthropicMessagesRequestModel.model_validate(normalized)
