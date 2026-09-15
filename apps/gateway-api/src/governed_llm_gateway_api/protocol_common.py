@@ -25,6 +25,14 @@ from governed_llm_gateway_contracts import (
 )
 
 DEFAULT_AGENT_WORKLOAD = "agent.tool-use"
+# Provider-compatible protocols do not carry the Gateway governance vocabulary. These are
+# deliberately the least restrictive *caller claims*, not the effective security context.
+# EffectiveContextResolver authenticates the credential, rejects workloads outside the client
+# binding, and raises risk/classification to the binding floors before PDP authorization/ranking.
+# A deployment that needs a stricter posture must configure stricter client-auth floors; protocol
+# clients cannot lower those floors with request fields or provider-shaped metadata.
+_PROTOCOL_CALLER_RISK_CLAIM = RiskLevel.LOW
+_PROTOCOL_CALLER_DATA_CLAIM = DataClassification.PUBLIC
 _WORKLOAD_PATTERN = r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"
 _CHARS_PER_TOKEN = 4
 _NON_TEXT_BLOCK_TOKEN_ESTIMATE = 1024
@@ -116,8 +124,8 @@ def build_protocol_payload(
         schema_version="1.0",
         request_id=request_id,
         workload=workload,
-        risk_level=RiskLevel.LOW,
-        data_classification=DataClassification.PUBLIC,
+        risk_level=_PROTOCOL_CALLER_RISK_CLAIM,
+        data_classification=_PROTOCOL_CALLER_DATA_CLAIM,
         requirements=requirements,
         limits=RequestLimits(),
         messages=messages,
