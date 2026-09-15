@@ -226,12 +226,14 @@ from `provider_runtime.json` first. NVIDIA has a free tier at [build.nvidia.com]
 
 ```bash
 set -a; source .env; set +a
-uv run --frozen python scripts/personal_default_launcher.py
+export APPROVED_RANKING_ARTIFACT_ID=sha256:4d58f86b791267b2d38c6a95edad576ab35a5b97a8ee43a78a9d527ac8ee56ad
+docker compose -f compose.gateway.yml --profile governed up --build gateway policy-model-router
 ```
 
-That starts and tears down both services together (it assumes `../policy-model-router`; override with
-`POLICY_MODEL_ROUTER_ROOT`). Then add the client to your own project - not published to PyPI,
-install straight from this repository:
+The normal path above does not require a Policy Model Router source checkout. The source-based
+`scripts/personal_default_launcher.py` and `compose.pdp-composition.yml` remain available for
+cross-repository development. Then add the client to your own project - not published to PyPI, install
+straight from this repository:
 
 ```bash
 uv add "governed-llm-gateway-client @ git+https://github.com/brunovicco/governed-llm-gateway.git#subdirectory=packages/gateway-client"
