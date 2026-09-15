@@ -153,8 +153,10 @@ Real screenshots of this exact demo: the connected view is the genuine fail-clos
 inference route to produce a trace.
 
 Claude Code and Codex can use the same governed coordinator through native-shaped
-`POST /v1/messages` and `POST /v1/responses` adapters. The concrete provider/model still comes only
-from the external PDP's authorized set and Gateway eligibility/ranking. See the
+`POST /v1/messages` and `POST /v1/responses` adapters. Their `model` value is only a compatibility
+alias: it never selects or authorizes a concrete model. The concrete provider/model still comes only
+from the authenticated client context, external PDP's authorized set and Gateway eligibility/ranking.
+See the
 [protocol and multimodal guide](docs/project/PROTOCOL_MULTIMODAL_GATEWAY.md) for the supported subset,
 security boundaries and exact client configuration.
 
@@ -194,14 +196,15 @@ credentials. Exact commands are in
 
 ## Calling it from your own project
 
-Two processes run: the Policy Model Router (a separate repository) and the Gateway. Your application
-points at the Gateway's URL and credential.
+Two services run: the external Policy Model Router and the Gateway, but normal governed startup needs
+only this repository. Compose pulls the reviewed Router image by immutable digest; your application
+talks only to the Gateway URL and credential. A sibling Router checkout is needed only for explicit
+cross-repository development/composition work.
 
 ```bash
 git clone https://github.com/brunovicco/governed-llm-gateway.git
-git clone https://github.com/brunovicco/policy-model-router.git
-(cd policy-model-router && uv sync --frozen)
-cd governed-llm-gateway && uv sync --frozen
+cd governed-llm-gateway
+cp .env.example .env
 ```
 
 Put the two local shared secrets you created, plus the provider keys you actually have, in `.env`:
