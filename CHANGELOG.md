@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added canonical multimodal content blocks and fail-closed audio, document and parallel-tool
+  capabilities; tool-result continuations are never retried or failed over.
+- Added strict Anthropic Messages and OpenAI Responses northbound adapters with protocol-native
+  aggregate/SSE responses, safe error envelopes and Claude Code/Codex setup documentation. Both use
+  the existing authenticated external-PDP/ranking/execution path; client model strings are aliases.
+- The governed Compose profile now pulls Policy Model Router 0.5.0 by immutable digest, so normal
+  local governed startup requires only this repository. Sibling-source composition remains available.
+
 - **The two services in the authority chain now run against each other**: `compose.pdp-composition.yml`
   stands up a real Policy Model Router with `RUNTIME_AUTHORIZATION_REQUIRED=true` and Redis behind it,
   and `scripts/composition_proof.py` drives the Gateway's own PDP adapter against it through four

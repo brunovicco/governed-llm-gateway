@@ -46,6 +46,8 @@ class GeminiStreamingAdapter(GeminiAdapter):
         native_structured_output=True,
         native_tool_calling=True,
         native_image_input=True,
+        native_inline_image_input=True,
+        native_tool_result_input=True,
         native_streaming=True,
         streaming_usage=True,
     )
@@ -67,7 +69,9 @@ class GeminiStreamingAdapter(GeminiAdapter):
         require_supported_request_features("google", request, self.feature_support)
         _require_external_url_image_model_support(request)
         system = "\n\n".join(
-            message.content for message in request.messages if message.role is MessageRole.SYSTEM
+            message.text_content
+            for message in request.messages
+            if message.role is MessageRole.SYSTEM and message.text_content
         )
         contents = _google_contents(request)
         if not contents:

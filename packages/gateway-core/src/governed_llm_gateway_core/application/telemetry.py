@@ -41,6 +41,7 @@ GATEWAY_ALLOWED_ATTRIBUTE_KEYS = frozenset(
         "llm.retry_delay_ms",
         "llm.partial",
         "llm.streaming",
+        "client.protocol",
         "routing.decision_id",
         "routing.policy_id",
         "routing.policy_version",

@@ -55,6 +55,8 @@ class AnthropicMessagesStreamingAdapter(AnthropicMessagesAdapter):
         native_streaming=True,
         streaming_usage=True,
         native_image_input=True,
+        native_inline_image_input=True,
+        native_tool_result_input=True,
     )
 
     def __init__(
@@ -79,7 +81,9 @@ class AnthropicMessagesStreamingAdapter(AnthropicMessagesAdapter):
         """Yield normalized Messages events and close upstream resources on cancellation."""
         require_supported_request_features("anthropic", request, self.feature_support)
         system = "\n\n".join(
-            message.content for message in request.messages if message.role is MessageRole.SYSTEM
+            message.text_content
+            for message in request.messages
+            if message.role is MessageRole.SYSTEM and message.text_content
         )
         messages = _anthropic_messages(request)
         if not messages:
@@ -106,10 +110,15 @@ class AnthropicMessagesStreamingAdapter(AnthropicMessagesAdapter):
                     "name": tool.name,
                     "description": tool.description,
                     "input_schema": dict(tool.input_schema),
-                    "strict": True,
+                    "strict": tool.strict,
                 }
                 for tool in request.tools
             ]
+            if request.parallel_tool_calling:
+                payload["tool_choice"] = {
+                    "type": "auto",
+                    "disable_parallel_tool_use": False,
+                }
 
         upstream = await open_provider_sse(
             provider="anthropic",

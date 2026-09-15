@@ -100,6 +100,30 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertIn(Capability.VISION, deployment.capabilities)
         self.assertIn(Modality.IMAGE, deployment.modalities)
 
+    def test_extension_capabilities_are_explicit_and_legacy_digest_stays_stable(self) -> None:
+        legacy = load_model_registry_text(registry_yaml())
+        extended_text = (
+            registry_yaml()
+            .replace(
+                "      streaming: true\n",
+                "      streaming: true\n      audio: true\n",
+            )
+            .replace("    modalities: [text]\n", "    modalities: [text, audio]\n")
+        )
+        extended = load_model_registry_text(extended_text)
+        explicit_false = load_model_registry_text(
+            registry_yaml().replace(
+                "      streaming: true\n",
+                "      streaming: true\n      audio: false\n",
+            )
+        )
+
+        self.assertNotIn(Capability.AUDIO, legacy.by_id("alpha").capabilities)
+        self.assertIn(Capability.AUDIO, extended.by_id("alpha").capabilities)
+        self.assertIn(Modality.AUDIO, extended.by_id("alpha").modalities)
+        self.assertEqual(legacy.digest, explicit_false.digest)
+        self.assertNotEqual(legacy.digest, extended.digest)
+
     def test_text_capability_is_required(self) -> None:
         text = registry_yaml().replace("      text: true\n", "      text: false\n")
         with self.assertRaisesRegex(ModelRegistryError, "must declare text capability"):
@@ -108,7 +132,7 @@ class ModelRegistryTests(unittest.TestCase):
     def test_unknown_capability_rejected(self) -> None:
         text = registry_yaml().replace(
             "      streaming: true\n",
-            "      streaming: true\n      audio: true\n",
+            "      streaming: true\n      realtime_audio: true\n",
         )
         with self.assertRaisesRegex(ModelRegistryError, "unknown alpha.capabilities fields"):
             load_model_registry_text(text)

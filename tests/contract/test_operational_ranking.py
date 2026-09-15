@@ -130,6 +130,9 @@ def _request(
     tool_calling: bool = True,
     structured_output: bool = False,
     vision: bool = False,
+    audio: bool = False,
+    document: bool = False,
+    parallel_tool_calling: bool = False,
     min_context_tokens: int = 0,
     max_cost_usd: Decimal = Decimal("1"),
     max_latency_ms: int = 10_000,
@@ -144,6 +147,9 @@ def _request(
             tool_calling=tool_calling,
             structured_output=structured_output,
             vision=vision,
+            audio=audio,
+            document=document,
+            parallel_tool_calling=parallel_tool_calling,
             min_context_tokens=min_context_tokens,
         ),
         limits=RequestLimits(
@@ -277,6 +283,21 @@ def test_ties_resolve_by_deployment_identifier() -> None:
         (
             _deployment("missing-tool", capabilities=frozenset({Capability.TEXT})),
             _request(tool_calling=True),
+            RejectionReason.MISSING_CAPABILITY,
+        ),
+        (
+            _deployment("missing-audio"),
+            _request(audio=True),
+            RejectionReason.MISSING_CAPABILITY,
+        ),
+        (
+            _deployment("missing-document"),
+            _request(document=True),
+            RejectionReason.MISSING_CAPABILITY,
+        ),
+        (
+            _deployment("missing-parallel-tool"),
+            _request(parallel_tool_calling=True),
             RejectionReason.MISSING_CAPABILITY,
         ),
         (

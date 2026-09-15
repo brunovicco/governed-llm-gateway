@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator
 from contextlib import aclosing, nullcontext
 from dataclasses import dataclass, replace
 from decimal import Decimal
-from typing import TYPE_CHECKING, Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Literal, Protocol
 from uuid import UUID
 
 from a2a_otel_kit import continue_trace, inject_trace_context
@@ -102,6 +102,9 @@ class GenerateRequirementsModel(BaseModel):
     tool_calling: bool = False
     structured_output: bool = False
     vision: bool = False
+    audio: bool = False
+    document: bool = False
+    parallel_tool_calling: bool = False
     min_context_tokens: int = Field(default=0, ge=0)
 
 
@@ -122,6 +125,7 @@ class GenerateToolModel(BaseModel):
     name: str
     description: str
     input_schema: dict[str, object]
+    strict: bool = True
 
     def to_contract(self) -> ToolDefinition:
         """Build the provider-neutral immutable tool definition."""
@@ -129,6 +133,7 @@ class GenerateToolModel(BaseModel):
             name=self.name,
             description=self.description,
             input_schema=self.input_schema,
+            strict=self.strict,
         )
 
 
@@ -201,6 +206,9 @@ class GenerateRequestModel(BaseModel):
                 structured_output=self.requirements.structured_output,
                 vision=self.requirements.vision,
                 streaming=True,
+                audio=self.requirements.audio,
+                document=self.requirements.document,
+                parallel_tool_calling=self.requirements.parallel_tool_calling,
                 min_context_tokens=self.requirements.min_context_tokens,
             ),
             limits=RequestLimits(
@@ -212,6 +220,39 @@ class GenerateRequestModel(BaseModel):
             tools=tools,
             structured_output=structured_output,
         )
+
+
+class GenerationPayload(Protocol):
+    """Structural payload accepted by the one governed generation coordinator."""
+
+    @property
+    def request_id(self) -> UUID:
+        """Return the public request identifier."""
+        ...
+
+    @property
+    def workload(self) -> str:
+        """Return the policy-defined workload identifier."""
+        ...
+
+    @property
+    def context_tokens_estimated(self) -> int:
+        """Return the bounded routing input-token estimate."""
+        ...
+
+    @property
+    def max_output_tokens(self) -> int:
+        """Return the caller output-token ceiling."""
+        ...
+
+    @property
+    def provider_timeout_seconds(self) -> float:
+        """Return the provider-attempt timeout."""
+        ...
+
+    def to_gateway_request(self) -> GatewayRequest:
+        """Return the immutable request to authorize and execute."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -260,7 +301,7 @@ class GenerateCoordinator:
         self,
         *,
         api_key: str,
-        payload: GenerateRequestModel,
+        payload: GenerationPayload,
     ) -> PreparedStreamingExecution:
         """Finish authentication/PDP/ranking before returning an SSE HTTP response."""
         request = payload.to_gateway_request()
@@ -459,7 +500,7 @@ async def prepare_generation(
     coordinator: "GenerateCoordinator | ComplexityGenerateCoordinator",
     *,
     api_key: str,
-    payload: GenerateRequestModel,
+    payload: GenerationPayload,
     complexity_mode: bool = False,
 ) -> PreparedStreamingExecution:
     """Authenticate, authorize and rank before any HTTP response body can begin.

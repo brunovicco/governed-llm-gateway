@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-09-09
+Last updated: 2026-09-15
 
 This document states only what is true today. For the dated, PR-by-PR narrative of how each of these
 facts was established — proof records, security reviews, real bugs found and fixed — see
@@ -39,6 +39,10 @@ facts was established — proof records, security reviews, real bugs found and f
 - immediate process-local runtime health and versioned recent operational evidence remain distinct from ranking policy and from each other;
 - business-tool execution remains outside the gateway;
 - benchmark, telemetry, SDK, client state and runtime evidence are never authorization sources.
+- Anthropic Messages and OpenAI Responses are strict northbound translations into the same governed
+  coordinator; their model strings are aliases, never deployment selectors.
+- canonical messages represent text, image, audio, document, tool-use and tool-result blocks; every
+  extension capability defaults to unavailable until explicitly declared.
 
 ## Operational readiness status
 

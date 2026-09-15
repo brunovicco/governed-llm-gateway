@@ -152,6 +152,26 @@ Real screenshots of this exact demo: the connected view is the genuine fail-clos
 (`phase2-empty` registry, zero deployments), and the dashboard has no rows because this mode exposes no
 inference route to produce a trace.
 
+Claude Code and Codex can use the same governed coordinator through native-shaped
+`POST /v1/messages` and `POST /v1/responses` adapters. The concrete provider/model still comes only
+from the external PDP's authorized set and Gateway eligibility/ranking. See the
+[protocol and multimodal guide](docs/project/PROTOCOL_MULTIMODAL_GATEWAY.md) for the supported subset,
+security boundaries and exact client configuration.
+
+### Client compatibility
+
+| Client / protocol | Evidence-backed status |
+| --- | --- |
+| Native Gateway API | Supported; existing compatibility retained |
+| Anthropic Messages API | Contract-tested stateless subset |
+| Claude Code | Representative request and native SSE subset contract-tested; no live CLI claim |
+| OpenAI Responses API | Contract-tested stateless subset |
+| Codex | Current HTTP request/replay and native SSE subset contract-tested against official client source; no live CLI claim |
+| Images | HTTPS references and bounded inline input supported where the selected deployment/adapter permits |
+| Audio/documents | Canonical and capability-gated; fail closed unless registry and adapter explicitly permit them |
+| Function tools/results | Ordinary calls and text results supported; application remains responsible for execution |
+| Streaming | Provider stream → canonical events → protocol-native SSE |
+
 ### Container
 
 `Dockerfile` builds the Gateway API and `compose.gateway.yml` runs it. The image carries code only - no
@@ -167,9 +187,10 @@ docker compose -f compose.gateway.yml up gateway-operations
 
 That is the same credential-free operations-only surface. It binds `127.0.0.1` inside the container, so
 the container's own `HEALTHCHECK` reaches it and nothing outside does. Governed inference runs under the
-`governed` compose profile and additionally needs provider credentials in the environment, a reachable
-Policy Model Router, and a profile whose router endpoint resolves from inside a container - the exact
-commands are in [`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md).
+`governed` compose profile. It builds this Gateway and pulls a reviewed Policy Model Router release by
+immutable digest, so normal startup needs only this repository plus local gateway/PDP/provider
+credentials. Exact commands are in
+[`docs/project/CONTAINER_DEPLOYMENT.md`](docs/project/CONTAINER_DEPLOYMENT.md).
 
 ## Calling it from your own project
 

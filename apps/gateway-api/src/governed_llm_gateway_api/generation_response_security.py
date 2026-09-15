@@ -3,7 +3,9 @@
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-_GENERATION_PATH = "/v1/generate"
+_GENERATION_PATHS = frozenset(
+    {"/v1/generate", "/v1/chat/completions", "/v1/messages", "/v1/responses"}
+)
 
 
 class GenerationNoStoreMiddleware:
@@ -15,7 +17,7 @@ class GenerationNoStoreMiddleware:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Attach no-store to responses for the exact governed generation path."""
-        if scope["type"] != "http" or scope["path"] != _GENERATION_PATH:
+        if scope["type"] != "http" or scope["path"] not in _GENERATION_PATHS:
             await self._app(scope, receive, send)
             return
 

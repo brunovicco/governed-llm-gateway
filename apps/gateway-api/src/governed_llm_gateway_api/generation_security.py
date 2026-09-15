@@ -1,9 +1,12 @@
 """HTTP request-size hardening scoped to governed generation."""
 
-from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-_GENERATION_PATH = "/v1/generate"
+from .protocol_error import boundary_error_response
+
+_GENERATION_PATHS = frozenset(
+    {"/v1/generate", "/v1/chat/completions", "/v1/messages", "/v1/responses"}
+)
 MAX_GENERATION_REQUEST_BODY_BYTES = 8 * 1024 * 1024
 
 
@@ -35,7 +38,7 @@ class GenerationRequestBodyLimitMiddleware:
         if (
             scope["type"] != "http"
             or scope.get("method") != "POST"
-            or scope["path"] != _GENERATION_PATH
+            or scope["path"] not in _GENERATION_PATHS
         ):
             await self._app(scope, receive, send)
             return
@@ -87,8 +90,9 @@ def _declared_content_length(scope: Scope) -> int | None:
 
 
 async def _send_too_large(scope: Scope, receive: Receive, send: Send) -> None:
-    response = JSONResponse(
+    response = boundary_error_response(
+        scope["path"],
         status_code=413,
-        content={"detail": {"code": "generation_request_too_large"}},
+        code="generation_request_too_large",
     )
     await response(scope, receive, send)

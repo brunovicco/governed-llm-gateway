@@ -6,13 +6,10 @@
 # reviewed fail-closed baseline. It needs no provider credential and no Policy Router,
 # so it is the service CI builds and health-checks.
 #
-# `gateway` (compose profile `governed`) runs real governed inference. It is opt-in
-# because it needs three things this file cannot supply: provider credentials in the
-# environment, a reachable Policy Model Router, and a profile whose
-# `policy_router.json` endpoint resolves from inside a container — the checked-in
-# `personal-default` profile points at `127.0.0.1:8001`, which inside a container is
-# the container itself. Point it at `host.docker.internal:8001` (mapped below) or at
-# the PDP's own service name before starting this service.
+# `gateway` plus `policy-model-router` (compose profile `governed`) run real governed
+# inference. Operators clone only this repository: Compose pulls the reviewed Router
+# release by immutable digest while continuing to build the Gateway from local source.
+# The separate sibling-source composition proof remains available for cross-repo CI.
 
 name: governed-llm-gateway
 
@@ -58,7 +55,7 @@ services:
       - --default-max-latency-ms=60000
       - --default-max-cost-usd=0.05
       - --host=0.0.0.0
-      - --port=8000
+      - --port=8002
     environment:
       GATEWAY_DEMO_API_KEY: ${GATEWAY_DEMO_API_KEY:?required}
       POLICY_ROUTER_DEMO_API_KEY: ${POLICY_ROUTER_DEMO_API_KEY:?required}
@@ -71,10 +68,53 @@ services:
     volumes:
       # Deployment artifacts stay outside the image and are never writable.
       - ./config/profiles/personal-default:/config:ro
+      - ./config/deployment/governed-compose-policy-router.json:/config/policy_router.json:ro
+    # Share the Router's network namespace so the security boundary can use literal
+    # loopback HTTP without weakening the runtime's HTTPS-or-loopback transport rule.
+    network_mode: "service:policy-model-router"
+    depends_on:
+      policy-model-router:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import sys,urllib.request;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8002/livez',timeout=2).status==200 else 1)"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  policy-model-router:
+    profiles: ["governed"]
+    image: ${POLICY_MODEL_ROUTER_IMAGE:-ghcr.io/brunovicco/policy-model-router:0.5.0@sha256:24427964a1042f9f6dddfdea6adccd66c7620eb5e044fe22e3ed127b4f9a259e}
+    environment:
+      APP_ENV: development
+      LOG_FORMAT: console
+      ROUTING_POLICY_PATH: /etc/policy-model-router/routing_policy.yaml
+      API_KEYS: '{"gateway-demo":"${POLICY_ROUTER_DEMO_API_KEY:?required}"}'
+    volumes:
+      - ./config/deployment/governed-compose-routing-policy.yaml:/etc/policy-model-router/routing_policy.yaml:ro
     ports:
-      - "127.0.0.1:8000:8000"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "127.0.0.1:8001:8000"
+      # The Gateway listens on 8002 in this shared namespace.
+      - "127.0.0.1:8000:8002"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import sys,urllib.request;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/readyz',timeout=2).status==200 else 1)"
+      interval: 5s
+      timeout: 3s
+      retries: 12
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777

@@ -25,6 +25,34 @@ def require_supported_request_features(
             message=f"{provider} API family does not support provider-neutral image input",
             retryable=False,
         )
+    if request.has_inline_image_input and not support.native_inline_image_input:
+        raise ProviderError(
+            provider=provider,
+            code=ProviderErrorCode.INVALID_REQUEST,
+            message=f"{provider} API family does not support inline image input",
+            retryable=False,
+        )
+    if request.has_audio_input and not support.native_audio_input:
+        raise ProviderError(
+            provider=provider,
+            code=ProviderErrorCode.INVALID_REQUEST,
+            message=f"{provider} API family does not support provider-neutral audio input",
+            retryable=False,
+        )
+    if request.has_document_input and not support.native_document_input:
+        raise ProviderError(
+            provider=provider,
+            code=ProviderErrorCode.INVALID_REQUEST,
+            message=f"{provider} API family does not support provider-neutral document input",
+            retryable=False,
+        )
+    if request.has_tool_results and not support.native_tool_result_input:
+        raise ProviderError(
+            provider=provider,
+            code=ProviderErrorCode.INVALID_REQUEST,
+            message=f"{provider} API family does not support tool-result continuation",
+            retryable=False,
+        )
 
 
 def require_success_payload(provider: str, response: JsonHttpResponse) -> Mapping[str, object]:

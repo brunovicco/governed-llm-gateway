@@ -1,10 +1,17 @@
 # Multimodal Input Foundation
 
-Status: bounded image-input runtime plus deterministic multimodal benchmark foundations implemented after the core execution baseline stabilized.
+Status: canonical multimodal contract implemented; deployed support remains capability-gated.
+
+> This document records the original image foundation. ADR-0014 and
+> [`PROTOCOL_MULTIMODAL_GATEWAY.md`](PROTOCOL_MULTIMODAL_GATEWAY.md) extend it with canonical
+> base64 images, inline audio/documents and tool transcript blocks. The original HTTPS-image
+> guarantees and benchmark path below remain valid.
 
 ## Scope
 
-The multimodal runtime currently supports **image understanding input only**. It does not add image generation or a general file transport.
+The default deployed profile still enables **text only** unless an operator explicitly verifies and
+declares more capabilities. The canonical runtime can represent image, audio and document input; no
+deployed adapter currently opts into audio or document execution.
 
 Provider-neutral messages may carry bounded image references alongside text:
 
@@ -29,7 +36,8 @@ Limits:
 
 Keeping URL retrieval outside the gateway avoids adding a downloader, base64 body amplification, file persistence, or an SSRF-capable HTTP client to the gateway process. Provider-native URL retrieval rules still apply downstream.
 
-Signed URLs are deliberately outside v1 because their query strings commonly carry credentials. Base64, provider file IDs, PDFs, audio, video, and image-only messages require separate reviewed contracts.
+Signed URLs remain outside v1 because query strings commonly carry credentials. Base64 inputs are
+strictly bounded; provider file IDs, video and image generation remain unsupported.
 
 ## Capability and authority boundaries
 
@@ -160,13 +168,12 @@ Existing telemetry continues to record bounded metadata such as workload, provid
 
 Benchmark fixture bytes are local evaluation inputs, not runtime telemetry. Their digest and stable fixture identity may appear in benchmark provenance, but raw fixture bytes should not be copied into scorecards, routing evidence, or logs.
 
-## Deferred
+## Still deferred
 
-- base64/inline image data;
 - signed/query-bearing URLs;
 - provider-hosted file IDs;
-- PDFs and arbitrary file inputs;
-- audio/video input;
+- audio/document provider execution until an exact adapter and deployment capability opt in;
+- video input;
 - image output/generation;
 - image preprocessing or fetching by the gateway;
 - implicit vision inference from message shape without `requirements.vision`;

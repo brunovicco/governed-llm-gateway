@@ -145,4 +145,4 @@ def is_cacheable_request(
     """
     if structured_output_requested or tools_requested:
         return False
-    return not any(message.images for message in messages)
+    return not any(message.images or message.blocks for message in messages)

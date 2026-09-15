@@ -57,6 +57,7 @@ is recorded in [`CHECKPOINT_LOG.md`](CHECKPOINT_LOG.md), which is append-only.
 | [`COMPLEXITY_GENERATION.md`](COMPLEXITY_GENERATION.md) | How that narrowing reaches streaming execution, behind an opt-in |
 | [`SPEND_ACCOUNTING.md`](SPEND_ACCOUNTING.md) | How estimated spend accumulates per client and workload, and how a budget refuses a request |
 | [`OPENAI_COMPATIBLE_INGRESS.md`](OPENAI_COMPATIBLE_INGRESS.md) | How an existing OpenAI client can repoint at the Gateway without a second execution path |
+| [`PROTOCOL_MULTIMODAL_GATEWAY.md`](PROTOCOL_MULTIMODAL_GATEWAY.md) | Anthropic Messages, OpenAI Responses, Claude Code/Codex setup, multimodal capabilities and fail-closed limits |
 
 ## Runtime composition and deployment
 

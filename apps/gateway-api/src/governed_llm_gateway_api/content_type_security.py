@@ -1,9 +1,18 @@
 """HTTP media-type hardening for governed JSON request bodies."""
 
-from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-_GOVERNED_JSON_PATHS = frozenset({"/v1/generate", "/v1/route/explain"})
+from .protocol_error import boundary_error_response
+
+_GOVERNED_JSON_PATHS = frozenset(
+    {
+        "/v1/generate",
+        "/v1/route/explain",
+        "/v1/chat/completions",
+        "/v1/messages",
+        "/v1/responses",
+    }
+)
 _HTTP_TOKEN_BYTES = frozenset(b"!#$%&'*+-.^_`|~0123456789abcdefghijklmnopqrstuvwxyz")
 
 
@@ -25,9 +34,10 @@ class GovernedJsonContentTypeMiddleware:
             return
 
         if not _has_single_json_content_type(scope):
-            response = JSONResponse(
+            response = boundary_error_response(
+                scope["path"],
                 status_code=415,
-                content={"detail": {"code": "unsupported_media_type"}},
+                code="unsupported_media_type",
             )
             await response(scope, receive, send)
             return

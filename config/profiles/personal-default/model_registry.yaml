@@ -243,6 +243,7 @@ deployments:
       tool_calling: true
       structured_output: true
       streaming: true
+      parallel_tool_calling: true
     context_tokens: 200000
     modalities: [text]
     pricing:
@@ -266,6 +267,7 @@ deployments:
       tool_calling: true
       structured_output: true
       streaming: true
+      parallel_tool_calling: true
     context_tokens: 1000000
     modalities: [text]
     pricing:
@@ -289,6 +291,7 @@ deployments:
       tool_calling: true
       structured_output: true
       streaming: true
+      parallel_tool_calling: true
     context_tokens: 1000000
     modalities: [text]
     pricing:
@@ -312,6 +315,7 @@ deployments:
       tool_calling: true
       structured_output: true
       streaming: true
+      parallel_tool_calling: true
     context_tokens: 200000
     modalities: [text]
     pricing:

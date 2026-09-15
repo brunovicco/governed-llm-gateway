@@ -3,7 +3,16 @@
 import json
 from collections.abc import Mapping
 
-from governed_llm_gateway_contracts import MessageRole, ToolCall
+from governed_llm_gateway_contracts import (
+    Base64Source,
+    HttpsUrlSource,
+    ImageBlock,
+    MessageRole,
+    TextBlock,
+    ToolCall,
+    ToolResultBlock,
+    ToolUseBlock,
+)
 
 from governed_llm_gateway_core.adapters.http_json import (
     JsonTransport,
@@ -41,6 +50,8 @@ class OpenAIResponsesAdapter:
         native_structured_output=True,
         native_tool_calling=True,
         native_image_input=True,
+        native_inline_image_input=True,
+        native_tool_result_input=True,
     )
 
     def __init__(
@@ -61,7 +72,9 @@ class OpenAIResponsesAdapter:
         """Generate text, structured output, image analysis, or client-side tool calls."""
         require_supported_request_features("openai", request, self.feature_support)
         instructions = "\n\n".join(
-            message.content for message in request.messages if message.role is MessageRole.SYSTEM
+            message.text_content
+            for message in request.messages
+            if message.role is MessageRole.SYSTEM and message.text_content
         )
         input_messages = _openai_input_messages(request)
         if not input_messages:
@@ -95,17 +108,20 @@ class OpenAIResponsesAdapter:
             }
         if request.tools:
             for tool in request.tools:
-                _require_openai_strict_schema(tool.input_schema, label=f"tool {tool.name}")
+                if tool.strict:
+                    _require_openai_strict_schema(tool.input_schema, label=f"tool {tool.name}")
             payload["tools"] = [
                 {
                     "type": "function",
                     "name": tool.name,
                     "description": tool.description,
                     "parameters": dict(tool.input_schema),
-                    "strict": True,
+                    "strict": tool.strict,
                 }
                 for tool in request.tools
             ]
+            if request.parallel_tool_calling:
+                payload["parallel_tool_calls"] = True
 
         try:
             response = await self._transport.post_json(
@@ -157,12 +173,52 @@ def _openai_input_messages(request: ProviderRequest) -> list[dict[str, object]]:
     for message in request.messages:
         if message.role is MessageRole.SYSTEM:
             continue
-        if not message.images:
-            messages.append({"role": message.role.value, "content": message.content})
-            continue
-        content: list[dict[str, object]] = [{"type": "input_text", "text": message.content}]
-        content.extend({"type": "input_image", "image_url": image.url} for image in message.images)
-        messages.append({"role": message.role.value, "content": content})
+        content: list[dict[str, object]] = []
+        blocks = message.canonical_blocks
+        if not message.blocks and message.images:
+            blocks = (
+                TextBlock(message.content),
+                *(
+                    ImageBlock(image.media_type, HttpsUrlSource(image.url))
+                    for image in message.images
+                ),
+            )
+        for block in blocks:
+            if isinstance(block, TextBlock):
+                content.append({"type": "input_text", "text": block.text})
+            elif isinstance(block, ImageBlock):
+                if isinstance(block.source, HttpsUrlSource):
+                    image_url = block.source.url
+                elif isinstance(block.source, Base64Source):
+                    if block.media_type is None:  # pragma: no cover - contract invariant
+                        raise AssertionError("inline image media type is required")
+                    image_url = f"data:{block.media_type.value};base64,{block.source.data}"
+                else:  # pragma: no cover - immutable contract validation owns this invariant
+                    raise AssertionError("unreachable image source")
+                content.append({"type": "input_image", "image_url": image_url})
+            elif isinstance(block, ToolUseBlock):
+                messages.append(
+                    {
+                        "type": "function_call",
+                        "call_id": block.call.call_id,
+                        "name": block.call.name,
+                        "arguments": json.dumps(
+                            block.call.arguments,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ),
+                    }
+                )
+            elif isinstance(block, ToolResultBlock):
+                messages.append(
+                    {
+                        "type": "function_call_output",
+                        "call_id": block.result.call_id,
+                        "output": block.result.content,
+                    }
+                )
+        if content:
+            messages.append({"role": message.role.value, "content": content})
     return messages
 
 

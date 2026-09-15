@@ -65,9 +65,9 @@ Unknown tools and invalid arguments become typed `invalid_tool_call` failures.
 `ToolResult` represents a business-tool result supplied by the application/agent/MCP runtime. The
 gateway does not produce it by executing a tool.
 
-Phase 7 does not yet round-trip `ToolResult` into provider-native continuation transcripts when exact
-provider-generated continuation or reasoning state would be required. The gateway fails closed rather
-than reconstructing opaque state.
+`ToolResultBlock` round-trips only when the request includes its correlated prior `ToolUseBlock`.
+Native adapters translate that explicit state; the gateway never reconstructs opaque reasoning or a
+missing provider call. Tool-result requests disable retry and fallback to prevent side-effect replay.
 
 ## Structured output semantics
 

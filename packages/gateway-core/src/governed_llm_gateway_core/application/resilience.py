@@ -322,6 +322,7 @@ class ResilientExecutionService:
                     timeout_seconds=provider_timeout_seconds,
                     structured_output=request.structured_output,
                     tools=request.tools,
+                    parallel_tool_calling=request.requirements.parallel_tool_calling,
                 )
                 span_context = (
                     self._observability.start_span(
@@ -349,7 +350,11 @@ class ResilientExecutionService:
                                 "llm.attempt_number": attempt_number,
                                 "llm.fallback_count": len(fallback_sequence) - 1,
                                 "llm.streaming": False,
+                                "client.protocol": request.client_protocol.value,
                                 "routing.decision_id": decision.routing.routing_decision_id,
+                                "routing.policy_id": decision.routing.policy.policy_id,
+                                "routing.policy_version": decision.routing.policy.policy_version,
+                                "routing.policy_digest": decision.routing.policy.policy_digest,
                                 "routing.model_group": decision.routing.authorized_model_group,
                                 "registry.digest": decision.routing.model_registry_digest,
                                 "ranking.policy_version": decision.routing.ranking_policy_version,

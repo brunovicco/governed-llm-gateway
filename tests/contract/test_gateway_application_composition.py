@@ -97,6 +97,9 @@ def test_factory_mounts_each_governed_http_surface_exactly_once() -> None:
 
     assert paths.count("/v1/route/explain") == 1
     assert paths.count("/v1/generate") == 1
+    assert paths.count("/v1/chat/completions") == 1
+    assert paths.count("/v1/messages") == 1
+    assert paths.count("/v1/responses") == 1
 
 
 def test_default_modes_continue_to_dispatch_operational_coordinators() -> None:
