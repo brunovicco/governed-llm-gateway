@@ -2,7 +2,7 @@
 
 import asyncio
 import unittest
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -22,6 +22,7 @@ from governed_llm_gateway_contracts import (
     WorkloadRequirements,
 )
 from governed_llm_gateway_core.application.provider import (
+    PreparedProviderStream,
     ProviderContentDelta,
     ProviderFeatureSupport,
     ProviderRequest,
@@ -65,7 +66,13 @@ class _Provider:
         del request
         raise AssertionError("streaming tests must not call generate")
 
-    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+    def prepare_stream(self, request: ProviderRequest) -> PreparedProviderStream:
+        return PreparedProviderStream(
+            request=request,
+            _factory=lambda: self.stream(request),
+        )
+
+    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
         self.calls.append(request)
         yield ProviderResponseStarted(response_id="r-1")
         yield ProviderContentDelta(delta="deterministic ")
@@ -231,12 +238,11 @@ async def _collect(
     *,
     identity: ResponseCacheIdentity | None,
 ) -> list[GatewayStreamEvent]:
+    plan = service.prepare(_request(), _decision(), max_output_tokens=64)
     return [
         event
         async for event in service.stream(
-            _request(),
-            _decision(),
-            max_output_tokens=64,
+            plan,
             cache_identity=identity,
         )
     ]

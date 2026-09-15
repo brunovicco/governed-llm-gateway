@@ -1,7 +1,8 @@
 """Bounded asynchronous SSE-over-HTTPS transport for provider streaming adapters."""
 
+import json
 from collections.abc import AsyncIterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 from urllib.parse import urlsplit
 
@@ -13,6 +14,9 @@ from .http_json import TransportFailure, TransportFailureKind
 _MAX_EVENT_BYTES = 1024 * 1024
 _READ_CHUNK_BYTES = 64 * 1024
 _SAFE_RESPONSE_HEADERS = frozenset({"content-type", "retry-after"})
+_HTTP_TOKEN_BYTES = frozenset(
+    b"!#$%&'*+-.^_`|~0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,19 +42,77 @@ class SseStream(Protocol):
         ...
 
 
+@dataclass(frozen=True, slots=True)
+class PreparedSseRequest:
+    """Immutable HTTPS request state validated and serialized before provider I/O."""
+
+    url: str
+    headers: tuple[tuple[str, str], ...] = field(repr=False)
+    body: bytes = field(repr=False)
+    timeout_seconds: float
+
+
 class SseTransport(Protocol):
     """Injectable streaming transport used by provider adapter contract tests."""
 
     async def open_sse(
         self,
-        *,
-        url: str,
-        headers: Mapping[str, str],
-        payload: Mapping[str, object],
-        timeout_seconds: float,
+        request: PreparedSseRequest,
     ) -> SseStream:
-        """Open one HTTPS SSE response without buffering the body."""
+        """Open one prevalidated HTTPS SSE response without buffering the body."""
         ...
+
+
+def prepare_sse_request(
+    *,
+    url: str,
+    headers: Mapping[str, str],
+    payload: Mapping[str, object],
+    timeout_seconds: float,
+) -> PreparedSseRequest:
+    """Validate and serialize deterministic transport inputs without provider I/O."""
+    parsed = urlsplit(url)
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError("provider streaming endpoint must be an absolute HTTPS URL")
+    if parsed.fragment:
+        raise ValueError("provider streaming endpoint must not contain a fragment")
+    if timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be positive")
+    try:
+        http_headers = httpx.Headers(headers)
+        for name, value in http_headers.raw:
+            if not name or any(byte not in _HTTP_TOKEN_BYTES for byte in name):
+                raise ValueError("provider streaming header name is invalid")
+            if any(byte < 32 or byte == 127 for byte in value):
+                raise ValueError("provider streaming header value is invalid")
+        normalized_headers = tuple(http_headers.multi_items())
+        body = json.dumps(
+            dict(payload),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        httpx.Request(
+            "POST",
+            url,
+            headers=normalized_headers,
+            content=body,
+        )
+    except (
+        httpx.InvalidURL,
+        httpx.LocalProtocolError,
+        OverflowError,
+        TypeError,
+        UnicodeError,
+        ValueError,
+    ) as exc:
+        raise ValueError("provider streaming request could not be constructed") from exc
+    return PreparedSseRequest(
+        url=url,
+        headers=normalized_headers,
+        body=body,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 class HttpxSseTransport:
@@ -58,32 +120,20 @@ class HttpxSseTransport:
 
     async def open_sse(
         self,
-        *,
-        url: str,
-        headers: Mapping[str, str],
-        payload: Mapping[str, object],
-        timeout_seconds: float,
+        request: PreparedSseRequest,
     ) -> SseStream:
-        """Open a bounded provider stream using a dedicated async client."""
-        parsed = urlsplit(url)
-        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
-            raise ValueError("provider streaming endpoint must be an absolute HTTPS URL")
-        if parsed.fragment:
-            raise ValueError("provider streaming endpoint must not contain a fragment")
-        if timeout_seconds <= 0:
-            raise ValueError("timeout_seconds must be positive")
-
-        request_headers = dict(headers)
+        """Open a bounded provider stream from already-prepared request bytes."""
+        request_headers = dict(request.headers)
         inject_trace_context(request_headers)
-        client = httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds))
-        request = client.build_request(
+        client = httpx.AsyncClient(timeout=httpx.Timeout(request.timeout_seconds))
+        http_request = client.build_request(
             "POST",
-            url,
+            request.url,
             headers=request_headers,
-            json=dict(payload),
+            content=request.body,
         )
         try:
-            response = await client.send(request, stream=True)
+            response = await client.send(http_request, stream=True)
         except httpx.TimeoutException as exc:
             await client.aclose()
             raise TransportFailure(

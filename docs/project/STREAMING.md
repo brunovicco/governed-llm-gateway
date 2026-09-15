@@ -74,13 +74,28 @@ Before returning `200 text/event-stream`, the API completes:
 3. Policy Router authorization;
 4. runtime-health snapshot;
 5. deterministic eligibility/ranking;
-6. existence of an eligible authorized streaming deployment.
+6. existence of an eligible authorized streaming deployment;
+7. bounded selected/fallback candidate invariant checks;
+8. provider-adapter resolution and verified streaming/final-usage capability checks;
+9. immutable provider-neutral `ProviderRequest` construction;
+10. provider-native schema, payload, endpoint, header, and serialization validation;
+11. creation of an immutable `StreamingExecutionPlan` containing opaque prepared provider streams.
 
 This means failures such as authentication, policy denial, invalid schema/tool contracts, ranking
 configuration failure, invariant violation, or no eligible streaming deployment remain ordinary HTTP
 responses.
 
 No provider execution begins during this preparation stage.
+
+The execution iterator accepts only that plan. It does not resolve adapters, rebuild provider
+requests, or repeat provider payload construction. Runtime health and cache state are deliberately
+read during execution because they are mutable. Provider connection/network failures, provider HTTP
+responses, provider-emitted malformed events, cancellation, and final output/tool/schema validation
+remain runtime stream outcomes because they cannot be known before provider I/O.
+
+Every authorized candidate retained by the configured fallback bound is prepared before the response
+starts. A deterministic defect in a fallback therefore fails closed as an ordinary HTTP error rather
+than appearing after a committed `200`. This boundary is formalized by ADR-0017.
 
 ## Canonical SSE lifecycle
 

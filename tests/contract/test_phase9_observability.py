@@ -20,7 +20,10 @@ from governed_llm_gateway_contracts import (
     RoutingProvenance,
 )
 from governed_llm_gateway_core.adapters.http_json import StdlibJsonTransport
-from governed_llm_gateway_core.adapters.http_sse import HttpxSseTransport
+from governed_llm_gateway_core.adapters.http_sse import (
+    HttpxSseTransport,
+    prepare_sse_request,
+)
 from governed_llm_gateway_core.adapters.observability_otel import (
     OpenTelemetryGatewaySpan,
     OpenTelemetryObservability,
@@ -396,10 +399,12 @@ def test_sse_transport_injects_current_w3c_trace_context(
 
     async def scenario() -> None:
         stream = await HttpxSseTransport().open_sse(
-            url="https://provider.example/stream",
-            headers={"authorization": f"Bearer {HEADER_SENTINEL}"},
-            payload={"stream": True},
-            timeout_seconds=1.0,
+            prepare_sse_request(
+                url="https://provider.example/stream",
+                headers={"authorization": f"Bearer {HEADER_SENTINEL}"},
+                payload={"stream": True},
+                timeout_seconds=1.0,
+            )
         )
         try:
             await anext(stream.__aiter__())

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from governed_llm_gateway_contracts import MessageRole, ToolCall
 
 from governed_llm_gateway_core.application.provider import (
+    PreparedProviderStream,
     ProviderContentDelta,
     ProviderError,
     ProviderErrorCode,
@@ -30,7 +31,12 @@ from governed_llm_gateway_core.domain.structured import (
 
 from .anthropic import AnthropicMessagesAdapter, _anthropic_messages
 from .http_json import JsonTransport, TransportFailure
-from .http_sse import HttpxSseTransport, SseTransport
+from .http_sse import (
+    HttpxSseTransport,
+    PreparedSseRequest,
+    SseTransport,
+    prepare_sse_request,
+)
 from .provider_common import (
     normalize_transport_failure,
     require_non_negative_int,
@@ -77,8 +83,8 @@ class AnthropicMessagesStreamingAdapter(AnthropicMessagesAdapter):
         )
         self._sse_transport = sse_transport or HttpxSseTransport()
 
-    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
-        """Yield normalized Messages events and close upstream resources on cancellation."""
+    def prepare_stream(self, request: ProviderRequest) -> PreparedProviderStream:
+        """Build validated Messages payload state without opening a connection."""
         require_supported_request_features("anthropic", request, self.feature_support)
         system = "\n\n".join(
             message.text_content
@@ -120,18 +126,38 @@ class AnthropicMessagesStreamingAdapter(AnthropicMessagesAdapter):
                     "disable_parallel_tool_use": False,
                 }
 
+        endpoint = self._endpoint
+        headers = {
+            "x-api-key": self._api_key,
+            "anthropic-version": self._api_version,
+            "accept": "text/event-stream",
+            "content-type": "application/json",
+        }
+        sse_request = prepare_sse_request(
+            url=endpoint,
+            headers=headers,
+            payload=payload,
+            timeout_seconds=request.timeout_seconds,
+        )
+        return PreparedProviderStream(
+            request=request,
+            _factory=lambda: self._stream_prepared(request, sse_request),
+        )
+
+    def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
+        """Prepare and open one normalized Messages stream."""
+        return self.prepare_stream(request).stream()
+
+    async def _stream_prepared(
+        self,
+        request: ProviderRequest,
+        sse_request: PreparedSseRequest,
+    ) -> AsyncGenerator[ProviderStreamEvent]:
+        """Perform provider I/O from payload state validated during preflight."""
         upstream = await open_provider_sse(
             provider="anthropic",
             transport=self._sse_transport,
-            url=self._endpoint,
-            headers={
-                "x-api-key": self._api_key,
-                "anthropic-version": self._api_version,
-                "accept": "text/event-stream",
-                "content-type": "application/json",
-            },
-            payload=payload,
-            timeout_seconds=request.timeout_seconds,
+            request=sse_request,
         )
 
         response_id: str | None = None

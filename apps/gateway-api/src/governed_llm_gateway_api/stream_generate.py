@@ -43,7 +43,11 @@ from governed_llm_gateway_core.application.ranking import (
     RankingInvariantViolation,
     RouteExplainService,
 )
-from governed_llm_gateway_core.application.streaming import StreamingExecutionService
+from governed_llm_gateway_core.application.streaming import (
+    StreamingExecutionPlan,
+    StreamingExecutionService,
+    StreamingPreflightError,
+)
 from governed_llm_gateway_core.application.telemetry import (
     GatewaySpanName,
 )
@@ -259,13 +263,30 @@ class GenerationPayload(Protocol):
 class PreparedStreamingExecution:
     """Authorized/ranked execution state established before the SSE response begins."""
 
-    request: GatewayRequest
-    decision: RankingDecision
-    max_output_tokens: int
-    provider_timeout_seconds: float
+    plan: StreamingExecutionPlan
     # None means this request is not cacheable. Built from the effective context, never
     # from the caller's declared classification, which the binding may have raised.
     cache_identity: ResponseCacheIdentity | None = None
+
+    @property
+    def request(self) -> GatewayRequest:
+        """Expose the canonical request for protocol rendering and telemetry."""
+        return self.plan.request
+
+    @property
+    def decision(self) -> RankingDecision:
+        """Expose the immutable routing decision for provenance rendering."""
+        return self.plan.decision
+
+    @property
+    def max_output_tokens(self) -> int:
+        """Expose the preflighted provider output-token ceiling."""
+        return self.plan.max_output_tokens
+
+    @property
+    def provider_timeout_seconds(self) -> float:
+        """Expose the preflighted provider timeout."""
+        return self.plan.provider_timeout_seconds
 
 
 class NoEligibleStreamingDeploymentError(RuntimeError):
@@ -327,11 +348,14 @@ class GenerateCoordinator:
             raise NoEligibleStreamingDeploymentError(
                 "no eligible authorized streaming deployment is available"
             )
-        return PreparedStreamingExecution(
-            request=request,
-            decision=decision,
+        plan = self._streaming_service.prepare(
+            request,
+            decision,
             max_output_tokens=payload.max_output_tokens,
             provider_timeout_seconds=payload.provider_timeout_seconds,
+        )
+        return PreparedStreamingExecution(
+            plan=plan,
             cache_identity=_cache_identity(
                 self._cache_policy,
                 request=request,
@@ -347,10 +371,7 @@ class GenerateCoordinator:
     ) -> AsyncGenerator[GatewayStreamEvent]:
         """Start provider execution only from the already-authorized/ranked prepared state."""
         return self._streaming_service.stream(
-            prepared.request,
-            prepared.decision,
-            max_output_tokens=prepared.max_output_tokens,
-            provider_timeout_seconds=prepared.provider_timeout_seconds,
+            prepared.plan,
             cache_identity=prepared.cache_identity,
         )
 
@@ -522,6 +543,12 @@ async def prepare_generation(
         raise HTTPException(
             status_code=503,
             detail={"code": "no_eligible_streaming_deployment"},
+        ) from exc
+    except StreamingPreflightError as exc:
+        status_code = 422 if exc.code == "invalid_provider_request" else 503
+        raise HTTPException(
+            status_code=status_code,
+            detail={"code": exc.code},
         ) from exc
     except (ComplexityNarrowingError, ComplexityRankingError) as exc:
         raise HTTPException(

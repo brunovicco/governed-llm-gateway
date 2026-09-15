@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -29,6 +29,7 @@ from governed_llm_gateway_core.application.operational_evidence import (
     OperationalSampleOutcome,
 )
 from governed_llm_gateway_core.application.provider import (
+    PreparedProviderStream,
     ProviderContentDelta,
     ProviderError,
     ProviderErrorCode,
@@ -120,7 +121,13 @@ class SequenceStreamingProvider:
         del request
         raise AssertionError("streaming recorder tests must not call generate")
 
-    async def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderStreamEvent]:
+    def prepare_stream(self, request: ProviderRequest) -> PreparedProviderStream:
+        return PreparedProviderStream(
+            request=request,
+            _factory=lambda: self.stream(request),
+        )
+
+    async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
         self.calls.append(request)
         self._clock.advance(0.250)
         attempt = self._attempts.pop(0)
@@ -276,14 +283,8 @@ async def _collect_stream(
     service: StreamingExecutionService,
     decision: RankingDecision,
 ) -> list[GatewayStreamEvent]:
-    return [
-        event
-        async for event in service.stream(
-            _request(streaming=True),
-            decision,
-            max_output_tokens=64,
-        )
-    ]
+    plan = service.prepare(_request(streaming=True), decision, max_output_tokens=64)
+    return [event async for event in service.stream(plan)]
 
 
 def test_store_invalidation_rejects_false_complete_history_and_allows_later_windows() -> None:
@@ -582,11 +583,12 @@ def test_stream_client_close_invalidates_completeness_without_provider_error_sam
     )
 
     async def scenario() -> None:
-        stream = service.stream(
+        plan = service.prepare(
             _request(streaming=True),
             _decision(deployment),
             max_output_tokens=64,
         )
+        stream = service.stream(plan)
         first = await anext(stream)
         assert first.event_type is StreamEventType.RESPONSE_STARTED
         await stream.aclose()

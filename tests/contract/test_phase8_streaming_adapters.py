@@ -14,7 +14,12 @@ from governed_llm_gateway_core.adapters.anthropic_streaming import (
     AnthropicMessagesStreamingAdapter,
 )
 from governed_llm_gateway_core.adapters.gemini_streaming import GeminiStreamingAdapter
-from governed_llm_gateway_core.adapters.http_sse import SseEvent, SseStream
+from governed_llm_gateway_core.adapters.http_sse import (
+    PreparedSseRequest,
+    SseEvent,
+    SseStream,
+    prepare_sse_request,
+)
 from governed_llm_gateway_core.adapters.openai_compatible_streaming import (
     OpenAICompatibleStreamingAdapter,
 )
@@ -73,13 +78,18 @@ class FakeSseTransport:
 
     async def open_sse(
         self,
-        *,
-        url: str,
-        headers: Mapping[str, str],
-        payload: Mapping[str, object],
-        timeout_seconds: float,
+        request: PreparedSseRequest,
     ) -> SseStream:
-        self.calls.append((url, dict(headers), dict(payload), timeout_seconds))
+        payload = json.loads(request.body)
+        assert isinstance(payload, dict)
+        self.calls.append(
+            (
+                request.url,
+                dict(request.headers),
+                payload,
+                request.timeout_seconds,
+            )
+        )
         return self.stream
 
 
@@ -116,6 +126,17 @@ def _strict_schema() -> StructuredOutputSchema:
             "properties": {"answer": {"type": "string"}},
             "required": ["answer"],
             "additionalProperties": False,
+        },
+    )
+
+
+def _non_strict_openai_schema() -> StructuredOutputSchema:
+    return StructuredOutputSchema(
+        name="answer",
+        schema={
+            "type": "object",
+            "properties": {"answer": {"type": "string"}},
+            "required": ["answer"],
         },
     )
 
@@ -294,6 +315,20 @@ def test_openai_invalid_streamed_structured_output_fails_closed() -> None:
         asyncio.run(_collect(adapter.stream(_request(structured_output=_strict_schema()))))
     assert captured.value.code is ProviderErrorCode.INVALID_STRUCTURED_OUTPUT
     assert upstream.closed is True
+
+
+def test_openai_schema_construction_fails_during_preflight_without_io() -> None:
+    transport = FakeSseTransport(FakeSseStream([]))
+    adapter = OpenAIResponsesStreamingAdapter(
+        api_key="secret",
+        sse_transport=transport,
+    )
+
+    with pytest.raises(ProviderError) as captured:
+        adapter.prepare_stream(_request(structured_output=_non_strict_openai_schema()))
+
+    assert captured.value.code is ProviderErrorCode.INVALID_REQUEST
+    assert transport.calls == []
 
 
 def test_anthropic_text_stream_normalizes_usage_and_stop_reason() -> None:
@@ -667,10 +702,12 @@ def test_open_provider_sse_normalizes_non_success_and_closes_stream() -> None:
             open_provider_sse(
                 provider="example",
                 transport=transport,
-                url="https://provider.example/stream",
-                headers={"authorization": "secret"},
-                payload={"stream": True},
-                timeout_seconds=3.0,
+                request=prepare_sse_request(
+                    url="https://provider.example/stream",
+                    headers={"authorization": "secret"},
+                    payload={"stream": True},
+                    timeout_seconds=3.0,
+                ),
             )
         )
     assert captured.value.code is ProviderErrorCode.RATE_LIMIT
