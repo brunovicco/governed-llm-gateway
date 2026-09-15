@@ -21,6 +21,7 @@ _MESSAGES_PATH = "/v1/messages"
 _MAX_CONTEXT_MANAGEMENT_BYTES = 16 * 1024
 _ALLOWED_THINKING_TYPES = frozenset({"adaptive", "disabled", "enabled"})
 _ALLOWED_EFFORT = frozenset({"low", "medium", "high", "xhigh", "max"})
+_DEFAULT_TOOL_DESCRIPTION = "Claude Code tool"
 
 
 class ClaudeCodeCompatibilityError(ValueError):
@@ -167,10 +168,10 @@ def _normalize_tools(payload: dict[str, object]) -> None:
             normalized.append(item)
             continue
         tool = dict(item)
-        # Claude Code may omit a description for built-in tools. Empty description has
-        # no routing or authorization semantics and keeps the downstream contract strict.
+        # Claude Code may omit a description for built-in tools. A constant normalized
+        # placeholder satisfies the canonical contract without adding routing authority.
         if "description" not in tool:
-            tool["description"] = ""
+            tool["description"] = _DEFAULT_TOOL_DESCRIPTION
         normalized.append(tool)
     payload["tools"] = normalized
 
