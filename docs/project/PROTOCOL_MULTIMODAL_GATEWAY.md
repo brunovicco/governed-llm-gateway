@@ -10,9 +10,21 @@ Codex      -> POST /v1/responses --/                       |
 ```
 
 These surfaces are northbound adapters, not routers. Both call the existing
-`GenerateCoordinator`. The client `model` is an opaque response alias; it never names the concrete
-model. `X-Gateway-Workload` declares a policy workload and defaults to `agent.tool-use`; client auth
-and the external Policy Model Router must authorize it. The permanent invariant remains:
+`GenerateCoordinator`. The client `model` is an opaque compatibility alias only: it is echoed in the
+provider-shaped response but never selects, pins, or authorizes the concrete provider/model.
+`X-Gateway-Workload` requests a policy workload and defaults to `agent.tool-use`; the authenticated
+client binding must allow that workload and the external Policy Model Router must authorize it. A
+client therefore cannot gain authority by choosing a different `model` alias or workload header.
+
+Anthropic Messages and OpenAI Responses do not carry the Gateway-native `risk_level` and
+`data_classification` vocabulary. Their adapters therefore enter the existing trust pipeline with the
+least-restrictive caller claims (`low` / `public`). Those values are **not** the effective governance
+context: `EffectiveContextResolver` authenticates the credential, enforces `allowed_workloads`, and
+raises risk/classification to the configured client-auth floors before PDP authorization, eligibility,
+ranking, caching, or provider execution. Deployments handling internal/confidential workloads must set
+appropriate binding floors; protocol metadata can never lower them.
+
+The permanent invariant remains:
 
 `Gateway allowed set ⊆ Policy Router authorized set`.
 
@@ -90,6 +102,10 @@ export ANTHROPIC_AUTH_TOKEN="$GATEWAY_DEMO_API_KEY"
 claude --model governed-agent
 ```
 
+`governed-agent` is a compatibility alias, not a model selection. The concrete model/provider is
+chosen only after client binding enforcement, PDP authorization, capability filtering and deterministic
+Gateway ranking.
+
 Direct Messages streaming check:
 
 ```bash
@@ -109,6 +125,7 @@ tools and provider pass-through headers are not implemented.
 Add this provider to `~/.codex/config.toml`:
 
 ```toml
+# Compatibility alias only; it does not select a concrete provider/model.
 model = "governed-agent"
 model_provider = "governed-gateway"
 model_supports_reasoning_summaries = false
