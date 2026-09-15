@@ -4,6 +4,7 @@ import unittest
 
 from governed_llm_gateway_api.anthropic_messages_ingress import AnthropicMessagesRequestModel
 from governed_llm_gateway_api.claude_code_compat import normalize_claude_code_payload
+from pydantic import ValidationError
 
 
 class ClaudeCodeBlankToolDescriptionTests(unittest.TestCase):
@@ -49,8 +50,12 @@ class ClaudeCodeBlankToolDescriptionTests(unittest.TestCase):
         normalized = normalize_claude_code_payload(payload)
         tools = normalized["tools"]
         assert isinstance(tools, list)
-        self.assertEqual(tools[0]["description"], "Claude Code tool")
-        self.assertEqual(tools[1]["description"], "Claude Code tool")
+        first_tool = tools[0]
+        second_tool = tools[1]
+        assert isinstance(first_tool, dict)
+        assert isinstance(second_tool, dict)
+        self.assertEqual(first_tool["description"], "Claude Code tool")
+        self.assertEqual(second_tool["description"], "Claude Code tool")
 
         parsed = AnthropicMessagesRequestModel.model_validate(normalized)
         generated = parsed.to_generation_payload(workload="agent.tool-use")
@@ -77,7 +82,7 @@ class ClaudeCodeBlankToolDescriptionTests(unittest.TestCase):
         }
 
         normalized = normalize_claude_code_payload(payload)
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValidationError):
             AnthropicMessagesRequestModel.model_validate(normalized)
 
 
