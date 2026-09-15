@@ -31,9 +31,11 @@ class ClaudeCodeCompatibilityMiddleware:
     """Normalize reviewed Claude Code wire controls before strict protocol parsing."""
 
     def __init__(self, app: ASGIApp) -> None:
+        """Bind the downstream ASGI application."""
         self._app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Normalize reviewed Messages fields and replay the bounded JSON body downstream."""
         if (
             scope["type"] != "http"
             or scope.get("method") != "POST"
@@ -129,9 +131,7 @@ def _normalize_output_config(payload: dict[str, object]) -> None:
         raise ClaudeCodeCompatibilityError("unsupported output effort")
     # Preserve ``format`` for the strict Anthropic ingress, where it becomes canonical
     # structured-output policy. Any other output_config field remains fail-closed.
-    if "format" in mapping:
-        payload["output_config"] = mapping
-    elif mapping:
+    if mapping:
         payload["output_config"] = mapping
     else:
         payload.pop("output_config", None)
