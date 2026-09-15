@@ -58,11 +58,11 @@ class ClaudeCodeCompatibilityMiddleware:
         try:
             payload = json.loads(body)
         except json.JSONDecodeError:
-            await self._app(scope, _replay(body), send)
+            await self._app(scope, _replay(body, receive), send)
             return
 
         if not isinstance(payload, dict):
-            await self._app(scope, _replay(body), send)
+            await self._app(scope, _replay(body, receive), send)
             return
 
         try:
@@ -86,7 +86,7 @@ class ClaudeCodeCompatibilityMiddleware:
             tuple(scope.get("headers", ())),
             len(encoded),
         )
-        await self._app(downstream_scope, _replay(encoded), send)
+        await self._app(downstream_scope, _replay(encoded, receive), send)
 
 
 def normalize_claude_code_payload(payload: Mapping[str, object]) -> dict[str, object]:
@@ -206,13 +206,13 @@ async def _read_body(receive: Receive) -> bytes | None:
             return b"".join(chunks)
 
 
-def _replay(body: bytes) -> Receive:
+def _replay(body: bytes, upstream_receive: Receive) -> Receive:
     sent = False
 
     async def receive() -> Message:
         nonlocal sent
         if sent:
-            return {"type": "http.request", "body": b"", "more_body": False}
+            return await upstream_receive()
         sent = True
         return {"type": "http.request", "body": body, "more_body": False}
 

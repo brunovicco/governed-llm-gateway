@@ -107,6 +107,7 @@ class AnthropicToolUseBlockModel(BaseModel):
     id: str = Field(min_length=1, max_length=256)
     name: str = Field(min_length=1, max_length=128)
     input: dict[str, object]
+    cache_control: AnthropicCacheControlModel | None = None
 
 
 class AnthropicToolResultBlockModel(BaseModel):
@@ -187,21 +188,23 @@ class AnthropicMessageModel(BaseModel):
 
 
 class AnthropicToolModel(BaseModel):
-    """One strict Anthropic-shaped function tool declaration."""
+    """One Anthropic-shaped function tool declaration."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str
     description: str
     input_schema: dict[str, object]
+    strict: bool = False
     cache_control: AnthropicCacheControlModel | None = None
 
     def to_contract(self) -> ToolDefinition:
-        """Translate a function schema without adding an execution hook."""
+        """Translate a function schema without changing client strictness semantics."""
         return ToolDefinition(
             name=self.name,
             description=self.description,
             input_schema=self.input_schema,
+            strict=self.strict,
         )
 
 
