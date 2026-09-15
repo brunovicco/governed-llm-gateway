@@ -108,11 +108,17 @@ jobs:
           echo "operations-only container never became healthy" >&2
           exit 1
 
-
       - name: Require the governed Compose stack and protocol routes
         env:
+          GATEWAY_LOCAL_DEMO_API_KEY: local-demo-compose-smoke
           GATEWAY_DEMO_API_KEY: gateway-protocol-smoke
           POLICY_ROUTER_DEMO_API_KEY: router-protocol-smoke
+          NVIDIA_API_KEY: provider-smoke-placeholder
+          GEMINI_API_KEY: provider-smoke-placeholder
+          OPENAI_API_KEY: provider-smoke-placeholder
+          ANTHROPIC_API_KEY: provider-smoke-placeholder
+          GROQ_API_KEY: provider-smoke-placeholder
+          OPENROUTER_API_KEY: provider-smoke-placeholder
           APPROVED_RANKING_ARTIFACT_ID: sha256:4d58f86b791267b2d38c6a95edad576ab35a5b97a8ee43a78a9d527ac8ee56ad
         run: |
           cleanup() {
