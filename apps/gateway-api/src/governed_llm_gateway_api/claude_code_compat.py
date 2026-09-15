@@ -172,9 +172,8 @@ def _normalize_tools(payload: dict[str, object]) -> None:
         # constant normalized placeholder satisfies the canonical contract without
         # adding routing authority. Non-string values remain for strict validation.
         description = tool.get("description")
-        if "description" not in tool or (
-            isinstance(description, str) and not description.strip()
-        ):
+        description_is_blank = isinstance(description, str) and not description.strip()
+        if "description" not in tool or description_is_blank:
             tool["description"] = _DEFAULT_TOOL_DESCRIPTION
         normalized.append(tool)
     payload["tools"] = normalized
