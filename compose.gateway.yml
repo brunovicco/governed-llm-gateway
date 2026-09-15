@@ -53,7 +53,10 @@ services:
       - --approved-ranking-artifact-path=approved_ranking.json
       - --expected-ranking-artifact-id=${APPROVED_RANKING_ARTIFACT_ID:?pin the approved artifact id}
       - --default-max-latency-ms=60000
-      - --default-max-cost-usd=0.05
+      # Claude Code requests a 32k output ceiling. The local agentic-strong policy prices
+      # that worst case above the historical $0.05 demo ceiling, so keep the deployment
+      # default explicit and operator-tightenable while allowing governed conformance runs.
+      - --default-max-cost-usd=${GATEWAY_DEFAULT_MAX_COST_USD:-0.30}
       - --host=0.0.0.0
       - --port=8002
     environment:
