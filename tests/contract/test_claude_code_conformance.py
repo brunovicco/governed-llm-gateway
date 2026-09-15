@@ -2,13 +2,12 @@
 
 import unittest
 
-from pydantic import ValidationError
-
 from governed_llm_gateway_api.anthropic_messages_ingress import AnthropicMessagesRequestModel
 from governed_llm_gateway_api.claude_code_compat import (
     ClaudeCodeCompatibilityError,
     normalize_claude_code_payload,
 )
+from pydantic import ValidationError
 
 
 class ClaudeCodeConformanceTests(unittest.TestCase):
@@ -90,7 +89,12 @@ class ClaudeCodeConformanceTests(unittest.TestCase):
         self.assertNotIn("thinking", normalized)
         self.assertNotIn("context_management", normalized)
         self.assertNotIn("output_config", normalized)
-        self.assertTrue(all(tool["description"] == "" for tool in normalized["tools"]))
+        normalized_tools = normalized["tools"]
+        self.assertIsInstance(normalized_tools, list)
+        assert isinstance(normalized_tools, list)
+        self.assertTrue(
+            all(isinstance(tool, dict) and tool["description"] == "" for tool in normalized_tools)
+        )
 
         parsed = AnthropicMessagesRequestModel.model_validate(normalized)
         generated = parsed.to_generation_payload(workload="agent.tool-use")
