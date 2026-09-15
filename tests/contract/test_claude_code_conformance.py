@@ -74,15 +74,34 @@ class ClaudeCodeConformanceTests(unittest.TestCase):
                     "additionalProperties": False,
                 },
             }
-            for index in range(31)
+            for index in range(29)
         ]
         payload = {
             "model": "governed-agent",
             "max_tokens": 1024,
             "stream": True,
             "metadata": {"user_id": "claude-code-session"},
-            "system": [{"type": "text", "text": "You are Claude Code"}],
-            "messages": [{"role": "user", "content": [{"type": "text", "text": "inspect"}]}],
+            "system": [
+                {"type": "text", "text": "You are Claude Code"},
+                {
+                    "type": "text",
+                    "text": "Cached system context",
+                    "cache_control": {"type": "ephemeral"},
+                },
+            ],
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": "inspect"}]},
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "System reminder",
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                },
+            ],
             "tools": tools,
             "thinking": {"type": "adaptive"},
             "output_config": {"effort": "high"},
@@ -108,9 +127,10 @@ class ClaudeCodeConformanceTests(unittest.TestCase):
         generated = parsed.to_generation_payload(workload="agent.tool-use")
         request = generated.to_gateway_request()
 
-        self.assertEqual(len(request.tools), 31)
+        self.assertEqual(len(request.tools), 29)
         self.assertTrue(request.requirements.tool_calling)
         self.assertEqual(request.workload, "agent.tool-use")
+        self.assertEqual(request.messages[-1].role.value, "system")
         self.assertFalse(hasattr(request, "thinking"))
         self.assertFalse(hasattr(request, "context_management"))
 
