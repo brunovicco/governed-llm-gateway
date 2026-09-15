@@ -1,14 +1,14 @@
-"""Run the reviewed ranking benchmark and publish the approved ranking artifact.
+"""Run a reviewed ranking benchmark and publish one approved ranking artifact.
 
-This closes the Phase 10 -> Phase 11 loop for one model group. Phase 10 runs the
-deterministic dataset against every reviewed deployment in the group and persists an
-immutable content-addressed snapshot. Phase 11 promotes that snapshot through explicit
-operator-approved mappings and compiles the promoted quality/availability evidence onto
-the existing static ranking base, producing a pinned approved ranking artifact.
+This closes the Phase 10 -> Phase 11 loop for one model group and one runtime workload.
+Phase 10 runs a reviewed deterministic dataset against every reviewed deployment in the
+selected group and persists an immutable content-addressed snapshot. Phase 11 promotes
+that snapshot through explicit operator-approved mappings and compiles the promoted
+evidence onto the existing static ranking base.
 
 The two phases stay separable: ``--snapshot-only`` stops after persisting evidence.
-Promotion never invents a score. It fails closed when any deployment in the base policy
-lacks promoted evidence, so a partial run can never silently leave part of the group on
+Promotion never invents a score. It fails closed when any deployment in the selected
+base workload lacks promoted evidence, so a partial run can never silently preserve
 hand-written placeholders.
 
 Requires provider credentials in the process environment for every enabled deployment in
@@ -41,6 +41,7 @@ from governed_llm_gateway_core.domain.ranking_override import ApprovedRankingArt
 
 from benchmarks.contracts import (
     BenchmarkCase,
+    BenchmarkDataset,
     BenchmarkObservation,
     BenchmarkSnapshot,
     BenchmarkTarget,
@@ -56,12 +57,19 @@ from benchmarks.runner import BenchmarkRunner, build_scorecards
 from benchmarks.scoring import build_default_scorers
 from benchmarks.snapshot import build_snapshot, persist_snapshot
 from benchmarks.targets import load_targets
+from benchmarks.workloads.multi_step_tool_use import load_multi_step_tool_use_dataset
 from benchmarks.workloads.rag_answer import load_rag_answer_dataset
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER_VERSION = "registry-deployment-runner-v1"
-TARGET_ID_PREFIX = "pd-balanced-"
-ARTIFACT_FILENAME = "approved_ranking.json"
+DEFAULT_TARGET_ID_PREFIX = "pd-balanced-"
+DEFAULT_ARTIFACT_FILENAME = "approved_ranking.json"
+_SUPPORTED_PUBLICATION_WORKLOADS = frozenset(
+    {
+        BenchmarkWorkload.RAG_ANSWER,
+        BenchmarkWorkload.MULTI_STEP_TOOL_USE,
+    }
+)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -74,6 +82,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--targets", default=Path("benchmarks/runners/targets-v4.json"), type=Path)
     parser.add_argument("--model-group", default="balanced")
     parser.add_argument("--runtime-workload", default="rag.answer")
+    parser.add_argument(
+        "--benchmark-workload",
+        choices=tuple(sorted(item.value for item in _SUPPORTED_PUBLICATION_WORKLOADS)),
+        default=BenchmarkWorkload.RAG_ANSWER.value,
+    )
+    parser.add_argument("--target-id-prefix", default=DEFAULT_TARGET_ID_PREFIX)
+    parser.add_argument("--artifact-filename", default=DEFAULT_ARTIFACT_FILENAME)
     parser.add_argument("--evidence-root", default=Path("benchmarks/scorecards"), type=Path)
     parser.add_argument("--promotion-version", default="personal-default-balanced-v1")
     parser.add_argument("--approved-by", required=True)
@@ -95,15 +110,17 @@ async def run_benchmark(args: argparse.Namespace) -> BenchmarkSnapshot:
         runtime_document.bindings, EnvironmentProviderSecretResolver()
     )
 
-    dataset = load_rag_answer_dataset(ROOT / args.dataset)
+    benchmark_workload = _benchmark_workload(args.benchmark_workload)
+    dataset = load_reviewed_dataset(ROOT / args.dataset, benchmark_workload)
     matrix_version, targets = load_targets(ROOT / args.targets)
+    target_id_prefix = _normalized_target_id_prefix(args.target_id_prefix)
     executor = RegistryDeploymentExecutor(
         registry=registry,
         resolver=resolver,
         bindings=registry_bindings(
             registry,
             model_group=args.model_group,
-            target_id_prefix=TARGET_ID_PREFIX,
+            target_id_prefix=target_id_prefix,
         ),
         timeout_seconds=args.timeout_seconds,
     )
@@ -144,11 +161,13 @@ async def run_benchmark(args: argparse.Namespace) -> BenchmarkSnapshot:
 
 def publish(args: argparse.Namespace, snapshot: BenchmarkSnapshot) -> Path:
     """Promote the snapshot and write the pinned approved ranking artifact."""
+    benchmark_workload = _benchmark_workload(args.benchmark_workload)
+    target_id_prefix = _normalized_target_id_prefix(args.target_id_prefix)
     mappings = tuple(
         PromotionMapping(
             target_id=card.target_id,
-            benchmark_workload=BenchmarkWorkload.RAG_ANSWER,
-            deployment_id=card.target_id.removeprefix(TARGET_ID_PREFIX),
+            benchmark_workload=benchmark_workload,
+            deployment_id=deployment_id_from_target(card.target_id, target_id_prefix),
             runtime_workload=args.runtime_workload,
         )
         for card in sorted(snapshot.scorecards, key=lambda item: item.target_id)
@@ -184,11 +203,40 @@ def publish(args: argparse.Namespace, snapshot: BenchmarkSnapshot) -> Path:
         approved_by=args.approved_by,
     )
 
-    target_path: Path = profile / ARTIFACT_FILENAME
+    artifact_filename = normalized_artifact_filename(args.artifact_filename)
+    target_path: Path = profile / artifact_filename
     target_path.write_text(dump_approved_ranking_artifact_text(artifact), encoding="utf-8")
     print(f"approved ranking artifact {artifact.artifact_id}")
     print(f"wrote {target_path.relative_to(ROOT)}")
     return target_path
+
+
+def load_reviewed_dataset(path: Path, workload: BenchmarkWorkload) -> BenchmarkDataset:
+    """Load only benchmark workloads reviewed for runtime-ranking publication."""
+    if workload is BenchmarkWorkload.RAG_ANSWER:
+        return load_rag_answer_dataset(path)
+    if workload is BenchmarkWorkload.MULTI_STEP_TOOL_USE:
+        return load_multi_step_tool_use_dataset(path)
+    raise ValueError(f"unsupported ranking publication workload: {workload.value}")
+
+
+def deployment_id_from_target(target_id: str, target_id_prefix: str) -> str:
+    """Recover the reviewed registry deployment ID from a deterministic target ID."""
+    if not target_id.startswith(target_id_prefix):
+        raise ValueError(
+            f"benchmark target {target_id!r} does not start with prefix {target_id_prefix!r}"
+        )
+    deployment_id = target_id.removeprefix(target_id_prefix)
+    if not deployment_id or deployment_id.strip() != deployment_id:
+        raise ValueError("benchmark target resolves to an invalid deployment ID")
+    return deployment_id
+
+
+def normalized_artifact_filename(value: str) -> str:
+    """Require one basename so publication cannot escape the reviewed profile directory."""
+    if not value or value.strip() != value or Path(value).name != value or value in {".", ".."}:
+        raise ValueError("artifact filename must be one normalized basename")
+    return value
 
 
 def restrict_to_workload(policy: RankingPolicy, runtime_workload: str) -> RankingPolicy:
@@ -197,6 +245,19 @@ def restrict_to_workload(policy: RankingPolicy, runtime_workload: str) -> Rankin
     if not workloads:
         raise ValueError(f"base ranking policy has no workload {runtime_workload!r}")
     return replace(policy, workloads=workloads)
+
+
+def _benchmark_workload(value: str) -> BenchmarkWorkload:
+    workload = BenchmarkWorkload(value)
+    if workload not in _SUPPORTED_PUBLICATION_WORKLOADS:
+        raise ValueError(f"unsupported ranking publication workload: {value}")
+    return workload
+
+
+def _normalized_target_id_prefix(value: str) -> str:
+    if not value or value.strip() != value:
+        raise ValueError("target ID prefix must be non-empty and normalized")
+    return value
 
 
 async def _run_targets(
