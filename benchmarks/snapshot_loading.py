@@ -4,7 +4,7 @@ import hashlib
 import json
 from collections.abc import Mapping
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from .contracts import (
@@ -195,7 +195,7 @@ def _decimal(value: object, field: str) -> Decimal:
         raise ValueError(f"{field} must be a decimal string")
     try:
         return Decimal(value)
-    except Exception as exc:
+    except InvalidOperation as exc:
         raise ValueError(f"{field} must be a decimal string") from exc
 
 
