@@ -3,7 +3,6 @@
 import argparse
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 from benchmarks.snapshot_loading import load_snapshot
 from scripts.publish_ranking_evidence import publish, report_scorecards
@@ -36,10 +35,13 @@ def main(argv: list[str] | None = None) -> int:
     snapshot = load_snapshot(snapshot_path)
 
     print(f"reviewed snapshot {snapshot.snapshot_id}")
-    print(f"loaded {snapshot_path.relative_to(ROOT) if snapshot_path.is_relative_to(ROOT) else snapshot_path}")
+    displayed_path: Path | str = (
+        snapshot_path.relative_to(ROOT) if snapshot_path.is_relative_to(ROOT) else snapshot_path
+    )
+    print(f"loaded {displayed_path}")
     report_scorecards(snapshot)
 
-    publication_args = SimpleNamespace(
+    publication_args = argparse.Namespace(
         profile=args.profile,
         runtime_workload=args.runtime_workload,
         benchmark_workload=args.benchmark_workload,
