@@ -24,8 +24,8 @@ The profile is intentionally bounded to:
 - minimum risk: `low`;
 - minimum data classification: `public`;
 - authorized logical group supplied by the external PDP: `balanced`;
-- providers: native Gemini, native OpenAI Responses, native Anthropic Messages, and three `openai-compatible` bindings (NVIDIA, Groq, OpenRouter);
-- concrete deployments: `gemini-3.8-flash`, `gpt-5.6-luna`, `claude-sonnet-5`, `meta/llama-3.3-70b-instruct` (NVIDIA), `openai/gpt-oss-120b` (Groq), and `meta-llama/llama-3.3-70b-instruct` (OpenRouter);
+- six providers: native Gemini, native OpenAI Responses, native Anthropic Messages, and three `openai-compatible` bindings (NVIDIA, Groq, OpenRouter);
+- concrete deployments: `gemini-3.8-flash`, `gpt-5.6-luna`, `claude-sonnet-5`, `nvidia/nemotron-3-super-120b-a12b` (NVIDIA), `openai/gpt-oss-120b` (Groq), and `meta-llama/llama-3.3-70b-instruct` (OpenRouter);
 - metadata-only Gateway observability when OTLP is enabled.
 
 This is not a production authentication, TLS, IAM, secret-management, provider-SLA, or production-readiness claim.
@@ -49,7 +49,7 @@ GROQ_API_KEY=
 OPENROUTER_API_KEY=
 ```
 
-`GATEWAY_DEMO_API_KEY` is the credential a consumer presents to the Gateway. The other three values stay server-side.
+`GATEWAY_DEMO_API_KEY` is the credential a consumer presents to the Gateway. The PDP credential and all six provider credentials stay server-side.
 
 The Python runtimes do not automatically load `.env`. If you use one locally:
 

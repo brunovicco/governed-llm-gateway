@@ -217,13 +217,16 @@ Do not start Case 4 while Case 3 is intentionally deferred unless the integratio
 
 ### Case 5 — Verifiable AI Governance — NOT STARTED
 
-Remains after the preceding consumer cases. Carries the open PDP runtime-authorization forwarding
-gap recorded under `Permanent authority sequence`: an end-to-end governed chain cannot be
-demonstrated until the gateway forwards the signed envelope to the Policy Model Router.
+Remains after the preceding consumer cases. The gateway-internal signed-envelope forwarding and
+cross-repository composition proof are complete, as recorded under `Permanent authority sequence`;
+they do not themselves complete this consumer migration or change its normative order.
 
 ## Operational-readiness checkpoint
 
-The consumer-independent readiness track has certified the bounded local demo through PC-30 and then advanced the governed live-development/Console path through PC-51 without changing Phase 14 ordering.
+The consumer-independent readiness track has validated the bounded local demo, governed
+live-development/Console path through PC-52, and subsequent protocol/preflight hardening without
+changing Phase 14 ordering. Current status and dated evidence live in
+[CURRENT_STATE.md](CURRENT_STATE.md) and [CHECKPOINT_LOG.md](CHECKPOINT_LOG.md).
 
 Certified post-PC-30 increments relevant to readiness and security:
 
@@ -235,26 +238,37 @@ Certified post-PC-30 increments relevant to readiness and security:
 - PC-38 — bounded provider-neutral Console inference via only relative `POST /v1/generate`;
 - PC-39 — immutable routing provenance across repeated Console SSE evidence;
 - PC-41..PC-51 — non-storable generation/route-explanation responses, disabled implicit API docs, bounded request bodies, a suppressed server fingerprint, required explicit JSON media types, disabled implicit forwarded-header trust, rejected duplicate credential headers, and Console anti-framing headers.
+- PC-52 — real per-request trace correlation and Console navigation, proven live.
+- PR #258 — bounded real Claude Code Messages text/tool-loop interoperability through Anthropic.
+- PR #259 — immutable deterministic provider preflight before streaming HTTP 200 commitment.
 
-Latest certified repository baseline:
+Latest post-merge validated runtime baseline as of 2026-09-16:
 
-`34d0e3fc5153022d2402808397ce93b3c19f2c7e` (PR #219 / PC-51).
+`7d7e2e3840719acd257b1c25c19f8ce4a84592d8` ([PR #259](https://github.com/brunovicco/governed-llm-gateway/pull/259)).
 
 Post-merge `main` gates:
 
-- `quality` run `34303543270` — PASS;
-- `console-quality` run `34303543250` — PASS;
-- `local-demo-smoke` run `34303543251` — PASS.
+- [quality run `35037637219`](https://github.com/brunovicco/governed-llm-gateway/actions/runs/35037637219) — PASS;
+- [image run `35037637139`](https://github.com/brunovicco/governed-llm-gateway/actions/runs/35037637139) — PASS.
 
-OR-8 is complete only at the bounded operations-only local-demo scope. OR-9 is **IN PROGRESS** through bounded security hardening; production IAM/TLS/SSO, production browser identity/session handling, rate limiting, CSRF policy and future mutation authority remain separate increments. OR-10 remains pending.
+OR-8 is complete at the bounded operations-only local-demo scope. OR-9's minimum-appropriate
+hardening and OR-10's demonstrated-scope validation are complete. Production IAM/TLS/SSO, browser
+identity/session handling, rate limiting, CSRF policy and future mutation authority remain explicit
+separate work, not guarantees supplied by the local demo.
 
-Credential-free CI does not establish live-provider proof by itself. A first live-provider proof was executed 2026-09-08 against the PC-33 profile (native Gemini deployment) with real local operator credentials; see `CURRENT_STATE.md` for the recorded evidence. It does not certify the OpenAI deployment in the same profile or any production deployment.
+Credential-free CI does not establish live-provider proof by itself. All six PC-33 deployments and
+all five `personal-default` registry groups have historical individual live proofs. Current active
+`personal-default` approved ranking coverage is nevertheless only `rag.answer` in `balanced`;
+the other eight workloads are not operational under its current launcher/Compose artifact.
+The separate Claude Code proof used approved `agent.tool-use` ranking coverage. None of these
+bounded local proofs certify a production deployment.
 
 ## Current gateway baseline
 
 Latest runtime-bearing and post-merge validated baseline:
 
-`34d0e3fc5153022d2402808397ce93b3c19f2c7e` (PR #219 / PC-51).
+`7d7e2e3840719acd257b1c25c19f8ce4a84592d8` (PR #259); see the evidence links above and
+[CURRENT_STATE.md](CURRENT_STATE.md#current-working-boundary).
 
 The default checked-in runtime remains credential-free and fail-closed. All new work starts from the then-current `main`.
 
@@ -268,8 +282,8 @@ Until OpsLens is ready for reconciliation:
 4. do not create benchmark-only routing/model-selection bypasses to force a nominal target;
 5. keep live-provider benchmark/execution proof explicitly separated from credential-free default CI and normal authorization semantics;
 6. do not treat benchmark completion or runtime provenance as permission to bypass the Phase 14 order;
-7. continue OR-9 only through separately reviewed bounded security increments; do not infer production identity/session/TLS/rate-limit/CSRF guarantees from the local demo;
-8. do not add per-trace Console correlation until a real backend trace-correlation source is exposed and reviewed;
+7. add further security hardening only through separately justified reviewed increments; do not infer production identity/session/TLS/rate-limit/CSRF guarantees from the local demo;
+8. preserve PC-52's reviewed backend trace-correlation source and metadata-only boundary when extending Console navigation;
 9. when OpsLens stabilizes, rebase/reconcile its integration against the then-current gateway commit and rerun its full native Python and Terraform CI before merge.
 
 Do not pull work forward when doing so weakens an authority boundary, creates parallel consumer migrations or depends on an unstable consumer contract.

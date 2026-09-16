@@ -8,7 +8,7 @@ decides the authorized model group; the Gateway never self-authorizes:
 consumer (any project)
   -> Gateway client authentication
   -> Policy Model Router (PDP)
-  -> authorized model group: balanced | fast-small | structured-fast | reasoning-strong | agentic-strong
+  -> authorized model group: balanced (active ranking coverage: rag.answer)
   -> Gateway eligibility + deterministic ranking (NVIDIA cost-preferred in balanced)
   -> provider execution
   -> normalized SSE + execution provenance
@@ -20,6 +20,26 @@ The point of this repository is that a consumer project never has to carry provi
 pick a provider, or pick a model. It declares a `workload`, a `risk_level` and a
 `data_classification`; the Policy Router decides the authorized model group, and the Gateway's
 deterministic ranking picks one already-authorized deployment.
+
+## Active runtime ranking coverage
+
+The checked-in launcher and governed Compose startup load `approved_ranking.json`, whose policy
+`personal-default-v2` covers only `rag.answer` in `balanced`. Its pinned artifact ID is
+`sha256:4d58f86b791267b2d38c6a95edad576ab35a5b97a8ee43a78a9d527ac8ee56ad`.
+
+The other eight workloads below are registry/client/PDP configuration, **not operational coverage
+under this artifact**. Requests for them fail closed with HTTP 503 `ranking_policy_unavailable` before
+provider execution; the Gateway does not silently fall back to `ranking_policy.yaml`. Historical live
+proofs used the static ranking configuration or a separately selected approved ranking path. They do
+not establish current coverage under the launcher's pin.
+
+To activate another workload, separately review and approve ranking evidence covering it, then
+explicitly select that artifact and its matching ID in the runtime configuration. A local candidate
+artifact or provider key does not activate a workload, and `agent.tool-use` is not enabled by the
+current default startup. See the [Claude Code guide](../../../docs/project/PROTOCOL_MULTIMODAL_GATEWAY.md#claude-code)
+for the scope of its live proof.
+
+## Registry wiring (not active workload coverage)
 
 This profile wires 14 deployments across five model groups, reusing the same six provider bindings
 (NVIDIA, Google Gemini, OpenAI, Anthropic, Groq, OpenRouter — no new credentials needed for any of it):
@@ -37,13 +57,15 @@ three adapters with real, verified provider-native structured-output and tool-ca
 (`native_structured_output=True, native_tool_calling=True` in `openai_responses.py`,
 `anthropic.py`, `gemini.py`). Groq/NVIDIA/OpenRouter keep `supports_native_structured_output` and
 `supports_native_tool_calling` at `false` in `provider_runtime.json` because that has not been
-verified against those specific APIs; they only serve `fast-small`/`balanced`, which don't need it.
+verified against those specific APIs; they are wired only for `fast-small`/`balanced`, which don't
+need it. Only `balanced` has active ranking coverage under the pinned artifact.
 
-Within `balanced`, NVIDIA is the practical default because its configured tier has zero marginal cost
+Within `balanced`, NVIDIA is cost-preferred because its configured tier has zero marginal cost
 (`pricing.input_usd_per_million_tokens` / `output_usd_per_million_tokens` are both `"0.00"`); its
-`cost` ranking score is set to `"1.00"` against `"0.50"` for the other five. The other four groups
-use plain neutral scores (like `live-development`) since there isn't yet a similar cost/quality
-basis to prefer one deployment over the other within them.
+`cost` ranking score is set to `"1.00"` against `"0.50"` for the other five. The static base
+`ranking_policy.yaml` has neutral scores for the other four groups (like `live-development`), but
+those entries are not loaded by the current approved-artifact startup. Cost preference is one ranking
+input, not a guarantee that NVIDIA wins every request regardless of eligibility or runtime health.
 
 ### Where `rag.answer` scores come from
 
@@ -92,17 +114,21 @@ after a permanent (non-retryable) failure.
 
 ## Current scope and known limitations
 
-- Individually proven end to end (real operator credentials, through the full Policy Router + Gateway
-  chain): NVIDIA, Gemini, OpenAI, Groq, OpenRouter and Anthropic in `balanced`; Groq/NVIDIA in
+- Active ranking coverage today: only `rag.answer` in `balanced`; the workload table above must not be
+  advertised as nine workloads operational under the current approved artifact.
+- Historical static-policy proofs, executed 2026-09-09, individually validated end to end (real
+  operator credentials, through the full Policy Router + Gateway chain): NVIDIA, Gemini, OpenAI,
+  Groq, OpenRouter and Anthropic in `balanced`; Groq/NVIDIA in
   `fast-small`; OpenAI/Gemini in `structured-fast`; Anthropic and OpenAI in `reasoning-strong` and
-  `agentic-strong` — every deployment in every model group this profile wires has now been individually
+  `agentic-strong` — every deployment in every model group this profile wires was individually
   proven live, in this profile specifically (not only in `live-development`). The full six-deployment
-  `balanced` group (all enabled at once, nothing disabled) has been booted end to end with
+  `balanced` group (all enabled at once, nothing disabled) was booted end to end with
   `scripts/personal_default_launcher.py`, with NVIDIA winning against all five other providers
-  simultaneously eligible (`rejected_candidates: null`). See `docs/project/CHECKPOINT_LOG.md`.
-- `security.analysis`, `code.generate`, `code.review` (sharing `reasoning-strong`'s deployments) have
-  each been individually exercised with a real live request, succeeding via Anthropic.
-- Real structured-output and real tool-calling requests were both proven end to end (a genuine JSON
+  simultaneously eligible (`rejected_candidates: null`). See the dated
+  [checkpoint log](../../../docs/project/CHECKPOINT_LOG.md).
+- In those historical runs, `security.analysis`, `code.generate`, `code.review` (sharing
+  `reasoning-strong`'s deployments) each succeeded with a real live request via Anthropic.
+- Historical real structured-output and tool-calling requests were both proven end to end (a genuine JSON
   schema through `extraction.structured`/Gemini, and a real `ToolDefinition` + tool call through
   `agent.tool-use`/OpenAI). Two real constraints surfaced doing this, worth knowing before you build
   against this profile:
@@ -190,5 +216,6 @@ GOVERNED_LLM_GATEWAY_URL=http://127.0.0.1:8000
 GOVERNED_LLM_GATEWAY_API_KEY=<the same GATEWAY_DEMO_API_KEY>
 ```
 
-and calls `GatewayClient.from_env().generate(workload="rag.answer", ...)` (or any of the other eight
-reviewed workloads listed above) — no provider, model, or deployment selection.
+and calls `GatewayClient.from_env().generate(workload="rag.answer", ...)` — no provider, model, or
+deployment selection. The other eight configured workloads require a separately approved and
+explicitly selected ranking artifact before they can be served.

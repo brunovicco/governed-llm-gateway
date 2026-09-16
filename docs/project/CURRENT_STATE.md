@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-09-15
+Last updated: 2026-09-16
 
 This document states only what is true today. For the dated, PR-by-PR narrative of how each of these
 facts was established — proof records, security reviews, real bugs found and fixed — see
@@ -43,6 +43,10 @@ facts was established — proof records, security reviews, real bugs found and f
   coordinator; their model strings are aliases, never deployment selectors.
 - canonical messages represent text, image, audio, document, tool-use and tool-result blocks; every
   extension capability defaults to unavailable until explicitly declared.
+- deterministic streaming preflight constructs and freezes provider requests for every bounded
+  authorized candidate before HTTP 200 commitment; preflight performs no provider network I/O.
+  Runtime retry/fallback still cannot widen the PDP-authorized group or replay tool-result requests
+  ([PR #259](https://github.com/brunovicco/governed-llm-gateway/pull/259), [ADR-0017](../adr/ADR-0017-deterministic-streaming-preflight.md)).
 
 ## Operational readiness status
 
@@ -57,9 +61,19 @@ facts was established — proof records, security reviews, real bugs found and f
   in either pass), a consolidated Non-claims section, and real Console/Grafana screenshots.
 - **PC-33 `live-development` profile** — every deployment (Gemini, OpenAI, Groq, NVIDIA, OpenRouter,
   Anthropic) is individually proven live.
-- **`personal-default` profile** — every deployment in every model group it wires (`balanced`,
-  `fast-small`, `structured-fast`, `reasoning-strong`, `agentic-strong`) is individually proven live in
-  this profile specifically, not only in `live-development`.
+- **`personal-default` profile** — six provider bindings, 14 deployments across five registry groups.
+  The active pinned `approved_ranking.json` (`personal-default-v2`, artifact
+  `sha256:4d58f86b791267b2d38c6a95edad576ab35a5b97a8ee43a78a9d527ac8ee56ad`) covers only `rag.answer`
+  in `balanced`. The other eight configured workloads fail closed with HTTP 503
+  `ranking_policy_unavailable` under the current launcher/Compose startup. Every deployment in every
+  group was individually proven live in historical static-policy runs on 2026-09-09; those proofs
+  do not make all workloads operational under today's artifact. Further coverage requires separately
+  reviewed approved ranking evidence and explicit runtime artifact/pin selection.
+- **Claude Code / PR #258** — real local CLI E2E through the external PDP, approved ranking path and
+  Anthropic, with text, streaming, 31 tool definitions, actual `Read`/`Bash`, local tool execution and
+  tool-result continuation. This proof used `agent.tool-use` ranking coverage, not the stock
+  `rag.answer` artifact. Codex remains contract-tested only, without a live CLI claim. See
+  [protocol scope](PROTOCOL_MULTIMODAL_GATEWAY.md#claude-code) and the dated [proof record](CHECKPOINT_LOG.md#claude-code-live-e2e--pr-258-executed-2026-09-15).
 - **PC-52 Console per-request trace navigation** — implemented and proven live, twice (SDK-level and a
   full browser run through the Console UI itself), including a real infrastructure bug found and fixed
   along the way (`otel-collector`'s host port could never actually publish because its only Docker
@@ -154,7 +168,20 @@ Remains after the preceding integration cases.
 
 ## Current working boundary
 
-1. `main@289f1de7ff3ca548ca013055c08ce09ec40d1c99` (PR #237 / PC-52) is the latest certified repository baseline. Every deployment in the PC-33 profile is individually proven live (Gemini, OpenAI, Groq, NVIDIA, OpenRouter, Anthropic); this still does not itself certify any production deployment and must not be inferred from credential-free CI alone.
+Latest post-merge validated runtime baseline as of this update:
+`main@7d7e2e3840719acd257b1c25c19f8ce4a84592d8`
+([PR #259](https://github.com/brunovicco/governed-llm-gateway/pull/259)). Main's
+[quality run `35037637219`](https://github.com/brunovicco/governed-llm-gateway/actions/runs/35037637219)
+and [image run `35037637139`](https://github.com/brunovicco/governed-llm-gateway/actions/runs/35037637139)
+both passed on that exact commit.
+
+PR #259 records 1499 passed / 6 skipped, 84.36% coverage, a governed NVIDIA `rag.answer` smoke,
+direct live adapter checks for the other five providers, and an authenticated pre-stream HTTP 422
+JSON probe. These are bounded local proofs, not production certification; direct adapter checks must
+not be presented as full governed E2E. See the
+[dated proof record](CHECKPOINT_LOG.md#deterministic-streaming-preflight--pr-259-executed-2026-09-15).
+
+1. Start new increments from the then-current `main`; retain the distinction between credential-free CI, direct adapter checks and governed live proofs.
 2. OR-9's minimum-appropriate hardening for the demonstrated operational surfaces is complete (bounded increments PC-34..PC-51 plus a dedicated 2026-09-09 gap investigation found no further non-production gap). Production identity/TLS/rate-limit/CSRF concerns remain separate, explicit future work, not a silently missing minimum. Continue only with separately justified, consumer-independent security increments that preserve existing serving semantics.
 3. Do not modify OpsLens until its independent development state is ready for reconciliation.
 4. Do not begin RAGForge in parallel unless the normative roadmap order is explicitly revised.
@@ -175,7 +202,8 @@ Remains after the preceding integration cases.
 - automatic/adaptive routing self-modification;
 - arbitrary key discovery from governance token contents;
 - using governance/runtime/benchmark evidence as a new authorization source;
-- provider-native tool-result continuation without canonical provider state;
+- lossless continuation of opaque provider reasoning/signature state not represented canonically
+  (ordinary canonical tool-use/text tool-result continuation is supported);
 - benchmark-side provider/model forcing;
 - credential-bearing live-provider benchmark execution in default CI;
 - payload/prompt/completion capture as default telemetry/evidence;

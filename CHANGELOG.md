@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Hardened real Claude Code Messages interoperability ([#258](https://github.com/brunovicco/governed-llm-gateway/pull/258)):
+  bounded Unicode/URI schema support, Anthropic tool strictness, non-semantic tool-use cache metadata
+  and ASGI replay/disconnect handling. Local live CLI E2E validated text, streaming, real `Read`/`Bash`
+  and tool-result continuation through the external PDP, approved ranking and Anthropic.
+- Added immutable deterministic streaming preflight ([#259](https://github.com/brunovicco/governed-llm-gateway/pull/259)):
+  all bounded authorized provider request shapes are validated before HTTP 200 commitment, without
+  provider I/O; invalid provider requests now return pre-stream HTTP 422 JSON errors.
+- Aligned public READMEs, protocol evidence and current baseline documentation: both inference
+  profiles have six providers, but the active `personal-default` approved artifact covers only
+  `rag.answer`. Other configured/historically validated workloads are not advertised as operational
+  under that artifact; Codex still has no live CLI claim.
+
 - Added canonical multimodal content blocks and fail-closed audio, document and parallel-tool
   capabilities; tool-result continuations are never retried or failed over.
 - Added strict Anthropic Messages and OpenAI Responses northbound adapters with protocol-native
