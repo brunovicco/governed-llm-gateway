@@ -114,6 +114,12 @@ after a permanent (non-retryable) failure.
 
 ## Current scope and known limitations
 
+- Both the governed Compose profile and the personal launcher use the deployment-owned
+  `config/deployment/governed-compose-routing-policy.yaml`. All five local groups are cleared for
+  public data only; `balanced` does not advertise structured output or tool calling. CI checks every
+  catalog pool member in the development environment, not just one compatible deployment. Group cost
+  estimates and deployment prices are distinct; see
+  [the consistency and pricing contract](../../../docs/project/CONTAINER_DEPLOYMENT.md#local-policycatalog-consistency).
 - Active ranking coverage today: only `rag.answer` in `balanced`; the workload table above must not be
   advertised as nine workloads operational under the current approved artifact.
 - Historical static-policy proofs, executed 2026-09-09, individually validated end to end (real

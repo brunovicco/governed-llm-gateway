@@ -49,6 +49,7 @@ STEPS: list[tuple[str, list[str]]] = [
             "tests",
         ),
     ),
+    ("governed-composition", uv_run("python", "scripts/check_governed_composition.py")),
     (
         "tests",
         uv_run(
