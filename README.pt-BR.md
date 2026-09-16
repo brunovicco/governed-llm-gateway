@@ -18,7 +18,7 @@ Aplicação/Agente
         │ workload + requisitos + credencial do Gateway
         ▼
 Policy Model Router (PDP)
-        │ grupos lógicos de modelo autorizados
+        │ selected_model_group (um grupo lógico de modelo autorizado)
         ▼
 Governed LLM Gateway (PEP)
         ├─ elegibilidade + ranking determinístico
@@ -57,9 +57,9 @@ Grafana* do próprio Console resolve exatamente aquele trace - o waterfall corre
 
 | Capacidade | O que significa na prática |
 | --- | --- |
-| **Um único ponto de integração** | Os consumidores falam um contrato provider-neutral. Adicionar, trocar ou desabilitar um provider é mudança de registry, não edição em cada serviço que chama um modelo. |
+| **Um único ponto de integração** | Os consumidores falam um contrato provider-neutral. Adicionar ou substituir um deployment exige adapter/binding de runtime compatível, configuração no registry e cobertura no ranking aprovado; desabilitá-lo restringe a elegibilidade no registry. O consumidor não precisa de edição específica de provider. |
 | **Credenciais em um lugar só** | As chaves de provider pertencem ao deployment do Gateway. Rotacionar uma é uma mudança única, em um lugar único, sem redeploy de consumidor e sem chave espalhada por repositórios. |
-| **Autorização que se sustenta** | A política decide quais grupos de modelo um workload pode usar. O Gateway só consegue estreitar esse conjunto, nunca ampliá-lo, e falha fechado quando a política está inacessível. |
+| **Autorização que se sustenta** | A política retorna um grupo lógico de modelo autorizado para a requisição. O Gateway só consegue estreitar seu conjunto de deployments, nunca ampliá-lo, e falha fechado quando a política está inacessível. |
 | **Seleção determinística** | O ranking dentro do conjunto autorizado é reproduzível e explicável: mesmas entradas, mesmo deployment, com os motivos e os digests que o produziram anexados. |
 | **Resiliência sem surpresa** | Health, circuit breaker, retry limitado e fallback - todos restritos a deployments já autorizados, e compartilháveis entre réplicas para que o comportamento continue determinístico ao escalar. |
 | **Teto de custo** | Contabilização de gasto por cliente e por workload, a partir do pricing fixado e do uso reportado, com orçamentos que recusam a requisição ao atingir o teto. |
@@ -69,9 +69,9 @@ Grafana* do próprio Console resolve exatamente aquele trace - o waterfall corre
 ## Como funciona
 
 1. O consumidor se autentica no Gateway e declara um workload, não um modelo.
-2. O Policy Model Router determina quais grupos lógicos de modelo aquele workload pode usar.
+2. O Policy Model Router retorna um `selected_model_group`, a autorização completa de grupo lógico da requisição.
 3. O Gateway intersecta essa autoridade com capability do registry, ambiente, dado/risco e elegibilidade de runtime.
-4. O ranking determinístico seleciona dentro do que restou; retry e fallback só podem ir para outro deployment já autorizado e elegível.
+4. O ranking determinístico seleciona dentro do que restou; retry permanece no mesmo deployment e fallback só vai para outro deployment já ranqueado e elegível no mesmo grupo. Não há fallback entre grupos.
 5. Requisições e respostas específicas de provider são normalizadas atrás de adapters.
 6. Proveniência terminal e telemetria metadata-safe descrevem o que aconteceu. Elas nunca autorizam uma requisição futura.
 

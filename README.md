@@ -18,7 +18,7 @@ Application/Agent
         │ workload + requirements + Gateway credential
         ▼
 Policy Model Router (PDP)
-        │ authorized logical model groups
+        │ selected_model_group (one authorized logical model group)
         ▼
 Governed LLM Gateway (PEP)
         ├─ eligibility + deterministic ranking
@@ -57,9 +57,9 @@ resolves to that exact trace - the matching waterfall is in
 
 | Capability | What it means in practice |
 | --- | --- |
-| **One integration point** | Consumers speak one provider-neutral contract. Adding, replacing or disabling a provider is a registry change, not an edit in every service that calls a model. |
+| **One integration point** | Consumers speak one provider-neutral contract. Adding or replacing a deployment requires a compatible adapter/runtime binding, registry configuration and approved ranking coverage; disabling it narrows registry eligibility. Consumers need no provider-specific edit. |
 | **Credentials in one place** | Provider keys belong to the Gateway deployment. Rotating one is a single change in a single place, with no consumer redeploy and no key to find scattered across repositories. |
-| **Authorization that holds** | Policy decides which model groups a workload may use. The Gateway can only narrow that set, never widen it, and fails closed when policy is unreachable. |
+| **Authorization that holds** | Policy returns one authorized logical model group for the request. The Gateway can only narrow its deployment set, never widen it, and fails closed when policy is unreachable. |
 | **Deterministic selection** | Ranking inside the authorized set is reproducible and explainable: same inputs, same deployment, with the reasons and the digests that produced it attached. |
 | **Resilience without surprises** | Health tracking, circuit breaking, bounded retry and fallback - all restricted to already-authorized deployments, and shareable across replicas so behavior stays deterministic when you scale out. |
 | **Cost ceilings** | Per-client, per-workload spend accounting from pinned pricing and reported usage, with budgets that refuse a request once a ceiling is reached. |
@@ -69,9 +69,9 @@ resolves to that exact trace - the matching waterfall is in
 ## How it works
 
 1. The consumer authenticates to the Gateway and declares a workload, not a model.
-2. The Policy Model Router determines which logical model groups that workload may use.
+2. The Policy Model Router returns one `selected_model_group`, the request's complete logical-group authorization.
 3. The Gateway intersects that authority with registry capability, environment, data/risk and runtime eligibility.
-4. Deterministic ranking selects inside what remains; retry and fallback may move only to another already-authorized eligible deployment.
+4. Deterministic ranking selects inside what remains; retry stays on the same deployment and fallback moves only to another already-ranked eligible deployment in that same group. There is no cross-group fallback.
 5. Provider-specific requests and responses are normalized behind adapters.
 6. Terminal provenance and metadata-safe telemetry describe what happened. They never authorize a future request.
 

@@ -109,7 +109,7 @@ def test_smoke_test_starts_policy_router_then_gateway_and_cleans_up_in_reverse(
     assert policy_router_cwd == policy_router_root
     assert policy_router_env["APP_ENV"] == "development"
     assert policy_router_env["ROUTING_POLICY_PATH"] == str(
-        policy_router_root / "examples" / "policies" / "gateway-generic.yaml"
+        _REPO_ROOT / "config" / "deployment" / "governed-compose-routing-policy.yaml"
     )
     assert json.loads(policy_router_env["API_KEYS"]) == {"gateway-demo": _POLICY_ROUTER_KEY}
 

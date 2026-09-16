@@ -91,6 +91,49 @@ HTTPS-or-loopback validation; the Gateway listens on port 8002 in that namespace
 a small `tmpfs` for `/tmp`. The Router policy is deployment-owned configuration, not imported
 authorization logic.
 
+### Local policy/catalog consistency
+
+Both this Compose profile and `scripts/personal_default_launcher.py` select the Gateway-owned
+`config/deployment/governed-compose-routing-policy.yaml`, rather than the Router's independent
+generic example. The sibling Router checkout owns its implementation; this deployment owns its
+policy and catalog. The local policy clears all five groups for **public only**. `balanced` and
+`fast-small` advertise neither structured output nor tool calling. Capability configuration for
+other groups does not activate them under the current `rag.answer` ranking pin.
+
+The credential-free canonical quality gate runs:
+
+```bash
+uv run --frozen --all-packages python scripts/check_governed_composition.py
+```
+
+This offline check compares policy assertions with every catalog member of the group whose
+`allowed_environments` includes `development`, **including disabled members**. One compatible
+deployment cannot establish clearance for the entire pool. Disabling a deployment, excluding it by
+health, or lacking approved ranking coverage does not prove data clearance; to remove it from the
+declared pool, change its group/environment or remove the entry. Empty pools, missing group references,
+and tool workloads mapped to groups without tool support fail the check. Advertised structured/tool
+support is conservatively checked across every member of the same local pool too. This is a deployment
+consistency assertion, not a new Router authorization rule or automatic content classification.
+
+The check imports no Router implementation, needs no second checkout or Docker, and neither changes
+nor derives approved ranking evidence. It validates only the policy projection needed for consistency;
+the external Router remains responsible for validating its complete policy schema at startup.
+
+### Two distinct token-cost estimates
+
+Router group rates are independent static **PDP planning estimates**, as specified by the Router's
+ADR-0010. Gateway deployment rates are versioned catalog pricing. Both calculate
+`input_tokens * input_rate / 1_000_000 + output_tokens * output_rate / 1_000_000` for the same
+projected request token counts and enforce the same effective `max_cost_usd` ceiling at their own
+boundary. Neither is an invoice, a total-spend reservation, or a live provider-price feed.
+
+There is intentionally no equality or pool-maximum constraint between these rates. The local
+`balanced` group estimate is `0.50/2.00` USD per million input/output tokens, while its catalog ranges
+from a configured zero-cost tier to `3.00/15.00`. A PDP allow can therefore still be narrowed by the
+Gateway's deployment-price check; a PDP denial cannot be reversed because a cheaper deployment exists.
+Automatically imposing maximum pool rates would change which requests policy admits, not just detect
+drift, and requires a separate reviewed policy decision. The checker does not impose that change.
+
 For cross-repository development, `compose.pdp-composition.yml` deliberately keeps the sibling-source
 workflow and builds the Router checkout. It tests a different concern: byte-compatible signed runtime
 authorization across the two repositories.

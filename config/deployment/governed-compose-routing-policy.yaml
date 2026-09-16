@@ -1,13 +1,17 @@
 # Deployment-owned Policy Model Router v0.5.0 policy. This is policy configuration,
 # not copied authorization/routing implementation. Workload/group identifiers match
 # the Gateway's personal-default profile and remain external PDP authority.
+# This development pool is cleared for public data only. Classification clearance
+# must hold for EVERY catalog member in the environment, including disabled entries.
+# Prices below are independent PDP planning estimates, not deployment-price bounds;
+# the Gateway rechecks the same request ceiling against each deployment's pricing.
 schema_version: "1.0"
 policy_id: "governed-gateway-local"
-policy_version: "1.0.0"
+policy_version: "1.0.1"
 
 model_groups:
   fast-small:
-    authorized_data_classifications: [public, internal]
+    authorized_data_classifications: [public]
     authorized_risk_levels: [low, medium]
     supports_structured_output: false
     supports_tool_calling: false
@@ -18,10 +22,10 @@ model_groups:
     available: true
     allowed_agents: []
   balanced:
-    authorized_data_classifications: [public, internal, confidential]
+    authorized_data_classifications: [public]
     authorized_risk_levels: [low, medium, high]
-    supports_structured_output: true
-    supports_tool_calling: true
+    supports_structured_output: false
+    supports_tool_calling: false
     max_context_tokens: 128000
     typical_latency_ms: 8000
     input_cost_usd_per_million_tokens: "0.50"
@@ -29,7 +33,7 @@ model_groups:
     available: true
     allowed_agents: []
   reasoning-strong:
-    authorized_data_classifications: [public, internal, confidential, restricted]
+    authorized_data_classifications: [public]
     authorized_risk_levels: [low, medium, high, critical]
     supports_structured_output: true
     supports_tool_calling: true
@@ -40,7 +44,7 @@ model_groups:
     available: true
     allowed_agents: []
   agentic-strong:
-    authorized_data_classifications: [public, internal, confidential, restricted]
+    authorized_data_classifications: [public]
     authorized_risk_levels: [low, medium, high, critical]
     supports_structured_output: true
     supports_tool_calling: true
@@ -51,7 +55,7 @@ model_groups:
     available: true
     allowed_agents: []
   structured-fast:
-    authorized_data_classifications: [public, internal]
+    authorized_data_classifications: [public]
     authorized_risk_levels: [low, medium]
     supports_structured_output: true
     supports_tool_calling: false

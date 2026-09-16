@@ -239,7 +239,7 @@ class PersonalDefaultLauncher:
         )
         self._gateway_env = dict(source_environ)
         self._policy_router_env = _build_policy_router_env(
-            source_environ, self._policy_router_root, self._policy_router_credential
+            source_environ, self._settings.repository_root, self._policy_router_credential
         )
         self._children: list[LauncherProcess] = []
 
@@ -398,13 +398,13 @@ def _require_credential(environ: Mapping[str, str], name: str) -> str:
 
 def _build_policy_router_env(
     environ: Mapping[str, str],
-    policy_router_root: Path,
+    repository_root: Path,
     policy_router_credential: str,
 ) -> dict[str, str]:
     env = dict(environ)
     env["APP_ENV"] = "development"
     env["ROUTING_POLICY_PATH"] = str(
-        policy_router_root / "examples" / "policies" / "gateway-generic.yaml"
+        repository_root / "config" / "deployment" / "governed-compose-routing-policy.yaml"
     )
     env["API_KEYS"] = json.dumps({_POLICY_ROUTER_CLIENT_ID: policy_router_credential})
     return env
