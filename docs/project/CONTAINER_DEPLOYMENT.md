@@ -77,6 +77,12 @@ that changes without the pin being updated fails the container closed at startup
 [the profile README](../../config/profiles/personal-default/README.md) for how that artifact
 is regenerated.
 
+The selected `personal-default/approved_ranking.json` covers only `rag.answer` in `balanced`.
+Other configured workloads, including the protocol adapters' default `agent.tool-use`, fail closed
+with `ranking_policy_unavailable` under this startup. Serving them requires a separately reviewed
+approved artifact covering the workload and explicit selection of its path and matching ID; changing
+only the ID cannot add coverage to the mounted artifact.
+
 The Compose-specific Gateway artifact points to `http://127.0.0.1:8000/route`. The two containers
 share one network namespace, allowing literal-loopback transport without weakening the runtime's
 HTTPS-or-loopback validation; the Gateway listens on port 8002 in that namespace and is published as

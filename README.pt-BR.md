@@ -105,8 +105,13 @@ Três configurações, em ordem crescente do que exigem:
 | Configuração | Exige | O que mostra |
 | --- | --- | --- |
 | **Demo local de operações** | Nada além do toolchain | A Operations API read-only, o Console e a cadeia Collector → Tempo → Grafana. Não expõe rota de inferência, então não precisa de credencial. |
-| [**`live-development`**](config/profiles/live-development/README.md) | Um policy router externo e credenciais de provider | Um consumidor revisado, ranking determinístico, dois deployments nativos em um grupo autorizado. |
-| [**`personal-default`**](config/profiles/personal-default/README.md) | O mesmo, mais suas próprias chaves | Seis providers (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter) em um grupo autorizado, NVIDIA preferido por custo; é o perfil para chamar a partir das suas aplicações. |
+| [**`live-development`**](config/profiles/live-development/README.md) | Um policy router externo e credenciais de provider | Um consumidor revisado, `rag.answer`, ranking estático neutro e seis deployments em `balanced`: três adapters nativos e três bindings OpenAI-compatible. |
+| [**`personal-default`**](config/profiles/personal-default/README.md) | O mesmo, mais suas próprias chaves | Seis providers (NVIDIA, Gemini, OpenAI, Anthropic, Groq, OpenRouter), 14 deployments em cinco grupos do registry. O ranking aprovado ativo cobre somente `rag.answer` em `balanced`, com NVIDIA preferido por custo. |
+
+Configuração no registry não é cobertura ativa de workload. Os outros oito workloads do
+`personal-default` têm configuração e provas live históricas, mas não são atendidos pelo artefato de
+ranking fixado hoje: falham fechados com `ranking_policy_unavailable`. Ativá-los exige um artefato de
+ranking aprovado em revisão separada e o pin correspondente no runtime, não apenas credenciais.
 
 O baseline versionado é fail-closed: nenhum deployment habilitado, nenhum binding de provider, política
 desabilitada, nenhum principal ativo. Adicionar uma chave de provider por si só não habilita inferência -
@@ -168,13 +173,19 @@ as fronteiras de segurança e a configuração exata dos clientes.
 | --- | --- |
 | API nativa do Gateway | Suportada; compatibilidade existente preservada |
 | Anthropic Messages API | Subconjunto stateless testado por contrato |
-| Claude Code | Request e SSE representativos testados por contrato; sem alegação de CLI live |
+| Claude Code | E2E live de CLI em escopo delimitado via Anthropic: texto, streaming, `Read`/`Bash`, execução local de ferramentas e continuação com tool results ([PR #258](https://github.com/brunovicco/governed-llm-gateway/pull/258)) |
 | OpenAI Responses API | Subconjunto stateless testado por contrato |
 | Codex | Request/replay HTTP atual e SSE testados contra o código oficial do cliente; sem alegação de CLI live |
 | Imagens | Referências HTTPS e inline limitado onde deployment/adapter permitirem |
 | Áudio/documentos | Canônicos e capability-gated; falham fechados sem opt-in do registry e adapter |
 | Funções/resultados | Chamadas comuns e resultados textuais; a aplicação executa o efeito |
 | Streaming | Stream do provider → eventos canônicos → SSE nativo do protocolo |
+
+A prova de Claude Code usou um caminho de ranking aprovado com cobertura de `agent.tool-use`; ela
+não torna esse workload operacional com o artefato padrão de `rag.answer` do `personal-default`.
+Codex continua testado somente por contrato, sem alegação de CLI live. Recursos de protocolo fora do
+escopo continuam fail-closed; os limites estão no
+[guia de protocolos](docs/project/PROTOCOL_MULTIMODAL_GATEWAY.md#claude-code).
 
 ### Container
 
@@ -233,8 +244,9 @@ docker compose -f compose.gateway.yml --profile governed up --build gateway poli
 ```
 
 O workflow `compose.pdp-composition.yml` e `scripts/personal_default_launcher.py` preservam o modo de
-desenvolvimento cross-repository com checkout irmão. Depois adicione o client ao seu projeto - não
-publicado no PyPI, instale direto deste repositório:
+desenvolvimento cross-repository com checkout irmão. Esse startup seleciona `approved_ranking.json`,
+que cobre somente `rag.answer`; ele não ativa os outros workloads do registry. Depois adicione o
+client ao seu projeto - não publicado no PyPI, instale direto deste repositório:
 
 ```bash
 uv add "governed-llm-gateway-client @ git+https://github.com/brunovicco/governed-llm-gateway.git#subdirectory=packages/gateway-client"

@@ -457,3 +457,61 @@ repository whose stated purpose is demonstrating engineering practice to a reade
 
 Full quality gate passed throughout, including `scripts/phase0_gate.py`'s frozen `REQUIRED_FILES` check
 and `scripts/architecture_check.py`. No code changes.
+
+## Claude Code live E2E — PR #258, executed 2026-09-15
+
+[PR #258](https://github.com/brunovicco/governed-llm-gateway/pull/258) merged as
+`d60c91b01124419fddd74e406f5cfd95e0a113e3`. Its recorded local operator validation used a real
+Claude Code CLI, Gateway authentication, the external Policy Model Router, approved ranking evidence
+covering `agent.tool-use` and Anthropic execution.
+
+- Text and streaming succeeded with 31 real Claude Code tool definitions admitted.
+- Actual `Read` and `Bash` tool calls completed the loop
+  `tool_use -> local Claude Code execution -> tool_result -> final model response`.
+- The correlated diagnostic run returned HTTP 200 for both the initial tool-capable request and the
+  post-Bash continuation. Business-tool execution stayed outside the Gateway.
+- The run exercised Unicode JSON Schema patterns, `format: uri` and `cache_control`. The shipped
+  schema boundary limits patterns to 512 characters and 10 ms evaluation, preserves Anthropic's
+  omitted/explicit tool strictness and rejects unsupported formats/`patternProperties`.
+- Reviewed `thinking`, `output_config.effort` and bounded `context_management` are compatibility
+  metadata, not provider execution controls or routing authority. Supported `output_config.format`
+  still becomes canonical structured-output policy.
+- The PR's local quality gate passed: 1491 tests passed, 6 skipped, 84.31% coverage; lockfile, Ruff
+  lint/format, mypy, security/dependency checks and Phase 0 passed.
+
+This proves the bounded Messages text/tool loop, not every Claude Code feature, opaque reasoning-state
+replay or production readiness. It is not a live Codex CLI proof. It also does not make
+`agent.tool-use` available under the stock `personal-default/approved_ranking.json`, which covers
+only `rag.answer`. See [protocol limits and startup prerequisites](PROTOCOL_MULTIMODAL_GATEWAY.md#claude-code).
+
+## Deterministic streaming preflight — PR #259, executed 2026-09-15
+
+[PR #259](https://github.com/brunovicco/governed-llm-gateway/pull/259) merged as
+`7d7e2e3840719acd257b1c25c19f8ce4a84592d8`. Deterministic provider construction now completes before
+streaming HTTP 200 commitment, preparing immutable requests for every bounded authorized candidate
+without provider network I/O. Runtime retry/fallback semantics and the no-replay tool-result boundary
+remain unchanged; see [ADR-0017](../adr/ADR-0017-deterministic-streaming-preflight.md).
+
+Recorded verification:
+
+- Full local quality gate passed: 1499 tests passed, 6 skipped, 84.36% coverage; 83 focused
+  streaming/ingress tests passed. One existing Starlette/httpx deprecation warning remained.
+  Ruff lint/format, mypy (331 source files), Bandit, pip-audit, architecture, secret scan and Phase 0
+  all passed.
+- A real governed `personal-default` `rag.answer` smoke passed through PDP -> Gateway -> NVIDIA,
+  with normalized usage and terminal execution provenance inspected.
+- Separate direct live adapter checks for Gemini, OpenAI Responses, Anthropic Messages, Groq and
+  OpenRouter produced content, final usage and normalized completion. These five checks did not
+  traverse the complete governed chain and must not be described as five new governed E2E proofs.
+- An authenticated local deterministic-invalid-request probe returned HTTP 422 `application/json`
+  with `invalid_provider_request` before SSE response creation, rather than committing HTTP 200.
+- A `classification.simple` probe returned HTTP 503 `ranking_policy_unavailable` before provider
+  preflight: the current pinned `personal-default` approved ranking artifact covers only `rag.answer`.
+  No ranking artifact, registry or provider configuration was changed to bypass this limitation.
+- Post-merge main [quality run `35037637219`](https://github.com/brunovicco/governed-llm-gateway/actions/runs/35037637219)
+  and [image run `35037637139`](https://github.com/brunovicco/governed-llm-gateway/actions/runs/35037637139)
+  both passed on the exact merge commit above.
+
+Provider credentials remained server-side and were not printed. Live execution stays opt-in and
+separate from credential-free CI. These are local bounded proofs, not provider-SLA or production
+certification claims.

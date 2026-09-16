@@ -16,6 +16,13 @@ provider-shaped response but never selects, pins, or authorizes the concrete pro
 client binding must allow that workload and the external Policy Model Router must authorize it. A
 client therefore cannot gain authority by choosing a different `model` alias or workload header.
 
+Protocol support is separate from active ranking coverage. The stock `personal-default` launcher
+and governed Compose configuration select `approved_ranking.json`, which covers only `rag.answer`.
+The `agent.tool-use` examples below require a separately reviewed approved ranking artifact covering
+that workload, explicitly selected with its matching artifact ID, as well as client/PDP permission
+and eligible tool-capable deployments. The stock startup returns `ranking_policy_unavailable` for
+`agent.tool-use`; neither a model alias nor provider credentials bypass that boundary.
+
 Anthropic Messages and OpenAI Responses do not carry the Gateway-native `risk_level` and
 `data_classification` vocabulary. Their adapters therefore enter the existing trust pipeline with the
 least-restrictive caller claims (`low` / `public`). Those values are **not** the effective governance
@@ -67,6 +74,10 @@ eligible without inferring capability from provider identity.
   tool results are excluded.
 - A tool-result request is sent to one deployment once. Replay could duplicate an external side
   effect, so retry and fallback are forbidden.
+- Deterministic provider request construction and validation finish before streaming HTTP 200 is
+  committed, including every bounded authorized fallback candidate. Invalid provider requests return
+  pre-stream HTTP 422 JSON errors (Messages uses `invalid_request_error`); provider/network/runtime
+  failures after stream commitment remain protocol-native SSE errors. See [ADR-0017](../adr/ADR-0017-deterministic-streaming-preflight.md).
 
 ## One-clone governed startup
 
@@ -94,7 +105,28 @@ loopback, retaining the Gateway's HTTPS-or-loopback PDP transport invariant. Hos
 to `127.0.0.1`. `compose.pdp-composition.yml` remains the sibling-source cross-repository development
 proof.
 
+This startup serves the approved artifact's `rag.answer` scope. It does not provision an agent
+ranking artifact for Claude Code or Codex. Before running either client below, explicitly configure
+the Gateway with an approved artifact covering `agent.tool-use` and its matching pin; changing only
+`APPROVED_RANKING_ARTIFACT_ID` while leaving the artifact path unchanged will fail startup closed.
+
 ## Claude Code
+
+### Evidence-backed status
+
+[PR #258](https://github.com/brunovicco/governed-llm-gateway/pull/258), merged 2026-09-15, records a real
+local Claude Code CLI E2E through Gateway authentication, the external Policy Model Router, approved
+ranking evidence and Anthropic execution. The proof covered text, streaming, 31 real Claude Code tool
+definitions, actual `Read` and `Bash` calls, and the loop
+`tool_use -> local Claude Code execution -> tool_result -> final response`. Both the initial
+tool-capable request and the correlated post-Bash continuation returned HTTP 200. Tool execution
+remained in Claude Code, not in the Gateway.
+
+This is a bounded Messages interoperability proof, not universal Claude Code compatibility or a
+production-readiness claim. It used an approved ranking path covering `agent.tool-use`; it does not
+activate that workload under the stock `personal-default` `rag.answer` artifact.
+
+### Client configuration (requires approved `agent.tool-use` ranking)
 
 ```bash
 export ANTHROPIC_BASE_URL=http://127.0.0.1:8000
@@ -117,10 +149,32 @@ curl -N http://127.0.0.1:8000/v1/messages \
   -d '{"model":"governed-agent","max_tokens":2000,"stream":true,"messages":[{"role":"user","content":"Inspect this task and propose the next tool call."}]}'
 ```
 
-This is a strict stateless subset. Token counting, extended thinking, arbitrary beta fields, hosted
-tools and provider pass-through headers are not implemented.
+### Supported compatibility controls and limits
+
+Claude Code's reviewed `thinking`, `output_config.effort` and bounded `context_management` controls
+are admitted as non-authoritative compatibility metadata and removed before canonical execution;
+they do not enable provider thinking, alter routing or implement provider-owned context mutation.
+`output_config.format` is different: supported strict JSON Schema output is translated into the
+canonical structured-output contract and remains subject to schema/capability validation.
+Supported `cache_control` annotations, including those on tool-use transcript blocks, are
+non-semantic metadata, not a prompt-cache behavior guarantee or an authorization source.
+
+The live proof also exercised Unicode-capable JSON Schema `pattern`, `format: uri` and
+`cache_control`. Patterns are limited to 512 characters with a 10 ms evaluation timeout;
+invalid/timeout cases fail closed and `patternProperties` remains rejected. Anthropic's omitted
+tool `strict` remains non-strict, explicit `true`/`false` is preserved, and the Gateway still validates
+tool arguments against the canonical schema. See [ADR-0013](../adr/ADR-0013-structured-output-and-tool-normalization.md).
+
+Token counting, provider-native extended-thinking output/replay, arbitrary beta fields, hosted tools
+and provider pass-through headers are not implemented. Unknown or malformed fields and unsupported
+schema formats remain fail-closed. Ordinary canonical tool-result continuation is supported, without
+retry/fallback; this is not lossless replay of opaque provider reasoning/signature state.
 
 ## Codex
+
+Status: contract-tested against the official client's HTTP request/replay and native SSE subset;
+no live Codex CLI E2E claim. The following configuration also requires approved `agent.tool-use`
+ranking coverage, which the stock `personal-default` artifact does not provide.
 
 Add this provider to `~/.codex/config.toml`:
 
@@ -181,8 +235,9 @@ curl http://127.0.0.1:8000/v1/messages \
   -d '{"model":"governed-agent","max_tokens":500,"messages":[{"role":"user","content":[{"type":"image","source":{"type":"url","url":"https://example.com/image.png"}},{"type":"text","text":"Describe the image."}]}]}'
 ```
 
-Inline audio. The checked-in registry has no audio-capable deployment, so this command intentionally
-returns `no_eligible_streaming_deployment` until both registry and adapter explicitly opt in:
+Inline audio. This example requires both approved `agent.tool-use` ranking coverage and an eligible
+audio-capable deployment. The stock profile supplies neither: no successful audio inference is
+claimed, and capability filtering refuses audio until both registry and adapter explicitly opt in.
 
 ```bash
 curl http://127.0.0.1:8000/v1/responses \
@@ -191,7 +246,8 @@ curl http://127.0.0.1:8000/v1/responses \
   -d "{\"model\":\"governed-agent\",\"input\":[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_audio\",\"input_audio\":{\"format\":\"wav\",\"data\":\"$(base64 < sample.wav | tr -d '\\n')\"}}]}]}"
 ```
 
-Strict structured output:
+Strict structured output (requires separately approved `extraction.structured` ranking coverage;
+the stock artifact returns `ranking_policy_unavailable`):
 
 ```bash
 curl http://127.0.0.1:8000/v1/responses \
