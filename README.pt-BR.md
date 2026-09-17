@@ -62,7 +62,7 @@ Grafana* do próprio Console resolve exatamente aquele trace - o waterfall corre
 | **Autorização que se sustenta** | A política retorna um grupo lógico de modelo autorizado para a requisição. O Gateway só consegue estreitar seu conjunto de deployments, nunca ampliá-lo, e falha fechado quando a política está inacessível. |
 | **Seleção determinística** | O ranking dentro do conjunto autorizado é reproduzível e explicável: mesmas entradas, mesmo deployment, com os motivos e os digests que o produziram anexados. |
 | **Resiliência sem surpresa** | Health, circuit breaker, retry limitado e fallback - todos restritos a deployments já autorizados, e compartilháveis entre réplicas para que o comportamento continue determinístico ao escalar. |
-| **Teto de custo** | Contabilização de gasto por cliente e por workload, a partir do pricing fixado e do uso reportado, com orçamentos que recusam a requisição ao atingir o teto. |
+| **Componentes de contabilização de gasto** | Gasto estimado por cliente/workload com pricing fixado e uso reportado. O guard consulta gasto observado, não reserva orçamento, e não está integrado ao serving atual; veja [escopo e limites de concorrência](docs/project/SPEND_ACCOUNTING.md). |
 | **Evidência em toda requisição** | Proveniência terminal de execução mais OpenTelemetry metadata-only: o que foi autorizado, o que foi selecionado, o que de fato executou e o trace emitido. |
 | **Interoperabilidade nos dois sentidos** | Adapters nativos de OpenAI Responses, Anthropic Messages e Gemini, adapters explicitamente compatíveis com OpenAI, e um ingresso no formato OpenAI para que um cliente existente apenas reaponte seu `base_url`. |
 
