@@ -4,10 +4,11 @@ import asyncio
 import hashlib
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from contextlib import nullcontext
-from dataclasses import dataclass, replace
+from contextlib import AsyncExitStack, nullcontext
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Protocol
+from uuid import uuid4
 
 from governed_llm_gateway_contracts import GatewayRequest, RoutingProvenance
 
@@ -17,11 +18,13 @@ from governed_llm_gateway_core.domain.resilience import (
     CircuitState,
     DeploymentHealthSnapshot,
     FallbackSafetyState,
+    HealthAdmission,
     HealthStatus,
     RetryPolicy,
 )
 
-from .health import DeploymentHealthPort
+from .health import DeploymentHealthPort, health_admission_scope, health_attempt_id
+from .health_probe import bounded_probe_call, probe_expired_error
 from .observability import ObservabilityPort
 from .operational_evidence import OperationalAttemptRecorder, UtcClock
 from .operational_recording import (
@@ -121,6 +124,9 @@ class _MutableDeploymentHealth:
     last_latency_ms: int | None = None
     circuit_state: CircuitState = CircuitState.CLOSED
     opened_at: float | None = None
+    generation: str = field(default_factory=lambda: uuid4().hex)
+    probe_owner: str | None = None
+    probe_expires_at: float | None = None
 
 
 class InMemoryHealthTracker:
@@ -132,7 +138,7 @@ class InMemoryHealthTracker:
         *,
         clock: Clock = time.monotonic,
     ) -> None:
-        """Create isolated per-process state; shared Redis state is deliberately deferred."""
+        """Create isolated per-process state with attempt-owned recovery probes."""
         self._policy = policy or CircuitBreakerPolicy()
         self._clock = clock
         self._states: dict[str, _MutableDeploymentHealth] = {}
@@ -149,21 +155,61 @@ class InMemoryHealthTracker:
             deployment_id: await self.snapshot(deployment_id) for deployment_id in deployment_ids
         }
 
-    async def allow_request(self, deployment_id: str) -> bool:
-        """Reject calls while the circuit is open and allow a half-open probe after cooldown."""
+    async def allow_request(
+        self, deployment_id: str, *, attempt_id: str | None = None
+    ) -> HealthAdmission | None:
+        """Atomically admit one live HALF_OPEN owner without extending its lease."""
+        owner = health_attempt_id(attempt_id)
         state = self._state(deployment_id)
         self._refresh_circuit(state)
-        return state.circuit_state is not CircuitState.OPEN
+        if state.circuit_state is CircuitState.OPEN:
+            return None
+        if state.circuit_state is CircuitState.CLOSED:
+            return HealthAdmission(deployment_id, owner, state.generation)
+        if state.probe_owner is not None and state.probe_owner != owner:
+            return None
+        if state.probe_owner is None:
+            state.generation = uuid4().hex
+            state.probe_owner = owner
+            state.probe_expires_at = self._clock() + self._policy.probe_lease_seconds
+        if state.probe_expires_at is None:
+            raise RuntimeError("half-open probe has no expiry")
+        return HealthAdmission(
+            deployment_id, owner, state.generation, state.probe_expires_at - self._clock()
+        )
 
-    async def record_success(self, deployment_id: str, *, latency_ms: int) -> None:
-        """Record success and close/reset a half-open or degraded circuit."""
+    async def release_request(self, admission: HealthAdmission) -> None:
+        """Release only the matching probe; cancellation is not provider failure."""
+        state = self._state(admission.deployment_id)
+        self._refresh_circuit(state)
+        if admission.is_probe and self._matches(state, admission):
+            self._retire_probe(state)
+
+    async def is_admitted(self, admission: HealthAdmission) -> bool:
+        """Check without consuming a new probe or extending lifetime."""
+        state = self._state(admission.deployment_id)
+        self._refresh_circuit(state)
+        return self._matches(state, admission)
+
+    async def record_success(
+        self, deployment_id: str, *, latency_ms: int, admission: HealthAdmission | None = None
+    ) -> bool:
+        """Fence circuit recovery; reject a retired probe's late success."""
         state = self._state(deployment_id)
+        self._refresh_circuit(state)
+        controls_circuit = self._controls_circuit(deployment_id, state, admission)
+        if admission is not None and admission.is_probe and not controls_circuit:
+            return False
         state.request_count += 1
         state.success_count += 1
         state.last_latency_ms = latency_ms
-        state.consecutive_transient_failures = 0
-        state.circuit_state = CircuitState.CLOSED
-        state.opened_at = None
+        if controls_circuit:
+            state.consecutive_transient_failures = 0
+            state.circuit_state = CircuitState.CLOSED
+            state.opened_at = None
+            if admission is not None and admission.is_probe:
+                self._retire_probe(state)
+        return True
 
     async def record_failure(
         self,
@@ -171,17 +217,26 @@ class InMemoryHealthTracker:
         error: ProviderError,
         *,
         latency_ms: int,
+        admission: HealthAdmission | None = None,
     ) -> None:
         """Record sanitized failure metadata and open the circuit on bounded transient failures."""
         state = self._state(deployment_id)
+        self._refresh_circuit(state)
+        controls_circuit = self._controls_circuit(deployment_id, state, admission)
+        if admission is not None and admission.is_probe and not controls_circuit:
+            return
         state.request_count += 1
         state.last_latency_ms = latency_ms
         if not is_transient_provider_error(error):
-            state.consecutive_transient_failures = 0
+            if controls_circuit:
+                state.consecutive_transient_failures = 0
+                if admission is not None and admission.is_probe:
+                    self._retire_probe(state)
             return
 
         state.transient_failure_count += 1
-        state.consecutive_transient_failures += 1
+        if controls_circuit:
+            state.consecutive_transient_failures += 1
         if error.code is ProviderErrorCode.TIMEOUT:
             state.timeout_count += 1
         if error.code is ProviderErrorCode.RATE_LIMIT:
@@ -195,9 +250,36 @@ class InMemoryHealthTracker:
             state.circuit_state is CircuitState.HALF_OPEN
             or state.consecutive_transient_failures >= self._policy.failure_threshold
         )
-        if should_open:
+        if controls_circuit and should_open:
             state.circuit_state = CircuitState.OPEN
             state.opened_at = self._clock()
+            self._retire_probe(state)
+
+    @staticmethod
+    def _matches(state: _MutableDeploymentHealth, admission: HealthAdmission) -> bool:
+        return state.generation == admission.generation and (
+            (state.circuit_state is CircuitState.CLOSED and not admission.is_probe)
+            or (
+                state.circuit_state is CircuitState.HALF_OPEN
+                and admission.is_probe
+                and state.probe_owner == admission.attempt_id
+            )
+        )
+
+    def _controls_circuit(
+        self, deployment_id: str, state: _MutableDeploymentHealth, admission: HealthAdmission | None
+    ) -> bool:
+        if admission is None:
+            return state.circuit_state is CircuitState.CLOSED
+        if admission.deployment_id != deployment_id:
+            raise ValueError("health admission belongs to another deployment")
+        return self._matches(state, admission)
+
+    @staticmethod
+    def _retire_probe(state: _MutableDeploymentHealth) -> None:
+        state.generation = uuid4().hex
+        state.probe_owner = None
+        state.probe_expires_at = None
 
     def _state(self, deployment_id: str) -> _MutableDeploymentHealth:
         if not deployment_id or deployment_id.strip() != deployment_id:
@@ -205,10 +287,15 @@ class InMemoryHealthTracker:
         return self._states.setdefault(deployment_id, _MutableDeploymentHealth())
 
     def _refresh_circuit(self, state: _MutableDeploymentHealth) -> None:
-        if state.circuit_state is not CircuitState.OPEN or state.opened_at is None:
-            return
-        if self._clock() - state.opened_at >= self._policy.cooldown_seconds:
+        now = self._clock()
+        if (
+            state.circuit_state is CircuitState.OPEN
+            and state.opened_at is not None
+            and now - state.opened_at >= self._policy.cooldown_seconds
+        ):
             state.circuit_state = CircuitState.HALF_OPEN
+        if state.probe_expires_at is not None and now >= state.probe_expires_at:
+            self._retire_probe(state)
 
 
 class ResilienceExecutionError(RuntimeError):
@@ -292,28 +379,7 @@ class ResilientExecutionService:
 
         for candidate_index, candidate in enumerate(bounded_candidates):
             deployment_id = candidate.deployment.deployment_id
-            if not await self._health.allow_request(deployment_id):
-                attempts.append(
-                    ExecutionAttempt(
-                        deployment_id=deployment_id,
-                        attempt_number=0,
-                        outcome=ExecutionAttemptOutcome.CIRCUIT_OPEN,
-                    )
-                )
-                continue
-
-            fallback_sequence.append(deployment_id)
             for attempt_number in range(1, self._retry_policy.max_attempts_per_deployment + 1):
-                if not await self._health.allow_request(deployment_id):
-                    attempts.append(
-                        ExecutionAttempt(
-                            deployment_id=deployment_id,
-                            attempt_number=attempt_number,
-                            outcome=ExecutionAttemptOutcome.CIRCUIT_OPEN,
-                        )
-                    )
-                    break
-
                 provider = self._resolver.resolve(candidate.deployment)
                 provider_request = ProviderRequest(
                     model=candidate.deployment.model_id,
@@ -337,9 +403,25 @@ class ResilientExecutionService:
                     if self._observability is not None
                     else nullcontext(None)
                 )
+                admission = await self._health.allow_request(deployment_id)
+                if admission is None:
+                    attempts.append(
+                        ExecutionAttempt(
+                            deployment_id=deployment_id,
+                            attempt_number=0 if attempt_number == 1 else attempt_number,
+                            outcome=ExecutionAttemptOutcome.CIRCUIT_OPEN,
+                        )
+                    )
+                    break
+                if attempt_number == 1:
+                    fallback_sequence.append(deployment_id)
                 started = self._clock()
                 retry_delay_after_span: float | None = None
-                with span_context as span:
+                async with AsyncExitStack() as attempt_stack:
+                    await attempt_stack.enter_async_context(
+                        health_admission_scope(self._health, admission)
+                    )
+                    span = attempt_stack.enter_context(span_context)
                     if span is not None:
                         span.set_attributes(
                             {
@@ -363,7 +445,16 @@ class ResilientExecutionService:
                             },
                         )
                     try:
-                        response = await provider.generate(provider_request)
+                        response = await bounded_probe_call(
+                            admission,
+                            candidate.deployment.provider,
+                            provider.generate(provider_request),
+                        )
+                        latency_ms = _latency_ms(started, self._clock())
+                        if not await self._health.record_success(
+                            deployment_id, latency_ms=latency_ms, admission=admission
+                        ):
+                            raise probe_expired_error(candidate.deployment.provider)
                     except asyncio.CancelledError:
                         invalidate_operational_completeness_best_effort(
                             self._operational_recorder,
@@ -382,13 +473,16 @@ class ResilientExecutionService:
                             latency_ms=latency_ms,
                             provider_error=exc,
                         )
-                        await self._health.record_failure(deployment_id, exc, latency_ms=latency_ms)
+                        await self._health.record_failure(
+                            deployment_id, exc, latency_ms=latency_ms, admission=admission
+                        )
                         transient = is_transient_provider_error(exc)
                         retry_delay: float | None = None
                         can_retry = (
                             transient
                             and attempt_number < self._retry_policy.max_attempts_per_deployment
-                            and await self._health.allow_request(deployment_id)
+                            and (await self._health.snapshot(deployment_id)).circuit_state
+                            is not CircuitState.OPEN
                         )
                         if can_retry:
                             retry_delay = _retry_delay_seconds(
@@ -467,7 +561,6 @@ class ResilientExecutionService:
                             fallback_index=len(fallback_sequence) - 1,
                             latency_ms=latency_ms,
                         )
-                        await self._health.record_success(deployment_id, latency_ms=latency_ms)
                         if span is not None:
                             span.set_attributes(
                                 {

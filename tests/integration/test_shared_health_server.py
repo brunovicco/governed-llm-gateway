@@ -6,6 +6,7 @@ Source, which is the point: the adapter uses only core data types and Lua, so if
 ever disagree the defect is here rather than in a server.
 """
 
+import asyncio
 import os
 import unittest
 
@@ -55,9 +56,12 @@ class SharedHealthServerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_replicas_converge_on_one_circuit_decision(self) -> None:
         await self.replica_a.record_failure(DEPLOYMENT, _rate_limit(), latency_ms=10)
-        self.assertTrue(await self.replica_b.allow_request(DEPLOYMENT))
+        admission = await self.replica_b.allow_request(DEPLOYMENT)
+        self.assertIsNotNone(admission)
 
-        await self.replica_b.record_failure(DEPLOYMENT, _rate_limit(), latency_ms=10)
+        await self.replica_b.record_failure(
+            DEPLOYMENT, _rate_limit(), latency_ms=10, admission=admission
+        )
 
         self.assertFalse(await self.replica_a.allow_request(DEPLOYMENT))
         self.assertFalse(await self.replica_b.allow_request(DEPLOYMENT))
@@ -68,17 +72,22 @@ class SharedHealthServerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs((await self.replica_a.snapshot(DEPLOYMENT)).circuit_state, CircuitState.OPEN)
 
         self.now += 31
-        self.assertTrue(await self.replica_b.allow_request(DEPLOYMENT))
+        admission = await self.replica_b.allow_request(DEPLOYMENT)
+        self.assertIsNotNone(admission)
+        self.assertIsNone(await self.replica_a.allow_request(DEPLOYMENT))
         self.assertIs(
             (await self.replica_a.snapshot(DEPLOYMENT)).circuit_state, CircuitState.HALF_OPEN
         )
 
-        await self.replica_b.record_failure(DEPLOYMENT, _rate_limit(), latency_ms=10)
+        await self.replica_b.record_failure(
+            DEPLOYMENT, _rate_limit(), latency_ms=10, admission=admission
+        )
         self.assertIs((await self.replica_a.snapshot(DEPLOYMENT)).circuit_state, CircuitState.OPEN)
 
         self.now += 31
-        await self.replica_a.allow_request(DEPLOYMENT)
-        await self.replica_a.record_success(DEPLOYMENT, latency_ms=12)
+        admission = await self.replica_a.allow_request(DEPLOYMENT)
+        self.assertIsNotNone(admission)
+        await self.replica_a.record_success(DEPLOYMENT, latency_ms=12, admission=admission)
         self.assertIs(
             (await self.replica_b.snapshot(DEPLOYMENT)).circuit_state, CircuitState.CLOSED
         )
@@ -115,6 +124,81 @@ class SharedHealthServerTests(unittest.IsolatedAsyncioTestCase):
         ttl = await self.client.ttl(self.keyspace.health_key(DEPLOYMENT))
 
         self.assertGreater(ttl, 0)
+
+    async def test_concurrent_probe_claims_across_clients_admit_one_owner(self) -> None:
+        for replica in (self.replica_a, self.replica_b):
+            await replica.record_failure(DEPLOYMENT, _rate_limit(), latency_ms=1)
+        self.now += 30
+        assert SERVER_URL is not None
+        other_client = aioredis.from_url(SERVER_URL, decode_responses=False)
+        self.addAsyncCleanup(other_client.aclose)
+        other = RedisDeploymentHealthTracker(
+            other_client,
+            CircuitBreakerPolicy(failure_threshold=2),
+            keyspace=self.keyspace,
+            clock=lambda: self.now,
+        )
+        results = await asyncio.gather(
+            *(
+                replica.allow_request(DEPLOYMENT, attempt_id=f"attempt-{index}")
+                for index, replica in enumerate([self.replica_a, other] * 8)
+            )
+        )
+        owners = [result for result in results if result is not None]
+        self.assertEqual(len(owners), 1)
+        owner = owners[0]
+        self.assertTrue(await other.is_admitted(owner))
+        recheck = await other.allow_request(DEPLOYMENT, attempt_id=owner.attempt_id)
+        self.assertEqual(recheck, owner)
+        await self.replica_a.release_request(owner)
+        replacement = await other.allow_request(DEPLOYMENT)
+        assert replacement is not None
+        self.assertNotEqual(owner.generation, replacement.generation)
+        await self.replica_a.release_request(owner)
+        self.assertFalse(
+            await self.replica_a.record_success(DEPLOYMENT, latency_ms=1, admission=owner)
+        )
+        self.assertTrue(await other.record_success(DEPLOYMENT, latency_ms=1, admission=replacement))
+
+    async def test_abandoned_probe_recovers_without_accepting_old_outcome(self) -> None:
+        for replica in (self.replica_a, self.replica_b):
+            await replica.record_failure(DEPLOYMENT, _rate_limit(), latency_ms=1)
+        self.now += 30
+        owner = await self.replica_a.allow_request(DEPLOYMENT)
+        assert owner is not None
+        self.now += 60
+        self.assertFalse(await self.replica_b.is_admitted(owner))
+        replacement = await self.replica_b.allow_request(DEPLOYMENT)
+        assert replacement is not None
+        await self.replica_a.record_failure(
+            DEPLOYMENT, _rate_limit(), latency_ms=1, admission=owner
+        )
+        self.assertFalse(
+            await self.replica_a.record_success(DEPLOYMENT, latency_ms=1, admission=owner)
+        )
+        self.assertEqual((await self.replica_b.snapshot(DEPLOYMENT)).request_count, 2)
+        self.assertTrue(
+            await self.replica_b.record_success(DEPLOYMENT, latency_ms=1, admission=replacement)
+        )
+
+    async def test_production_default_uses_server_time_for_cooldown_and_lease(self) -> None:
+        tracker = RedisDeploymentHealthTracker(
+            self.client,
+            CircuitBreakerPolicy(failure_threshold=1, cooldown_seconds=0.001),
+            keyspace=self.keyspace,
+        )
+        admission = await tracker.allow_request(DEPLOYMENT)
+        assert admission is not None
+        await tracker.record_failure(DEPLOYMENT, _rate_limit(), latency_ms=1, admission=admission)
+        opened = await self.client.hget(self.keyspace.health_key(DEPLOYMENT), "opened_at_ms")
+        assert opened is not None
+        server_seconds, _ = await self.client.time()
+        self.assertLess(abs(int(opened) - int(server_seconds) * 1000), 2000)
+        await asyncio.sleep(0.003)
+        probe = await tracker.allow_request(DEPLOYMENT)
+        assert probe is not None and probe.is_probe
+        self.assertTrue(await tracker.is_admitted(probe))
+        self.assertTrue(await tracker.record_success(DEPLOYMENT, latency_ms=1, admission=probe))
 
 
 if __name__ == "__main__":

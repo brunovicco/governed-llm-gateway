@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from enum import StrEnum
+from math import isfinite
 
 
 class CircuitState(StrEnum):
@@ -67,13 +68,43 @@ class CircuitBreakerPolicy:
 
     failure_threshold: int = 3
     cooldown_seconds: float = 30.0
+    probe_lease_seconds: float = 60.0
 
     def __post_init__(self) -> None:
         """Require a positive threshold and cooldown."""
         if self.failure_threshold <= 0:
             raise ValueError("failure_threshold must be positive")
-        if self.cooldown_seconds <= 0:
-            raise ValueError("cooldown_seconds must be positive")
+        if not isfinite(self.cooldown_seconds) or self.cooldown_seconds <= 0:
+            raise ValueError("cooldown_seconds must be finite and positive")
+        if not isfinite(self.probe_lease_seconds) or self.probe_lease_seconds <= 0:
+            raise ValueError("probe_lease_seconds must be finite and positive")
+
+
+@dataclass(frozen=True, slots=True)
+class HealthAdmission:
+    """Attempt-owned circuit admission; not authorization or public telemetry."""
+
+    deployment_id: str
+    attempt_id: str
+    generation: str
+    probe_timeout_seconds: float | None = None
+
+    def __post_init__(self) -> None:
+        """Reject malformed handles rather than accept unbounded execution metadata."""
+        for value in (self.deployment_id, self.attempt_id, self.generation):
+            if not value or value.strip() != value:
+                raise ValueError("health admission IDs must be non-empty normalized strings")
+        if len(self.attempt_id) > 128 or len(self.generation) > 128:
+            raise ValueError("health admission owner/generation must be at most 128 characters")
+        if self.probe_timeout_seconds is not None and (
+            not isfinite(self.probe_timeout_seconds) or self.probe_timeout_seconds <= 0
+        ):
+            raise ValueError("probe_timeout_seconds must be finite and positive")
+
+    @property
+    def is_probe(self) -> bool:
+        """Distinguish bounded HALF_OPEN probes from concurrent CLOSED attempts."""
+        return self.probe_timeout_seconds is not None
 
 
 @dataclass(frozen=True, slots=True)
