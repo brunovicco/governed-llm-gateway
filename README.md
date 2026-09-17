@@ -62,7 +62,7 @@ resolves to that exact trace - the matching waterfall is in
 | **Authorization that holds** | Policy returns one authorized logical model group for the request. The Gateway can only narrow its deployment set, never widen it, and fails closed when policy is unreachable. |
 | **Deterministic selection** | Ranking inside the authorized set is reproducible and explainable: same inputs, same deployment, with the reasons and the digests that produced it attached. |
 | **Resilience without surprises** | Health tracking, circuit breaking, bounded retry and fallback - all restricted to already-authorized deployments, and shareable across replicas so behavior stays deterministic when you scale out. |
-| **Cost ceilings** | Per-client, per-workload spend accounting from pinned pricing and reported usage, with budgets that refuse a request once a ceiling is reached. |
+| **Spend accounting components** | Estimated per-client/workload spend from pinned pricing and reported usage. The guard checks observed spend, not reservations, and is not wired into current serving; see [scope and concurrency limits](docs/project/SPEND_ACCOUNTING.md). |
 | **Evidence for every request** | Terminal execution provenance plus metadata-only OpenTelemetry: what was authorized, what was selected, what actually ran, and the trace it emitted. |
 | **Interoperability both ways** | Native OpenAI Responses, Anthropic Messages and Gemini adapters, explicit OpenAI-compatible adapters, and an OpenAI-shaped ingress so an existing client can repoint its `base_url` here. |
 

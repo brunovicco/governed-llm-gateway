@@ -3,6 +3,14 @@
 Per-client, per-workload accumulation of what execution implied, and budgets that refuse
 a request once a ceiling is reached.
 
+## Component scope, not current serving enforcement
+
+`SpendGuard`, `SpendPolicy`, and `RedisSpendLedger` are component contracts/implementations.
+The current API bootstrap and generation coordinators do not compose them into serving;
+these component tests do not prove budget enforcement on a gateway endpoint. A future
+serving integration must be separately reviewed. Per-request routing cost limits are not
+the same contract as this accumulated-spend ledger.
+
 ## Estimated, never billed
 
 Every amount here comes from two things: the Model Registry's **pinned pricing metadata**
@@ -30,8 +38,9 @@ up at the sixth decimal.
 
 ## A budget narrows, it never widens
 
-The guard runs **after** the Policy Model Router has authorized a request and before any
-provider work. An exhausted budget removes permission to execute; it can never grant
+In any future serving integration, the guard must run **after** the Policy Model Router
+has authorized a request and before provider work. Its result is a budget check only, not
+authorization. An exhausted budget removes permission to execute; it can never grant
 permission. That keeps the permanent rule intact:
 
 ```text
@@ -59,7 +68,7 @@ A response served from cache records nothing. Its tokens were already counted wh
 original call produced them, and counting them again would inflate the estimate every
 time the same question is asked. This is what `ProviderExecution.cached` exists for.
 
-## Configuration
+## Policy configuration (component only)
 
 Budgets are off by default, and an enabled policy that declares no limit is rejected
 rather than read as "unlimited". A limit names a client, a window (`daily` or `monthly`)
@@ -78,3 +87,27 @@ reports usage — so a single request can carry the ledger past its ceiling, and
 refusal lands on the *next* one. Tighter enforcement would require reserving an estimated
 maximum before execution and settling afterwards, which is future work rather than a
 silent gap.
+
+## Concurrent checks are not reservations
+
+`check` reads already-observed spend; it neither increments the ledger nor reserves
+capacity for work in flight. With US$0.90 observed against a US$1.00 limit, two requests
+can both pass before either records usage. Recording US$0.20 for each leaves US$1.30
+observed; subsequent checks refuse. Even one sequential request can overshoot. Atomic
+`INCRBY` prevents lost updates, not admission above an eventual ceiling. Separate limit
+buckets are updated individually, not as one cross-scope transaction.
+
+The deterministic regressions in `test_spend_guard_concurrency.py` use independent
+guards/clients over one controlled RESP emulator. Events hold both request fixtures
+between checking and recording, proving the order without timing sleeps. They cover
+client-wide/workload daily/monthly limits, sequential/concurrent overshoot, refusal at
+the exact ceiling, shared counter corruption, concurrent cached records, and separate
+client/workload/window accounting. Existing tests also preserve read-outage denial and
+best-effort write failure behavior. These are component/emulator proofs, not live
+Redis/Valkey, actual replica processes, provider execution, billing or serving proofs.
+
+No hard no-overshoot guarantee is supplied. Failed best-effort writes can undercount
+observed spend. Before adding atomic reservation, define conservative estimation,
+multi-scope admission, idempotent settlement, partial/failing writes, unknown usage,
+retries/fallback, cancellation and retention/recovery. This increment changes none of
+those runtime contracts and adds no reserve, release or settlement implementation.
