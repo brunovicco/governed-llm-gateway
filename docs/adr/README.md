@@ -28,3 +28,7 @@ evidence rather than numeric order; later decisions do not rewrite earlier accep
 
 See `ADR-BACKLOG.md` for any decision topics that remain intentionally unpromoted from backlog to an
 accepted ADR.
+
+Proposed for design review (not implemented):
+
+- [ADR-0019 — Versioned provider credential-binding availability](ADR-0019-provider-credential-binding-availability.md)
