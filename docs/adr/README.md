@@ -33,6 +33,7 @@ accepted ADR.
 Proposed for implementation review:
 
 - [ADR-0018 — Exclusive, fenced HALF_OPEN admission](ADR-0018-exclusive-half-open-admission.md)
+- [ADR-0021 — Conservative estimated-spend admission and settlement](ADR-0021-conservative-spend-admission-and-settlement.md)
 
 Proposed for design review (not implemented):
 
