@@ -73,3 +73,8 @@ versioned pricing and native usage/finality. Current model charge dimensions rem
 version one; this helper cannot implement its bound/finality ports or release a reserve.
 Durable all-attempt accounting and both executor integrations remain later prerequisites.
 No live call, credential read, model/ranking change or activation is included.
+
+The [next private native usage-counter slice](SPEND_OPENAI_NATIVE_USAGE_COUNTERS.md)
+preserves explicit input/cache/output/reasoning totals in a separate pure parser. It does
+not change this projection, turn a count observation into trusted evidence, introduce
+expanded pricing or qualify native finality. Legacy JSON/SSE normalization stays unchanged.

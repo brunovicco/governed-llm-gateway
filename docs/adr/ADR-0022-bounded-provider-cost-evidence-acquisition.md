@@ -3,8 +3,10 @@
 ## Status
 
 Proposed for implementation review — design approved by the user for private implementation.
-The first slice implements pure native text count projection and strict count observations only;
-remote acquisition, trusted issuance and expanded pricing are not implemented or qualified.
+The first slices implement pure native text count projection, strict count observations and
+a closed native usage-counter parser only.
+The separate private v2 declaration/arithmetic/port slice is described in ADR-0023;
+remote acquisition, trusted issuance and real pricing/finality are not implemented or qualified.
 It does not supersede accepted ADR-0017, change private version-one cost contracts, approve a
 provider/model, or authorize serving activation, paid calls or infrastructure provisioning.
 
@@ -139,6 +141,15 @@ than manufacture zero, widen authorization or expose raw error details.
 The [first private projection/parser slice](../project/SPEND_OPENAI_INPUT_COUNT_PROJECTION.md)
 retains actual native bytes without runtime integration. Its observations are not trusted evidence;
 no remote request, admission or finality is authorized by constructing them.
+
+The [second private native counter slice](../project/SPEND_OPENAI_NATIVE_USAGE_COUNTERS.md)
+preserves mandatory cache/reasoning details without defaults, pricing or report authority.
+It accepts only a closed usage fragment; it does not qualify complete usage or finality.
+
+[ADR-0023](ADR-0023-versioned-cache-category-cost-evidence.md) separates cache-category pricing
+and issuance/finality obligations. Continued design approval implements its first private
+declaration/arithmetic/port slice only; neither native parser authenticates reports and no real
+pricing, trusted issuance or provider finality is qualified.
 
 1. Design approval permits focused private implementation/tests, not serving or live calls.
    Review the separate pricing shape and remote-use proof obligations before expanding this slice.
