@@ -81,3 +81,9 @@ padding or inference from context capacity is introduced. See the
 Next require a separately reviewed real bounded API/model capability with trusted pinned
 configuration and verified complete input/output/finality semantics. A durable backend and both
 executor integrations remain later prerequisites before explicit opt-in activation.
+
+The [Responses candidate assessment](SPEND_OPENAI_CAPABILITY_ASSESSMENT.md) records the next
+feasibility review and links the user-approved private acquisition/pricing design.
+The subsequent [pure projection/parser slice](SPEND_OPENAI_INPUT_COUNT_PROJECTION.md) does not
+perform acquisition or issue a verified bound.
+It is not provider approval or a relaxation of these synthetic proof boundaries.

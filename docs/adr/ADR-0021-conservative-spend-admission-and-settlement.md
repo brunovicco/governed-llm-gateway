@@ -358,6 +358,13 @@ See the [synthetic proof boundary](../project/SPEND_COST_EVIDENCE_REFERENCE.md).
 
 ### Remaining implementation slices
 
+The [dated Responses candidate assessment](../project/SPEND_OPENAI_CAPABILITY_ASSESSMENT.md) and
+[proposed acquisition design](ADR-0022-bounded-provider-cost-evidence-acquisition.md) identify real
+qualification gaps. Design approval continues with a
+[pure projection/parser slice](../project/SPEND_OPENAI_INPUT_COUNT_PROJECTION.md), not remote
+acquisition, trusted issuance or expanded pricing.
+They approve no API/model and change no version-one contracts, runtime or activation status.
+
 Approval and continuation permit the internal slices above, not implicit serving activation.
 Suggested separately reviewable slices, with the first two and the contract portion of the third
 now defined for review:
