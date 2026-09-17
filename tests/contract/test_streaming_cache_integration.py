@@ -198,6 +198,8 @@ def _request() -> GatewayRequest:
 
 def _identity() -> ResponseCacheIdentity:
     return ResponseCacheIdentity(
+        client_id="client-a",
+        policy_digest="sha256:" + "a" * 64,
         workload="rag.answer",
         risk_level=RiskLevel.LOW,
         data_classification=DataClassification.PUBLIC,

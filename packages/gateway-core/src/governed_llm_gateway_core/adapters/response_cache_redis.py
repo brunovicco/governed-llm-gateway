@@ -4,8 +4,8 @@ Like the shared health adapter, this imports no client library and speaks only c
 commands, so the operator's choice of Redis Open Source, Valkey, ElastiCache or MemoryDB
 stays theirs.
 
-The stored key is the content-addressed identity digest, never the prompt: a key dump
-reveals which authorized contexts were served, not what anyone asked. Entries always
+The stored key is versioned and contains the identity digest, not plaintext client IDs
+or messages. Digests are not encryption or protection against guessing. Entries always
 carry a TTL, because an unbounded cache of model output is a data-retention decision
 nobody made deliberately.
 """
@@ -72,7 +72,9 @@ class RedisResponseCache:
 
     def cache_key(self, identity: ResponseCacheIdentity) -> str:
         """Return the key holding one authorized context's stored completion."""
-        return f"{self.prefix}:cache:{identity.digest.removeprefix('sha256:')}"
+        return (
+            f"{self.prefix}:cache:{CACHE_SCHEMA_VERSION}:{identity.digest.removeprefix('sha256:')}"
+        )
 
     async def get(self, identity: ResponseCacheIdentity) -> CachedResponse | None:
         """Return a stored completion, treating any malformed entry as a miss."""

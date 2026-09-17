@@ -265,7 +265,7 @@ class PreparedStreamingExecution:
 
     plan: StreamingExecutionPlan
     # None means this request is not cacheable. Built from the effective context, never
-    # from the caller's declared classification, which the binding may have raised.
+    # from caller-declared identity/classification. Policy provenance comes from PDP.
     cache_identity: ResponseCacheIdentity | None = None
 
     @property
@@ -389,6 +389,8 @@ def _cache_identity(
     The classification checked here is the **effective** one. A caller that declares
     ``public`` while its client-auth binding raises the floor must be judged on the
     raised value, or the cache would store data the deployment classified higher.
+    Client identity likewise comes only from authenticated context; the PDP policy
+    digest comes from the accepted routing decision, not caller-declared metadata.
     """
     if not policy.permits(
         workload=effective_context.workload,
@@ -406,6 +408,8 @@ def _cache_identity(
     ):
         return None
     return ResponseCacheIdentity(
+        client_id=effective_context.client_id,
+        policy_digest=decision.routing.policy.policy_digest,
         workload=effective_context.workload,
         risk_level=effective_context.risk_level,
         data_classification=effective_context.data_classification,

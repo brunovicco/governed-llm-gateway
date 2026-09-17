@@ -1,7 +1,11 @@
 """A cache that serves a stored completion must not become an authorization shortcut."""
 
+import hashlib
+import json
 import unittest
+from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import cast
 from uuid import UUID
 
 import fakeredis.aioredis
@@ -16,6 +20,7 @@ from governed_llm_gateway_contracts import (
 from governed_llm_gateway_core.adapters.response_cache_redis import RedisResponseCache
 from governed_llm_gateway_core.application.response_cache import CachedResponse
 from governed_llm_gateway_core.domain.response_cache import (
+    CACHE_SCHEMA_VERSION,
     ResponseCacheIdentity,
     ResponseCachePolicy,
     ResponseCachePolicyError,
@@ -29,6 +34,8 @@ MESSAGES = (Message(role=MessageRole.USER, content="explain deterministic routin
 
 def _identity(**overrides: object) -> ResponseCacheIdentity:
     fields: dict[str, object] = {
+        "client_id": "client-a",
+        "policy_digest": "sha256:" + "f" * 64,
         "workload": "rag.answer",
         "risk_level": RiskLevel.LOW,
         "data_classification": DataClassification.PUBLIC,
@@ -39,7 +46,8 @@ def _identity(**overrides: object) -> ResponseCacheIdentity:
         "messages_digest": messages_digest(MESSAGES),
     }
     fields.update(overrides)
-    return ResponseCacheIdentity(**fields)  # type: ignore[arg-type]
+    factory = cast(Callable[..., ResponseCacheIdentity], ResponseCacheIdentity)
+    return factory(**fields)
 
 
 def _response() -> CachedResponse:
@@ -111,6 +119,8 @@ class CacheIdentityTests(unittest.TestCase):
         """An entry produced under one authority must be unreachable from another."""
         baseline = _identity().digest
         variations = {
+            "client_id": "client-b",
+            "policy_digest": "sha256:" + "e" * 64,
             "workload": "reasoning.complex",
             "risk_level": RiskLevel.HIGH,
             "data_classification": DataClassification.INTERNAL,
@@ -135,6 +145,42 @@ class CacheIdentityTests(unittest.TestCase):
         as_system = messages_digest((Message(role=MessageRole.SYSTEM, content="same text"),))
 
         self.assertNotEqual(as_user, as_system)
+
+    def test_missing_or_malformed_client_identity_is_not_a_shared_default(self) -> None:
+        for value in (None, 7, "", " padded", "a b", "a/b", "á", "x" * 129):
+            with self.subTest(value=value), self.assertRaises(ResponseCachePolicyError) as caught:
+                _identity(client_id=value)
+            self.assertEqual(
+                str(caught.exception), "client_id must be a normalized bounded identifier"
+            )
+
+    def test_pdp_policy_digest_must_be_canonical(self) -> None:
+        for value in (None, 7, "", "f" * 64, "sha256:" + "F" * 64, "sha256:" + "f" * 63):
+            with self.subTest(value=value), self.assertRaises(ResponseCachePolicyError) as caught:
+                _identity(policy_digest=value)
+            self.assertEqual(str(caught.exception), "policy_digest must be a canonical PDP digest")
+
+    def test_client_id_is_not_exposed_in_default_repr(self) -> None:
+        self.assertNotIn(
+            "client-private-marker", repr(_identity(client_id="client-private-marker"))
+        )
+
+    def test_version_two_does_not_reuse_the_legacy_identity_digest(self) -> None:
+        legacy = {
+            "schema_version": "1.0",
+            "workload": "rag.answer",
+            "risk_level": "low",
+            "data_classification": "public",
+            "authorized_model_group": "balanced",
+            "model_registry_digest": "a" * 64,
+            "ranking_policy_digest": "b" * 64,
+            "max_output_tokens": 2000,
+            "messages_digest": messages_digest(MESSAGES),
+        }
+        canonical = json.dumps(legacy, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+        legacy_digest = "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        self.assertEqual(CACHE_SCHEMA_VERSION, "2.0")
+        self.assertNotEqual(_identity().digest, legacy_digest)
 
 
 class CacheableShapeTests(unittest.TestCase):
@@ -199,6 +245,12 @@ class RedisResponseCacheTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIsNone(await self.cache.get(_identity(workload="reasoning.complex")))
 
+    async def test_clients_and_pdp_policies_do_not_read_each_others_entries(self) -> None:
+        await self.cache.put(_identity(), _response(), ttl_seconds=60)
+        self.assertIsNone(await self.cache.get(_identity(client_id="client-b")))
+        self.assertIsNone(await self.cache.get(_identity(policy_digest="sha256:" + "e" * 64)))
+        self.assertIsNotNone(await self.cache.get(_identity()))
+
     async def test_entries_always_carry_an_expiry(self) -> None:
         identity = _identity()
 
@@ -218,6 +270,8 @@ class RedisResponseCacheTests(unittest.IsolatedAsyncioTestCase):
         key = self.cache.cache_key(identity)
         self.assertNotIn("deterministic routing", key)
         self.assertNotIn("rag.answer", key)
+        self.assertNotIn(identity.client_id, key)
+        self.assertTrue(key.startswith("test:cache:2.0:"))
 
     async def test_a_corrupt_entry_is_a_miss_not_a_crash(self) -> None:
         identity = _identity()
@@ -233,6 +287,29 @@ class RedisResponseCacheTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertIsNone(await self.cache.get(identity))
+
+    async def test_legacy_payload_copied_to_the_new_key_is_not_accepted(self) -> None:
+        identity = _identity()
+        await self.cache.put(identity, _response(), ttl_seconds=60)
+        raw = await self.client.get(self.cache.cache_key(identity))
+        assert raw is not None
+        payload = json.loads(raw)
+        payload["schema_version"] = "1.0"
+        await self.client.set(self.cache.cache_key(identity), json.dumps(payload), ex=60)
+        self.assertIsNone(await self.cache.get(identity))
+
+    async def test_new_reader_never_falls_back_to_the_unversioned_keyspace(self) -> None:
+        identity = _identity()
+        legacy_key = "test:cache:" + identity.digest.removeprefix("sha256:")
+        await self.cache.put(identity, _response(), ttl_seconds=60)
+        raw = await self.client.get(self.cache.cache_key(identity))
+        assert raw is not None
+        await self.client.set(legacy_key, raw, ex=60)
+        await self.client.delete(self.cache.cache_key(identity))
+        self.assertIsNone(await self.cache.get(identity))
+        self.assertIsNotNone(
+            await self.client.get(legacy_key), "migration does not delete old data"
+        )
 
     async def test_two_deployments_sharing_a_server_do_not_read_each_other(self) -> None:
         other = RedisResponseCache(self.client, prefix="other")
