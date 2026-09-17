@@ -80,6 +80,7 @@ class SharedCircuitTests(unittest.IsolatedAsyncioTestCase):
         self.now += 31
 
         self.assertTrue(await self.replica_b.allow_request(DEPLOYMENT))
+        self.assertFalse(await self.replica_a.allow_request(DEPLOYMENT))
         self.assertIs(
             (await self.replica_a.snapshot(DEPLOYMENT)).circuit_state,
             CircuitState.HALF_OPEN,
@@ -91,10 +92,11 @@ class SharedCircuitTests(unittest.IsolatedAsyncioTestCase):
                 DEPLOYMENT, _error(ProviderErrorCode.TIMEOUT), latency_ms=10
             )
         self.now += 31
-        await self.replica_b.allow_request(DEPLOYMENT)
+        admission = await self.replica_b.allow_request(DEPLOYMENT)
+        self.assertIsNotNone(admission)
 
         await self.replica_b.record_failure(
-            DEPLOYMENT, _error(ProviderErrorCode.TIMEOUT), latency_ms=10
+            DEPLOYMENT, _error(ProviderErrorCode.TIMEOUT), latency_ms=10, admission=admission
         )
 
         self.assertIs(
@@ -108,9 +110,10 @@ class SharedCircuitTests(unittest.IsolatedAsyncioTestCase):
                 DEPLOYMENT, _error(ProviderErrorCode.TIMEOUT), latency_ms=10
             )
         self.now += 31
-        await self.replica_b.allow_request(DEPLOYMENT)
+        admission = await self.replica_b.allow_request(DEPLOYMENT)
+        self.assertIsNotNone(admission)
 
-        await self.replica_b.record_success(DEPLOYMENT, latency_ms=12)
+        await self.replica_b.record_success(DEPLOYMENT, latency_ms=12, admission=admission)
 
         snapshot = await self.replica_a.snapshot(DEPLOYMENT)
         self.assertIs(snapshot.circuit_state, CircuitState.CLOSED)

@@ -29,6 +29,10 @@ evidence rather than numeric order; later decisions do not rewrite earlier accep
 See `ADR-BACKLOG.md` for any decision topics that remain intentionally unpromoted from backlog to an
 accepted ADR.
 
+Proposed for implementation review:
+
+- [ADR-0018 — Exclusive, fenced HALF_OPEN admission](ADR-0018-exclusive-half-open-admission.md)
+
 Proposed for design review (not implemented):
 
 - [ADR-0019 — Versioned provider credential-binding availability](ADR-0019-provider-credential-binding-availability.md)

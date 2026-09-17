@@ -69,6 +69,30 @@ The domain decision — is this error transient, which counter does it belong to
 Python, in the one `is_transient_provider_error` classifier that retry, fallback and every
 health tracker share. Lua only moves state.
 
+### Exclusive recovery probes
+
+After cooldown, HALF_OPEN has one attempt-owned lease (60 seconds by default), not
+permission for every replica to execute. Rechecks of the same live owner are idempotent
+and do not renew that lease. Ranking snapshots never acquire a probe. Execution acquires
+once per attempt and releases on cancellation, disconnect or local failure, without
+counting those as provider failures. An abandoned lease expires without deleting health
+history, allowing another probe. Generation fencing prevents late owners and earlier
+CLOSED attempts from changing the current circuit. A permanent probe failure releases
+the owner but neither proves recovery nor becomes transient.
+
+Only probes get this lifetime bound. Normal provider timeouts and selection
+`max_latency_ms` semantics are unchanged. Streaming checks ownership and bounds upstream
+reads without leaving a task timeout active across public-event yields; backpressure
+consumes probe lifetime. Once semantic output is visible, expiry still cannot cause
+retry/fallback. Expiry/cancellation cannot guarantee that a remote provider physically
+stopped; they revoke local/shared ownership and fence later events/results.
+
+Redis uses server `TIME` for cooldown and lease expiry; the injectable clock is for
+tests only. Key TTL must exceed both cooldown and probe lifetime. All replicas must use
+the same policy/keyspace. Drain/stop old boolean-admission writers before the coordinated
+upgrade; mixed old/new writers cannot guarantee exclusivity. Existing counters and OPEN
+cooldown are retained. See [ADR-0018](../adr/ADR-0018-exclusive-half-open-admission.md).
+
 ## Response cache
 
 The same server can hold an exact-match response cache. It is off by default and a
