@@ -102,12 +102,31 @@ treated as "cache everything".
 ### A cache hit is not an authorization shortcut
 
 Lookup happens **after** the Policy Model Router has already authorized the request. The
-key binds the whole authorization context — workload, effective risk level and data
-classification, authorized model group, model-registry digest, ranking-policy digest,
-output budget, and a digest of the exact messages — so an entry produced under one
-authority is unreachable from another. Changing the registry or the ranking policy
-changes the key, because a different configuration may route elsewhere and a pre-change
-answer is no longer a current one.
+schema 2.0 key binds authenticated `EffectivePolicyContext.client_id`, the accepted
+PDP `policy_digest`, workload, effective risk/data classification, authorized model
+group, model-registry digest, ranking-policy digest, output budget, and exact messages.
+Distinct clients or changed PDP policies therefore cannot share the same identity when
+the other fields match. Caller-declared `agent_identity` never chooses a client's cache,
+and API keys are not cache identities. There is no authorized tenant in the current
+contract; tenant isolation is not invented or claimed.
+
+Changing the PDP policy, registry, or ranking policy changes the key. This is answer
+scoping, not cached authorization: every request still obtains a fresh PDP decision and
+passes ranking and deterministic provider preflight before lookup. A stable policy digest
+cannot bypass denial, expiry, single-use governance, revocation, or kill switch. A hit
+reports the current routing decision, not the source request's policy decision.
+
+### Versioned migration and rollout
+
+Keys use `<deployment-prefix>:cache:2.0:<identity-hex-digest>`; stored payloads declare
+schema `2.0` too. Readers never fall back to unversioned legacy keys, convert old entries,
+or accept copied schema 1.0 payloads. Old entries remain untouched until their existing
+TTL expires; no keyspace deletion is needed. The first post-upgrade request is a cold miss.
+
+Drain or upgrade old workers before claiming isolation across a fleet. Namespace separation
+does not fix legacy workers that still serve their old cross-client cache. Keep response
+caching disabled if rolling back to legacy code. Deployment prefixes must still separate
+independent deployments. See [ADR-0020](../adr/ADR-0020-authenticated-response-cache-identity.md).
 
 ### Only public data is ever stored
 
@@ -117,8 +136,10 @@ ceiling **in code**: no configuration raises it. Raising it would be a deliberat
 contract change with its own review. For a deployment under LGPD or BCB scrutiny, this
 is the difference between a cache that can be explained in review and one that cannot.
 
-The stored key is the content-addressed identity digest, never the prompt: someone
-reading the keyspace learns which authorized contexts were served, not what was asked.
+The stored key contains the identity digest, not plaintext client IDs or prompts. Digests
+are not encryption or protection from guessing low-entropy inputs; access to keys and
+stored completions still needs appropriate transport/access/residency controls. No new
+identity or prompt-derived cache metadata is added to logs, traces, or public events.
 Entries always carry a TTL, bounded at 24 hours, because an unbounded store of model
 output is a retention decision nobody made deliberately.
 
@@ -165,7 +186,11 @@ execute normally.
 | Level | What runs | Where |
 | --- | --- | --- |
 | Contract | Full circuit lifecycle against a RESP emulator with Lua | default gate, serverless |
+| Cache contract | Identity/migration and real coordinator with synthetic auth/PDP/providers over a RESP emulator | default gate, credential-free |
 | Integration | The same expectations against real Valkey **and** real Redis | `redis-health` workflow |
 
 The emulator keeps the default gate credential-free and serverless. It proves the logic,
 not the protocol, which is why the real-server matrix exists.
+The cache suite covers client separation/spoofing, policy changes, fresh PDP denial/outage/
+invalid provenance, effective classification floors, concurrent scoped hits, unchanged default-off
+behavior, and health-driven deployment selection. It is not a live-provider or fleet rollout proof.

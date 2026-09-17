@@ -1,6 +1,7 @@
 """The coordinator decides what may be cached, using the effective context."""
 
 import unittest
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -19,6 +20,7 @@ from governed_llm_gateway_contracts import (
     RiskLevel,
     RoutingProvenance,
     StructuredOutputSchema,
+    ToolDefinition,
     WorkloadRequirements,
 )
 from governed_llm_gateway_core.application.ranking import (
@@ -27,7 +29,10 @@ from governed_llm_gateway_core.application.ranking import (
     ScoreBreakdown,
 )
 from governed_llm_gateway_core.domain.model_registry import ModelDeployment, PricingMetadata
-from governed_llm_gateway_core.domain.response_cache import ResponseCachePolicy
+from governed_llm_gateway_core.domain.response_cache import (
+    ResponseCacheIdentity,
+    ResponseCachePolicy,
+)
 from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
 
 REQUEST_ID = UUID("22222222-2222-4222-8222-222222222222")
@@ -39,11 +44,12 @@ POLICY = ResponseCachePolicy(
 
 def _context(
     *,
+    client_id: str = "client-a",
     workload: str = "rag.answer",
     classification: DataClassification = DataClassification.PUBLIC,
 ) -> EffectivePolicyContext:
     return EffectivePolicyContext(
-        client_id="client-a",
+        client_id=client_id,
         environment="development",
         workload=workload,
         risk_level=RiskLevel.LOW,
@@ -131,12 +137,13 @@ def _identity_for(
     policy: ResponseCachePolicy = POLICY,
     request: GatewayRequest | None = None,
     context: EffectivePolicyContext | None = None,
-) -> object:
+    decision: RankingDecision | None = None,
+) -> ResponseCacheIdentity | None:
     return _cache_identity(
         policy,
         request=request or _request(),
         effective_context=context or _context(),
-        decision=_decision(),
+        decision=decision or _decision(),
         max_output_tokens=2000,
     )
 
@@ -155,7 +162,37 @@ class EffectiveClassificationTests(unittest.TestCase):
         identity = _identity_for()
 
         assert identity is not None
-        self.assertIs(identity.data_classification, DataClassification.PUBLIC)  # type: ignore[attr-defined]
+        self.assertIs(identity.data_classification, DataClassification.PUBLIC)
+
+    def test_authenticated_clients_have_separate_identities(self) -> None:
+        first = _identity_for()
+        second = _identity_for(context=_context(client_id="client-b"))
+        assert first is not None and second is not None
+        self.assertNotEqual(first.digest, second.digest)
+
+    def test_caller_identity_cannot_select_another_clients_cache(self) -> None:
+        first = _identity_for(request=_request(agent_identity="client-b"))
+        unchanged = _identity_for(request=_request(agent_identity="anything-else"))
+        other = _identity_for(context=_context(client_id="client-b"))
+        assert first is not None and unchanged is not None and other is not None
+        self.assertEqual(first.client_id, "client-a")
+        self.assertEqual(first.digest, unchanged.digest)
+        self.assertNotEqual(first.digest, other.digest)
+
+    def test_a_pdp_policy_change_invalidates_the_identity(self) -> None:
+        decision = _decision()
+        changed = replace(
+            decision,
+            routing=replace(
+                decision.routing,
+                policy=replace(decision.routing.policy, policy_digest="sha256:" + "f" * 64),
+            ),
+        )
+        first = _identity_for(decision=decision)
+        second = _identity_for(decision=changed)
+        assert first is not None and second is not None
+        self.assertEqual(first.policy_digest, decision.routing.policy.policy_digest)
+        self.assertNotEqual(first.digest, second.digest)
 
     def test_a_workload_outside_the_allowlist_is_not_cached(self) -> None:
         self.assertIsNone(_identity_for(context=_context(workload="reasoning.complex")))
@@ -165,6 +202,23 @@ class EffectiveClassificationTests(unittest.TestCase):
 
 
 class RequestShapeTests(unittest.TestCase):
+    def test_business_tool_definitions_are_not_cached(self) -> None:
+        request = _request(
+            requirements=WorkloadRequirements(streaming=True, tool_calling=True),
+            tools=(
+                ToolDefinition(
+                    name="synthetic_lookup",
+                    description="synthetic tool; never executed",
+                    input_schema={
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": False,
+                    },
+                ),
+            ),
+        )
+        self.assertIsNone(_identity_for(request=request))
+
     def test_structured_output_is_not_cached(self) -> None:
         request = _request(
             requirements=WorkloadRequirements(streaming=True, structured_output=True),

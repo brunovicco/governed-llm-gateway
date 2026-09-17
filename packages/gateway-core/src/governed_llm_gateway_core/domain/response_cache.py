@@ -3,10 +3,9 @@
 A cache that serves a stored completion is answering on a provider's behalf, so it sits
 inside the governed path and obeys the same rules. Three properties define it here.
 
-**A cache hit is not an authorization shortcut.** The key binds the full authorization
-context, so an entry produced for one authorized context can never be served into
-another. Lookup happens after the Policy Model Router has already decided; the cache
-narrows work, never authority.
+**A cache hit is not an authorization shortcut.** The key binds authenticated client
+identity, validated PDP policy provenance, and the routing/request fields below. Fresh
+authorization and ranking still precede lookup; the cache narrows work, never authority.
 
 **Only public data is ever stored.** Caching writes prompt-derived material and model
 output to a server outside the gateway process. That is a data-residency decision, not a
@@ -18,12 +17,15 @@ raising it would be a deliberate contract change with its own review, not a conf
 
 import hashlib
 import json
+import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from governed_llm_gateway_contracts import DataClassification, Message, RiskLevel
 
-CACHE_SCHEMA_VERSION = "1.0"
+CACHE_SCHEMA_VERSION = "2.0"
+_CLIENT_IDENTIFIER = re.compile(r"[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?")
+_POLICY_DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 _MAX_TTL_SECONDS = 86_400
 
 
@@ -75,8 +77,14 @@ class ResponseCachePolicy:
 
 @dataclass(frozen=True, slots=True)
 class ResponseCacheIdentity:
-    """Everything a cached answer is only valid for."""
+    """Internal answer scope; constructing a value cannot authenticate a client.
 
+    The coordinator supplies trusted context and accepted PDP provenance after fresh
+    authorization/ranking. Neither caller claims nor raw credentials belong here.
+    """
+
+    client_id: str = field(repr=False)
+    policy_digest: str
     workload: str
     risk_level: RiskLevel
     data_classification: DataClassification
@@ -88,6 +96,16 @@ class ResponseCacheIdentity:
 
     def __post_init__(self) -> None:
         """Require every binding that makes a stored answer safe to reuse."""
+        if (
+            not isinstance(self.client_id, str)
+            or _CLIENT_IDENTIFIER.fullmatch(self.client_id) is None
+        ):
+            raise ResponseCachePolicyError("client_id must be a normalized bounded identifier")
+        if (
+            not isinstance(self.policy_digest, str)
+            or _POLICY_DIGEST.fullmatch(self.policy_digest) is None
+        ):
+            raise ResponseCachePolicyError("policy_digest must be a canonical PDP digest")
         for name in (
             "workload",
             "authorized_model_group",
@@ -106,6 +124,8 @@ class ResponseCacheIdentity:
         """Return the content-addressed cache key for this exact authorized context."""
         payload = {
             "schema_version": CACHE_SCHEMA_VERSION,
+            "client_id": self.client_id,
+            "policy_digest": self.policy_digest,
             "workload": self.workload,
             "risk_level": self.risk_level.value,
             "data_classification": self.data_classification.value,
