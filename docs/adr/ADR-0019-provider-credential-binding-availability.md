@@ -2,11 +2,13 @@
 
 ## Status
 
-Proposed for review; **not implemented or accepted**. This record changes no serving behavior,
-provider error code, configuration schema, secret resolver, or retry/fallback contract. Acceptance
-and separately verified implementation increments are required before enabling the proposed feature.
-ADR-0018 is reserved by the separate HALF_OPEN correction; this proposal does not depend on that
-unpublished implementation or copy its changes.
+Proposed; provider-neutral contracts, process-local reference conformance, and an adapter-only
+versioned secret boundary implemented for review only. **No serving integration or feature
+activation**. Provider error codes, configuration schema,
+secret resolver, and retry/fallback
+remain unchanged. Acceptance and separately verified remaining implementation increments are required
+before enabling the proposed feature. ADR-0018 independently records HALF_OPEN health admission;
+credential availability stays separate and does not reuse its health state or TTL.
 
 ## Date
 
@@ -271,6 +273,47 @@ enforcement or disable/drain serving until the control state is reconciled.
 
 ## Follow-up
 
+### Initial contract slice (not serving)
+
+Frozen generation, publication intent, state/snapshot, admission, completion receipt, and reviewed
+rejection-fact values are defined in `domain/credential_availability.py`. Separate read/worker/publisher
+ports are defined in `application/credential_availability.py`. Opaque version handles keep backend
+locators outside core; value validation and Protocols prove neither trusted issuance nor atomicity,
+material-history reconciliation, durability, or provider acceptance. No classifier or operational
+backend is wired into serving. See [contract scope and non-claims](../project/PROVIDER_CREDENTIAL_AVAILABILITY.md).
+
+### Process-local reference conformance (not serving)
+
+`adapters/credential_availability_memory.py` implements separate reader/worker/synthetic publisher
+wrappers over one explicitly retained memory-state object. A state-owned lock serializes local
+threads/event loops. Fixed monotonic deadlines and fresh validation/completion fences cover owned
+promotion, neutral release, exact-token CAS, stale/duplicate outcomes, and retained binding/material
+quarantine. Missing known records, malformed/regressing clocks, unrepresentable deadlines, and
+fence-source faults fail closed. Rejection/history cleanup need no clock and cannot prove recovery.
+
+The conformance suite covers local concurrency and caller-owned finally cleanup, not serving or
+fleet behavior. Publisher inputs and worker facts are synthetic trusted fixtures: authority/version
+mapping and provider acceptance are not verified. History has no TTL/eviction and survives wrapper
+reconstruction only while the same state object exists. Recreating it loses history; it is not a
+durable authority, safe real-credential restart procedure, shared-mode fallback, or runtime option.
+Operational authority/backend choice, capacity/retirement, schema/provenance, refresh lifecycle,
+classifiers, and serving integration remain separately reviewed follow-ups.
+
+### Adapter-only secret-result boundary (not serving)
+
+`adapters/provider_credentials_versioned.py` defines a frozen sensitive result, an asynchronous
+exact-generation resolver capability, and a one-fetch correlation helper. All six token dimensions
+must match; untyped input/results and malformed material deny with sanitized failures. Cancellation
+propagates and resource cleanup remains resolver-owned. Repr hides the result/token/material;
+equality/hash do not derive a plaintext fingerprint. The boundary is not a public DTO, exported
+facade, schema migration, operational resolver, refresh lifecycle, or provider-acceptance proof.
+
+A matching token does not prove the returned material's identity: the concrete trusted adapter must
+verify exact-version mapping, stable material history, and scope/provenance. No legacy environment
+fallback or latest-version resolution is supplied. No backend/cloud has been selected or provisioned.
+The scope document records managed services of the eventual hosting cloud as candidate version stores,
+not as authorities that independently satisfy monotonic publication or quarantine durability.
+
 ### Implementation slices after design acceptance
 
 1. Add provider-neutral generation/state/admission contracts in `gateway-core/domain` and ports in
@@ -313,7 +356,11 @@ enforcement or disable/drain serving until the control state is reconciled.
   rollout. Live checks must be separately authorized, use existing configured credentials, preserve
   governed selection, and produce no new benchmark/ranking artifacts by default.
 
-Verification for this documentation-only proposal: focused existing provider/runtime/resilience/
-streaming regressions, `uv run python scripts/quality_gate.py`, and `git diff --check`. The baseline
-reproduction proves current behavior only; none of the proposed availability or rotation guarantees
-can be claimed from those tests before their implementation and shared-server/rollout validation.
+Verification for the original documentation proposal covered existing provider/runtime/resilience/
+streaming regressions and the canonical quality gate. The initial contract slice additionally has
+focused value/port/metadata-privacy tests and Phase 0 validation. The process-local reference suite
+adds executable owned-transition/history/fault cases within a retained object only. Adapter-boundary
+tests additionally exercise exact-token correlation, malformed results, privacy, and cancellation
+without an operational secret backend. The baseline
+reproduction proves current behavior only; none of these tests establishes fleet availability or
+rotation guarantees before operational authority/backend/executor and shared-server/rollout validation.
