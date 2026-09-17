@@ -3,8 +3,9 @@
 ## Status
 
 Proposed for implementation review; design approved for internal contracts and continued with a
-process-local reference. Values, application ports and same-process transitions are defined for
-review only. **No durable backend, trusted estimator, serving integration or feature activation**
+process-local reference, private cost-bound/finality shapes and synthetic evidence lookup.
+Values, application ports and same-process transitions are defined for review only.
+**No durable backend, trusted estimator, serving integration or feature activation**
 is implemented. Local reference conformance is not distributed/durable admission proof.
 This separate opt-in proposal does not change `SpendGuard`, `SpendLedgerPort`, Redis keys,
 configuration schemas, public request/SSE contracts, or serving behavior. Remaining implementation
@@ -315,10 +316,51 @@ They do not exercise real HTTP abandonment/cache/upstream closure, provider fina
 restart/failover, policy migration, pruning or serving enforcement. See
 [reference proof boundary](../project/SPEND_ADMISSION_REFERENCE.md).
 
+### Cost-bound/finality contract continuation (no verified provider capability)
+
+From merged `main@36aa9d6` (PR #267), `domain/spend_cost_evidence.py` defines private version-one
+preparation bindings, a deliberately limited two-rate text cost model, declared bounds,
+exact-dispatch usage-finality requests and explicit complete usage values. All metadata is
+immutable and bounded. Rates use exact rational arithmetic and one upward integer conversion,
+independent of caller Decimal context. Allocation/settlement projections preserve correlation;
+they do not reserve, verify issuance/finality, acknowledge writes or grant execution/replay.
+
+`application/spend_cost_evidence.py` specifies synchronous no-I/O bound/finality capabilities over
+privately retained exact preparation/report handles. Independently issued evidence and trusted
+versioned configuration remain adapter obligations, not facts supplied by callers or Protocols.
+Unsupported shapes/dimensions and missing/invalid/foreign evidence fail with sanitized errors.
+Unknown final usage retains exposure; measured zero requires explicit complete evidence. Truthful
+token/cost excess remains visible, including token violations hidden by free prices or micro
+rounding; future integration must signal model violations, not discard those flags on projection.
+
+This is the contract portion of slice 3, not its verified estimator, approved API/model list,
+provider finality, strict configuration loader or reference/executor integration. Synthetic
+contract tests prove shape/correlation/arithmetic/permission boundaries only. See the
+[cost evidence scope and non-claims](../project/SPEND_COST_EVIDENCE_CONTRACTS.md).
+
+### Synthetic cost-evidence reference (no real API/model approval)
+
+`adapters/spend_cost_evidence_synthetic.py` freezes independent canonical text preparations, declared
+bounds, preapproved dispatches and explicit complete/incomplete usage sources. Read-only wrappers
+match port signatures for synthetic tests only; they reject all real provider-family markers and
+do not fulfill trusted native tokenization, configuration, evidence issuance or provider finality.
+Unknown handles raise, changed registered facts conflict, and ambiguous fixture inventories refuse.
+Only an explicitly registered inspected incomplete source returns unknown, never absent reports
+or normalized usage defaults. Bound/usage excess is retained, including token violations at zero
+prices; generic settlement still needs separate future token-model invalidation integration.
+
+Synthetic tests add independent registration/correlation, strict immutable text shape, private
+surfaces, concurrent pure reads and manual known/zero/unknown/excess composition with the existing
+local reservation reference. No serving or admission-state implementation changes are made.
+Fixture construction/equality is a test assumption, not real authority, restoration or finality.
+This extends slice 3's reference evidence, not its real verified capability/configuration proof.
+See the [synthetic proof boundary](../project/SPEND_COST_EVIDENCE_REFERENCE.md).
+
 ### Remaining implementation slices
 
 Approval and continuation permit the internal slices above, not implicit serving activation.
-Suggested separately reviewable slices, with the first two now defined for review:
+Suggested separately reviewable slices, with the first two and the contract portion of the third
+now defined for review:
 
 1. Internal immutable allocation/journal/fence/receipt values and application ports with validation
    and synthetic tests; no public SDK/SSE change, backend or serving activation.
