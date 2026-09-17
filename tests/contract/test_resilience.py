@@ -197,6 +197,149 @@ def _success(text: str = "ok") -> ProviderResponse:
     return ProviderResponse(text=text)
 
 
+class BlockingProvider:
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.resume = asyncio.Event()
+        self.closed = 0
+        self.calls: list[ProviderRequest] = []
+
+    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+        self.calls.append(request)
+        self.started.set()
+        try:
+            await self.resume.wait()
+            return _success()
+        finally:
+            self.closed += 1
+
+
+def test_half_open_json_excludes_concurrent_execution_and_cancel_releases_probe() -> None:
+    async def scenario() -> None:
+        deployment = _deployment("candidate-a", provider="provider-a")
+        clock = FakeClock()
+        health = InMemoryHealthTracker(CircuitBreakerPolicy(failure_threshold=1), clock=clock)
+        await health.record_failure(deployment.deployment_id, _server_error(), latency_ms=1)
+        clock.advance(30)
+        provider = BlockingProvider()
+        service = ResilientExecutionService(
+            health,
+            StaticProviderResolver({("provider-a", "openai-compatible"): provider}),
+            RetryPolicy(max_attempts_per_deployment=1, max_fallbacks=0),
+        )
+        task = asyncio.create_task(
+            service.execute(_request(), _decision(deployment), max_output_tokens=100)
+        )
+        await provider.started.wait()
+        with pytest.raises(ResilienceExecutionError):
+            # Same public request ID must not identify the probe owner.
+            await service.execute(_request(), _decision(deployment), max_output_tokens=100)
+        assert len(provider.calls) == 1
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert provider.closed == 1
+        snapshot = await health.snapshot(deployment.deployment_id)
+        assert snapshot.request_count == 1 and snapshot.circuit_state is CircuitState.HALF_OPEN
+        provider.resume.set()
+        result = await service.execute(_request(), _decision(deployment), max_output_tokens=100)
+        assert result.response.text == "ok"
+        assert (
+            await health.snapshot(deployment.deployment_id)
+        ).circuit_state is CircuitState.CLOSED
+
+    asyncio.run(asyncio.wait_for(scenario(), timeout=2))
+
+
+def test_expired_json_probe_does_not_publish_late_success() -> None:
+    async def scenario() -> None:
+        deployment = _deployment("candidate-a", provider="provider-a")
+        clock = FakeClock()
+        health = InMemoryHealthTracker(CircuitBreakerPolicy(failure_threshold=1), clock=clock)
+        await health.record_failure(deployment.deployment_id, _server_error(), latency_ms=1)
+        clock.advance(30)
+
+        class LateProvider:
+            async def generate(self, request: ProviderRequest) -> ProviderResponse:
+                del request
+                clock.advance(61)
+                return _success("must not publish")
+
+        service = ResilientExecutionService(
+            health,
+            StaticProviderResolver({("provider-a", "openai-compatible"): LateProvider()}),
+            RetryPolicy(max_attempts_per_deployment=1, max_fallbacks=0),
+        )
+        with pytest.raises(ResilienceExecutionError) as error:
+            await service.execute(_request(), _decision(deployment), max_output_tokens=100)
+        assert error.value.last_error_code is ProviderErrorCode.TIMEOUT
+        snapshot = await health.snapshot(deployment.deployment_id)
+        assert snapshot.success_count == 0 and snapshot.request_count == 1
+        assert await health.allow_request(deployment.deployment_id) is not None
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("half_open", [False, True])
+def test_json_probe_deadline_applies_only_to_half_open(half_open: bool) -> None:
+    async def scenario() -> None:
+        deployment = _deployment("candidate-a", provider="provider-a")
+        health = InMemoryHealthTracker(
+            CircuitBreakerPolicy(
+                failure_threshold=1, cooldown_seconds=0.001, probe_lease_seconds=0.01
+            )
+        )
+        if half_open:
+            await health.record_failure(deployment.deployment_id, _server_error(), latency_ms=1)
+            await asyncio.sleep(0.002)
+        provider = BlockingProvider()
+        service = ResilientExecutionService(
+            health,
+            StaticProviderResolver({("provider-a", "openai-compatible"): provider}),
+            RetryPolicy(max_attempts_per_deployment=1, max_fallbacks=0),
+        )
+        task = asyncio.create_task(
+            service.execute(_request(), _decision(deployment), max_output_tokens=100)
+        )
+        await provider.started.wait()
+        if half_open:
+            with pytest.raises(ResilienceExecutionError):
+                await task
+        else:
+            await asyncio.sleep(0.02)
+            assert not task.done()
+            provider.resume.set()
+            assert (await task).response.text == "ok"
+        assert provider.closed == 1
+        assert provider.calls[0].timeout_seconds == 30.0
+
+    asyncio.run(asyncio.wait_for(scenario(), timeout=2))
+
+
+def test_local_json_exception_releases_probe_without_provider_failure() -> None:
+    async def scenario() -> None:
+        deployment = _deployment("candidate-a", provider="provider-a")
+        clock = FakeClock()
+        health = InMemoryHealthTracker(CircuitBreakerPolicy(failure_threshold=1), clock=clock)
+        await health.record_failure(deployment.deployment_id, _server_error(), latency_ms=1)
+        clock.advance(30)
+
+        class BrokenProvider:
+            async def generate(self, request: ProviderRequest) -> ProviderResponse:
+                del request
+                raise RuntimeError("local failure")
+
+        service = ResilientExecutionService(
+            health, StaticProviderResolver({("provider-a", "openai-compatible"): BrokenProvider()})
+        )
+        with pytest.raises(RuntimeError, match="local failure"):
+            await service.execute(_request(), _decision(deployment), max_output_tokens=100)
+        assert (await health.snapshot(deployment.deployment_id)).request_count == 1
+        assert await health.allow_request(deployment.deployment_id) is not None
+
+    asyncio.run(scenario())
+
+
 def test_429_retries_same_deployment_before_fallback() -> None:
     deployment = _deployment("candidate-a", provider="provider-a")
     provider = SequenceProvider(_rate_limit(), _success())

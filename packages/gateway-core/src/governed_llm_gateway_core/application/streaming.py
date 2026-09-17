@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from contextlib import aclosing, nullcontext
+from contextlib import AsyncExitStack, aclosing, nullcontext
 from dataclasses import dataclass, replace
 from uuid import UUID
 
@@ -21,10 +21,11 @@ from governed_llm_gateway_contracts import (
     Usage,
 )
 
-from governed_llm_gateway_core.domain.resilience import RetryPolicy
+from governed_llm_gateway_core.domain.resilience import CircuitState, RetryPolicy
 from governed_llm_gateway_core.domain.response_cache import ResponseCacheIdentity
 
-from .health import DeploymentHealthPort
+from .health import DeploymentHealthPort, health_admission_scope
+from .health_probe import bounded_probe_events, probe_expired_error
 from .observability import ObservabilityPort
 from .operational_evidence import OperationalAttemptRecorder, UtcClock
 from .operational_recording import (
@@ -292,19 +293,10 @@ class StreamingExecutionService:
             provider_request = prepared_candidate.provider_request
             deployment = candidate.deployment
             deployment_id = deployment.deployment_id
-            if not await self._health.allow_request(deployment_id):
-                continue
-            fallback_sequence.append(deployment_id)
-            routing = _routing_for_candidate(decision, candidate, fallback_sequence)
-            last_routing = routing
-
             attempt_limit = (
                 self._retry_policy.max_attempts_per_deployment if plan.replay_safe else 1
             )
             for attempt_number in range(1, attempt_limit + 1):
-                if not await self._health.allow_request(deployment_id):
-                    break
-
                 provider_started = False
                 provider_response_id: str | None = None
                 public_started = False
@@ -329,8 +321,19 @@ class StreamingExecutionService:
                     else nullcontext(None)
                 )
 
+                admission = await self._health.allow_request(deployment_id)
+                if admission is None:
+                    break
+                if attempt_number == 1:
+                    fallback_sequence.append(deployment_id)
+                routing = _routing_for_candidate(decision, candidate, fallback_sequence)
+                last_routing = routing
                 retry_delay_after_span: float | None = None
-                with span_context as span:
+                async with AsyncExitStack() as attempt_stack:
+                    await attempt_stack.enter_async_context(
+                        health_admission_scope(self._health, admission)
+                    )
+                    span = attempt_stack.enter_context(span_context)
                     if span is not None:
                         span.set_attributes(
                             {
@@ -356,7 +359,10 @@ class StreamingExecutionService:
                     try:
                         provider_attempt_started = True
                         runtime_stream = prepared_candidate.provider_stream.stream()
-                        async with aclosing(runtime_stream) as events:
+                        bounded_events = bounded_probe_events(
+                            admission, deployment.provider, runtime_stream, self._health
+                        )
+                        async with aclosing(runtime_stream), aclosing(bounded_events) as events:
                             async for event in events:
                                 if isinstance(event, ProviderResponseStarted):
                                     if provider_started:
@@ -398,6 +404,10 @@ class StreamingExecutionService:
                                             sequence_number=sequence,
                                             routing=routing,
                                         )
+                                    if admission.is_probe and not await self._health.is_admitted(
+                                        admission
+                                    ):
+                                        raise probe_expired_error(deployment.provider)
                                     sequence += 1
                                     yield _semantic_gateway_event(
                                         request=request,
@@ -449,15 +459,6 @@ class StreamingExecutionService:
                                             "provider completed before semantic output/final usage",
                                         )
                                     latency_ms = _latency_ms(started_at, self._clock())
-                                    await self._health.record_success(
-                                        deployment_id,
-                                        latency_ms=latency_ms,
-                                    )
-                                    if span is not None:
-                                        span.set_attributes(
-                                            {"llm.latency_ms": latency_ms},
-                                        )
-                                        span.mark_success()
                                     if final_usage is None:
                                         raise _invalid_stream_event(
                                             deployment.provider,
@@ -472,6 +473,17 @@ class StreamingExecutionService:
                                             deployment.provider,
                                             "provider response id changed during the stream",
                                         )
+                                    if not await self._health.record_success(
+                                        deployment_id,
+                                        latency_ms=latency_ms,
+                                        admission=admission,
+                                    ):
+                                        raise probe_expired_error(deployment.provider)
+                                    if span is not None:
+                                        span.set_attributes(
+                                            {"llm.latency_ms": latency_ms},
+                                        )
+                                        span.mark_success()
                                     record_operational_attempt_best_effort(
                                         self._operational_recorder,
                                         utc_clock=self._utc_clock,
@@ -552,7 +564,9 @@ class StreamingExecutionService:
                             provider_error=exc,
                         )
                         attempt_terminal_recorded = True
-                        await self._health.record_failure(deployment_id, exc, latency_ms=latency_ms)
+                        await self._health.record_failure(
+                            deployment_id, exc, latency_ms=latency_ms, admission=admission
+                        )
                         last_error = exc
                         last_execution = ProviderExecution(
                             provider=deployment.provider,
@@ -596,7 +610,8 @@ class StreamingExecutionService:
                             plan.replay_safe
                             and transient
                             and attempt_number < attempt_limit
-                            and await self._health.allow_request(deployment_id)
+                            and (await self._health.snapshot(deployment_id)).circuit_state
+                            is not CircuitState.OPEN
                         )
                         if can_retry:
                             delay = _retry_delay_seconds(

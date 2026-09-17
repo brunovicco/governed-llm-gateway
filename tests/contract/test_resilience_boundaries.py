@@ -313,7 +313,9 @@ def test_transient_half_open_probe_failure_reopens_circuit() -> None:
     clock.advance(10)
     assert asyncio.run(health.snapshot("candidate-a")).circuit_state is CircuitState.HALF_OPEN
 
-    asyncio.run(health.record_failure("candidate-a", transient, latency_ms=10))
+    admission = asyncio.run(health.allow_request("candidate-a"))
+    assert admission is not None
+    asyncio.run(health.record_failure("candidate-a", transient, latency_ms=10, admission=admission))
     assert asyncio.run(health.snapshot("candidate-a")).circuit_state is CircuitState.OPEN
 
 
