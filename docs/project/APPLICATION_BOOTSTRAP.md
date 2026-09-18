@@ -60,6 +60,13 @@ The complexity path defaults to `None`. A checked-in complexity configuration th
 
 `bootstrap_governed_application_services(...)` is the explicit staged convenience wrapper. It does not discover files, read environment variables by itself, open network connections, start a server, or create global state.
 
+ADR-0026 adds optional `policy_router_pool` settings to both materialization and the wrapper.
+Omission preserves existing behavior. Explicit selection validates limits and enabled HTTPS
+compatibility before all credential materialization, prepares a resource-free per-app owner,
+and passes its lifespan into composition. Backend creation/close belong to the serving loop,
+not this synchronous boundary. A mutually exclusive `policy_router_transport` injection remains
+borrowed and is never closed here. See [PDP pool lifecycle](PDP_POOL_LIFECYCLE.md).
+
 ## Approved evidence-driven ranking artifact
 
 PC-11 persists the existing `ApprovedRankingArtifact` contract as a strict JSON runtime artifact instead of introducing a second ranking or approval model.

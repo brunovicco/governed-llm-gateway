@@ -1,8 +1,9 @@
 """Bootstrap-derived process liveness and readiness HTTP surfaces."""
 
+from collections.abc import Callable
 from typing import Literal
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict
 
@@ -27,7 +28,9 @@ class ProcessReadyResponse(BaseModel):
     status: Literal["ready"] = "ready"
 
 
-def attach_process_health_routes(app: FastAPI) -> None:
+def attach_process_health_routes(
+    app: FastAPI, *, readiness: Callable[[], bool] | None = None
+) -> None:
     """Attach process-only health routes exactly once without dependency probing."""
     if not isinstance(app, FastAPI):
         raise TypeError("app must be a FastAPI application")
@@ -44,4 +47,6 @@ def attach_process_health_routes(app: FastAPI) -> None:
 
     @app.get("/readyz", response_model=ProcessReadyResponse, tags=["health"])
     async def ready() -> ProcessReadyResponse:
+        if readiness is not None and not readiness():
+            raise HTTPException(status_code=503, detail={"code": "policy_transport_not_ready"})
         return ProcessReadyResponse()

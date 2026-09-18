@@ -1,6 +1,7 @@
 """FastAPI composition for the metadata-only route explanation surface."""
 
-from contextlib import nullcontext
+from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager, nullcontext
 from decimal import Decimal
 from typing import Annotated, Literal, Protocol
 from uuid import UUID
@@ -284,6 +285,7 @@ def create_app(
     *,
     complexity_coordinator: ComplexityRouteExplainCoordinator | None = None,
     observability: ObservabilityPort | None = None,
+    lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
 ) -> FastAPI:
     """Create authenticated route explanation with optional explicit complexity mode."""
     app = FastAPI(
@@ -292,6 +294,7 @@ def create_app(
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
+        lifespan=lifespan,
     )
 
     @app.post(

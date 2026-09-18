@@ -1,5 +1,8 @@
 """Explicit FastAPI application composition for governed Gateway HTTP surfaces."""
 
+from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
+
 from fastapi import FastAPI
 from governed_llm_gateway_core.application.observability import ObservabilityPort
 
@@ -30,12 +33,14 @@ def create_gateway_app(
     complexity_route_explain_coordinator: ComplexityRouteExplainCoordinator | None = None,
     complexity_generate_coordinator: ComplexityGenerateCoordinator | None = None,
     observability: ObservabilityPort | None = None,
+    lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
 ) -> FastAPI:
     """Compose existing governed HTTP routes without resolving config, secrets, or providers."""
     app = create_app(
         route_explain_coordinator,
         complexity_coordinator=complexity_route_explain_coordinator,
         observability=observability,
+        lifespan=lifespan,
     )
     app.add_middleware(RouteExplainRequestBodyLimitMiddleware)
     app.add_middleware(GenerationRequestBodyLimitMiddleware)

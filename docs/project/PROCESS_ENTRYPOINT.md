@@ -45,8 +45,10 @@ environment-backed credential resolution
 existing governed service graph
     ↓
 attach bootstrap-derived /livez and /readyz
+    (explicit PDP pool: /readyz also checks local ASGI owner)
     ↓
 UvicornServerRunner
+    (explicit PDP pool: lifespan=on owns startup/shutdown)
     ↓
 finally: best-effort Observability.shutdown(...)
 ```
@@ -84,6 +86,16 @@ or:
 
 No configuration directory is scanned. No environment variable selects artifact paths. No newest
 approved ranking artifact is discovered.
+
+## Optional PDP HTTPS pool
+
+The default transport stays unchanged. `--pdp-http-pool` explicitly selects a single-lifetime
+ASGI-owned pool for an enabled HTTPS PDP. Optional finite limits require that flag; invalid
+limits or incompatible PDP configuration fail before credential lookup. Startup creates the
+backend on the serving loop without authorization POSTs, warmup or dependency probes.
+
+See [PDP pool lifecycle](PDP_POOL_LIFECYCLE.md) for exact limits, settings, ownership and rollback.
+No production deployment is enabled by this checkpoint.
 
 ## Optional process observability
 
@@ -178,8 +190,10 @@ dependency, workspace lock, and runtime dependency audit input are kept synchron
 
 ## Health boundary
 
-`/livez` and `/readyz` remain bootstrap-derived process surfaces. Observability enablement, exporter
-state, Collector reachability, flush success and shutdown state do not participate in either endpoint.
+`/livez` remains process-only and default `/readyz` remains bootstrap-derived. Explicit PDP pooling
+adds only the local ASGI owner's active-state check to `/readyz`, never a remote probe.
+Observability enablement, exporter state, Collector reachability, flush success and shutdown state
+do not participate in either endpoint.
 
 This separation is deliberate: telemetry availability cannot become inference availability.
 

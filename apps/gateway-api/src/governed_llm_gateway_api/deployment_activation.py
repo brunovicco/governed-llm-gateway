@@ -21,6 +21,7 @@ from .application_bootstrap import (
     materialize_governed_application_services,
 )
 from .client_auth import EnvironmentGatewayClientSecretResolver
+from .policy_router_lifecycle import PolicyRouterHttpPoolSettings
 from .process_bootstrap import GovernedProcessBootstrapPaths
 from .service_composition import GovernedGatewayServices
 
@@ -43,10 +44,15 @@ class GovernedDeploymentSettings:
     operations_access_path: Path | None = None
     operational_evidence_path: Path | None = None
     execution_timeout_ms: int | None = None
+    policy_router_pool: PolicyRouterHttpPoolSettings | None = None
 
     def __post_init__(self) -> None:
         """Validate settings without reading artifacts, secrets, or process environment."""
         validate_execution_timeout_ms(self.execution_timeout_ms)
+        if self.policy_router_pool is not None and not isinstance(
+            self.policy_router_pool, PolicyRouterHttpPoolSettings
+        ):
+            raise TypeError("policy_router_pool must use PolicyRouterHttpPoolSettings or None")
         if not isinstance(self.deployment_root, Path):
             raise TypeError("deployment_root must be a pathlib.Path")
         if not self.deployment_root.is_absolute():
@@ -168,6 +174,7 @@ def activate_governed_deployment(
         retry_policy=retry_policy,
         health=health,
         execution_timeout_ms=settings.execution_timeout_ms,
+        policy_router_pool=settings.policy_router_pool,
     )
 
 

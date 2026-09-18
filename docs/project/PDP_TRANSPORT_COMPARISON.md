@@ -4,7 +4,9 @@
 
 `StdlibPolicyTransport` remains the default HTTPS transport. `LoopbackHttpPolicyTransport` remains
 the explicit literal-loopback HTTP option. Both use one blocking connection per exchange in
-`asyncio.to_thread`, then close it. No deployment config, active profile or bootstrap is changed.
+`asyncio.to_thread`, then close it. Defaults and active profiles remain unchanged. The subsequent
+ADR-0026 increment adds an explicit, default-off bootstrap/lifecycle option; see
+[PDP pool lifecycle](PDP_POOL_LIFECYCLE.md).
 
 An optional `HttpxPolicyTransport` can be explicitly injected into `PolicyRouterHttpAdapter`:
 
@@ -36,8 +38,9 @@ one-second best-effort budget; shutdown cancels only owned exchanges, bounds joi
 closure separately to one second each, and remains owned if an individual close waiter is cancelled.
 These are cooperative cleanup bounds, not additional authorized execution time or hard return SLAs.
 
-See [ADR-0025](../adr/ADR-0025-pdp-connection-pooling.md). There is no server enablement flag or
-production integration in this increment.
+See [ADR-0025](../adr/ADR-0025-pdp-connection-pooling.md). That increment provides manual injection.
+[ADR-0026](../adr/ADR-0026-asgi-owned-pdp-pool-lifecycle.md) subsequently adds optional ASGI ownership
+and a server flag, without activating production or replacing the mixed results recorded below.
 
 ## Reproduce the bounded local experiment
 
@@ -98,8 +101,9 @@ parallel p95 worsened, and the first pooled cold call took 124.116 ms. These unf
 are retained, not replaced by best-of-round values or generalized into a production bottleneck.
 
 Conclusion: real local TLS reuse is established; a general performance improvement is not. This
-does not justify switching the default. Any future rollout needs separately reviewed application
-lifecycle ownership and representative authorized PDP/load/proxy evidence. No real credentials,
+does not justify switching the default. Optional application lifecycle ownership is now documented
+separately; any production rollout still needs representative authorized PDP/load/proxy evidence.
+No real credentials,
 production services, approved benchmark/ranking artifacts, model scores or dependency files changed.
 
 ## Verification boundaries

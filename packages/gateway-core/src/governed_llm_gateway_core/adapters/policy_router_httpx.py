@@ -35,15 +35,12 @@ class HttpxPolicyTransport:
         ssl_context: ssl.SSLContext | None = None,
     ) -> None:
         """Validate trusted configuration without opening a connection or reading secrets."""
-        _validate_endpoint(endpoint)
-        if type(max_connections) is not int or not 1 <= max_connections <= 64:
-            raise ValueError("policy max_connections must be an integer in 1..64")
-        if (
-            type(max_keepalive_connections) is not int
-            or not 0 <= max_keepalive_connections <= max_connections
-        ):
-            raise ValueError("policy keepalive connections must be in 0..max_connections")
-        _validate_seconds(keepalive_expiry_seconds, "keepalive expiry")
+        validate_policy_https_endpoint(endpoint)
+        validate_policy_pool_limits(
+            max_connections=max_connections,
+            max_keepalive_connections=max_keepalive_connections,
+            keepalive_expiry_seconds=keepalive_expiry_seconds,
+        )
         if ssl_context is not None and (
             not isinstance(ssl_context, ssl.SSLContext)
             or not ssl_context.check_hostname
@@ -248,7 +245,22 @@ def _validate_seconds(value: float, label: str) -> None:
         raise ValueError(f"policy {label} must be finite, positive and at most 300 seconds")
 
 
-def _validate_endpoint(endpoint: str) -> None:
+def validate_policy_pool_limits(
+    *, max_connections: int, max_keepalive_connections: int, keepalive_expiry_seconds: float
+) -> None:
+    """Validate secret-free pool limits before creating any resource or reading secrets."""
+    if type(max_connections) is not int or not 1 <= max_connections <= 64:
+        raise ValueError("policy max_connections must be an integer in 1..64")
+    if (
+        type(max_keepalive_connections) is not int
+        or not 0 <= max_keepalive_connections <= max_connections
+    ):
+        raise ValueError("policy keepalive connections must be in 0..max_connections")
+    _validate_seconds(keepalive_expiry_seconds, "keepalive expiry")
+
+
+def validate_policy_https_endpoint(endpoint: str) -> None:
+    """Validate a pool-compatible trusted HTTPS target without I/O."""
     if not isinstance(endpoint, str) or any(char.isspace() for char in endpoint):
         raise ValueError("policy endpoint must be a normalized HTTPS URL")
     try:

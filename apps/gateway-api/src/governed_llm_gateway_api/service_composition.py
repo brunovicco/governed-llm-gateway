@@ -28,6 +28,7 @@ from .complexity_generate import ComplexityGenerateCoordinator
 from .operations_access import OperationsReadAccessService
 from .operations_http import attach_operations_routes
 from .operations_snapshot import DeploymentOperationsSnapshotReader
+from .policy_router_lifecycle import PolicyRouterPoolLifecycle
 from .process_bootstrap import GovernedProcessRuntimeBundle
 from .route_explain import ComplexityRouteExplainCoordinator, RouteExplainCoordinator
 from .stream_generate import GenerateCoordinator
@@ -54,6 +55,7 @@ class GovernedGatewayServices:
     complexity_route_service: ComplexityRouteExplainService | None
     complexity_route_explain_coordinator: ComplexityRouteExplainCoordinator | None
     complexity_generate_coordinator: ComplexityGenerateCoordinator | None
+    policy_router_lifecycle: PolicyRouterPoolLifecycle | None = None
 
     @property
     def complexity_enabled(self) -> bool:
@@ -92,6 +94,7 @@ def compose_governed_gateway_services(
     retry_policy: RetryPolicy | None = None,
     health: DeploymentHealthPort | None = None,
     execution_timeout_ms: int | None = None,
+    policy_router_lifecycle: PolicyRouterPoolLifecycle | None = None,
 ) -> GovernedGatewayServices:
     """Build the governed HTTP service graph without reading config, secrets, or the network."""
     validate_execution_timeout_ms(execution_timeout_ms)
@@ -200,6 +203,7 @@ def compose_governed_gateway_services(
         complexity_route_explain_coordinator=complexity_route_explain_coordinator,
         complexity_generate_coordinator=complexity_generate_coordinator,
         observability=observability,
+        lifespan=None if policy_router_lifecycle is None else policy_router_lifecycle.lifespan,
     )
     attach_operations_routes(
         app,
@@ -220,4 +224,5 @@ def compose_governed_gateway_services(
         complexity_route_service=complexity_route_service,
         complexity_route_explain_coordinator=complexity_route_explain_coordinator,
         complexity_generate_coordinator=complexity_generate_coordinator,
+        policy_router_lifecycle=policy_router_lifecycle,
     )

@@ -12,6 +12,7 @@ from governed_llm_gateway_core.adapters import (
     load_ranking_policy,
 )
 from governed_llm_gateway_core.adapters.operational_evidence_json import load_operational_evidence
+from governed_llm_gateway_core.adapters.policy_router import PolicyTransport
 from governed_llm_gateway_core.application import PolicyProjectionDefaults
 from governed_llm_gateway_core.application.execution_deadline import validate_execution_timeout_ms
 from governed_llm_gateway_core.application.health import DeploymentHealthPort
@@ -26,6 +27,7 @@ from governed_llm_gateway_core.domain.ranking_override import ApprovedRankingArt
 from governed_llm_gateway_core.domain.resilience import RetryPolicy
 
 from .client_auth import GatewayClientSecretResolver
+from .policy_router_lifecycle import PolicyRouterHttpPoolSettings, prepare_policy_router_pool
 from .process_bootstrap import (
     GovernedProcessArtifacts,
     GovernedProcessBootstrapPaths,
@@ -205,17 +207,25 @@ def materialize_governed_application_services(
     retry_policy: RetryPolicy | None = None,
     health: DeploymentHealthPort | None = None,
     execution_timeout_ms: int | None = None,
+    policy_router_pool: PolicyRouterHttpPoolSettings | None = None,
+    policy_router_transport: PolicyTransport | None = None,
 ) -> GovernedGatewayServices:
     """Resolve secrets only after routing artifacts validated, then delegate to PC-9."""
     validate_execution_timeout_ms(execution_timeout_ms)
     if not isinstance(artifacts, GovernedApplicationArtifacts):
         raise TypeError("artifacts must use GovernedApplicationArtifacts")
+    if policy_router_pool is not None and policy_router_transport is not None:
+        raise ValueError("select an owned PDP pool or borrowed transport, not both")
+    lifecycle = prepare_policy_router_pool(
+        artifacts.process.policy_router_runtime_document.runtime, policy_router_pool
+    )
 
     runtime = materialize_governed_process_runtime(
         artifacts.process,
         client_secrets=client_secrets,
         policy_router_secrets=policy_router_secrets,
         provider_secrets=provider_secrets,
+        policy_router_transport=lifecycle if lifecycle is not None else policy_router_transport,
     )
     return compose_governed_gateway_services(
         runtime,
@@ -227,6 +237,7 @@ def materialize_governed_application_services(
         retry_policy=retry_policy,
         health=health,
         execution_timeout_ms=execution_timeout_ms,
+        policy_router_lifecycle=lifecycle,
     )
 
 
@@ -241,6 +252,8 @@ def bootstrap_governed_application_services(
     retry_policy: RetryPolicy | None = None,
     health: DeploymentHealthPort | None = None,
     execution_timeout_ms: int | None = None,
+    policy_router_pool: PolicyRouterHttpPoolSettings | None = None,
+    policy_router_transport: PolicyTransport | None = None,
 ) -> GovernedGatewayServices:
     """Validate every deployment artifact before materializing any secret-backed service."""
     validate_execution_timeout_ms(execution_timeout_ms)
@@ -255,4 +268,6 @@ def bootstrap_governed_application_services(
         retry_policy=retry_policy,
         health=health,
         execution_timeout_ms=execution_timeout_ms,
+        policy_router_pool=policy_router_pool,
+        policy_router_transport=policy_router_transport,
     )
