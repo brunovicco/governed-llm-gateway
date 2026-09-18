@@ -258,6 +258,29 @@ and async HTTP client.
 
 Client cancellation is not recorded as a provider failure.
 
+### Explicit local execution deadline
+
+Deployments may opt in with `--execution-timeout-ms` (integer 1..86,400,000); omission leaves the
+feature off. The single monotonic budget starts after canonical request validation, before context
+resolution/PDP authorization, and is retained by the prepared execution plan. Preflight, cache and
+health I/O, provider reads, retry/fallback/backoff and consumer wait all consume it. `max_latency_ms`
+remains a selection constraint; request schema and provider per-attempt timeout inputs are unchanged.
+
+Expiry before commitment returns sanitized HTTP 504 `execution_deadline_exceeded`. After commitment
+it closes upstream ownership and emits non-retryable `response.failed`, partial only after exposed
+semantic output. No late semantic/completion event or new provider attempt is accepted. API response
+ownership has a finite one-second terminal-delivery grace and a separate one-second body-cleanup
+budget for cooperative blocked downstream delivery; enabled health-handle release is bounded to
+one second too, with fenced lease recovery on outage. These are not additional execution time and
+terminal delivery/cleanup are best effort, not a guaranteed return-time bound.
+Direct iterator owners must resume or close their streams. Cancellation itself remains cancellation,
+not a provider failure. Unknown usage/cost is not manufactured as zero.
+
+This is not a physical remote cancellation, billing ceiling or upload-to-delivery SLA: synchronous
+preflight, already-running blocking JSON/PDP threads, event-loop suspension and cancellation-resistant
+adapters cannot be forcibly interrupted. See [ADR-0024](../adr/ADR-0024-explicit-execution-deadline.md)
+for exact boundaries and non-claims.
+
 ## Health and fallback
 
 Runtime health remains Phase 6 state. Streaming does not create a new authorization source.

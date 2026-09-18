@@ -18,6 +18,7 @@ from uuid import uuid4
 
 from governed_llm_gateway_core.domain.resilience import DeploymentHealthSnapshot, HealthAdmission
 
+from .execution_deadline import ExecutionDeadlineExceeded
 from .provider import ProviderError
 
 
@@ -80,16 +81,29 @@ class DeploymentHealthPort(Protocol):
 
 @asynccontextmanager
 async def health_admission_scope(
-    health: DeploymentHealthPort, admission: HealthAdmission
+    health: DeploymentHealthPort,
+    admission: HealthAdmission,
+    *,
+    cleanup_timeout_seconds: float | None = None,
 ) -> AsyncIterator[None]:
     """Release ownership without allowing a cleanup outage to replace cancellation."""
+
+    async def release() -> None:
+        if cleanup_timeout_seconds is None:
+            await health.release_request(admission)
+        else:
+            async with asyncio.timeout(cleanup_timeout_seconds):
+                await health.release_request(admission)
+
     try:
         yield
     finally:
-        if isinstance(sys.exception(), asyncio.CancelledError | GeneratorExit):
+        if isinstance(
+            sys.exception(), asyncio.CancelledError | GeneratorExit | ExecutionDeadlineExceeded
+        ):
             # Lease expiry recovers ownership on a shared-server cleanup outage.
             # Infrastructure details must not be logged or replace cancellation.
             with suppress(Exception):
-                await health.release_request(admission)
+                await release()
         else:
-            await health.release_request(admission)
+            await release()

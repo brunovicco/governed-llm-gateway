@@ -48,7 +48,10 @@ as a requested floor but is still capped by the gateway maximum delay.
 
 Provider timeout remains a per-attempt execution bound in Phase 6. The gateway does not silently
 reinterpret the Phase 4/5 `max_latency_ms` selection constraint as a total retry deadline. A future
-total execution budget requires an explicit contract rather than an implicit semantic change.
+total execution budget is now available as the separate, server-owned, off-by-default
+`execution_timeout_ms` control ([ADR-0024](../adr/ADR-0024-explicit-execution-deadline.md)). It is
+one monotonic budget across preparation/execution, attempts, fallback and backoff; expiry is the
+non-retryable local `execution_deadline_exceeded`, never a transient provider timeout.
 
 ## Replay safety boundary
 

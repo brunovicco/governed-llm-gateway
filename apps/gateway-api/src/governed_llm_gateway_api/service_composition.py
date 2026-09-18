@@ -13,6 +13,7 @@ from governed_llm_gateway_core.application import (
     PolicyProjectionDefaults,
     RouteExplainService,
 )
+from governed_llm_gateway_core.application.execution_deadline import validate_execution_timeout_ms
 from governed_llm_gateway_core.application.health import DeploymentHealthPort
 from governed_llm_gateway_core.application.observability import ObservabilityPort
 from governed_llm_gateway_core.application.streaming import StreamingExecutionService
@@ -90,8 +91,10 @@ def compose_governed_gateway_services(
     observability: ObservabilityPort | None = None,
     retry_policy: RetryPolicy | None = None,
     health: DeploymentHealthPort | None = None,
+    execution_timeout_ms: int | None = None,
 ) -> GovernedGatewayServices:
     """Build the governed HTTP service graph without reading config, secrets, or the network."""
+    validate_execution_timeout_ms(execution_timeout_ms)
     if not isinstance(runtime, GovernedProcessRuntimeBundle):
         raise TypeError("runtime must use GovernedProcessRuntimeBundle")
     if not isinstance(defaults, PolicyProjectionDefaults):
@@ -127,6 +130,7 @@ def compose_governed_gateway_services(
         resolver=runtime.provider_resolver,
         retry_policy=retry_policy,
         observability=observability,
+        execution_timeout_ms=execution_timeout_ms,
     )
 
     registry = runtime.artifacts.registry

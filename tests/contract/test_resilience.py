@@ -15,6 +15,10 @@ from governed_llm_gateway_contracts import (
     RiskLevel,
     RoutingProvenance,
 )
+from governed_llm_gateway_core.application.execution_deadline import (
+    ExecutionDeadline,
+    ExecutionDeadlineExceeded,
+)
 from governed_llm_gateway_core.application.provider import (
     ProviderError,
     ProviderErrorCode,
@@ -212,6 +216,120 @@ class BlockingProvider:
             return _success()
         finally:
             self.closed += 1
+
+
+@pytest.mark.parametrize("half_open", [False, True])
+def test_total_json_deadline_is_terminal_and_health_neutral(half_open: bool) -> None:
+    async def scenario() -> None:
+        deployment = _deployment("candidate-a", provider="provider-a")
+        alternative = _deployment("candidate-b", provider="provider-b")
+        clock = FakeClock()
+        health = InMemoryHealthTracker(CircuitBreakerPolicy(failure_threshold=1), clock=clock)
+        if half_open:
+            await health.record_failure(deployment.deployment_id, _server_error(), latency_ms=1)
+            clock.advance(30)
+        before = await health.snapshot(deployment.deployment_id)
+        provider = BlockingProvider()
+        fallback = SequenceProvider(_success("forbidden"))
+        service = ResilientExecutionService(
+            health,
+            StaticProviderResolver(
+                {
+                    ("provider-a", "openai-compatible"): provider,
+                    ("provider-b", "openai-compatible"): fallback,
+                }
+            ),
+            execution_timeout_ms=10,
+        )
+        with pytest.raises(ExecutionDeadlineExceeded):
+            await service.execute(
+                _request(), _decision(deployment, alternative), max_output_tokens=64
+            )
+        assert len(provider.calls) == provider.closed == 1
+        assert fallback.calls == []
+        after = await health.snapshot(deployment.deployment_id)
+        assert after.request_count == before.request_count
+        assert after.success_count == before.success_count
+        assert after.transient_failure_count == before.transient_failure_count
+        if half_open:
+            assert after.circuit_state is CircuitState.HALF_OPEN
+            assert await health.allow_request(deployment.deployment_id) is not None
+
+    asyncio.run(asyncio.wait_for(scenario(), 2))
+
+
+def test_total_json_deadline_rejects_late_response_before_health_success() -> None:
+    async def scenario() -> None:
+        clock = FakeClock()
+        deployment = _deployment("candidate-a", provider="provider-a")
+
+        class LateProvider:
+            async def generate(self, request: ProviderRequest) -> ProviderResponse:
+                assert request.timeout_seconds == 30.0
+                clock.advance(1)
+                return _success("late")
+
+        health = InMemoryHealthTracker()
+        service = ResilientExecutionService(
+            health,
+            StaticProviderResolver({("provider-a", "openai-compatible"): LateProvider()}),
+            clock=clock,
+            execution_timeout_ms=1000,
+        )
+        with pytest.raises(ExecutionDeadlineExceeded):
+            await service.execute(_request(), _decision(deployment), max_output_tokens=64)
+        assert (await health.snapshot(deployment.deployment_id)).request_count == 0
+
+    asyncio.run(scenario())
+
+
+def test_total_json_deadline_covers_backoff_without_retry_or_fallback() -> None:
+    async def scenario() -> None:
+        clock = FakeClock()
+        selected = _deployment("candidate-a", provider="provider-a")
+        alternative = _deployment("candidate-b", provider="provider-b")
+        provider = SequenceProvider(_server_error(), _success("forbidden retry"))
+        fallback = SequenceProvider(_success("forbidden fallback"))
+        health = InMemoryHealthTracker()
+        service = ResilientExecutionService(
+            health,
+            StaticProviderResolver(
+                {
+                    ("provider-a", "openai-compatible"): provider,
+                    ("provider-b", "openai-compatible"): fallback,
+                }
+            ),
+            RetryPolicy(base_delay_seconds=1, max_delay_seconds=1, jitter_ratio=0),
+            clock=clock,
+            sleeper=RecordingSleeper(clock),
+            execution_timeout_ms=1000,
+        )
+        with pytest.raises(ExecutionDeadlineExceeded):
+            await service.execute(
+                _request(), _decision(selected, alternative), max_output_tokens=64
+            )
+        assert len(provider.calls) == 1 and fallback.calls == []
+        assert (await health.snapshot(selected.deployment_id)).transient_failure_count == 1
+
+    asyncio.run(scenario())
+
+
+def test_supplied_json_budget_is_not_restarted_at_executor_entry() -> None:
+    clock = FakeClock()
+    budget = ExecutionDeadline.start(1000, clock=clock)
+    clock.advance(1)
+    selected = _deployment("candidate-a", provider="provider-a")
+    provider = SequenceProvider(_success())
+    service = ResilientExecutionService(
+        InMemoryHealthTracker(),
+        StaticProviderResolver({("provider-a", "openai-compatible"): provider}),
+        execution_timeout_ms=10_000,
+    )
+    with pytest.raises(ExecutionDeadlineExceeded):
+        asyncio.run(
+            service.execute(_request(), _decision(selected), max_output_tokens=64, deadline=budget)
+        )
+    assert provider.calls == []
 
 
 def test_half_open_json_excludes_concurrent_execution_and_cancel_releases_probe() -> None:

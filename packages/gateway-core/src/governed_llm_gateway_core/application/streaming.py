@@ -5,7 +5,7 @@ import hashlib
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import AsyncExitStack, aclosing, nullcontext
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from uuid import UUID
 
 from governed_llm_gateway_contracts import (
@@ -24,6 +24,11 @@ from governed_llm_gateway_contracts import (
 from governed_llm_gateway_core.domain.resilience import CircuitState, RetryPolicy
 from governed_llm_gateway_core.domain.response_cache import ResponseCacheIdentity
 
+from .execution_deadline import (
+    ExecutionDeadline,
+    ExecutionDeadlineExceeded,
+    validate_execution_timeout_ms,
+)
 from .health import DeploymentHealthPort, health_admission_scope
 from .health_probe import bounded_probe_events, probe_expired_error
 from .observability import ObservabilityPort
@@ -79,6 +84,14 @@ class StreamingExecutionPlan:
     replay_safe: bool
     max_output_tokens: int
     provider_timeout_seconds: float
+    deadline: ExecutionDeadline | None = field(default=None, repr=False)
+
+
+@dataclass(slots=True)
+class _DeadlineStreamState:
+    """Actual attempt routing, including expiry before the first public event."""
+
+    routing: RoutingProvenance
 
 
 class StreamingPreflightError(RuntimeError):
@@ -106,6 +119,7 @@ class StreamingExecutionService:
         utc_clock: UtcClock = utc_now,
         cache: ResponseCachePort | None = None,
         cache_ttl_seconds: int = 300,
+        execution_timeout_ms: int | None = None,
     ) -> None:
         """Bind resilience controls plus optional local telemetry/evidence recording."""
         self._health = health
@@ -118,6 +132,12 @@ class StreamingExecutionService:
         self._utc_clock = utc_clock
         self._cache = cache
         self._cache_ttl_seconds = cache_ttl_seconds
+        validate_execution_timeout_ms(execution_timeout_ms)
+        self._execution_timeout_ms = execution_timeout_ms
+
+    def start_deadline(self) -> ExecutionDeadline:
+        """Start at coordinator admission, or at direct preparation when no admission exists."""
+        return ExecutionDeadline.start(self._execution_timeout_ms, clock=self._clock)
 
     def prepare(
         self,
@@ -126,8 +146,11 @@ class StreamingExecutionService:
         *,
         max_output_tokens: int,
         provider_timeout_seconds: float = 30.0,
+        deadline: ExecutionDeadline | None = None,
     ) -> StreamingExecutionPlan:
         """Resolve and validate the execution sequence before HTTP commit."""
+        budget = deadline or self.start_deadline()
+        budget.check()
         if not request.requirements.streaming:
             raise ValueError("streaming execution requires WorkloadRequirements.streaming")
         if max_output_tokens <= 0:
@@ -152,6 +175,7 @@ class StreamingExecutionService:
 
         prepared: list[PreparedStreamingCandidate] = []
         for candidate in bounded:
+            budget.check()
             _validate_streaming_candidate(candidate, decision)
 
             try:
@@ -201,6 +225,7 @@ class StreamingExecutionService:
                 )
             )
 
+        budget.check()
         return StreamingExecutionPlan(
             request=request,
             decision=decision,
@@ -208,6 +233,7 @@ class StreamingExecutionService:
             replay_safe=replay_safe,
             max_output_tokens=max_output_tokens,
             provider_timeout_seconds=provider_timeout_seconds,
+            deadline=budget,
         )
 
     async def _store_best_effort(
@@ -256,6 +282,51 @@ class StreamingExecutionService:
         *,
         cache_identity: ResponseCacheIdentity | None = None,
     ) -> AsyncGenerator[GatewayStreamEvent]:
+        """Bound each owned read and publication with the original preparation budget."""
+        budget = plan.deadline or self.start_deadline()
+        state = _DeadlineStreamState(plan.decision.routing)
+        sequence = 0
+        partial = False
+        execution = self._stream(plan, cache_identity=cache_identity, deadline=budget, state=state)
+        try:
+            async with aclosing(execution):
+                while True:
+                    try:
+                        event = await budget.run(lambda: anext(execution))
+                    except StopAsyncIteration:
+                        return
+                    sequence = event.sequence_number
+                    partial = partial or event.event_type in {
+                        StreamEventType.CONTENT_DELTA,
+                        StreamEventType.TOOL_CALL_STARTED,
+                        StreamEventType.TOOL_CALL_ARGUMENTS_DELTA,
+                        StreamEventType.TOOL_CALL_COMPLETED,
+                    }
+                    yield event
+                    if event.event_type in {
+                        StreamEventType.RESPONSE_COMPLETED,
+                        StreamEventType.RESPONSE_FAILED,
+                    }:
+                        return
+        except ExecutionDeadlineExceeded:
+            yield _failed_event(
+                request=plan.request,
+                sequence_number=sequence + 1,
+                routing=state.routing,
+                code=ExecutionDeadlineExceeded.code,
+                message="the local execution deadline was exceeded",
+                retryable=False,
+                partial=partial,
+            )
+
+    async def _stream(
+        self,
+        plan: StreamingExecutionPlan,
+        *,
+        cache_identity: ResponseCacheIdentity | None,
+        deadline: ExecutionDeadline,
+        state: _DeadlineStreamState,
+    ) -> AsyncGenerator[GatewayStreamEvent]:
         """Execute a prepared plan and stop replay once semantic output is visible.
 
         ``cache_identity`` is supplied only by a caller that already holds the effective
@@ -297,6 +368,7 @@ class StreamingExecutionService:
                 self._retry_policy.max_attempts_per_deployment if plan.replay_safe else 1
             )
             for attempt_number in range(1, attempt_limit + 1):
+                deadline.check()
                 provider_started = False
                 provider_response_id: str | None = None
                 public_started = False
@@ -328,10 +400,15 @@ class StreamingExecutionService:
                     fallback_sequence.append(deployment_id)
                 routing = _routing_for_candidate(decision, candidate, fallback_sequence)
                 last_routing = routing
+                state.routing = routing
                 retry_delay_after_span: float | None = None
                 async with AsyncExitStack() as attempt_stack:
                     await attempt_stack.enter_async_context(
-                        health_admission_scope(self._health, admission)
+                        health_admission_scope(
+                            self._health,
+                            admission,
+                            cleanup_timeout_seconds=1.0 if deadline.enabled else None,
+                        )
                     )
                     span = attempt_stack.enter_context(span_context)
                     if span is not None:
@@ -357,6 +434,7 @@ class StreamingExecutionService:
                             },
                         )
                     try:
+                        deadline.check()
                         provider_attempt_started = True
                         runtime_stream = prepared_candidate.provider_stream.stream()
                         bounded_events = bounded_probe_events(
@@ -364,6 +442,7 @@ class StreamingExecutionService:
                         )
                         async with aclosing(runtime_stream), aclosing(bounded_events) as events:
                             async for event in events:
+                                deadline.check()
                                 if isinstance(event, ProviderResponseStarted):
                                     if provider_started:
                                         raise _invalid_stream_event(
@@ -473,6 +552,7 @@ class StreamingExecutionService:
                                             deployment.provider,
                                             "provider response id changed during the stream",
                                         )
+                                    deadline.check()
                                     if not await self._health.record_success(
                                         deployment_id,
                                         latency_ms=latency_ms,
@@ -552,6 +632,7 @@ class StreamingExecutionService:
                             )
                         raise
                     except ProviderError as exc:
+                        deadline.check()
                         latency_ms = _latency_ms(started_at, self._clock())
                         record_operational_attempt_best_effort(
                             self._operational_recorder,
@@ -662,6 +743,7 @@ class StreamingExecutionService:
                         raise
 
                 if retry_delay_after_span is not None:
+                    deadline.check()
                     await self._sleeper(retry_delay_after_span)
                     continue
 

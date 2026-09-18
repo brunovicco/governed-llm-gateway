@@ -36,6 +36,10 @@ from governed_llm_gateway_core.application import (
     PolicyProjectionDefaults,
     PolicyProjectionError,
 )
+from governed_llm_gateway_core.application.execution_deadline import (
+    ExecutionDeadline,
+    ExecutionDeadlineExceeded,
+)
 from governed_llm_gateway_core.application.health import DeploymentHealthPort
 from governed_llm_gateway_core.application.observability import ObservabilityPort
 from governed_llm_gateway_core.application.ranking import (
@@ -66,6 +70,7 @@ from governed_llm_gateway_core.domain.structured import (
 from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
 from pydantic import BaseModel, ConfigDict, Field
 
+from .deadline_response import DeadlineStreamingResponse, TerminalFailureFrame
 from .route_explain import ClientAuthenticationError, EffectiveContextResolver
 
 if TYPE_CHECKING:
@@ -326,14 +331,32 @@ class GenerateCoordinator:
     ) -> PreparedStreamingExecution:
         """Finish authentication/PDP/ranking before returning an SSE HTTP response."""
         request = payload.to_gateway_request()
+        deadline = self._streaming_service.start_deadline()
+        return await deadline.run(
+            lambda: self._prepare(
+                api_key=api_key, payload=payload, request=request, deadline=deadline
+            )
+        )
+
+    async def _prepare(
+        self,
+        *,
+        api_key: str,
+        payload: GenerationPayload,
+        request: GatewayRequest,
+        deadline: ExecutionDeadline,
+    ) -> PreparedStreamingExecution:
+        """Carry the admission budget through trusted context, PDP and pure preflight."""
         effective_context = await self._context_resolver.resolve(
             api_key=api_key,
             request=request,
         )
+        deadline.check()
         deployment_ids = tuple(
             sorted(deployment.deployment_id for deployment in self._registry.deployments)
         )
         runtime_health = await self._health.snapshots(deployment_ids)
+        deadline.check()
         decision = await self._route_service.explain(
             request,
             effective_context,
@@ -353,6 +376,7 @@ class GenerateCoordinator:
             decision,
             max_output_tokens=payload.max_output_tokens,
             provider_timeout_seconds=payload.provider_timeout_seconds,
+            deadline=deadline,
         )
         return PreparedStreamingExecution(
             plan=plan,
@@ -490,7 +514,7 @@ def attach_generate_route(
                     inject_trace_context(stream_parent_carrier)
                     span.mark_success()
 
-        return StreamingResponse(
+        return DeadlineStreamingResponse(
             _sse_body(
                 active_coordinator,
                 prepared,
@@ -498,6 +522,7 @@ def attach_generate_route(
                 trace_carrier=stream_parent_carrier,
             ),
             media_type="text/event-stream",
+            deadline=prepared.plan.deadline,
             headers={
                 "Cache-Control": "no-store",
                 "X-Accel-Buffering": "no",
@@ -538,6 +563,11 @@ async def prepare_generation(
             api_key=api_key,
             payload=payload,
         )
+    except ExecutionDeadlineExceeded as exc:
+        raise HTTPException(
+            status_code=504,
+            detail={"code": ExecutionDeadlineExceeded.code},
+        ) from exc
     except ClientAuthenticationError as exc:
         raise HTTPException(
             status_code=401,
@@ -708,7 +738,12 @@ def _http_error_code(error: HTTPException) -> str:
 def _encode_sse(event: GatewayStreamEvent) -> str:
     payload = _event_payload(event)
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    return f"event: {event.event_type.value}\nid: {event.sequence_number}\ndata: {encoded}\n\n"
+    frame = f"event: {event.event_type.value}\nid: {event.sequence_number}\ndata: {encoded}\n\n"
+    return (
+        TerminalFailureFrame(frame)
+        if event.event_type is StreamEventType.RESPONSE_FAILED
+        else frame
+    )
 
 
 def _event_payload(event: GatewayStreamEvent) -> dict[str, object]:

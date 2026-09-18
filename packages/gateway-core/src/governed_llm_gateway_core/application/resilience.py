@@ -23,6 +23,7 @@ from governed_llm_gateway_core.domain.resilience import (
     RetryPolicy,
 )
 
+from .execution_deadline import ExecutionDeadline, validate_execution_timeout_ms
 from .health import DeploymentHealthPort, health_admission_scope, health_attempt_id
 from .health_probe import bounded_probe_call, probe_expired_error
 from .observability import ObservabilityPort
@@ -328,6 +329,7 @@ class ResilientExecutionService:
         observability: ObservabilityPort | None = None,
         operational_recorder: OperationalAttemptRecorder | None = None,
         utc_clock: UtcClock = utc_now,
+        execution_timeout_ms: int | None = None,
     ) -> None:
         """Bind resilience controls plus optional local telemetry/evidence recording."""
         self._health = health
@@ -338,6 +340,8 @@ class ResilientExecutionService:
         self._observability = observability
         self._operational_recorder = operational_recorder
         self._utc_clock = utc_clock
+        validate_execution_timeout_ms(execution_timeout_ms)
+        self._execution_timeout_ms = execution_timeout_ms
 
     async def execute(
         self,
@@ -347,6 +351,30 @@ class ResilientExecutionService:
         max_output_tokens: int,
         provider_timeout_seconds: float = 30.0,
         safety: FallbackSafetyState | None = None,
+        deadline: ExecutionDeadline | None = None,
+    ) -> ResilientExecutionResult:
+        """Consume one budget for all attempts; local expiry never authorizes replay."""
+        budget = deadline or ExecutionDeadline.start(self._execution_timeout_ms, clock=self._clock)
+        return await budget.run(
+            lambda: self._execute(
+                request,
+                decision,
+                max_output_tokens=max_output_tokens,
+                provider_timeout_seconds=provider_timeout_seconds,
+                safety=safety,
+                deadline=budget,
+            )
+        )
+
+    async def _execute(
+        self,
+        request: GatewayRequest,
+        decision: RankingDecision,
+        *,
+        max_output_tokens: int,
+        provider_timeout_seconds: float,
+        safety: FallbackSafetyState | None,
+        deadline: ExecutionDeadline,
     ) -> ResilientExecutionResult:
         """Retry transient failures and fall back only within the ranked authorized candidates."""
         if decision.selected is None:
@@ -380,6 +408,7 @@ class ResilientExecutionService:
         for candidate_index, candidate in enumerate(bounded_candidates):
             deployment_id = candidate.deployment.deployment_id
             for attempt_number in range(1, self._retry_policy.max_attempts_per_deployment + 1):
+                deadline.check()
                 provider = self._resolver.resolve(candidate.deployment)
                 provider_request = ProviderRequest(
                     model=candidate.deployment.model_id,
@@ -419,7 +448,11 @@ class ResilientExecutionService:
                 retry_delay_after_span: float | None = None
                 async with AsyncExitStack() as attempt_stack:
                     await attempt_stack.enter_async_context(
-                        health_admission_scope(self._health, admission)
+                        health_admission_scope(
+                            self._health,
+                            admission,
+                            cleanup_timeout_seconds=1.0 if deadline.enabled else None,
+                        )
                     )
                     span = attempt_stack.enter_context(span_context)
                     if span is not None:
@@ -445,11 +478,13 @@ class ResilientExecutionService:
                             },
                         )
                     try:
+                        deadline.check()
                         response = await bounded_probe_call(
                             admission,
                             candidate.deployment.provider,
                             provider.generate(provider_request),
                         )
+                        deadline.check()
                         latency_ms = _latency_ms(started, self._clock())
                         if not await self._health.record_success(
                             deployment_id, latency_ms=latency_ms, admission=admission
@@ -462,6 +497,7 @@ class ResilientExecutionService:
                         )
                         raise
                     except ProviderError as exc:
+                        deadline.check()
                         latency_ms = _latency_ms(started, self._clock())
                         record_operational_attempt_best_effort(
                             self._operational_recorder,
@@ -593,6 +629,7 @@ class ResilientExecutionService:
                         )
 
                 if retry_delay_after_span is not None:
+                    deadline.check()
                     await self._sleeper(retry_delay_after_span)
                     continue
 

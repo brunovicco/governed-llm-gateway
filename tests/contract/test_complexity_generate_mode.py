@@ -42,6 +42,11 @@ from governed_llm_gateway_core.application import (
     PolicyRequestMetadata,
     RankingDecision,
 )
+from governed_llm_gateway_core.application.execution_deadline import (
+    ExecutionDeadline,
+    ExecutionDeadlineExceeded,
+)
+from governed_llm_gateway_core.application.resilience import StaticProviderResolver
 from governed_llm_gateway_core.application.streaming import (
     StreamingExecutionPlan,
     StreamingExecutionService,
@@ -325,6 +330,9 @@ def _payload() -> dict[str, object]:
 
 
 class _PlanOnlyStreamingService:
+    def start_deadline(self) -> ExecutionDeadline:
+        return ExecutionDeadline.start(None)
+
     def prepare(
         self,
         request: GatewayRequest,
@@ -332,6 +340,7 @@ class _PlanOnlyStreamingService:
         *,
         max_output_tokens: int,
         provider_timeout_seconds: float,
+        deadline: ExecutionDeadline,
     ) -> StreamingExecutionPlan:
         return StreamingExecutionPlan(
             request=request,
@@ -340,6 +349,7 @@ class _PlanOnlyStreamingService:
             replay_safe=True,
             max_output_tokens=max_output_tokens,
             provider_timeout_seconds=provider_timeout_seconds,
+            deadline=deadline,
         )
 
 
@@ -347,6 +357,7 @@ def _complexity_coordinator(
     events: list[str],
     *,
     high_unhealthy: bool = False,
+    streaming_service: StreamingExecutionService | None = None,
 ) -> ComplexityGenerateCoordinator:
     config = load_complexity_routing_document("config/routing/complexity.json")
     evaluator: ComplexityEvaluator = RecordingEvaluator(
@@ -361,7 +372,11 @@ def _complexity_coordinator(
     return ComplexityGenerateCoordinator(
         context_resolver=Resolver(),
         route_service=route_service,
-        streaming_service=cast(StreamingExecutionService, _PlanOnlyStreamingService()),
+        streaming_service=(
+            streaming_service
+            if streaming_service is not None
+            else cast(StreamingExecutionService, _PlanOnlyStreamingService())
+        ),
         health=cast(InMemoryHealthTracker, FixedHealth(high_unhealthy=high_unhealthy)),
         registry=_registry(),
         ranking_policy=_ranking_policy(),
@@ -370,6 +385,32 @@ def _complexity_coordinator(
             max_cost_usd=Decimal("1"),
         ),
     )
+
+
+def test_complexity_path_consumes_the_same_preparation_deadline_after_pdp() -> None:
+    now = [100.0]
+
+    class TimedEvents(list[str]):
+        def append(self, value: str) -> None:
+            super().append(value)
+            if value == "authorize":
+                now[0] += 1
+
+    service = StreamingExecutionService(
+        health=InMemoryHealthTracker(),
+        resolver=StaticProviderResolver({}),
+        clock=lambda: now[0],
+        execution_timeout_ms=1000,
+    )
+    events = TimedEvents()
+    coordinator = _complexity_coordinator(events, streaming_service=service)
+    with pytest.raises(ExecutionDeadlineExceeded):
+        asyncio.run(
+            coordinator.prepare(
+                api_key=_API_KEY, payload=GenerateRequestModel.model_validate(_payload())
+            )
+        )
+    assert events.count("authorize") == 1
 
 
 def _post(client: TestClient, *, mode: str | None = None) -> httpx.Response:

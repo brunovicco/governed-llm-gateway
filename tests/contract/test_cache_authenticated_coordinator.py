@@ -1,7 +1,8 @@
 """Real cache coordinator with synthetic auth/PDP/providers and a controlled RESP store."""
 
 import asyncio
-from collections.abc import AsyncGenerator, Mapping
+import time
+from collections.abc import AsyncGenerator, Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -9,6 +10,8 @@ from uuid import UUID
 
 import fakeredis.aioredis
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from governed_llm_gateway_api.client_auth import (
     EnvironmentGatewayClientSecretResolver,
     GatewayClientAuthBinding,
@@ -20,6 +23,7 @@ from governed_llm_gateway_api.stream_generate import (
     GenerateCoordinator,
     GenerateRequestModel,
     NoEligibleStreamingDeploymentError,
+    attach_generate_route,
 )
 from governed_llm_gateway_contracts import (
     Capability,
@@ -34,6 +38,7 @@ from governed_llm_gateway_core.adapters.policy_router import (
     PolicyRouterHttpAdapter,
 )
 from governed_llm_gateway_core.adapters.response_cache_redis import RedisResponseCache
+from governed_llm_gateway_core.application.execution_deadline import ExecutionDeadlineExceeded
 from governed_llm_gateway_core.application.policy import (
     PolicyDecisionError,
     PolicyDecisionErrorCode,
@@ -272,8 +277,15 @@ def _payload(
 
 
 class _Harness:
-    def __init__(self, *, cache_policy: ResponseCachePolicy | None = None) -> None:
-        self.events: list[str] = []
+    def __init__(
+        self,
+        *,
+        cache_policy: ResponseCachePolicy | None = None,
+        execution_timeout_ms: int | None = None,
+        clock: Callable[[], float] = time.monotonic,
+        events: list[str] | None = None,
+    ) -> None:
+        self.events: list[str] = [] if events is None else events
         self.client = fakeredis.aioredis.FakeRedis(decode_responses=True)
         self.cache = _ObservedCache(
             RedisResponseCache(self.client, prefix="synthetic"), self.events
@@ -336,7 +348,11 @@ class _Harness:
                 context_resolver=context,
                 route_service=route,
                 streaming_service=StreamingExecutionService(
-                    health=self.health, resolver=resolver, cache=self.cache
+                    health=self.health,
+                    resolver=resolver,
+                    cache=self.cache,
+                    execution_timeout_ms=execution_timeout_ms,
+                    clock=clock,
                 ),
                 health=self.health,
                 registry=registry,
@@ -362,6 +378,132 @@ class _Harness:
             payload=_payload(index, agent_identity=agent_identity, classification=classification),
         )
         return [event async for event in coordinator.stream(prepared)]
+
+
+class _DeadlineEvents(list[str]):
+    """Spend controlled monotonic time at one real coordinator/executor stage."""
+
+    def __init__(self, now: list[float], stage: str) -> None:
+        super().__init__()
+        self.now = now
+        self.stage = stage
+
+    def append(self, value: str) -> None:
+        super().append(value)
+        if value == self.stage:
+            self.now[0] += 1
+
+
+@pytest.mark.parametrize("stage", ["authenticate", "pdp", "preflight"])
+def test_deadline_preparation_expiry_prevents_provider_and_cache_work(stage: str) -> None:
+    async def scenario() -> None:
+        now = [100.0]
+        events = _DeadlineEvents(now, stage)
+        harness = _Harness(execution_timeout_ms=1000, clock=lambda: now[0], events=events)
+        try:
+            with pytest.raises(ExecutionDeadlineExceeded):
+                await harness.collect(_KEY_A, 1)
+            assert harness.provider.calls == []
+            assert harness.cache.reads == harness.cache.writes == []
+            assert len(harness.transport.requests) == (0 if stage == "authenticate" else 1)
+        finally:
+            await harness.client.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_coordinator_keeps_the_preparation_budget_in_the_execution_plan() -> None:
+    async def scenario() -> None:
+        now = [100.0]
+        harness = _Harness(execution_timeout_ms=1000, clock=lambda: now[0])
+        try:
+            coordinator = harness.coordinators[0]
+            prepared = await coordinator.prepare(api_key=_KEY_A, payload=_payload(1))
+            assert prepared.plan.deadline is not None
+            assert prepared.plan.deadline.remaining_seconds() == 1.0
+            assert len(harness.transport.requests) == 1
+            assert harness.transport.requests[0]["max_latency_ms"] == 1000
+            assert "execution_timeout_ms" not in harness.transport.requests[0]
+            now[0] += 1
+            events = [event async for event in coordinator.stream(prepared)]
+            assert len(events) == 1 and events[0].error is not None
+            assert events[0].error.code == ExecutionDeadlineExceeded.code
+            assert harness.provider.calls == []
+            assert harness.cache.reads == []
+        finally:
+            await harness.client.aclose()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("stage", ["cache.read", "cache.write"])
+def test_cache_io_cannot_escape_the_total_deadline(stage: str) -> None:
+    async def scenario() -> None:
+        now = [100.0]
+        events = _DeadlineEvents(now, stage)
+        harness = _Harness(execution_timeout_ms=1000, clock=lambda: now[0], events=events)
+        try:
+            result = await harness.collect(_KEY_A, 1)
+            assert (
+                result[-1].error is not None
+                and result[-1].error.code == ExecutionDeadlineExceeded.code
+            )
+            assert not result[-1].error.retryable
+            assert result[-1].execution is None
+            assert result[-1].partial is (stage == "cache.write")
+            assert len(harness.provider.calls) == (1 if stage == "cache.write" else 0)
+            assert len(harness.transport.requests) == 1
+        finally:
+            await harness.client.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_cached_answer_cannot_publish_content_after_consumer_wait_expiry() -> None:
+    async def scenario() -> None:
+        now = [100.0]
+        harness = _Harness(execution_timeout_ms=1000, clock=lambda: now[0])
+        try:
+            await harness.collect(_KEY_A, 1)
+            coordinator = harness.coordinators[0]
+            prepared = await coordinator.prepare(api_key=_KEY_A, payload=_payload(2))
+            before = await harness.health.snapshot("deployment-a")
+            stream = coordinator.stream(prepared)
+            await anext(stream)
+            now[0] += 1
+            failed = await anext(stream)
+            await stream.aclose()
+            assert failed.error is not None and failed.error.code == ExecutionDeadlineExceeded.code
+            assert not failed.partial
+            assert len(harness.provider.calls) == 1
+            assert await harness.health.snapshot("deployment-a") == before
+        finally:
+            await harness.client.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_real_coordinator_sse_integrates_local_expiry_with_no_provider_replay() -> None:
+    now = [100.0]
+    events = _DeadlineEvents(now, "cache.write")
+    harness = _Harness(execution_timeout_ms=1000, clock=lambda: now[0], events=events)
+    app = FastAPI()
+    attach_generate_route(app, harness.coordinators[0])
+    try:
+        response = TestClient(app).post(
+            "/v1/generate",
+            headers={"X-Gateway-API-Key": _KEY_A},
+            json=_payload(1).model_dump(mode="json"),
+        )
+        assert response.status_code == 200
+        assert "event: response.failed" in response.text
+        assert "event: response.completed" not in response.text
+        assert '"partial":true' in response.text
+        assert '"retryable":false' in response.text
+        assert ExecutionDeadlineExceeded.code in response.text
+        assert len(harness.provider.calls) == 1 and len(harness.transport.requests) == 1
+    finally:
+        asyncio.run(harness.client.aclose())
 
 
 def _cached(events: list[GatewayStreamEvent]) -> bool:

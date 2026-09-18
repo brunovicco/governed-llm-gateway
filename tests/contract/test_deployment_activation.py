@@ -3,6 +3,7 @@
 import asyncio
 import json
 from collections.abc import Iterator, Mapping
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -511,3 +512,22 @@ def test_valid_settings_delegate_to_existing_governed_service_graph(tmp_path: Pa
     assert services.complexity_enabled is False
     assert services.generate_coordinator._health is services.health
     assert services.streaming_service._health is services.health
+
+
+def test_configured_deadline_reaches_the_real_service_graph_without_live_io(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    _write_valid_static_deployment(root)
+    settings = replace(_settings(root), execution_timeout_ms=250)
+    services = activate_governed_deployment(
+        settings,
+        environ={
+            "GATEWAY_CLIENT_A_KEY": "synthetic-client-key",
+            "POLICY_SERVICE_A_KEY": "synthetic-pdp-key",
+            "OPENAI_API_KEY": "synthetic-provider-key",
+        },
+    )
+    budget = services.streaming_service.start_deadline()
+    assert budget.enabled
+    remaining = budget.remaining_seconds()
+    assert remaining is not None and 0 < remaining <= 0.25
+    assert settings.projection_defaults.max_latency_ms == 5000
