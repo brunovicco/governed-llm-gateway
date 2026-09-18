@@ -140,8 +140,10 @@ service composition path. The process owns it until the runner exits and perform
 `shutdown()` in a `finally` boundary. Shutdown failure is suppressed with a static warning so it cannot
 mask activation/runner behavior or become an inference dependency.
 
-`/livez` and `/readyz` remain derived from successful bootstrap only. Exporter state, Collector
-availability, flush success and shutdown success do not participate in either endpoint.
+`/livez` remains process-only; default `/readyz` remains derived from successful bootstrap.
+Explicit ADR-0026 PDP pooling adds a local ASGI owner-state check, not an upstream probe.
+Exporter state, Collector availability, flush success and shutdown success still do not participate
+in either endpoint. See [PDP pool lifecycle](PDP_POOL_LIFECYCLE.md).
 
 ## Routing and authorization evidence
 

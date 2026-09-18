@@ -4,7 +4,7 @@
 
 PC-14 adds bounded process-only liveness and readiness surfaces to the executable Gateway process introduced by PC-13.
 
-The health contract deliberately does not reuse deployment/provider circuit state and does not probe external dependencies. Process health answers only whether this already-bootstrapped ASGI application is serving and whether the configuration/bootstrap boundary completed before it was exposed to the server runner.
+The health contract deliberately does not reuse deployment/provider circuit state and does not probe external dependencies. By default, process health answers only whether this already-bootstrapped ASGI application is serving and whether the configuration/bootstrap boundary completed before it was exposed to the server runner. Explicit ADR-0026 pooling additionally checks the local ASGI owner state.
 
 ## Endpoints
 
@@ -49,11 +49,18 @@ PC-13 does not hand the application to the ASGI runner until PC-12 has successfu
 
 PC-14 attaches `/livez` and `/readyz` only after that activation returns successfully and before server handoff.
 
-`/readyz` therefore means only:
+By default, `/readyz` therefore means only:
 
 > This ASGI application passed the complete pre-server deployment/bootstrap boundary for this process.
 
 If bootstrap fails, the runner is never invoked and no ready application is exposed.
+
+With explicit `--pdp-http-pool`, readiness also requires successful local pool startup on the
+serving loop. Before startup, after shutdown or on another loop, `/readyz` returns HTTP 503 with
+the fixed code `policy_transport_not_ready`. This checks lifecycle state only: pool construction
+opens no connection and proves neither TLS establishment nor PDP/provider reachability. Startup
+failure prevents normal Uvicorn serving; new policy exchanges remain fail closed if a custom runner
+omits lifespan. See [PDP pool lifecycle](PDP_POOL_LIFECYCLE.md).
 
 ## What readiness does not mean
 
@@ -93,7 +100,6 @@ PC-14 does not add:
 
 - remote dependency probes;
 - provider-health aggregation into readiness;
-- FastAPI lifespan-managed readiness transitions;
 - graceful-drain/readiness transition semantics;
 - OpenTelemetry initialization, flush or shutdown lifecycle;
 - readiness failure caused by telemetry export failure;
@@ -102,4 +108,6 @@ PC-14 does not add:
 - Collector, Tempo, Grafana or Langfuse activation;
 - Phase 14 consumer integration.
 
-Those remain separate increments because process readiness, telemetry lifecycle and distributed deployment semantics have different availability and governance boundaries.
+ADR-0026 adds only the explicitly selected PDP owner's local lifespan readiness transitions.
+The remaining concerns stay separate because telemetry lifecycle, graceful draining and distributed
+deployment semantics have different availability and governance boundaries.

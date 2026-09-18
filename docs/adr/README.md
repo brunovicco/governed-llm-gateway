@@ -25,6 +25,7 @@ Accepted after Phase 0 when implementation evidence became available:
 - [ADR-0020 — Authenticated response-cache identity](ADR-0020-authenticated-response-cache-identity.md)
 - [ADR-0024 — Explicit local execution deadline](ADR-0024-explicit-execution-deadline.md)
 - [ADR-0025 — Explicit PDP-only connection pooling](ADR-0025-pdp-connection-pooling.md)
+- [ADR-0026 — Explicit ASGI-owned PDP pool lifecycle](ADR-0026-asgi-owned-pdp-pool-lifecycle.md)
 
 The ADR numbers preserve the original roadmap reservations. Acceptance order follows implementation
 evidence rather than numeric order; later decisions do not rewrite earlier accepted records.

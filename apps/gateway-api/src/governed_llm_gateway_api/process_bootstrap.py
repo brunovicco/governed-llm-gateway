@@ -16,6 +16,7 @@ from governed_llm_gateway_core.adapters import (
     load_provider_runtime_document,
     validate_provider_runtime_registry,
 )
+from governed_llm_gateway_core.adapters.policy_router import PolicyTransport
 from governed_llm_gateway_core.application.resilience import StaticProviderResolver
 from governed_llm_gateway_core.domain import ModelRegistry
 
@@ -223,10 +224,16 @@ def materialize_governed_process_runtime(
     client_secrets: GatewayClientSecretResolver,
     policy_router_secrets: PolicyRouterSecretResolver,
     provider_secrets: ProviderSecretResolver,
+    policy_router_transport: PolicyTransport | None = None,
 ) -> GovernedProcessRuntimeBundle:
     """Resolve server-side credentials only after the complete no-secret stage succeeds."""
     if not isinstance(artifacts, GovernedProcessArtifacts):
         raise TypeError("artifacts must use GovernedProcessArtifacts")
+    if (
+        policy_router_transport is not None
+        and not artifacts.policy_router_runtime_document.runtime.enabled
+    ):
+        raise ValueError("disabled PDP cannot borrow a transport")
 
     # Resolve identity and authority credentials before provider credentials. This ordering is
     # operational least privilege only; it does not grant or widen authorization.
@@ -241,6 +248,7 @@ def materialize_governed_process_runtime(
     policy_router_adapter = build_policy_router_adapter(
         artifacts.policy_router_runtime_document.runtime,
         policy_router_secrets,
+        transport=policy_router_transport,
     )
     provider_resolver = build_static_provider_resolver(
         artifacts.provider_runtime_document.bindings,
@@ -262,6 +270,7 @@ def bootstrap_governed_process_runtime(
     client_secrets: GatewayClientSecretResolver,
     policy_router_secrets: PolicyRouterSecretResolver,
     provider_secrets: ProviderSecretResolver,
+    policy_router_transport: PolicyTransport | None = None,
 ) -> GovernedProcessRuntimeBundle:
     """Validate all artifacts first, then materialize secret-backed runtime adapters."""
     artifacts = load_governed_process_artifacts(paths)
@@ -270,4 +279,5 @@ def bootstrap_governed_process_runtime(
         client_secrets=client_secrets,
         policy_router_secrets=policy_router_secrets,
         provider_secrets=provider_secrets,
+        policy_router_transport=policy_router_transport,
     )

@@ -56,6 +56,11 @@ The environment mapping itself may be supplied explicitly for tests or defaults 
   timeout. Invalid values fail before secret access; the accepted value passes through activation,
   application bootstrap and service composition to both generation modes. See
   [ADR-0024](../adr/ADR-0024-explicit-execution-deadline.md).
+- optional server-owned `policy_router_pool: PolicyRouterHttpPoolSettings | None`, off by default.
+  The executable flag is `--pdp-http-pool`. Finite limits and enabled HTTPS compatibility validate
+  before any secret lookup; backend construction waits for ASGI startup. Runtime JSON schema and
+  profiles are unchanged. See [PDP pool lifecycle](PDP_POOL_LIFECYCLE.md) and
+  [ADR-0026](../adr/ADR-0026-asgi-owned-pdp-pool-lifecycle.md).
 
 Relative artifact paths are resolved against `deployment_root`. Their resolved path must remain inside that root. This prevents a deployment-relative declaration such as `../other/registry.yaml` from silently escaping the reviewed deployment tree.
 

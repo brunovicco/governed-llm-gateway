@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from governed_llm_gateway_core.adapters.observability_otel import OpenTelemetryObservability
 
 from .deployment_activation import GovernedDeploymentSettings, activate_governed_deployment
+from .policy_router_lifecycle import PolicyRouterHttpPoolSettings, PolicyRouterPoolLifecycle
 from .process_health import attach_process_health_routes
 from .shared_health_bootstrap import SharedHealthSettings, build_health_tracker
 
@@ -42,8 +43,25 @@ class ServerRunner(Protocol):
 class UvicornServerRunner:
     """Production ASGI runner for the governed Gateway process."""
 
+    def __init__(self, *, require_lifespan: bool = False) -> None:
+        """Require resource ownership only for explicitly selected pooled applications."""
+        if not isinstance(require_lifespan, bool):
+            raise TypeError("require_lifespan must be boolean")
+        self._require_lifespan = require_lifespan
+
     def run(self, app: FastAPI, *, host: str, port: int) -> None:
         """Run exactly one Uvicorn worker around an already-composed application."""
+        if self._require_lifespan:
+            uvicorn.run(
+                app,
+                host=host,
+                port=port,
+                workers=1,
+                server_header=False,
+                proxy_headers=False,
+                lifespan="on",
+            )
+            return
         uvicorn.run(
             app,
             host=host,
@@ -116,6 +134,7 @@ def parse_server_args(argv: Sequence[str]) -> GovernedServerSettings:
         default_max_latency_ms=args.default_max_latency_ms,
         default_max_cost_usd=args.default_max_cost_usd,
         execution_timeout_ms=args.execution_timeout_ms,
+        policy_router_pool=_parse_policy_pool_settings(args),
     )
     return GovernedServerSettings(
         deployment=deployment,
@@ -150,8 +169,17 @@ def run_governed_server(
             # one replica and a real limitation for more than one.
             health=build_health_tracker(settings.shared_health),
         )
-        attach_process_health_routes(services.app)
-        selected_runner = UvicornServerRunner() if runner is None else runner
+        lifecycle: PolicyRouterPoolLifecycle | None = getattr(
+            services, "policy_router_lifecycle", None
+        )
+        attach_process_health_routes(
+            services.app, readiness=None if lifecycle is None else lifecycle.ready
+        )
+        selected_runner = (
+            UvicornServerRunner(require_lifespan=lifecycle is not None)
+            if runner is None
+            else runner
+        )
         selected_runner.run(services.app, host=settings.host, port=settings.port)
     finally:
         _shutdown_observability_best_effort(observability)
@@ -160,6 +188,23 @@ def run_governed_server(
 def main() -> None:
     """Installed console-script entrypoint for the governed Gateway process."""
     run_governed_server(parse_server_args(sys.argv[1:]))
+
+
+def _parse_policy_pool_settings(args: argparse.Namespace) -> PolicyRouterHttpPoolSettings | None:
+    supplied = (
+        args.pdp_http_max_connections,
+        args.pdp_http_max_keepalive_connections,
+        args.pdp_http_keepalive_expiry_seconds,
+    )
+    if not args.pdp_http_pool:
+        if any(value is not None for value in supplied):
+            raise ValueError("PDP pool limits require explicit --pdp-http-pool")
+        return None
+    return PolicyRouterHttpPoolSettings(
+        max_connections=8 if supplied[0] is None else supplied[0],
+        max_keepalive_connections=8 if supplied[1] is None else supplied[1],
+        keepalive_expiry_seconds=30.0 if supplied[2] is None else supplied[2],
+    )
 
 
 def _parse_shared_health_settings(args: argparse.Namespace) -> SharedHealthSettings | None:
@@ -242,6 +287,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--default-max-latency-ms", required=True, type=int)
     parser.add_argument("--default-max-cost-usd", required=True, type=Decimal)
     parser.add_argument("--execution-timeout-ms", type=int)
+    parser.add_argument("--pdp-http-pool", action="store_true")
+    parser.add_argument("--pdp-http-max-connections", type=int)
+    parser.add_argument("--pdp-http-max-keepalive-connections", type=int)
+    parser.add_argument("--pdp-http-keepalive-expiry-seconds", type=float)
     parser.add_argument("--host", default=_DEFAULT_HOST)
     parser.add_argument("--port", default=_DEFAULT_PORT, type=int)
     parser.add_argument("--shared-health-url")

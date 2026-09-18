@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Protocol, TypeGuard
 from urllib.parse import urlsplit
 
-from .policy_router import PolicyRouterHttpAdapter
+from .policy_router import PolicyRouterHttpAdapter, PolicyTransport
 from .policy_router_loopback import LoopbackHttpPolicyTransport, is_literal_loopback_host
 
 _IDENTIFIER = re.compile(r"^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$")
@@ -112,11 +112,15 @@ class EnvironmentPolicyRouterSecretResolver:
 def build_policy_router_adapter(
     config: PolicyRouterRuntimeConfig,
     secrets: PolicyRouterSecretResolver,
+    *,
+    transport: PolicyTransport | None = None,
 ) -> PolicyRouterHttpAdapter | None:
     """Resolve server-side credentials only after a complete runtime config is validated."""
     if not isinstance(config, PolicyRouterRuntimeConfig):
         raise TypeError("config must use PolicyRouterRuntimeConfig")
     if not config.enabled:
+        if transport is not None:
+            raise PolicyRouterRuntimeConfigurationError("disabled PDP cannot borrow a transport")
         return None
 
     endpoint = config.endpoint
@@ -141,7 +145,8 @@ def build_policy_router_adapter(
             )
         credentials[binding.client_id] = credential
 
-    transport = LoopbackHttpPolicyTransport() if urlsplit(endpoint).scheme == "http" else None
+    if transport is None and urlsplit(endpoint).scheme == "http":
+        transport = LoopbackHttpPolicyTransport()
     return PolicyRouterHttpAdapter(
         endpoint=endpoint,
         api_keys_by_client=credentials,
