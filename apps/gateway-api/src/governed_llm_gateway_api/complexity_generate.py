@@ -2,11 +2,12 @@
 
 from collections.abc import AsyncGenerator
 
-from governed_llm_gateway_contracts import GatewayStreamEvent
+from governed_llm_gateway_contracts import GatewayRequest, GatewayStreamEvent
 from governed_llm_gateway_core.application import (
     ComplexityRouteExplainService,
     PolicyProjectionDefaults,
 )
+from governed_llm_gateway_core.application.execution_deadline import ExecutionDeadline
 from governed_llm_gateway_core.application.health import DeploymentHealthPort
 from governed_llm_gateway_core.application.streaming import StreamingExecutionService
 from governed_llm_gateway_core.domain.evidence_ranking import EvidenceDrivenRankingPolicy
@@ -51,14 +52,32 @@ class ComplexityGenerateCoordinator:
     ) -> PreparedStreamingExecution:
         """Finish auth, PDP, complexity narrowing, and ranking before SSE begins."""
         request = payload.to_gateway_request()
+        deadline = self._streaming_service.start_deadline()
+        return await deadline.run(
+            lambda: self._prepare(
+                api_key=api_key, payload=payload, request=request, deadline=deadline
+            )
+        )
+
+    async def _prepare(
+        self,
+        *,
+        api_key: str,
+        payload: GenerationPayload,
+        request: GatewayRequest,
+        deadline: ExecutionDeadline,
+    ) -> PreparedStreamingExecution:
+        """Use the same admission budget as the operational routing path."""
         effective_context = await self._context_resolver.resolve(
             api_key=api_key,
             request=request,
         )
+        deadline.check()
         deployment_ids = tuple(
             sorted(deployment.deployment_id for deployment in self._registry.deployments)
         )
         runtime_health = await self._health.snapshots(deployment_ids)
+        deadline.check()
         decision = await self._route_service.explain(
             request,
             effective_context,
@@ -79,6 +98,7 @@ class ComplexityGenerateCoordinator:
             ranking,
             max_output_tokens=payload.max_output_tokens,
             provider_timeout_seconds=payload.provider_timeout_seconds,
+            deadline=deadline,
         )
         return PreparedStreamingExecution(plan=plan)
 

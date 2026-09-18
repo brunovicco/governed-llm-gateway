@@ -13,6 +13,7 @@ from governed_llm_gateway_core.adapters import (
 )
 from governed_llm_gateway_core.adapters.operational_evidence_json import load_operational_evidence
 from governed_llm_gateway_core.application import PolicyProjectionDefaults
+from governed_llm_gateway_core.application.execution_deadline import validate_execution_timeout_ms
 from governed_llm_gateway_core.application.health import DeploymentHealthPort
 from governed_llm_gateway_core.application.observability import ObservabilityPort
 from governed_llm_gateway_core.domain.model_registry import ModelRegistry
@@ -203,8 +204,10 @@ def materialize_governed_application_services(
     observability: ObservabilityPort | None = None,
     retry_policy: RetryPolicy | None = None,
     health: DeploymentHealthPort | None = None,
+    execution_timeout_ms: int | None = None,
 ) -> GovernedGatewayServices:
     """Resolve secrets only after routing artifacts validated, then delegate to PC-9."""
+    validate_execution_timeout_ms(execution_timeout_ms)
     if not isinstance(artifacts, GovernedApplicationArtifacts):
         raise TypeError("artifacts must use GovernedApplicationArtifacts")
 
@@ -223,6 +226,7 @@ def materialize_governed_application_services(
         observability=observability,
         retry_policy=retry_policy,
         health=health,
+        execution_timeout_ms=execution_timeout_ms,
     )
 
 
@@ -236,8 +240,10 @@ def bootstrap_governed_application_services(
     observability: ObservabilityPort | None = None,
     retry_policy: RetryPolicy | None = None,
     health: DeploymentHealthPort | None = None,
+    execution_timeout_ms: int | None = None,
 ) -> GovernedGatewayServices:
     """Validate every deployment artifact before materializing any secret-backed service."""
+    validate_execution_timeout_ms(execution_timeout_ms)
     artifacts = load_governed_application_artifacts(paths)
     return materialize_governed_application_services(
         artifacts,
@@ -248,4 +254,5 @@ def bootstrap_governed_application_services(
         observability=observability,
         retry_policy=retry_policy,
         health=health,
+        execution_timeout_ms=execution_timeout_ms,
     )

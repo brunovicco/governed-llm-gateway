@@ -8,11 +8,12 @@ import base64
 import binascii
 import json
 from collections.abc import AsyncGenerator
+from contextlib import aclosing
 from typing import Annotated, Literal
 from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Response
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from governed_llm_gateway_contracts import (
     AudioBlock,
     AudioMediaType,
@@ -36,6 +37,7 @@ from governed_llm_gateway_contracts import (
 )
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .deadline_response import DeadlineStreamingResponse, TerminalFailureFrame
 from .protocol_common import (
     ProtocolGenerationPayload,
     build_protocol_payload,
@@ -473,7 +475,7 @@ def attach_openai_responses_route(app: FastAPI, coordinator: GenerateCoordinator
             **safe_provenance_headers(prepared.decision.routing),
         }
         if payload.stream:
-            return StreamingResponse(
+            return DeadlineStreamingResponse(
                 _openai_stream(
                     coordinator,
                     prepared,
@@ -481,6 +483,7 @@ def attach_openai_responses_route(app: FastAPI, coordinator: GenerateCoordinator
                     model_alias=payload.model,
                 ),
                 media_type="text/event-stream",
+                deadline=prepared.plan.deadline,
                 headers=headers,
             )
         body = await _openai_aggregate(
@@ -506,19 +509,21 @@ async def _openai_aggregate(
     calls: list[ToolCall] = []
     input_tokens = 0
     output_tokens = 0
-    async for event in coordinator.stream(prepared):
-        if event.event_type is StreamEventType.CONTENT_DELTA and event.delta is not None:
-            text.append(event.delta)
-        elif (
-            event.event_type is StreamEventType.TOOL_CALL_COMPLETED and event.tool_call is not None
-        ):
-            calls.append(event.tool_call)
-        elif event.event_type is StreamEventType.USAGE_COMPLETED and event.usage is not None:
-            input_tokens = event.usage.input_tokens
-            output_tokens = event.usage.output_tokens
-        elif event.event_type is StreamEventType.RESPONSE_FAILED:
-            code = event.error.code if event.error is not None else "gateway_stream_failed"
-            return _openai_error(502, code)
+    async with aclosing(coordinator.stream(prepared)) as events:
+        async for event in events:
+            if event.event_type is StreamEventType.CONTENT_DELTA and event.delta is not None:
+                text.append(event.delta)
+            elif (
+                event.event_type is StreamEventType.TOOL_CALL_COMPLETED
+                and event.tool_call is not None
+            ):
+                calls.append(event.tool_call)
+            elif event.event_type is StreamEventType.USAGE_COMPLETED and event.usage is not None:
+                input_tokens = event.usage.input_tokens
+                output_tokens = event.usage.output_tokens
+            elif event.event_type is StreamEventType.RESPONSE_FAILED:
+                code = event.error.code if event.error is not None else "gateway_stream_failed"
+                return _openai_error(504 if code == "execution_deadline_exceeded" else 502, code)
     output: list[dict[str, object]] = []
     if text:
         output.append(
@@ -552,213 +557,227 @@ async def _openai_stream(
     input_tokens = 0
     output_tokens = 0
     text_started = False
+    usage_seen = False
     text_index = 0
     next_output_index = 0
     message_id = f"msg_{response_id[5:]}"
 
-    async for event in coordinator.stream(prepared):
-        if event.event_type is StreamEventType.RESPONSE_STARTED:
-            sequence += 1
-            yield _openai_sse(
-                "response.created",
-                {
-                    "type": "response.created",
-                    "sequence_number": sequence,
-                    "response": _response_object(
-                        response_id=response_id,
-                        model_alias=model_alias,
-                        status="in_progress",
-                        output=[],
-                    ),
-                },
-            )
-        elif event.event_type is StreamEventType.CONTENT_DELTA and event.delta is not None:
-            if not text_started:
-                text_started = True
-                text_index = next_output_index
-                next_output_index += 1
+    async with aclosing(coordinator.stream(prepared)) as events:
+        async for event in events:
+            if event.event_type is StreamEventType.RESPONSE_STARTED:
                 sequence += 1
                 yield _openai_sse(
-                    "response.output_item.added",
+                    "response.created",
                     {
-                        "type": "response.output_item.added",
+                        "type": "response.created",
                         "sequence_number": sequence,
-                        "output_index": text_index,
-                        "item": _message_output_item(
-                            "",
-                            item_id=message_id,
+                        "response": _response_object(
+                            response_id=response_id,
+                            model_alias=model_alias,
                             status="in_progress",
+                            output=[],
                         ),
                     },
                 )
+            elif event.event_type is StreamEventType.CONTENT_DELTA and event.delta is not None:
+                if not text_started:
+                    text_started = True
+                    text_index = next_output_index
+                    next_output_index += 1
+                    sequence += 1
+                    yield _openai_sse(
+                        "response.output_item.added",
+                        {
+                            "type": "response.output_item.added",
+                            "sequence_number": sequence,
+                            "output_index": text_index,
+                            "item": _message_output_item(
+                                "",
+                                item_id=message_id,
+                                status="in_progress",
+                            ),
+                        },
+                    )
+                    sequence += 1
+                    yield _openai_sse(
+                        "response.content_part.added",
+                        {
+                            "type": "response.content_part.added",
+                            "sequence_number": sequence,
+                            "item_id": message_id,
+                            "output_index": text_index,
+                            "content_index": 0,
+                            "part": {"type": "output_text", "text": "", "annotations": []},
+                        },
+                    )
+                text.append(event.delta)
                 sequence += 1
                 yield _openai_sse(
-                    "response.content_part.added",
+                    "response.output_text.delta",
                     {
-                        "type": "response.content_part.added",
+                        "type": "response.output_text.delta",
                         "sequence_number": sequence,
                         "item_id": message_id,
                         "output_index": text_index,
                         "content_index": 0,
-                        "part": {"type": "output_text", "text": "", "annotations": []},
-                    },
-                )
-            text.append(event.delta)
-            sequence += 1
-            yield _openai_sse(
-                "response.output_text.delta",
-                {
-                    "type": "response.output_text.delta",
-                    "sequence_number": sequence,
-                    "item_id": message_id,
-                    "output_index": text_index,
-                    "content_index": 0,
-                    "delta": event.delta,
-                },
-            )
-        elif event.event_type is StreamEventType.TOOL_CALL_STARTED:
-            if event.tool_call_id is not None and event.tool_name is not None:
-                output_index = next_output_index
-                next_output_index += 1
-                tool_indexes[event.tool_call_id] = output_index
-                sequence += 1
-                yield _openai_sse(
-                    "response.output_item.added",
-                    {
-                        "type": "response.output_item.added",
-                        "sequence_number": sequence,
-                        "output_index": output_index,
-                        "item": {
-                            "id": f"fc_{event.tool_call_id}",
-                            "type": "function_call",
-                            "status": "in_progress",
-                            "call_id": event.tool_call_id,
-                            "name": event.tool_name,
-                            "arguments": "",
-                        },
-                    },
-                )
-        elif event.event_type is StreamEventType.TOOL_CALL_ARGUMENTS_DELTA:
-            if event.tool_call_id is not None and event.delta is not None:
-                sequence += 1
-                yield _openai_sse(
-                    "response.function_call_arguments.delta",
-                    {
-                        "type": "response.function_call_arguments.delta",
-                        "sequence_number": sequence,
-                        "item_id": f"fc_{event.tool_call_id}",
-                        "output_index": tool_indexes[event.tool_call_id],
                         "delta": event.delta,
                     },
                 )
-        elif event.event_type is StreamEventType.TOOL_CALL_COMPLETED:
-            if event.tool_call is not None:
-                output_index = tool_indexes[event.tool_call.call_id]
-                completed_item = _function_output_item(event.tool_call)
-                completed_output[output_index] = completed_item
+            elif event.event_type is StreamEventType.TOOL_CALL_STARTED:
+                if event.tool_call_id is not None and event.tool_name is not None:
+                    output_index = next_output_index
+                    next_output_index += 1
+                    tool_indexes[event.tool_call_id] = output_index
+                    sequence += 1
+                    yield _openai_sse(
+                        "response.output_item.added",
+                        {
+                            "type": "response.output_item.added",
+                            "sequence_number": sequence,
+                            "output_index": output_index,
+                            "item": {
+                                "id": f"fc_{event.tool_call_id}",
+                                "type": "function_call",
+                                "status": "in_progress",
+                                "call_id": event.tool_call_id,
+                                "name": event.tool_name,
+                                "arguments": "",
+                            },
+                        },
+                    )
+            elif event.event_type is StreamEventType.TOOL_CALL_ARGUMENTS_DELTA:
+                if event.tool_call_id is not None and event.delta is not None:
+                    sequence += 1
+                    yield _openai_sse(
+                        "response.function_call_arguments.delta",
+                        {
+                            "type": "response.function_call_arguments.delta",
+                            "sequence_number": sequence,
+                            "item_id": f"fc_{event.tool_call_id}",
+                            "output_index": tool_indexes[event.tool_call_id],
+                            "delta": event.delta,
+                        },
+                    )
+            elif event.event_type is StreamEventType.TOOL_CALL_COMPLETED:
+                if event.tool_call is not None:
+                    output_index = tool_indexes[event.tool_call.call_id]
+                    completed_item = _function_output_item(event.tool_call)
+                    completed_output[output_index] = completed_item
+                    sequence += 1
+                    yield _openai_sse(
+                        "response.function_call_arguments.done",
+                        {
+                            "type": "response.function_call_arguments.done",
+                            "sequence_number": sequence,
+                            "item_id": f"fc_{event.tool_call.call_id}",
+                            "output_index": output_index,
+                            "arguments": json.dumps(
+                                event.tool_call.arguments,
+                                separators=(",", ":"),
+                            ),
+                        },
+                    )
+                    sequence += 1
+                    yield _openai_sse(
+                        "response.output_item.done",
+                        {
+                            "type": "response.output_item.done",
+                            "sequence_number": sequence,
+                            "output_index": output_index,
+                            "item": completed_item,
+                        },
+                    )
+            elif event.event_type is StreamEventType.USAGE_COMPLETED and event.usage is not None:
+                usage_seen = True
+                input_tokens = event.usage.input_tokens
+                output_tokens = event.usage.output_tokens
+            elif event.event_type is StreamEventType.RESPONSE_COMPLETED:
+                if text_started:
+                    sequence += 1
+                    yield _openai_sse(
+                        "response.output_text.done",
+                        {
+                            "type": "response.output_text.done",
+                            "sequence_number": sequence,
+                            "item_id": message_id,
+                            "output_index": text_index,
+                            "content_index": 0,
+                            "text": "".join(text),
+                        },
+                    )
+                    final_text = "".join(text)
+                    final_part = {"type": "output_text", "text": final_text, "annotations": []}
+                    sequence += 1
+                    yield _openai_sse(
+                        "response.content_part.done",
+                        {
+                            "type": "response.content_part.done",
+                            "sequence_number": sequence,
+                            "item_id": message_id,
+                            "output_index": text_index,
+                            "content_index": 0,
+                            "part": final_part,
+                        },
+                    )
+                    completed_message = _message_output_item(final_text, item_id=message_id)
+                    completed_output[text_index] = completed_message
+                    sequence += 1
+                    yield _openai_sse(
+                        "response.output_item.done",
+                        {
+                            "type": "response.output_item.done",
+                            "sequence_number": sequence,
+                            "output_index": text_index,
+                            "item": completed_message,
+                        },
+                    )
+                output = [completed_output[index] for index in sorted(completed_output)]
                 sequence += 1
                 yield _openai_sse(
-                    "response.function_call_arguments.done",
+                    "response.completed",
                     {
-                        "type": "response.function_call_arguments.done",
+                        "type": "response.completed",
                         "sequence_number": sequence,
-                        "item_id": f"fc_{event.tool_call.call_id}",
-                        "output_index": output_index,
-                        "arguments": json.dumps(
-                            event.tool_call.arguments,
-                            separators=(",", ":"),
-                        ),
-                    },
-                )
-                sequence += 1
-                yield _openai_sse(
-                    "response.output_item.done",
-                    {
-                        "type": "response.output_item.done",
-                        "sequence_number": sequence,
-                        "output_index": output_index,
-                        "item": completed_item,
-                    },
-                )
-        elif event.event_type is StreamEventType.USAGE_COMPLETED and event.usage is not None:
-            input_tokens = event.usage.input_tokens
-            output_tokens = event.usage.output_tokens
-        elif event.event_type is StreamEventType.RESPONSE_COMPLETED:
-            if text_started:
-                sequence += 1
-                yield _openai_sse(
-                    "response.output_text.done",
-                    {
-                        "type": "response.output_text.done",
-                        "sequence_number": sequence,
-                        "item_id": message_id,
-                        "output_index": text_index,
-                        "content_index": 0,
-                        "text": "".join(text),
-                    },
-                )
-                final_text = "".join(text)
-                final_part = {"type": "output_text", "text": final_text, "annotations": []}
-                sequence += 1
-                yield _openai_sse(
-                    "response.content_part.done",
-                    {
-                        "type": "response.content_part.done",
-                        "sequence_number": sequence,
-                        "item_id": message_id,
-                        "output_index": text_index,
-                        "content_index": 0,
-                        "part": final_part,
-                    },
-                )
-                completed_message = _message_output_item(final_text, item_id=message_id)
-                completed_output[text_index] = completed_message
-                sequence += 1
-                yield _openai_sse(
-                    "response.output_item.done",
-                    {
-                        "type": "response.output_item.done",
-                        "sequence_number": sequence,
-                        "output_index": text_index,
-                        "item": completed_message,
-                    },
-                )
-            output = [completed_output[index] for index in sorted(completed_output)]
-            sequence += 1
-            yield _openai_sse(
-                "response.completed",
-                {
-                    "type": "response.completed",
-                    "sequence_number": sequence,
-                    "response": _response_object(
-                        response_id=response_id,
-                        model_alias=model_alias,
-                        status="completed",
-                        output=output,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                    ),
-                },
-            )
-        elif event.event_type is StreamEventType.RESPONSE_FAILED:
-            code = event.error.code if event.error is not None else "gateway_stream_failed"
-            sequence += 1
-            yield _openai_sse(
-                "response.failed",
-                {
-                    "type": "response.failed",
-                    "sequence_number": sequence,
-                    "response": {
-                        **_response_object(
+                        "response": _response_object(
                             response_id=response_id,
                             model_alias=model_alias,
-                            status="failed",
-                            output=[],
+                            status="completed",
+                            output=output,
+                            input_tokens=input_tokens,
+                            output_tokens=output_tokens,
                         ),
-                        "error": {"code": code, "message": "governed gateway execution failed"},
                     },
-                },
-            )
+                )
+            elif event.event_type is StreamEventType.RESPONSE_FAILED:
+                code = event.error.code if event.error is not None else "gateway_stream_failed"
+                sequence += 1
+                yield _openai_sse(
+                    "response.failed",
+                    {
+                        "type": "response.failed",
+                        "sequence_number": sequence,
+                        "response": {
+                            **_response_object(
+                                response_id=response_id,
+                                model_alias=model_alias,
+                                status="failed",
+                                output=[],
+                                input_tokens=input_tokens,
+                                output_tokens=output_tokens,
+                            ),
+                            "usage": (
+                                {
+                                    "input_tokens": input_tokens,
+                                    "output_tokens": output_tokens,
+                                    "total_tokens": input_tokens + output_tokens,
+                                }
+                                if usage_seen
+                                else None
+                            ),
+                            "error": {"code": code, "message": "governed gateway execution failed"},
+                        },
+                    },
+                )
 
 
 def _openai_content_block(
@@ -855,7 +874,8 @@ def _function_output_item(call: ToolCall) -> dict[str, object]:
 
 
 def _openai_sse(event: str, payload: dict[str, object]) -> str:
-    return f"event: {event}\ndata: {json.dumps(payload, separators=(',', ':'))}\n\n"
+    frame = f"event: {event}\ndata: {json.dumps(payload, separators=(',', ':'))}\n\n"
+    return TerminalFailureFrame(frame) if event == "response.failed" else frame
 
 
 def _openai_error(status_code: int, code: str) -> JSONResponse:

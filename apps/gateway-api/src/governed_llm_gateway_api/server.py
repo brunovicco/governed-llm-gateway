@@ -115,6 +115,7 @@ def parse_server_args(argv: Sequence[str]) -> GovernedServerSettings:
         operational_evidence_path=args.operational_evidence_path,
         default_max_latency_ms=args.default_max_latency_ms,
         default_max_cost_usd=args.default_max_cost_usd,
+        execution_timeout_ms=args.execution_timeout_ms,
     )
     return GovernedServerSettings(
         deployment=deployment,
@@ -240,6 +241,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--default-max-latency-ms", required=True, type=int)
     parser.add_argument("--default-max-cost-usd", required=True, type=Decimal)
+    parser.add_argument("--execution-timeout-ms", type=int)
     parser.add_argument("--host", default=_DEFAULT_HOST)
     parser.add_argument("--port", default=_DEFAULT_PORT, type=int)
     parser.add_argument("--shared-health-url")

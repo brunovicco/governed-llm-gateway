@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from governed_llm_gateway_api.openai_compatible_ingress import (
@@ -36,6 +37,7 @@ from governed_llm_gateway_contracts import (
     Usage,
     WorkloadRequirements,
 )
+from governed_llm_gateway_core.application.execution_deadline import ExecutionDeadlineExceeded
 from governed_llm_gateway_core.application.ranking import (
     RankedCandidate,
     RankingDecision,
@@ -238,6 +240,42 @@ def _body(**overrides: object) -> dict[str, object]:
     }
     payload.update(overrides)
     return payload
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_chat_deadline_failure_is_terminal_and_closes_execution(streaming: bool) -> None:
+    class ClosedCoordinator(RecordingCoordinator):
+        closed = False
+
+        async def stream(
+            self, prepared: PreparedStreamingExecution
+        ) -> AsyncGenerator[GatewayStreamEvent]:
+            del prepared
+            try:
+                yield GatewayStreamEvent(
+                    event_type=StreamEventType.RESPONSE_FAILED,
+                    request_id=REQUEST_ID,
+                    sequence_number=1,
+                    routing=_routing(),
+                    error=GatewayError(
+                        code=ExecutionDeadlineExceeded.code, message="local expiry", retryable=False
+                    ),
+                )
+            finally:
+                self.closed = True
+
+    coordinator = ClosedCoordinator()
+    response = _client(coordinator).post(
+        "/v1/chat/completions",
+        headers={"Authorization": f"Bearer {CREDENTIAL}"},
+        json=_body(stream=streaming),
+    )
+    assert response.status_code == (200 if streaming else 504)
+    assert ExecutionDeadlineExceeded.code in response.text
+    assert coordinator.closed
+    if streaming:
+        assert '"finish_reason":"error"' in response.text
+        assert "data: [DONE]" in response.text
 
 
 class AuthorityBoundaryTests(unittest.TestCase):

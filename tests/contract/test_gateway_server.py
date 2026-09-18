@@ -1,8 +1,10 @@
 """Contract tests for the explicit Gateway process entrypoint and server runner boundary."""
 
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 import uvicorn
@@ -94,6 +96,28 @@ def test_static_cli_parsing_is_deterministic_and_defaults_to_loopback(tmp_path: 
     assert first.deployment.operational_evidence_path is None
     assert first.deployment.default_max_latency_ms == 5_000
     assert first.deployment.default_max_cost_usd == Decimal("1.25")
+    assert first.deployment.execution_timeout_ms is None
+
+
+def test_deadline_cli_is_explicit_and_independent_of_selection_limits(tmp_path: Path) -> None:
+    settings = parse_server_args(
+        [*_static_argv(tmp_path.resolve()), "--execution-timeout-ms", "250"]
+    )
+    assert settings.deployment.execution_timeout_ms == 250
+    assert settings.deployment.default_max_latency_ms == 5000
+    assert settings.deployment.projection_defaults.max_latency_ms == 5000
+
+
+@pytest.mark.parametrize("value", [0, -1, 86_400_001])
+def test_invalid_deadline_cli_fails_before_activation(tmp_path: Path, value: int) -> None:
+    with pytest.raises(ValueError, match="execution_timeout_ms"):
+        parse_server_args([*_static_argv(tmp_path.resolve()), "--execution-timeout-ms", str(value)])
+
+
+@pytest.mark.parametrize("value", [True, 1.0])
+def test_deadline_settings_reject_non_integer_values(tmp_path: Path, value: object) -> None:
+    with pytest.raises(TypeError, match="execution_timeout_ms"):
+        replace(_deployment(tmp_path.resolve()), execution_timeout_ms=cast(int, value))
 
 
 def test_operations_access_cli_accepts_only_explicit_artifact_path(tmp_path: Path) -> None:

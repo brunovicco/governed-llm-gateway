@@ -23,6 +23,7 @@ from governed_llm_gateway_contracts import (
     ToolUseBlock,
     WorkloadRequirements,
 )
+from governed_llm_gateway_core.application.execution_deadline import ExecutionDeadlineExceeded
 from governed_llm_gateway_core.application.provider import (
     PreparedProviderStream,
     ProviderContentDelta,
@@ -190,6 +191,236 @@ def _rate_limit() -> ProviderError:
         retryable=True,
         status_code=429,
     )
+
+
+def test_continuous_semantic_output_does_not_renew_the_stream_deadline() -> None:
+    async def scenario() -> None:
+        now = [100.0]
+        deployment = _deployment("deployment-a", "provider-a")
+
+        class TickProvider(SequenceStreamingProvider):
+            async def stream(self, request: ProviderRequest) -> AsyncGenerator[ProviderStreamEvent]:
+                try:
+                    self.calls.append(request)
+                    yield ProviderResponseStarted(response_id="tick")
+                    for _ in range(10):
+                        now[0] += 0.4
+                        yield ProviderContentDelta(delta="tick")
+                finally:
+                    self.closed_count += 1
+
+        provider = TickProvider()
+        health = InMemoryHealthTracker()
+        service = StreamingExecutionService(
+            health=health,
+            resolver=StaticProviderResolver({("provider-a", "openai-compatible"): provider}),
+            clock=lambda: now[0],
+            execution_timeout_ms=1000,
+        )
+        events = [
+            event
+            async for event in service.stream(
+                service.prepare(_request(), _decision(deployment), max_output_tokens=64)
+            )
+        ]
+        assert [event.delta for event in events if event.delta is not None] == ["tick", "tick"]
+        assert events[-1].partial and events[-1].error is not None
+        assert events[-1].error.code == ExecutionDeadlineExceeded.code
+        assert len(provider.calls) == provider.closed_count == 1
+        assert (await health.snapshot(deployment.deployment_id)).request_count == 0
+
+    asyncio.run(scenario())
+
+
+def test_enabled_budget_allows_pre_output_retry_without_rebuilding_prepared_request() -> None:
+    provider = SequenceStreamingProvider((_rate_limit(),), _successful_stream())
+    deployment = _deployment("deployment-a", "provider-a")
+    service = StreamingExecutionService(
+        health=InMemoryHealthTracker(),
+        resolver=StaticProviderResolver({("provider-a", "openai-compatible"): provider}),
+        retry_policy=RetryPolicy(base_delay_seconds=0, max_delay_seconds=0),
+        execution_timeout_ms=10_000,
+    )
+    events = asyncio.run(_collect(service, _decision(deployment)))
+    assert events[-1].event_type is StreamEventType.RESPONSE_COMPLETED
+    assert len(provider.calls) == 2 and provider.calls[0] is provider.calls[1]
+    assert provider.calls[0].timeout_seconds == 30.0
+
+
+def test_deadline_failure_before_fallback_output_retains_actual_attempt_routing() -> None:
+    async def scenario() -> None:
+        selected = _deployment("deployment-a", "provider-a")
+        alternative = _deployment("deployment-b", "provider-b")
+        first = SequenceStreamingProvider((_rate_limit(),))
+        second = BlockingStreamingProvider(content=False)
+        service = StreamingExecutionService(
+            health=InMemoryHealthTracker(),
+            resolver=StaticProviderResolver(
+                {
+                    ("provider-a", "openai-compatible"): first,
+                    ("provider-b", "openai-compatible"): second,
+                }
+            ),
+            retry_policy=RetryPolicy(max_attempts_per_deployment=1),
+            execution_timeout_ms=20,
+        )
+        events = [
+            event
+            async for event in service.stream(
+                service.prepare(_request(), _decision(selected, alternative), max_output_tokens=64)
+            )
+        ]
+        assert len(events) == 1 and events[0].routing is not None
+        assert events[0].routing.deployment == alternative.deployment_id
+        assert events[0].routing.fallback_sequence == ("deployment-a", "deployment-b")
+        assert len(first.calls) == len(second.calls) == 1
+
+    asyncio.run(asyncio.wait_for(scenario(), 2))
+
+
+@pytest.mark.parametrize("events_read", [0, 1, 2, 3])
+def test_total_stream_deadline_includes_preparation_gap_and_consumer_wait(events_read: int) -> None:
+    async def scenario() -> None:
+        now = [100.0]
+        deployment = _deployment("deployment-a", "provider-a")
+        provider = SequenceStreamingProvider(_successful_stream())
+        health = InMemoryHealthTracker()
+        service = StreamingExecutionService(
+            health=health,
+            resolver=StaticProviderResolver({("provider-a", "openai-compatible"): provider}),
+            clock=lambda: now[0],
+            execution_timeout_ms=1000,
+        )
+        plan = service.prepare(_request(), _decision(deployment), max_output_tokens=64)
+        stream = service.stream(plan)
+        for _ in range(events_read):
+            await anext(stream)
+        now[0] += 1
+        failed = await anext(stream)
+        assert failed.event_type is StreamEventType.RESPONSE_FAILED
+        assert failed.error is not None and failed.error.code == ExecutionDeadlineExceeded.code
+        assert not failed.error.retryable
+        assert failed.partial is (events_read >= 2)
+        assert failed.sequence_number == events_read + 1
+        assert failed.execution is None, "unknown usage/cost must not be fabricated"
+        await stream.aclose()
+        assert len(provider.calls) == (1 if events_read else 0)
+        assert provider.closed_count == len(provider.calls)
+        assert (await health.snapshot(deployment.deployment_id)).request_count == 0
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("partial", [False, True])
+@pytest.mark.parametrize("half_open", [False, True])
+def test_total_stream_deadline_closes_upstream_and_releases_probe_neutrally(
+    partial: bool, half_open: bool
+) -> None:
+    async def scenario() -> None:
+        now = [100.0]
+        deployment = _deployment("deployment-a", "provider-a")
+        alternative = _deployment("deployment-b", "provider-b")
+        health = InMemoryHealthTracker(
+            CircuitBreakerPolicy(failure_threshold=1), clock=lambda: now[0]
+        )
+        if half_open:
+            await health.record_failure(deployment.deployment_id, _rate_limit(), latency_ms=1)
+            now[0] += 30
+        before = await health.snapshot(deployment.deployment_id)
+        provider = BlockingStreamingProvider(content=partial)
+        fallback = SequenceStreamingProvider(_successful_stream("forbidden"))
+        service = StreamingExecutionService(
+            health=health,
+            resolver=StaticProviderResolver(
+                {
+                    ("provider-a", "openai-compatible"): provider,
+                    ("provider-b", "openai-compatible"): fallback,
+                }
+            ),
+            execution_timeout_ms=10,
+        )
+        events = [
+            event
+            async for event in service.stream(
+                service.prepare(
+                    _request(), _decision(deployment, alternative), max_output_tokens=64
+                )
+            )
+        ]
+        assert events[-1].partial is partial
+        assert (
+            events[-1].error is not None and events[-1].error.code == ExecutionDeadlineExceeded.code
+        )
+        assert not events[-1].error.retryable
+        assert len(provider.calls) == provider.closed_count == 1 and fallback.calls == []
+        after = await health.snapshot(deployment.deployment_id)
+        assert after.request_count == before.request_count
+        assert after.success_count == before.success_count
+        if half_open:
+            assert after.circuit_state is CircuitState.HALF_OPEN
+            assert await health.allow_request(deployment.deployment_id) is not None
+
+    asyncio.run(asyncio.wait_for(scenario(), 2))
+
+
+def test_total_deadline_does_not_cancel_an_external_consumer_task_across_yield() -> None:
+    async def scenario() -> None:
+        deployment = _deployment("deployment-a", "provider-a")
+        provider = BlockingStreamingProvider(content=True)
+        service = StreamingExecutionService(
+            health=InMemoryHealthTracker(),
+            resolver=StaticProviderResolver({("provider-a", "openai-compatible"): provider}),
+            execution_timeout_ms=10,
+        )
+        stream = service.stream(
+            service.prepare(_request(), _decision(deployment), max_output_tokens=64)
+        )
+        await anext(stream)
+        await anext(stream)
+        await asyncio.sleep(0.02)
+        failed = await anext(stream)
+        assert failed.partial and failed.error is not None and not failed.error.retryable
+        await stream.aclose()
+        assert provider.closed_count == 1
+
+    asyncio.run(asyncio.wait_for(scenario(), 2))
+
+
+def test_total_deadline_covers_stream_backoff_without_retry_or_fallback() -> None:
+    async def scenario() -> None:
+        now = [100.0]
+        selected = _deployment("deployment-a", "provider-a")
+        alternative = _deployment("deployment-b", "provider-b")
+        provider = SequenceStreamingProvider((_rate_limit(),), _successful_stream("forbidden"))
+        fallback = SequenceStreamingProvider(_successful_stream("forbidden"))
+
+        async def sleeper(seconds: float) -> None:
+            now[0] += seconds
+
+        service = StreamingExecutionService(
+            health=InMemoryHealthTracker(),
+            resolver=StaticProviderResolver(
+                {
+                    ("provider-a", "openai-compatible"): provider,
+                    ("provider-b", "openai-compatible"): fallback,
+                }
+            ),
+            retry_policy=RetryPolicy(base_delay_seconds=1, max_delay_seconds=1, jitter_ratio=0),
+            clock=lambda: now[0],
+            sleeper=sleeper,
+            execution_timeout_ms=1000,
+        )
+        events = [
+            event
+            async for event in service.stream(
+                service.prepare(_request(), _decision(selected, alternative), max_output_tokens=64)
+            )
+        ]
+        assert len(events) == 1 and events[0].error is not None
+        assert events[0].error.code == ExecutionDeadlineExceeded.code
+        assert len(provider.calls) == 1 and fallback.calls == []
+
+    asyncio.run(scenario())
 
 
 async def _collect(

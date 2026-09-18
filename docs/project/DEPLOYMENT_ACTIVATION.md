@@ -50,6 +50,12 @@ The environment mapping itself may be supplied explicitly for tests or defaults 
 - optional complexity-routing path;
 - positive default maximum latency;
 - positive default maximum cost.
+- optional server-owned `execution_timeout_ms`, off by default, a plain integer in
+  1..86,400,000. The executable flag is `--execution-timeout-ms`. This is a separate local
+  execution deadline, not a change to selection/projection `max_latency_ms` or provider per-attempt
+  timeout. Invalid values fail before secret access; the accepted value passes through activation,
+  application bootstrap and service composition to both generation modes. See
+  [ADR-0024](../adr/ADR-0024-explicit-execution-deadline.md).
 
 Relative artifact paths are resolved against `deployment_root`. Their resolved path must remain inside that root. This prevents a deployment-relative declaration such as `../other/registry.yaml` from silently escaping the reviewed deployment tree.
 

@@ -28,11 +28,12 @@ import json
 import re
 import time
 from collections.abc import AsyncGenerator, Mapping, Sequence
+from contextlib import aclosing
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from governed_llm_gateway_contracts import (
     DataClassification,
     GatewayStreamEvent,
@@ -42,6 +43,7 @@ from governed_llm_gateway_contracts import (
 )
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .deadline_response import DeadlineStreamingResponse, TerminalFailureFrame
 from .stream_generate import (
     GenerateCoordinator,
     GenerateMessageModel,
@@ -232,7 +234,7 @@ def attach_openai_compatible_route(
         created = int(time.time())
 
         if payload.stream:
-            return StreamingResponse(
+            return DeadlineStreamingResponse(
                 _chunk_stream(
                     coordinator,
                     prepared,
@@ -241,6 +243,7 @@ def attach_openai_compatible_route(
                     workload=payload.model,
                 ),
                 media_type="text/event-stream",
+                deadline=prepared.plan.deadline,
                 headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
             )
 
@@ -268,27 +271,30 @@ async def _aggregate_completion(
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     evidence: dict[str, object] = {}
 
-    async for event in coordinator.stream(prepared):
-        if event.event_type is StreamEventType.CONTENT_DELTA and event.delta is not None:
-            content.append(event.delta)
-        elif event.event_type is StreamEventType.USAGE_COMPLETED and event.usage is not None:
-            usage = {
-                "prompt_tokens": event.usage.input_tokens,
-                "completion_tokens": event.usage.output_tokens,
-                "total_tokens": event.usage.input_tokens + event.usage.output_tokens,
-            }
-        elif event.event_type is StreamEventType.RESPONSE_COMPLETED:
-            finish_reason = event.finish_reason or "stop"
-            evidence = _gateway_evidence(event)
-        elif event.event_type is StreamEventType.RESPONSE_FAILED:
-            raise _openai_error(
-                status_code=502,
-                message="The governed gateway could not complete this request.",
-                error_type="api_error",
-                code=event.error.code if event.error is not None else "gateway_stream_failed",
-            )
-        elif event.event_type is StreamEventType.RESPONSE_STARTED:
-            evidence = _gateway_evidence(event)
+    async with aclosing(coordinator.stream(prepared)) as events:
+        async for event in events:
+            if event.event_type is StreamEventType.CONTENT_DELTA and event.delta is not None:
+                content.append(event.delta)
+            elif event.event_type is StreamEventType.USAGE_COMPLETED and event.usage is not None:
+                usage = {
+                    "prompt_tokens": event.usage.input_tokens,
+                    "completion_tokens": event.usage.output_tokens,
+                    "total_tokens": event.usage.input_tokens + event.usage.output_tokens,
+                }
+            elif event.event_type is StreamEventType.RESPONSE_COMPLETED:
+                finish_reason = event.finish_reason or "stop"
+                evidence = _gateway_evidence(event)
+            elif event.event_type is StreamEventType.RESPONSE_FAILED:
+                raise _openai_error(
+                    status_code=504
+                    if event.error is not None and event.error.code == "execution_deadline_exceeded"
+                    else 502,
+                    message="The governed gateway could not complete this request.",
+                    error_type="api_error",
+                    code=event.error.code if event.error is not None else "gateway_stream_failed",
+                )
+            elif event.event_type is StreamEventType.RESPONSE_STARTED:
+                evidence = _gateway_evidence(event)
 
     envelope = _completion_envelope(
         completion_id=completion_id,
@@ -317,16 +323,20 @@ async def _chunk_stream(
     workload: str,
 ) -> AsyncGenerator[str]:
     """Emit OpenAI-shaped chunks, terminating with the sentinel SDKs expect."""
-    async for event in coordinator.stream(prepared):
-        chunk = _chunk_for(
-            event,
-            completion_id=completion_id,
-            created=created,
-            workload=workload,
-        )
-        if chunk is not None:
-            yield f"data: {json.dumps(chunk, separators=(',', ':'))}\n\n"
-    yield "data: [DONE]\n\n"
+    failed = False
+    async with aclosing(coordinator.stream(prepared)) as events:
+        async for event in events:
+            chunk = _chunk_for(
+                event,
+                completion_id=completion_id,
+                created=created,
+                workload=workload,
+            )
+            if chunk is not None:
+                frame = f"data: {json.dumps(chunk, separators=(',', ':'))}\n\n"
+                failed = event.event_type is StreamEventType.RESPONSE_FAILED
+                yield TerminalFailureFrame(frame) if failed else frame
+    yield TerminalFailureFrame("data: [DONE]\n\n") if failed else "data: [DONE]\n\n"
 
 
 def _chunk_for(

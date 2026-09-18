@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from governed_llm_gateway_api.anthropic_messages_ingress import attach_anthropic_messages_route
@@ -37,6 +38,7 @@ from governed_llm_gateway_contracts import (
     Usage,
     WorkloadRequirements,
 )
+from governed_llm_gateway_core.application.execution_deadline import ExecutionDeadlineExceeded
 from governed_llm_gateway_core.application.ranking import (
     RankedCandidate,
     RankingDecision,
@@ -289,6 +291,82 @@ def _sse_events(text: str) -> list[tuple[str, dict[str, Any]]]:
             events.append((event_name, json.loads(line.removeprefix("data: "))))
             event_name = None
     return events
+
+
+@pytest.mark.parametrize("protocol", ["anthropic", "openai"])
+@pytest.mark.parametrize("streaming", [False, True])
+def test_protocol_deadline_failure_preserves_envelope_and_closes_execution(
+    protocol: str, streaming: bool
+) -> None:
+    class ClosedCoordinator(RecordingCoordinator):
+        closed = False
+
+        async def stream(
+            self, prepared: PreparedStreamingExecution
+        ) -> AsyncGenerator[GatewayStreamEvent]:
+            del prepared
+            try:
+                yield GatewayStreamEvent(
+                    event_type=StreamEventType.RESPONSE_FAILED,
+                    request_id=REQUEST_ID,
+                    sequence_number=1,
+                    routing=_routing(),
+                    error=GatewayError(
+                        code=ExecutionDeadlineExceeded.code, message="local expiry", retryable=False
+                    ),
+                )
+            finally:
+                self.closed = True
+
+    coordinator = ClosedCoordinator()
+    payload: dict[str, object] = {"model": "alias", "stream": streaming}
+    if protocol == "anthropic":
+        payload.update({"max_tokens": 50, "messages": [{"role": "user", "content": "hello"}]})
+        path = "/v1/messages"
+    else:
+        payload["input"] = "hello"
+        path = "/v1/responses"
+    response = _client(protocol, coordinator).post(
+        path, headers={"Authorization": f"Bearer {CREDENTIAL}"}, json=payload
+    )
+    assert response.status_code == (200 if streaming else 504)
+    assert ExecutionDeadlineExceeded.code in response.text
+    assert CREDENTIAL not in response.text
+    assert coordinator.closed
+    if protocol == "openai" and streaming:
+        events = _sse_events(response.text)
+        assert len(events) == 1 and events[0][0] == "response.failed"
+        assert events[0][1]["response"]["usage"] is None
+
+
+@pytest.mark.parametrize("protocol", ["anthropic", "openai"])
+def test_protocol_preparation_expiry_keeps_sanitized_504_before_stream(protocol: str) -> None:
+    class ExpiredCoordinator(RejectingPreflightCoordinator):
+        async def prepare(
+            self, *, api_key: str, payload: ProtocolGenerationPayload
+        ) -> PreparedStreamingExecution:
+            del api_key, payload
+            raise ExecutionDeadlineExceeded()
+
+    coordinator = ExpiredCoordinator()
+    if protocol == "anthropic":
+        path = "/v1/messages"
+        payload: dict[str, object] = {
+            "model": "alias",
+            "max_tokens": 50,
+            "stream": True,
+            "messages": [{"role": "user", "content": "hello"}],
+        }
+    else:
+        path = "/v1/responses"
+        payload = {"model": "alias", "input": "hello", "stream": True}
+    response = _client(protocol, coordinator).post(
+        path, headers={"Authorization": f"Bearer {CREDENTIAL}"}, json=payload
+    )
+    assert response.status_code == 504
+    assert response.headers["content-type"].startswith("application/json")
+    assert ExecutionDeadlineExceeded.code in response.text
+    assert not coordinator.stream_called
 
 
 class AnthropicIngressTests(unittest.TestCase):

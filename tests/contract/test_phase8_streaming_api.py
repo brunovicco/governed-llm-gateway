@@ -32,7 +32,9 @@ from governed_llm_gateway_core.application import (
     PolicyDecisionErrorCode,
     PolicyProjectionError,
 )
-from governed_llm_gateway_core.application.ranking import RankingInvariantViolation
+from governed_llm_gateway_core.application.execution_deadline import ExecutionDeadlineExceeded
+from governed_llm_gateway_core.application.ranking import RankingDecision, RankingInvariantViolation
+from governed_llm_gateway_core.application.streaming import StreamingExecutionPlan
 from governed_llm_gateway_core.domain.ranking import RankingPolicyError
 
 REQUEST_ID = UUID("99999999-9999-4999-8999-999999999999")
@@ -85,11 +87,26 @@ class FakeGenerateCoordinator:
         api_key: str,
         payload: GenerateRequestModel,
     ) -> PreparedStreamingExecution:
-        del payload
         self.prepared_api_key = api_key
         if self.prepare_error is not None:
             raise self.prepare_error
-        return cast(PreparedStreamingExecution, object())
+        return PreparedStreamingExecution(
+            plan=StreamingExecutionPlan(
+                request=payload.to_gateway_request(),
+                decision=RankingDecision(
+                    routing=_routing(),
+                    ranking_policy_digest="d" * 64,
+                    score_snapshot_id="static-v1",
+                    selected=None,
+                    alternatives=(),
+                    rejected_candidates=(),
+                ),
+                candidates=(),
+                replay_safe=True,
+                max_output_tokens=payload.max_output_tokens,
+                provider_timeout_seconds=payload.provider_timeout_seconds,
+            )
+        )
 
     async def stream(
         self,
@@ -169,6 +186,16 @@ def test_generate_authentication_failure_happens_before_streaming_response() -> 
 
     assert response.status_code == 401
     assert response.json() == {"detail": {"code": "invalid_gateway_credential"}}
+    assert fake.stream_calls == 0
+
+
+def test_generate_preparation_deadline_returns_sanitized_504_before_provider_stream() -> None:
+    fake = FakeGenerateCoordinator(prepare_error=ExecutionDeadlineExceeded())
+    response = TestClient(_app(fake)).post(
+        "/v1/generate", headers={"X-Gateway-API-Key": "synthetic-key"}, json=_payload()
+    )
+    assert response.status_code == 504
+    assert response.json() == {"detail": {"code": "execution_deadline_exceeded"}}
     assert fake.stream_calls == 0
 
 

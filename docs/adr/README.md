@@ -23,6 +23,7 @@ Accepted after Phase 0 when implementation evidence became available:
 - ADR-0016 — Pinned external Policy Router in governed Compose
 - ADR-0017 — Deterministic streaming preflight before HTTP response commit
 - [ADR-0020 — Authenticated response-cache identity](ADR-0020-authenticated-response-cache-identity.md)
+- [ADR-0024 — Explicit local execution deadline](ADR-0024-explicit-execution-deadline.md)
 
 The ADR numbers preserve the original roadmap reservations. Acceptance order follows implementation
 evidence rather than numeric order; later decisions do not rewrite earlier accepted records.

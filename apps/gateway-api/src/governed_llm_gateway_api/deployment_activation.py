@@ -10,6 +10,7 @@ from governed_llm_gateway_core.adapters import (
     EnvironmentProviderSecretResolver,
 )
 from governed_llm_gateway_core.application import PolicyProjectionDefaults
+from governed_llm_gateway_core.application.execution_deadline import validate_execution_timeout_ms
 from governed_llm_gateway_core.application.health import DeploymentHealthPort
 from governed_llm_gateway_core.application.observability import ObservabilityPort
 from governed_llm_gateway_core.domain.resilience import RetryPolicy
@@ -41,9 +42,11 @@ class GovernedDeploymentSettings:
     complexity_routing_path: Path | None = None
     operations_access_path: Path | None = None
     operational_evidence_path: Path | None = None
+    execution_timeout_ms: int | None = None
 
     def __post_init__(self) -> None:
         """Validate settings without reading artifacts, secrets, or process environment."""
+        validate_execution_timeout_ms(self.execution_timeout_ms)
         if not isinstance(self.deployment_root, Path):
             raise TypeError("deployment_root must be a pathlib.Path")
         if not self.deployment_root.is_absolute():
@@ -164,6 +167,7 @@ def activate_governed_deployment(
         observability=observability,
         retry_policy=retry_policy,
         health=health,
+        execution_timeout_ms=settings.execution_timeout_ms,
     )
 
 

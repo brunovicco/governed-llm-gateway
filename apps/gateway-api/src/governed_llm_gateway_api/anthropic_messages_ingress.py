@@ -7,11 +7,12 @@ authority over the concrete provider/model deployment.
 
 import json
 from collections.abc import AsyncGenerator
+from contextlib import aclosing
 from typing import Annotated, Literal
 from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Response
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from governed_llm_gateway_contracts import (
     Base64Source,
     ClientProtocol,
@@ -31,6 +32,7 @@ from governed_llm_gateway_contracts import (
 )
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .deadline_response import DeadlineStreamingResponse, TerminalFailureFrame
 from .protocol_common import (
     ProtocolGenerationPayload,
     build_protocol_payload,
@@ -349,7 +351,7 @@ def attach_anthropic_messages_route(app: FastAPI, coordinator: GenerateCoordinat
             **safe_provenance_headers(prepared.decision.routing),
         }
         if payload.stream:
-            return StreamingResponse(
+            return DeadlineStreamingResponse(
                 _anthropic_stream(
                     coordinator,
                     prepared,
@@ -357,6 +359,7 @@ def attach_anthropic_messages_route(app: FastAPI, coordinator: GenerateCoordinat
                     model_alias=payload.model,
                 ),
                 media_type="text/event-stream",
+                deadline=prepared.plan.deadline,
                 headers=headers,
             )
         body = await _anthropic_aggregate(
@@ -383,21 +386,23 @@ async def _anthropic_aggregate(
     input_tokens = 0
     output_tokens = 0
     finish_reason = "end_turn"
-    async for event in coordinator.stream(prepared):
-        if event.event_type is StreamEventType.CONTENT_DELTA and event.delta is not None:
-            text.append(event.delta)
-        elif (
-            event.event_type is StreamEventType.TOOL_CALL_COMPLETED and event.tool_call is not None
-        ):
-            calls.append(event.tool_call)
-        elif event.event_type is StreamEventType.USAGE_COMPLETED and event.usage is not None:
-            input_tokens = event.usage.input_tokens
-            output_tokens = event.usage.output_tokens
-        elif event.event_type is StreamEventType.RESPONSE_COMPLETED:
-            finish_reason = _anthropic_stop_reason(event.finish_reason, calls=bool(calls))
-        elif event.event_type is StreamEventType.RESPONSE_FAILED:
-            code = event.error.code if event.error is not None else "gateway_stream_failed"
-            return _anthropic_error(502, code)
+    async with aclosing(coordinator.stream(prepared)) as events:
+        async for event in events:
+            if event.event_type is StreamEventType.CONTENT_DELTA and event.delta is not None:
+                text.append(event.delta)
+            elif (
+                event.event_type is StreamEventType.TOOL_CALL_COMPLETED
+                and event.tool_call is not None
+            ):
+                calls.append(event.tool_call)
+            elif event.event_type is StreamEventType.USAGE_COMPLETED and event.usage is not None:
+                input_tokens = event.usage.input_tokens
+                output_tokens = event.usage.output_tokens
+            elif event.event_type is StreamEventType.RESPONSE_COMPLETED:
+                finish_reason = _anthropic_stop_reason(event.finish_reason, calls=bool(calls))
+            elif event.event_type is StreamEventType.RESPONSE_FAILED:
+                code = event.error.code if event.error is not None else "gateway_stream_failed"
+                return _anthropic_error(504 if code == "execution_deadline_exceeded" else 502, code)
     content: list[dict[str, object]] = []
     if text:
         content.append({"type": "text", "text": "".join(text)})
@@ -435,118 +440,120 @@ async def _anthropic_stream(
     output_tokens = 0
     calls_seen = False
     started = False
-    async for event in coordinator.stream(prepared):
-        if event.event_type is StreamEventType.RESPONSE_STARTED:
-            started = True
-            yield _anthropic_sse(
-                "message_start",
-                {
-                    "type": "message_start",
-                    "message": {
-                        "id": response_id,
-                        "type": "message",
-                        "role": "assistant",
-                        "content": [],
-                        "model": model_alias,
-                        "stop_reason": None,
-                        "stop_sequence": None,
-                        "usage": {"input_tokens": 0, "output_tokens": 0},
-                    },
-                },
-            )
-        elif event.event_type is StreamEventType.CONTENT_DELTA and event.delta is not None:
-            if open_text_index is None:
-                open_text_index = index
-                index += 1
+    async with aclosing(coordinator.stream(prepared)) as events:
+        async for event in events:
+            if event.event_type is StreamEventType.RESPONSE_STARTED:
+                started = True
                 yield _anthropic_sse(
-                    "content_block_start",
+                    "message_start",
                     {
-                        "type": "content_block_start",
-                        "index": open_text_index,
-                        "content_block": {"type": "text", "text": ""},
-                    },
-                )
-            yield _anthropic_sse(
-                "content_block_delta",
-                {
-                    "type": "content_block_delta",
-                    "index": open_text_index,
-                    "delta": {"type": "text_delta", "text": event.delta},
-                },
-            )
-        elif event.event_type is StreamEventType.TOOL_CALL_STARTED:
-            calls_seen = True
-            if open_text_index is not None:
-                yield _anthropic_block_stop(open_text_index)
-                open_text_index = None
-            if event.tool_call_id is not None and event.tool_name is not None:
-                tool_indexes[event.tool_call_id] = index
-                yield _anthropic_sse(
-                    "content_block_start",
-                    {
-                        "type": "content_block_start",
-                        "index": index,
-                        "content_block": {
-                            "type": "tool_use",
-                            "id": event.tool_call_id,
-                            "name": event.tool_name,
-                            "input": {},
+                        "type": "message_start",
+                        "message": {
+                            "id": response_id,
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [],
+                            "model": model_alias,
+                            "stop_reason": None,
+                            "stop_sequence": None,
+                            "usage": {"input_tokens": 0, "output_tokens": 0},
                         },
                     },
                 )
-                index += 1
-        elif event.event_type is StreamEventType.TOOL_CALL_ARGUMENTS_DELTA:
-            if event.tool_call_id is not None and event.delta is not None:
+            elif event.event_type is StreamEventType.CONTENT_DELTA and event.delta is not None:
+                if open_text_index is None:
+                    open_text_index = index
+                    index += 1
+                    yield _anthropic_sse(
+                        "content_block_start",
+                        {
+                            "type": "content_block_start",
+                            "index": open_text_index,
+                            "content_block": {"type": "text", "text": ""},
+                        },
+                    )
                 yield _anthropic_sse(
                     "content_block_delta",
                     {
                         "type": "content_block_delta",
-                        "index": tool_indexes[event.tool_call_id],
-                        "delta": {"type": "input_json_delta", "partial_json": event.delta},
+                        "index": open_text_index,
+                        "delta": {"type": "text_delta", "text": event.delta},
                     },
                 )
-        elif event.event_type is StreamEventType.TOOL_CALL_COMPLETED:
-            if event.tool_call is not None:
-                yield _anthropic_block_stop(tool_indexes[event.tool_call.call_id])
-        elif event.event_type is StreamEventType.USAGE_COMPLETED and event.usage is not None:
-            output_tokens = event.usage.output_tokens
-        elif event.event_type is StreamEventType.RESPONSE_COMPLETED:
-            if open_text_index is not None:
-                yield _anthropic_block_stop(open_text_index)
-                open_text_index = None
-            yield _anthropic_sse(
-                "message_delta",
-                {
-                    "type": "message_delta",
-                    "delta": {
-                        "stop_reason": _anthropic_stop_reason(
-                            event.finish_reason,
-                            calls=calls_seen,
-                        ),
-                        "stop_sequence": None,
+            elif event.event_type is StreamEventType.TOOL_CALL_STARTED:
+                calls_seen = True
+                if open_text_index is not None:
+                    yield _anthropic_block_stop(open_text_index)
+                    open_text_index = None
+                if event.tool_call_id is not None and event.tool_name is not None:
+                    tool_indexes[event.tool_call_id] = index
+                    yield _anthropic_sse(
+                        "content_block_start",
+                        {
+                            "type": "content_block_start",
+                            "index": index,
+                            "content_block": {
+                                "type": "tool_use",
+                                "id": event.tool_call_id,
+                                "name": event.tool_name,
+                                "input": {},
+                            },
+                        },
+                    )
+                    index += 1
+            elif event.event_type is StreamEventType.TOOL_CALL_ARGUMENTS_DELTA:
+                if event.tool_call_id is not None and event.delta is not None:
+                    yield _anthropic_sse(
+                        "content_block_delta",
+                        {
+                            "type": "content_block_delta",
+                            "index": tool_indexes[event.tool_call_id],
+                            "delta": {"type": "input_json_delta", "partial_json": event.delta},
+                        },
+                    )
+            elif event.event_type is StreamEventType.TOOL_CALL_COMPLETED:
+                if event.tool_call is not None:
+                    yield _anthropic_block_stop(tool_indexes[event.tool_call.call_id])
+            elif event.event_type is StreamEventType.USAGE_COMPLETED and event.usage is not None:
+                output_tokens = event.usage.output_tokens
+            elif event.event_type is StreamEventType.RESPONSE_COMPLETED:
+                if open_text_index is not None:
+                    yield _anthropic_block_stop(open_text_index)
+                    open_text_index = None
+                yield _anthropic_sse(
+                    "message_delta",
+                    {
+                        "type": "message_delta",
+                        "delta": {
+                            "stop_reason": _anthropic_stop_reason(
+                                event.finish_reason,
+                                calls=calls_seen,
+                            ),
+                            "stop_sequence": None,
+                        },
+                        "usage": {"output_tokens": output_tokens},
                     },
-                    "usage": {"output_tokens": output_tokens},
-                },
-            )
-            yield _anthropic_sse("message_stop", {"type": "message_stop"})
-        elif event.event_type is StreamEventType.RESPONSE_FAILED:
-            code = event.error.code if event.error is not None else "gateway_stream_failed"
-            yield _anthropic_sse(
-                "error",
-                {
-                    "type": "error",
-                    "error": {
-                        "type": "api_error",
-                        "message": f"governed gateway failure: {code}",
+                )
+                yield _anthropic_sse("message_stop", {"type": "message_stop"})
+            elif event.event_type is StreamEventType.RESPONSE_FAILED:
+                code = event.error.code if event.error is not None else "gateway_stream_failed"
+                yield _anthropic_sse(
+                    "error",
+                    {
+                        "type": "error",
+                        "error": {
+                            "type": "api_error",
+                            "message": f"governed gateway failure: {code}",
+                        },
                     },
-                },
-            )
+                )
     if not started:
         return
 
 
 def _anthropic_sse(event: str, payload: dict[str, object]) -> str:
-    return f"event: {event}\ndata: {json.dumps(payload, separators=(',', ':'))}\n\n"
+    frame = f"event: {event}\ndata: {json.dumps(payload, separators=(',', ':'))}\n\n"
+    return TerminalFailureFrame(frame) if event == "error" else frame
 
 
 def _anthropic_block_stop(index: int) -> str:
