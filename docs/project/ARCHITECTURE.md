@@ -5,7 +5,9 @@
 Applications declare workload intent and requirements without naming provider/model. The Policy Model
 Router determines which logical model group is authorized. The gateway operates only inside that
 boundary, filters/ranks concrete deployments deterministically, applies bounded runtime resilience,
-normalizes structured-output/tool features, and now exposes a provider-neutral streaming lifecycle.
+normalizes provider features, and exposes provider-neutral streaming and execution evidence. Phases
+1–13 are complete; Phase 14 consumer integrations are incremental. Post-core controls described below
+are either explicitly opt-in serving features or private references, never new authorization sources.
 
 ```text
 Consumer
@@ -27,6 +29,10 @@ Governed LLM Gateway
   ├─ bounded retry / safe fallback                  Phase 6
   ├─ structured output / tool normalization         Phase 7
   ├─ streaming capability + replay boundary         Phase 8
+  ├─ metadata-only OpenTelemetry                     Phase 9
+  ├─ reviewed benchmark/ranking evidence             Phases 10–11
+  ├─ optional governance narrowing                   Phase 13
+  ├─ optional response cache / execution deadline    post-core
   ├─ final PEP checks
   └─ provider execution / normalized output
        ▼
@@ -58,11 +64,12 @@ logical group after PDP authorization.
 Stable provider-neutral immutable types. No provider SDK, FastAPI, HTTP transport, OpenTelemetry SDK,
 JSON Schema implementation, or business-domain execution dependency.
 
-The package now includes:
+The package includes:
 
 - request/response contracts and routing provenance;
 - structured-output/tool contracts from Phase 7;
-- `GatewayStreamEvent` and canonical stream-event vocabulary from Phase 8.
+- `GatewayStreamEvent`, canonical stream-event vocabulary and terminal execution provenance;
+- bounded provider-neutral multimodal and tool-result message blocks.
 
 ### gateway-core
 
@@ -70,25 +77,31 @@ The package now includes:
   validation;
 - `application`: PDP/provider ports and authorization, ranking, resilience, streaming orchestration;
 - `adapters`: strict configuration loading, Policy Model Router transport, provider integrations,
-  synchronous JSON transport, and asynchronous SSE transport.
+  synchronous JSON transport, asynchronous SSE transport and optional infrastructure adapters.
 
 Provider-specific wire semantics remain confined to adapters. The Policy Model Router Python domain is
 not imported into gateway contracts/domain; its versioned HTTP API remains the integration boundary.
 
 ### gateway-client
 
-Thin consumer boundary. Consumers should eventually hold gateway credentials only, never provider or
-PDP credentials.
+The typed thin SDK gives consumers Gateway credentials only, never provider or PDP credentials.
 
 ### gateway-api
 
 FastAPI/Pydantic composition root. Framework types do not leak into core contracts/domain.
 
-Current HTTP surfaces:
+Governed application surfaces, subject to deployment composition:
 
 - `POST /v1/route/explain` — authenticated metadata-only authorization/ranking explanation, no provider
   inference;
-- `POST /v1/generate` — authenticated governed streaming execution via SSE.
+- `POST /v1/generate` — authenticated governed streaming execution via SSE;
+- `POST /v1/chat/completions`, `/v1/messages`, and `/v1/responses` — strict protocol translations
+  into the same governed coordinator; model strings are aliases, not deployment selectors;
+- `GET /v1/ops/overview` and `/v1/ops/deployments` — separately authorized read-only operations;
+- `/livez` and `/readyz` — process health, with optional pooled-PDP local lifecycle readiness.
+
+The operations-only demo mounts no inference route. The Console is a separate read-only frontend
+with a bounded governed inference action when that route is explicitly available.
 
 ## Trust model
 
@@ -100,7 +113,9 @@ The PDP receives only prompt-free policy metadata. Messages, structured schemas,
 are not copied into the Policy Router wire request.
 
 Provider responses and SSE events remain untrusted until adapter parsing/lifecycle validation succeeds.
-Provider feature flags describe wire capability only; they do not grant model authorization.
+Provider feature flags describe wire capability only; they do not grant model authorization. Optional
+signed governance authorization is verified and forwarded to an enforcing PDP without rebuilding the
+envelope; governance can narrow, never broaden, the final set.
 
 ## Authorization-to-ranking binding
 
@@ -122,13 +137,15 @@ candidates use exact `Decimal` scoring and an ascending `deployment_id` tie-brea
 `Capability.STREAMING` is an ordinary Phase 5 capability requirement when streaming is requested. It
 must be present in registry data and therefore can only narrow the authorized set.
 
-Phase 6 runtime health is mutable operational state. When active it may only remove candidates:
+Runtime health is mutable operational state. When active it may only remove candidates:
 
 - open circuit → `circuit_breaker_open`;
 - unhealthy deployment → `deployment_unhealthy`;
 - missing health snapshot → fail closed.
 
-Runtime health is never authorization and is not written into static ranking evidence.
+Runtime health is never authorization and is not written into static ranking evidence. The reviewed
+Redis adapter can share circuit state across replicas. HALF_OPEN admits one fenced, finite probe;
+snapshots never claim it. Process-local and shared implementations preserve the same narrowing rule.
 
 ## Runtime resilience boundary
 
@@ -147,8 +164,9 @@ post-provider validation. The gateway uses a bounded Draft 2020-12 subset and re
 retrieval, unbounded regex keywords, and unenforced `format` semantics.
 
 Provider-produced business-tool calls are normalized and schema-validated. The gateway does not
-execute those tools. `ToolResult` belongs to the application/agent/MCP runtime. Missing provider
-correlation/continuation state is never invented.
+execute those tools. `ToolResult` belongs to the application/agent/MCP runtime. Ordinary canonical
+tool-use/text tool-result continuation is supported; opaque provider reasoning/signature state is
+never invented or claimed to continue losslessly.
 
 ## Streaming boundary
 
@@ -171,8 +189,9 @@ response.failed
 ### Pre-stream governance
 
 `POST /v1/generate` completes gateway authentication, trusted-context resolution, PDP authorization,
-runtime-health snapshot, deterministic ranking, and the presence of an eligible authorized streaming
-deployment **before** returning `200 text/event-stream`.
+runtime-health snapshot, deterministic ranking, and immutable provider-native preparation of every
+bounded authorized candidate **before** returning `200 text/event-stream`. Preparation performs no
+provider network I/O (ADR-0017).
 
 Policy denial, invalid caller/schema/tool contracts, ranking configuration/invariant errors, and no
 eligible candidate therefore retain normal HTTP error semantics and do not start provider execution.
@@ -206,6 +225,28 @@ cancellation is not recorded as a provider failure.
 
 See ADR-0011 and `docs/project/STREAMING.md`.
 
+## Post-core serving and reference boundaries
+
+The response cache is opt-in and limited to eligible public, text-only requests. Every lookup follows
+fresh authentication, PDP authorization and ranking. Its key binds authenticated client, accepted PDP
+policy, registry/ranking evidence and request content; a hit is served only if its deployment matches
+the current selection. Cache storage remains a separate residency and access-control concern
+(ADR-0020).
+
+The optional deployment-owned total execution deadline starts before policy preparation and continues
+through attempts, fallback, streaming and backoff. It is independent of the policy selection
+`max_latency_ms` and cannot turn expiry into provider failure or replay permission (ADR-0024).
+
+The optional PDP HTTPS pool belongs to one ASGI application lifetime and serving loop. It reuses
+connections, not decisions or signed single-use envelopes; default PDP transport remains unchanged.
+Pool readiness asserts local lifecycle state, not upstream availability (ADR-0025/0026).
+
+Observed-spend accounting, conservative spend admission, native cost evidence and provider credential
+availability have private contracts or synthetic/process-local references. They are not composed into
+current serving, and their tests do not establish production budget, billing or credential-rotation
+guarantees. See `SPEND_ACCOUNTING.md`, `SPEND_ADMISSION_REFERENCE.md`,
+`SPEND_COST_EVIDENCE_V2_PLAN.md` and `PROVIDER_CREDENTIAL_AVAILABILITY.md`.
+
 ## Provider adapter boundary
 
 Provider adapters execute selected concrete models and normalize provider wire behavior. They have zero
@@ -228,8 +269,8 @@ content to routing provenance or default evidence. Prompts, completions, structu
 arguments/results, credentials, arbitrary provider headers, and raw provider error bodies remain
 excluded from default evidence.
 
-OpenTelemetry instrumentation remains Phase 9. Phase 8 does not create telemetry authority or
-benchmark-derived ranking evidence.
+Phase 9 OpenTelemetry instrumentation is implemented with metadata-only defaults. Reviewed benchmark
+and recent operational evidence remain separate from authorization and from mutable circuit health.
 
 ## Dependency direction
 

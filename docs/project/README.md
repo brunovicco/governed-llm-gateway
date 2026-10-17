@@ -22,7 +22,7 @@ is recorded in [`CHECKPOINT_LOG.md`](CHECKPOINT_LOG.md), which is append-only.
 
 | Document | What it answers |
 | --- | --- |
-| [`CURRENT_STATE.md`](CURRENT_STATE.md) | What is true today — the authoritative checkpoint |
+| [`CURRENT_STATE.md`](CURRENT_STATE.md) | Current serving baseline, reference-only work, and validated scope |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | How authorization, selection and execution are separated |
 | [`ROADMAP.md`](ROADMAP.md) | Which phases exist, which are complete, and what comes next |
 | [`CHECKPOINT_LOG.md`](CHECKPOINT_LOG.md) | The dated, append-only proof record behind every claim |
@@ -37,6 +37,8 @@ is recorded in [`CHECKPOINT_LOG.md`](CHECKPOINT_LOG.md), which is append-only.
 | [`THREAT_MODEL.md`](THREAT_MODEL.md) | Which abuse cases are controlled, and which are deferred to a named phase |
 | [`GATEWAY_CLIENT_AUTHENTICATION.md`](GATEWAY_CLIENT_AUTHENTICATION.md) | How a consumer authenticates without ever holding a provider credential |
 | [`POLICY_ROUTER_RUNTIME.md`](POLICY_ROUTER_RUNTIME.md) | How the Gateway reaches the external policy decision point, and why that connection cannot authorize anything |
+| [`PDP_TRANSPORT_COMPARISON.md`](PDP_TRANSPORT_COMPARISON.md) | Bounded local evidence comparing per-request and pooled PDP transport |
+| [`PDP_POOL_LIFECYCLE.md`](PDP_POOL_LIFECYCLE.md) | Explicit ASGI-owned PDP HTTPS pool, readiness, shutdown and non-claims |
 | [`PDP_COMPOSITION_PROOF.md`](PDP_COMPOSITION_PROOF.md) | How to run the Gateway against a real enforcing Policy Model Router, and what that run proves |
 | [`OPERATIONS_ACCESS.md`](OPERATIONS_ACCESS.md) | Why permission to run a workload is not permission to see process-wide state |
 | [`OPERATIONS_ACCESS_ARTIFACT.md`](OPERATIONS_ACCESS_ARTIFACT.md) | How a deployment declares, without secrets, who may read operations state |
@@ -55,7 +57,17 @@ is recorded in [`CHECKPOINT_LOG.md`](CHECKPOINT_LOG.md), which is append-only.
 | [`MULTIMODAL_INPUT.md`](MULTIMODAL_INPUT.md) | What image input supports today, and what it deliberately does not |
 | [`COMPLEXITY_ROUTING.md`](COMPLEXITY_ROUTING.md) | How task complexity narrows an already-authorized set, as evidence only |
 | [`COMPLEXITY_GENERATION.md`](COMPLEXITY_GENERATION.md) | How that narrowing reaches streaming execution, behind an opt-in |
-| [`SPEND_ACCOUNTING.md`](SPEND_ACCOUNTING.md) | How estimated spend accumulates per client and workload, and how a budget refuses a request |
+| [`SPEND_ACCOUNTING.md`](SPEND_ACCOUNTING.md) | Observed-spend components and why they are not current serving enforcement |
+| [`SPEND_ADMISSION_CONTRACTS.md`](SPEND_ADMISSION_CONTRACTS.md) | Private conservative reservation/settlement port and value contracts |
+| [`SPEND_ADMISSION_REFERENCE.md`](SPEND_ADMISSION_REFERENCE.md) | Process-local synthetic spend-admission reference and its proof limits |
+| [`SPEND_COST_EVIDENCE_CONTRACTS.md`](SPEND_COST_EVIDENCE_CONTRACTS.md) | Private two-rate cost-bound and finality contracts |
+| [`SPEND_COST_EVIDENCE_REFERENCE.md`](SPEND_COST_EVIDENCE_REFERENCE.md) | Synthetic version-one cost-evidence source and non-claims |
+| [`SPEND_COST_EVIDENCE_V2_CONTRACTS.md`](SPEND_COST_EVIDENCE_V2_CONTRACTS.md) | Private cache-category pricing values and exact arithmetic |
+| [`SPEND_COST_EVIDENCE_V2_REFERENCE.md`](SPEND_COST_EVIDENCE_V2_REFERENCE.md) | Finite synthetic version-two lookup reference |
+| [`SPEND_COST_EVIDENCE_V2_PLAN.md`](SPEND_COST_EVIDENCE_V2_PLAN.md) | Remaining trusted-source, finality and activation slices |
+| [`SPEND_OPENAI_CAPABILITY_ASSESSMENT.md`](SPEND_OPENAI_CAPABILITY_ASSESSMENT.md) | Evidence limits for native OpenAI cost accounting |
+| [`SPEND_OPENAI_INPUT_COUNT_PROJECTION.md`](SPEND_OPENAI_INPUT_COUNT_PROJECTION.md) | Private Responses input-count projection and its limits |
+| [`SPEND_OPENAI_NATIVE_USAGE_COUNTERS.md`](SPEND_OPENAI_NATIVE_USAGE_COUNTERS.md) | Native usage-counter parsing without cost authority |
 | [`OPENAI_COMPATIBLE_INGRESS.md`](OPENAI_COMPATIBLE_INGRESS.md) | How an existing OpenAI client can repoint at the Gateway without a second execution path |
 | [`PROTOCOL_MULTIMODAL_GATEWAY.md`](PROTOCOL_MULTIMODAL_GATEWAY.md) | Anthropic Messages, OpenAI Responses, Claude Code/Codex setup, multimodal capabilities and fail-closed limits |
 
@@ -71,6 +83,7 @@ is recorded in [`CHECKPOINT_LOG.md`](CHECKPOINT_LOG.md), which is append-only.
 | [`DEPLOYMENT_ACTIVATION.md`](DEPLOYMENT_ACTIVATION.md) | Where a deployment declares the exact artifacts one activation uses |
 | [`PROVIDER_RUNTIME_CONFIGURATION.md`](PROVIDER_RUNTIME_CONFIGURATION.md) | How provider endpoints and credentials stay a deployment concern |
 | [`PROVIDER_RUNTIME_ARTIFACT.md`](PROVIDER_RUNTIME_ARTIFACT.md) | The committed, secret-free shape of that provider binding |
+| [`PROVIDER_CREDENTIAL_AVAILABILITY.md`](PROVIDER_CREDENTIAL_AVAILABILITY.md) | Private credential-generation contracts and process-local reference, not serving integration |
 | [`PROCESS_ENTRYPOINT.md`](PROCESS_ENTRYPOINT.md) | How the Gateway runs as an installed executable process |
 | [`PROCESS_HEALTH.md`](PROCESS_HEALTH.md) | What liveness and readiness claim — and what they deliberately do not probe |
 | [`SHARED_RUNTIME_STATE.md`](SHARED_RUNTIME_STATE.md) | How health and circuit state are shared across replicas |

@@ -1,5 +1,10 @@
 # Project Instructions
 
+The numbered phase rules below preserve the original implementation contracts. Phases 1–13 are
+complete; Phase 14 is in progress. For current serving and reference-only scope, read
+[`CURRENT_STATE.md`](CURRENT_STATE.md) and [`ROADMAP.md`](ROADMAP.md) before applying a historical
+phase deferral.
+
 ## Objective
 
 Build a reusable, provider-neutral LLM execution gateway that resolves and invokes only models already
@@ -136,7 +141,7 @@ See ADR-0013 and `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md`.
 - SSE transport must remain HTTPS-only, bounded, header-sanitized, and explicitly closeable.
 - Incremental structured output/tool calls retain Phase 7 local validation semantics.
 - Streaming does not add business-tool execution authority or fabricate correlation/continuation state.
-- Do not add Phase 9 OpenTelemetry runtime while closing Phase 8.
+- Phase 9 telemetry is implemented, metadata-only, and never an authorization source.
 
 See ADR-0011 and `docs/project/STREAMING.md`.
 
@@ -149,17 +154,21 @@ See ADR-0011 and `docs/project/STREAMING.md`.
 - It is decision-scoped, not a global inventory endpoint.
 - Framework types stay in `gateway-api`.
 
-## Deferred work
+## Current post-core boundaries
 
-Do not pull forward:
-
-- Phase 9 OpenTelemetry runtime via `a2a-otel-kit`;
-- Phase 10/11 benchmark-derived routing evidence;
-- Phase 12 client HTTP transport completion;
-- Phase 13 signed Verifiable AI Governance runtime authorization;
-- provider-native tool-result continuation that requires a canonical transcript/state contract;
-- shared/distributed circuit-breaker state;
-- an implicit total streaming deadline derived from policy `max_latency_ms`.
+- The SDK, OpenTelemetry runtime, benchmark-derived ranking evidence, signed-governance integration,
+  and shared Redis circuit state are implemented. None grants independent authorization.
+- Response-cache reuse requires fresh authentication, PDP authorization and ranking; the stored
+  deployment must match the current selection. Cache entries are scoped to authenticated client and
+  accepted PDP policy provenance. See ADR-0020.
+- A total execution deadline is an explicit deployment opt-in, independent of policy
+  `max_latency_ms`; expiry is terminal and never a replayable provider timeout. See ADR-0024.
+- The PDP HTTPS connection pool is an explicit opt-in with ASGI-owned lifecycle. Connection reuse
+  never reuses a policy decision or signed envelope. See ADR-0025 and ADR-0026.
+- Provider-credential availability and conservative spend-admission/cost-evidence implementations
+  are private reference contracts, not current serving controls. See their dedicated project docs.
+- Defer opaque provider-native continuation without canonical state, production activation of the
+  reference controls without review, and the Phase 14 consumer migrations restricted by the roadmap.
 
 ## Quality gates
 

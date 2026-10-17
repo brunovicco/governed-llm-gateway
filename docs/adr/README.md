@@ -22,6 +22,7 @@ Accepted after Phase 0 when implementation evidence became available:
 - ADR-0015 — Northbound Anthropic Messages and OpenAI Responses protocols
 - ADR-0016 — Pinned external Policy Router in governed Compose
 - ADR-0017 — Deterministic streaming preflight before HTTP response commit
+- [ADR-0018 — Exclusive, fenced HALF_OPEN admission](ADR-0018-exclusive-half-open-admission.md)
 - [ADR-0020 — Authenticated response-cache identity](ADR-0020-authenticated-response-cache-identity.md)
 - [ADR-0024 — Explicit local execution deadline](ADR-0024-explicit-execution-deadline.md)
 - [ADR-0025 — Explicit PDP-only connection pooling](ADR-0025-pdp-connection-pooling.md)
@@ -35,11 +36,10 @@ accepted ADR.
 
 Proposed for implementation review:
 
-- [ADR-0018 — Exclusive, fenced HALF_OPEN admission](ADR-0018-exclusive-half-open-admission.md)
 - [ADR-0021 — Conservative estimated-spend admission and settlement](ADR-0021-conservative-spend-admission-and-settlement.md)
 - [ADR-0022 — Bounded provider cost-evidence acquisition](ADR-0022-bounded-provider-cost-evidence-acquisition.md)
 - [ADR-0023 — Versioned cache-category cost evidence](ADR-0023-versioned-cache-category-cost-evidence.md)
 
-Proposed for design review (not implemented):
+Proposed design with private reference contracts only (not serving integration):
 
 - [ADR-0019 — Versioned provider credential-binding availability](ADR-0019-provider-credential-binding-availability.md)

@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-09-16
+Last updated: 2026-10-17 (checked against `main@2bdbf68`)
 
 This document states only what is true today. For the dated, PR-by-PR narrative of how each of these
 facts was established — proof records, security reviews, real bugs found and fixed — see
@@ -47,6 +47,34 @@ facts was established — proof records, security reviews, real bugs found and f
   authorized candidate before HTTP 200 commitment; preflight performs no provider network I/O.
   Runtime retry/fallback still cannot widen the PDP-authorized group or replay tool-result requests
   ([PR #259](https://github.com/brunovicco/governed-llm-gateway/pull/259), [ADR-0017](../adr/ADR-0017-deterministic-streaming-preflight.md)).
+- shared Redis and process-local health use exclusive fenced HALF_OPEN probe admission; snapshot reads
+  cannot claim a probe ([ADR-0018](../adr/ADR-0018-exclusive-half-open-admission.md));
+- the optional response cache is scoped to authenticated client and accepted PDP policy, after fresh
+  authorization/ranking, and checks that the current deployment matches the stored execution
+  ([ADR-0020](../adr/ADR-0020-authenticated-response-cache-identity.md));
+- an optional server-owned total execution deadline is independent of policy selection latency
+  ([ADR-0024](../adr/ADR-0024-explicit-execution-deadline.md));
+- an optional PDP HTTPS connection pool has ASGI-owned startup/shutdown and local readiness;
+  it reuses connections, never policy decisions or signed envelopes ([ADR-0025](../adr/ADR-0025-pdp-connection-pooling.md),
+  [ADR-0026](../adr/ADR-0026-asgi-owned-pdp-pool-lifecycle.md)).
+
+## Post-core implementation scope
+
+| Merged increments | Current scope |
+|---|---|
+| PRs #260–#262 | Public scope correction, governed local-policy alignment and exclusive fenced HALF_OPEN probes. |
+| PRs #263–#265 | Credential-availability design and private reference contracts; authenticated response-cache isolation is a separate serving fix. |
+| PRs #266–#270 | Observed-spend concurrency regressions and private process-local spend-admission/cost-evidence references, including native OpenAI counter parsing. No spend reservation or native cost source is wired into serving. |
+| PR #271 | Explicit opt-in total execution deadline; default behavior remains without that limit. |
+| PRs #272–#273 | Injectable PDP HTTPS pool and explicit ASGI lifecycle; default transport remains unchanged and production activation is deferred. |
+
+The provider-credential reference does not rotate serving credentials or quarantine live bindings;
+see [its proof boundary](PROVIDER_CREDENTIAL_AVAILABILITY.md). SpendGuard still reads observed spend
+only and is not composed into the current API; the conservative admission and versioned cost sources
+remain private synthetic references. See [spend accounting](SPEND_ACCOUNTING.md),
+[admission reference](SPEND_ADMISSION_REFERENCE.md) and [version-two plan](SPEND_COST_EVIDENCE_V2_PLAN.md).
+None of these components grants PDP authorization, deploys a provider credential, or proves a billing
+ceiling.
 
 ## Operational readiness status
 
@@ -168,15 +196,19 @@ Remains after the preceding integration cases.
 
 ## Current working boundary
 
-Latest post-merge validated runtime baseline as of this update:
-`main@7d7e2e3840719acd257b1c25c19f8ce4a84592d8`
-([PR #259](https://github.com/brunovicco/governed-llm-gateway/pull/259)). Main's
+Current checked-in main: `2bdbf68a8a4e4dd71452f6ed2b610997856e82cd` (PR #273). A local,
+credential-free `uv run python scripts/quality_gate.py` run on 2026-10-17 passed with 86.67% coverage;
+3554 tests passed and 9 were skipped. Lockfile, Ruff, mypy, governed composition, both coverage
+checks, Bandit, pip-audit, architecture, secret scan and Phase 0 all passed. This run did not perform
+a live provider/PDP exchange, a frontend Node gate or an image build.
+
+The last bounded live-provider proof recorded here remains PR #259 at
+`7d7e2e3840719acd257b1c25c19f8ce4a84592d8`. Its historical
 [quality run `35037637219`](https://github.com/brunovicco/governed-llm-gateway/actions/runs/35037637219)
 and [image run `35037637139`](https://github.com/brunovicco/governed-llm-gateway/actions/runs/35037637139)
-both passed on that exact commit.
-
-PR #259 records 1499 passed / 6 skipped, 84.36% coverage, a governed NVIDIA `rag.answer` smoke,
-direct live adapter checks for the other five providers, and an authenticated pre-stream HTTP 422
+passed on that earlier commit. PR #259 recorded 1499 passed / 6 skipped, 84.36% coverage, a governed
+NVIDIA `rag.answer` smoke, direct live adapter checks for the other five providers, and an
+authenticated pre-stream HTTP 422
 JSON probe. These are bounded local proofs, not production certification; direct adapter checks must
 not be presented as full governed E2E. See the
 [dated proof record](CHECKPOINT_LOG.md#deterministic-streaming-preflight--pr-259-executed-2026-09-15).
@@ -192,6 +224,8 @@ not be presented as full governed E2E. See the
 9. A future operational-evidence increment may add shared ingestion and an explicit fleet/source-membership completeness model over validated source-instance batches; it must not make remote evidence delivery part of inference availability or invent online score normalization/adaptive policy.
 10. A future live gateway-backed benchmark executor must use an already-authorized gateway path, preserve target/effective-execution integrity checks, and remain outside credential-free default CI.
 11. When OpsLens is resumed, reconcile against the then-current gateway commit and rerun the full OpsLens Python and Terraform gates before merge.
+12. Keep reference-only credential and spend contracts outside serving until trusted issuance,
+    durable coordination, exact attempt finality, recovery and an explicit reviewed rollout are proven.
 
 ## Explicitly deferred
 

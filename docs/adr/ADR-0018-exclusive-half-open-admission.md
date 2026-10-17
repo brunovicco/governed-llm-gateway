@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposed; implemented for review. Requires a coordinated rollout of health writers.
+Accepted; merged in PR #262. Shared deployments still require a coordinated rollout of health
+writers so older instances cannot bypass exclusive probe admission.
 
 ## Date
 

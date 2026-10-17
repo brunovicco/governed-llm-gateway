@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted design on 2026-09-18; implementation under review. Production activation is deferred.
+Accepted and implemented as an explicit opt-in in PR #273. Production activation is deferred.
 
 ## Date
 

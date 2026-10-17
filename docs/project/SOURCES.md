@@ -148,5 +148,13 @@ libraries define implementation mechanics. The normative roadmap plus accepted g
 authorization, ranking, resilience, structured-output/tool authority, streaming replay/cancellation,
 and evidence semantics.
 
+Post-core decisions extend that authority map without replacing it: ADR-0018 governs exclusive
+HALF_OPEN admission; ADR-0020 scopes response-cache reuse to authenticated identity and accepted PDP
+policy; ADR-0024 defines the optional total execution deadline; ADR-0025/0026 define optional PDP
+connection-pool transport and ASGI lifetime. ADR-0019 and ADR-0021–0023 describe designs with private
+reference implementations whose synthetic tests do not establish serving or production authority.
+The current scope and proof limits are recorded in `CURRENT_STATE.md` and the corresponding project
+documents; dated merged increments remain in `CHECKPOINT_LOG.md`.
+
 No external source may broaden PDP authorization. Provider feature support is an execution capability,
 not an authorization grant.

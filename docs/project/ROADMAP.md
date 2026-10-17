@@ -132,6 +132,23 @@ Snapshots may remain historical schema `1.0`, or opt into schema `1.1` target-ma
 
 Completion of these gateway-internal increments does not alter the Phase 14 consumer order. See `docs/evaluation/BENCHMARK_MATRIX.md`.
 
+## Post-core gateway increments through PR #273
+
+These merged, consumer-independent increments do not change the Phase 14 migration order or create
+new authorization authority:
+
+| PRs | Result and current boundary |
+|---|---|
+| #260–#262 | Public scope alignment, local governed-policy correction, and exclusive fenced HALF_OPEN probe admission across process-local/shared health ([ADR-0018](../adr/ADR-0018-exclusive-half-open-admission.md)). |
+| #263–#265 | Provider-credential availability design/private process-local reference, and authenticated client/PDP-policy response-cache isolation ([ADR-0019](../adr/ADR-0019-provider-credential-binding-availability.md), [ADR-0020](../adr/ADR-0020-authenticated-response-cache-identity.md)). The credential reference is not serving integration. |
+| #266–#270 | Observed-spend concurrency proof and private conservative admission/cost-evidence references, including OpenAI native count parsing ([ADR-0021](../adr/ADR-0021-conservative-spend-admission-and-settlement.md)–[ADR-0023](../adr/ADR-0023-versioned-cache-category-cost-evidence.md)). No reservation, trusted native cost issuance or billing ceiling is active in serving. |
+| #271 | Explicit opt-in total execution deadline, independent of policy `max_latency_ms` ([ADR-0024](../adr/ADR-0024-explicit-execution-deadline.md)). |
+| #272–#273 | Injectable PDP HTTPS pool with explicit ASGI lifecycle; default transport and production activation are unchanged ([ADR-0025](../adr/ADR-0025-pdp-connection-pooling.md), [ADR-0026](../adr/ADR-0026-asgi-owned-pdp-pool-lifecycle.md)). |
+
+The detailed implementation/non-claims live in [CURRENT_STATE.md](CURRENT_STATE.md#post-core-implementation-scope)
+and the [project documentation index](README.md). Reference-only designs require their own
+trusted-source, durable-state, real-provider and rollout evidence before serving activation.
+
 ## Phase 14 — Real project integrations
 
 Normative order from `SOURCE_ROADMAP.txt`:
@@ -242,7 +259,7 @@ Certified post-PC-30 increments relevant to readiness and security:
 - PR #258 — bounded real Claude Code Messages text/tool-loop interoperability through Anthropic.
 - PR #259 — immutable deterministic provider preflight before streaming HTTP 200 commitment.
 
-Latest post-merge validated runtime baseline as of 2026-09-16:
+Historical live-development proof baseline as of 2026-09-16:
 
 `7d7e2e3840719acd257b1c25c19f8ce4a84592d8` ([PR #259](https://github.com/brunovicco/governed-llm-gateway/pull/259)).
 
@@ -265,10 +282,10 @@ bounded local proofs certify a production deployment.
 
 ## Current gateway baseline
 
-Latest runtime-bearing and post-merge validated baseline:
-
-`7d7e2e3840719acd257b1c25c19f8ce4a84592d8` (PR #259); see the evidence links above and
-[CURRENT_STATE.md](CURRENT_STATE.md#current-working-boundary).
+Checked-in main as of this documentation update: `2bdbf68a8a4e4dd71452f6ed2b610997856e82cd`
+(PR #273). The complete local credential-free quality gate passed on 2026-10-17 with 86.67% coverage;
+see [CURRENT_STATE.md](CURRENT_STATE.md#current-working-boundary). The PR #259 proof above remains
+the last recorded bounded live-provider proof, not a live test of PRs #260–#273.
 
 The default checked-in runtime remains credential-free and fail-closed. All new work starts from the then-current `main`.
 
@@ -285,5 +302,9 @@ Until OpsLens is ready for reconciliation:
 7. add further security hardening only through separately justified reviewed increments; do not infer production identity/session/TLS/rate-limit/CSRF guarantees from the local demo;
 8. preserve PC-52's reviewed backend trace-correlation source and metadata-only boundary when extending Console navigation;
 9. when OpsLens stabilizes, rebase/reconcile its integration against the then-current gateway commit and rerun its full native Python and Terraform CI before merge.
+10. keep the private credential-availability and spend-admission/cost-evidence references outside
+    serving until trusted sources, durable coordination, recovery and explicit rollout are reviewed;
+11. evaluate the optional deadline and PDP pool with representative real deployments before claiming
+    production readiness or changing defaults.
 
 Do not pull work forward when doing so weakens an authority boundary, creates parallel consumer migrations or depends on an unstable consumer contract.

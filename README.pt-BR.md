@@ -17,10 +17,11 @@ Aplicação/Agente
         │
         │ workload + requisitos + credencial do Gateway
         ▼
-Policy Model Router (PDP)
-        │ selected_model_group (um grupo lógico de modelo autorizado)
-        ▼
 Governed LLM Gateway (PEP)
+        │ requisição de política autenticada e sem prompt
+        ├──────────────→ Policy Model Router (PDP)
+        │                 │ selected_model_group + proveniência
+        │←────────────────┘
         ├─ elegibilidade + ranking determinístico
         ├─ health/circuit breaker
         ├─ retry limitado + fallback seguro
@@ -65,6 +66,12 @@ Grafana* do próprio Console resolve exatamente aquele trace - o waterfall corre
 | **Componentes de contabilização de gasto** | Gasto estimado por cliente/workload com pricing fixado e uso reportado. O guard consulta gasto observado, não reserva orçamento, e não está integrado ao serving atual; veja [escopo e limites de concorrência](docs/project/SPEND_ACCOUNTING.md). |
 | **Evidência em toda requisição** | Proveniência terminal de execução mais OpenTelemetry metadata-only: o que foi autorizado, o que foi selecionado, o que de fato executou e o trace emitido. |
 | **Interoperabilidade nos dois sentidos** | Adapters nativos de OpenAI Responses, Anthropic Messages e Gemini, adapters explicitamente compatíveis com OpenAI, e um ingresso no formato OpenAI para que um cliente existente apenas reaponte seu `base_url`. |
+
+Um deployment pode ativar explicitamente o cache de respostas de texto público, um prazo total de
+execução ou um pool HTTPS do PDP com ciclo de vida ASGI. Os limites revisados estão no
+[checkpoint atual](docs/project/CURRENT_STATE.md#post-core-implementation-scope). A disponibilidade
+de credenciais e os contratos conservadores de admissão/evidência de gasto continuam como referências
+privadas, fora do serving atual.
 
 ## Como funciona
 

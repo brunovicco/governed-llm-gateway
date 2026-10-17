@@ -515,3 +515,25 @@ Recorded verification:
 Provider credentials remained server-side and were not printed. Live execution stays opt-in and
 separate from credential-free CI. These are local bounded proofs, not provider-SLA or production
 certification claims.
+
+## Main reconciliation through PR #273 — local documentation review, 2026-10-17
+
+The checked-in `main` was fast-forwarded to `2bdbf68a8a4e4dd71452f6ed2b610997856e82cd`
+(PR #273). PRs #260–#273 add the post-core work summarized in
+[CURRENT_STATE.md](CURRENT_STATE.md#post-core-implementation-scope): exclusive HALF_OPEN probes,
+authenticated response-cache isolation, private credential/spend references, an opt-in execution
+deadline and an opt-in ASGI-owned PDP pool. The private references are not serving integration;
+the default PDP transport and production activation remain unchanged.
+
+The complete local, credential-free `uv run python scripts/quality_gate.py` passed on 2026-10-17
+in the checkout based on that commit. Two unrelated untracked benchmark/ranking artifacts were
+preserved in the working tree; this is local gate evidence, not a clean-tree CI attestation.
+3554 tests passed, 9 were skipped, and coverage was 86.67%, above both enforced 80% checks. Lockfile,
+Ruff lint/format, strict mypy, governed composition, pytest, Bandit (zero findings), pip-audit (no
+known vulnerabilities in the audited runtime requirements), architecture, secret scan and frozen
+Phase 0 all passed. One existing Starlette/httpx deprecation warning remained.
+
+This review did not perform a new live PDP/provider request, frontend Node 24 gate, image build,
+production credential-rotation proof, durable spend-admission proof or real PDP pool/load proof.
+PR #259 remains the last recorded bounded live-provider proof in this log. No runtime or provider
+configuration was changed by the documentation reconciliation.
