@@ -36,6 +36,7 @@ accepted ADR.
 
 Proposed for implementation review:
 
+- [ADR-0027 — AWS São Paulo post-core readiness foundation](ADR-0027-aws-sao-paulo-readiness-infrastructure.md)
 - [ADR-0021 — Conservative estimated-spend admission and settlement](ADR-0021-conservative-spend-admission-and-settlement.md)
 - [ADR-0022 — Bounded provider cost-evidence acquisition](ADR-0022-bounded-provider-cost-evidence-acquisition.md)
 - [ADR-0023 — Versioned cache-category cost evidence](ADR-0023-versioned-cache-category-cost-evidence.md)

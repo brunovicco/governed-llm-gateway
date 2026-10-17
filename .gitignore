@@ -24,3 +24,10 @@ apps/gateway-console/coverage/
 benchmarks/results/*
 !benchmarks/results/.gitkeep
 .composition/
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfvars
+**/*.tfvars.json
+**/backend.hcl
+**/tfplan*
