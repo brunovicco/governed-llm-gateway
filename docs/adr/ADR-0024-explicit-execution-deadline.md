@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted design on 2026-09-18; implementation under review.
+Accepted and implemented in PR #271. Deployment-owned activation remains optional and off by
+default; this is not a production end-to-end latency guarantee.
 
 ## Date
 

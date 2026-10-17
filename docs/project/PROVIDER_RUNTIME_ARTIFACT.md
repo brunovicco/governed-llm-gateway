@@ -96,14 +96,14 @@ Only later composition passes validated `ProviderRuntimeConfig` values to a `Pro
 and adapter factory. This ordering keeps malformed/stale deployment artifacts separate from secret
 backend access.
 
-## Current repository state
+## Repository state at PC-1
 
 `config/model_registry.yaml` currently contains an empty `deployments` mapping, so
 `config/providers/runtime.json` intentionally contains an empty `bindings` array. These two empty
 artifacts satisfy the PC-1 operational-set invariant without asserting that any provider/model is
 production-approved.
 
-## Deferred startup composition
+## Startup composition deferred at PC-1
 
 PC-1 does not yet make the FastAPI process load these artifacts automatically. A subsequent startup
 composition increment can load the Model Registry plus provider runtime document, validate their

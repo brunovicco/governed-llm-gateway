@@ -9,14 +9,9 @@
 - Root: virtual uv project (`package = false`)
 - Primary builder: Codex
 - Independent reviewer: Claude Code
-- Current phase: Phase 8 — Streaming, implemented / in review
-- Phase 1: complete in `policy-model-router` PR #20
-- Phase 2: complete in `governed-llm-gateway` PR #1
-- Phase 3: complete in PR #2
-- Phase 4: complete in PR #3
-- Phase 5: complete in PR #4
-- Phase 6: complete in PR #5
-- Phase 7: complete in PR #6
+- Current phase: Phase 14 — incremental consumer integrations; Cases 1/2 complete, OpsLens deferred
+- Phases 1–13: complete; see `docs/project/ROADMAP.md` for the merged PRs
+- Current checked-in baseline: `main@2bdbf68` (PR #273, 2026-09-18)
 
 Read, in order:
 
@@ -24,7 +19,8 @@ Read, in order:
 2. `docs/project/CURRENT_STATE.md`
 3. `docs/project/ARCHITECTURE.md`
 4. `docs/project/ROADMAP.md`
-5. ADR-0007, ADR-0011, and ADR-0013
+5. ADR-0007, ADR-0011, ADR-0013, ADR-0017, ADR-0018, ADR-0020, ADR-0024, ADR-0025,
+   and ADR-0026
 6. `docs/project/FALLBACK_AND_RETRY.md`
 7. `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md`
 8. `docs/project/STREAMING.md`
@@ -123,18 +119,22 @@ PDP-only metadata must not be copied into provider payloads.
 
 ## Explicitly deferred
 
-Do not pull forward:
+Do not pull forward OpsLens reconciliation while its consumer repository is evolving, or begin
+RAGForge in parallel without revising the normative Phase 14 order. Do not grant provider-native
+opaque continuation semantics without a canonical transcript/state contract. Credential-availability
+and conservative spend-admission reference implementations are not serving controls; production
+activation requires separate review and evidence. Never derive an implicit total execution deadline
+from policy `max_latency_ms`; the explicit deployment-owned deadline is opt-in.
 
-- Phase 9 OpenTelemetry runtime;
-- Phase 10/11 benchmark-derived ranking evidence;
-- Phase 12 client transport completion;
-- Phase 13 signed Verifiable AI Governance runtime authorization;
-- provider-native tool-result continuation requiring a canonical transcript/state contract;
-- shared/distributed circuit state;
-- implicit total streaming deadline derived from policy latency.
+The response cache remains opt-in and requires fresh PDP authorization, authenticated-client and
+policy binding, and agreement with current selected deployment. The PDP HTTPS pool is opt-in and
+ASGI-lifecycle-owned. Both may only narrow work inside current authorization. Recent operational,
+benchmark, telemetry, spend and credential evidence cannot grant authorization.
 
 Do not change repository policy or architecture without an ADR.
-Do not use `from __future__ import annotations`.
+Do not add `from __future__ import annotations` to new code. The existing Claude Code compatibility
+shim contains it; that inconsistency remains a separate focused code cleanup, not a pattern for
+new modules.
 
 ## Privacy and evidence
 
@@ -153,11 +153,10 @@ uv run python scripts/quality_gate.py
 The normal GitHub Actions workflow must remain `contents: read`.
 
 Coverage is enforced at >=80% twice: pytest-cov and an independent
-`coverage report --fail-under=80`. Do not lower the threshold or exclude Phase 8 code to pass CI.
+`coverage report --fail-under=80`. Do not lower the threshold or exclude new code to pass CI.
 
 `scripts/phase0_gate.py` remains frozen to the five Phase 0 baseline contract modules. New phase tests
 belong to the repository-wide pytest gate.
 
-Phase 8 acceptance requires normalized provider streaming, final usage, pre-output-only replay,
-partial-output terminal failure, cancellation/upstream closure, preserved PDP authorization, no tool
-execution authority, and the complete read-only quality gate to pass.
+The complete read-only quality gate is required for new work. Credential-free CI is not a live
+provider/PDP proof, and reference contracts are not serving integration.

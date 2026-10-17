@@ -17,10 +17,11 @@ Application/Agent
         │
         │ workload + requirements + Gateway credential
         ▼
-Policy Model Router (PDP)
-        │ selected_model_group (one authorized logical model group)
-        ▼
 Governed LLM Gateway (PEP)
+        │ authenticated, prompt-free policy request
+        ├──────────────→ Policy Model Router (PDP)
+        │                 │ selected_model_group + provenance
+        │←────────────────┘
         ├─ eligibility + deterministic ranking
         ├─ health/circuit breaker
         ├─ bounded retry + safe fallback
@@ -65,6 +66,12 @@ resolves to that exact trace - the matching waterfall is in
 | **Spend accounting components** | Estimated per-client/workload spend from pinned pricing and reported usage. The guard checks observed spend, not reservations, and is not wired into current serving; see [scope and concurrency limits](docs/project/SPEND_ACCOUNTING.md). |
 | **Evidence for every request** | Terminal execution provenance plus metadata-only OpenTelemetry: what was authorized, what was selected, what actually ran, and the trace it emitted. |
 | **Interoperability both ways** | Native OpenAI Responses, Anthropic Messages and Gemini adapters, explicit OpenAI-compatible adapters, and an OpenAI-shaped ingress so an existing client can repoint its `base_url` here. |
+
+Post-core deployments may explicitly enable the public-text response cache, a total execution
+deadline, or an ASGI-owned PDP HTTPS pool. Their reviewed limits are in the
+[current-state checkpoint](docs/project/CURRENT_STATE.md#post-core-implementation-scope).
+Credential-availability and conservative spend-admission/cost-evidence work remains private reference
+code, outside current serving.
 
 ## How it works
 

@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted design on 2026-09-18; injectable transport implementation under review.
-Production/default bootstrap integration is not part of this increment.
+Accepted; injectable transport merged in PR #272. Explicit ASGI-owned bootstrap followed in
+PR #273 (ADR-0026). Default transport and production activation remain unchanged.
 
 ## Date
 
