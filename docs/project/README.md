@@ -26,6 +26,11 @@ is recorded in [`CHECKPOINT_LOG.md`](CHECKPOINT_LOG.md), which is append-only.
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | How authorization, selection and execution are separated |
 | [`ROADMAP.md`](ROADMAP.md) | Which phases exist, which are complete, and what comes next |
 | [`CHECKPOINT_LOG.md`](CHECKPOINT_LOG.md) | The dated, append-only proof record behind every claim |
+| [`POST_CORE_READINESS.md`](POST_CORE_READINESS.md) | Evidence gates and executed local checks for consumer-independent readiness work outside numbered phases |
+| [AWS São Paulo Terraform foundation](../../infra/terraform/https-integration/README.md) | Proposed private HTTPS PDP ingress, Secrets Manager containers and durable PostgreSQL substrate; no runtime activation |
+| [`AWS_PROFILE_SETUP.md`](AWS_PROFILE_SETUP.md) | Step-by-step AWS CLI profile setup and account/region verification before a Terraform plan |
+| [`AWS_SAO_PAULO_INFRA_PLAN.md`](AWS_SAO_PAULO_INFRA_PLAN.md) | Read-only account findings, Terraform preview and prerequisites before any apply |
+| [`AWS_SAO_PAULO_COST_AND_ACCESS.md`](AWS_SAO_PAULO_COST_AND_ACCESS.md) | Regional cost baseline and scoped Terraform state-access requirements |
 | [`PROJECT_INSTRUCTIONS.md`](PROJECT_INSTRUCTIONS.md) | The original objective and the constraints the project is held to |
 | [`SOURCES.md`](SOURCES.md) | Which inputs are normative and which are derived |
 

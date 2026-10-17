@@ -157,11 +157,15 @@ Synthetic tests exercise exact correlation, integer epochs, malformed results/ma
 repr/error privacy, and task cancellation. They establish no actual backend fetch, authority identity,
 shared-control admission, restart/failover durability, or provider acceptance.
 
-## Operational backend guidance — no backend selected
+## Operational backend direction — AWS selected, authority not implemented
 
-The inspected deployment documentation describes a local Docker profile and environment-injected
-credentials, not an adopted production cloud or versioned authority. Prefer the managed secret
-service of the eventual hosting cloud rather than introduce a new cloud solely for this feature:
+The operator selected AWS `sa-east-1` with Terraform for post-core infrastructure. The proposed
+[ADR-0027](../adr/ADR-0027-aws-sao-paulo-readiness-infrastructure.md) chooses Secrets Manager
+exact-version material and private Multi-AZ PostgreSQL for future shared control state. The account
+and proposed isolated network have been selected, but no backend adapter, trusted controller,
+secret value or serving activation has been deployed. The current Docker profile still injects
+credentials through its environment. The
+cloud-specific primitives are:
 
 - AWS: Secrets Manager can request an explicit `VersionId`; omitting version/stage selects
   `AWSCURRENT`. Use exact version, not mutable stage, for generation-bound fetch.
@@ -176,13 +180,15 @@ Vault KV v2 is a versioned alternative when cloud-independent operation is a del
 not the default recommendation for the current local profile.
 [KV v2](https://developer.hashicorp.com/vault/docs/secrets/kv/kv-v2).
 
-These are candidate storage primitives, not an accepted authority/backend design. Exact backend
+These are storage primitives, not an implemented authority/backend design. Exact backend
 versions alone do not establish unchanged-material identity across aliases/republication, monotonic
 activation, or retained quarantine. A separately trusted controller and authoritative history must
 reconcile those facts with a reviewed durability/recovery model and scoped publisher/worker rights.
-Do not equate secret-manager availability with credential AVAILABLE state. Until hosting/authority
-choices and conformance are reviewed, keep serving unchanged; no cloud service, SDK dependency,
-credentials, permissions, infrastructure, or operational adapter is provisioned by these slices.
+Do not equate secret-manager availability with credential AVAILABLE state. Until authority and
+conformance are reviewed, keep serving unchanged. The Terraform foundation can declare empty secret
+containers after binding names are approved, but none are in its current plan. No cloud service has
+been applied and no SDK dependency, credential, permission or operational adapter is provisioned by
+these reference slices.
 
 ## Privacy and non-claims
 
