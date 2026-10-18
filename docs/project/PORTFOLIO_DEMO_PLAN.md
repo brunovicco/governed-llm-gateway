@@ -1,10 +1,11 @@
 # Portfolio demonstration implementation plan
 
 Status: Delivery 1 merged as PR #277; local and hosted quality/execution checks passed on
-2026-10-18. Delivery 2 evidence review is complete and its separate tool-use artifact is now
-versioned; walkthrough packaging and operator-bounded live refresh remain. Prepared against the
-PR #275 baseline on 2026-10-17 under [ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md). These are bounded
-deliveries, not new numbered phases.
+2026-10-18. Delivery 2 evidence review is complete and its separate tool-use artifact was merged in
+PR #278; walkthrough packaging and operator-bounded live refresh remain. Delivery 3's local real-PDP
+HTTPS exercise passed on 2026-10-18. Prepared against the PR #275 baseline on 2026-10-17 under
+[ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md). These are bounded deliveries, not new
+numbered phases.
 
 ## Baseline and assumptions
 
@@ -153,6 +154,14 @@ Acceptance: record exact revisions, concurrency, request counts and latency/erro
 including unfavorable results. Demonstrate behavior without inventing a performance threshold or
 changing serving defaults. This proves the local integration only; AWS load, proxy behavior and
 production readiness remain separate claims.
+
+Completed locally on 2026-10-18 against Policy Model Router commit
+`3140181c45ce55a3139a292dbe30448012909fdf`. The exercise records two alternating rounds of four
+concurrent fresh authorizations per transport, a one-connection saturation case, real denial,
+certificate rejection, pool startup/readiness/shutdown, and deadlines before commitment and after
+semantic output. All scenarios and isolated Compose teardown passed. Timing varied and did not
+establish a general performance improvement. Full counts, timings and evidence limits are in the
+[recorded exercise](PDP_REAL_HTTPS_EXERCISE.md).
 
 ## Validation and stop conditions
 

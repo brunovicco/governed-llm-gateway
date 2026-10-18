@@ -6,6 +6,7 @@ import os
 import ssl
 import tempfile
 import threading
+import time
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -112,9 +113,25 @@ def _issue_loopback_certificates(directory: Path) -> tuple[Path, Path, Path]:
 class LocalVerifiedHttpsProxy:
     """Expose a loopback Router HTTP port over trusted local HTTPS for Gateway transport."""
 
-    def __init__(self, *, upstream_host: str = "127.0.0.1", upstream_port: int = 8001) -> None:
+    def __init__(
+        self,
+        *,
+        upstream_host: str = "127.0.0.1",
+        upstream_port: int = 8001,
+        response_delay_seconds: float = 0.0,
+    ) -> None:
+        if (
+            isinstance(response_delay_seconds, bool)
+            or not isinstance(response_delay_seconds, int | float)
+            or not 0 <= response_delay_seconds <= 5
+        ):
+            raise ValueError("response delay must be between zero and five seconds")
         self._upstream_host = upstream_host
         self._upstream_port = upstream_port
+        self.response_delay_seconds = float(response_delay_seconds)
+        self._metrics_lock = threading.Lock()
+        self._tls_connections = 0
+        self._forwarded_requests = 0
         self._directory = tempfile.TemporaryDirectory(prefix="gateway-demo-tls-")
         directory = Path(self._directory.name)
         ca_path, cert_path, key_path = _issue_loopback_certificates(directory)
@@ -123,11 +140,25 @@ class LocalVerifiedHttpsProxy:
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._previous_ssl_cert_file = os.environ.get("SSL_CERT_FILE")
 
+    @property
+    def metrics(self) -> tuple[int, int]:
+        """Return local TLS-connection and forwarded-request counts for exercise evidence."""
+        with self._metrics_lock:
+            return self._tls_connections, self._forwarded_requests
+
     def _make_server(self, cert_path: Path, key_path: Path) -> ThreadingHTTPServer:
         upstream_host = self._upstream_host
         upstream_port = self._upstream_port
+        proxy = self
 
         class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def setup(self) -> None:
+                super().setup()
+                with proxy._metrics_lock:
+                    proxy._tls_connections += 1
+
             def log_message(self, format: str, *args: object) -> None:
                 del format, args
 
@@ -140,6 +171,8 @@ class LocalVerifiedHttpsProxy:
                     self.send_error(413)
                     return
                 body = self.rfile.read(content_length)
+                with proxy._metrics_lock:
+                    proxy._forwarded_requests += 1
                 connection = http.client.HTTPConnection(upstream_host, upstream_port, timeout=5.0)
                 try:
                     headers = {
@@ -153,6 +186,8 @@ class LocalVerifiedHttpsProxy:
                     if len(payload) > _MAX_BODY:
                         self.send_error(502)
                         return
+                    if proxy.response_delay_seconds:
+                        time.sleep(proxy.response_delay_seconds)
                     self.send_response(response.status)
                     for key in ("Content-Type", "Retry-After"):
                         value = response.getheader(key)

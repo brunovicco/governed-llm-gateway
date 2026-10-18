@@ -564,3 +564,34 @@ Validation on the local checkout:
 These checks do not establish that the GitHub workflow has run, that AWS resources were deployed, or
 that simulated provider behavior is live inference. The pre-existing untracked local benchmark and
 ranking artifacts were not included in this change.
+
+## Local real-PDP HTTPS exercise — after PR #278, 2026-10-18
+
+The [bounded exercise](PDP_REAL_HTTPS_EXERCISE.md) runs the pinned Policy Model Router behind the
+ephemeral verified-loopback HTTPS bridge. The Router revision was
+`3140181c45ce55a3139a292dbe30448012909fdf`. The run used two alternating rounds of four concurrent
+fresh authorizations per transport, a separate one-connection saturation case, real Router denial,
+certificate rejection, and pooled startup/readiness/shutdown. Each transport case returned four
+unique fresh decision IDs. The comparison added a deliberate 25 ms bridge delay so timing is
+diagnostic only, not a performance threshold or production claim.
+
+Observed p50/p95 milliseconds by round:
+
+- stdlib default: `49.632/54.484`, then `35.021/35.558`;
+- HTTPX pool at four connections: `70.218/73.097`, then `40.651/42.159`;
+- saturation pool at one connection: four fresh Router exchanges over one TLS connection.
+
+The measures varied and did not establish a general performance improvement. The pool lifecycle sent
+no startup authorization and rejected requests before startup and after shutdown. A real Router
+denial returned HTTP 403; the untrusted certificate produced a sanitized `transport` outcome before
+any Router exchange. A 50 ms pre-commit deadline returned HTTP 504 `execution_deadline_exceeded`
+after one delayed real-PDP exchange and made no provider call. A 100 ms post-content deadline
+produced `response.failed`, closed the in-memory simulated provider stream, and emitted no late
+`response.completed`. Isolated Compose teardown passed. No real provider credentials, provider
+requests, AWS resources or serving defaults were used or changed.
+
+`UV_CACHE_DIR=/tmp/harness-uv-cache uv run python scripts/quality_gate.py` passed on this change:
+3584 tests passed, 9 skipped, 86.67% coverage, and the independent coverage check passed. One existing
+Starlette/httpx deprecation warning remained. The exercise report and local test results are evidence
+for this pinned single-host composition only, not production proxy/load behavior, multi-replica
+operation, remote cancellation, billing limits or an end-to-end latency SLA.

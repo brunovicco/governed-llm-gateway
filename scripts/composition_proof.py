@@ -58,7 +58,10 @@ from governed_llm_gateway_core.adapters.governance_authorization import (
     StaticGovernanceKeyResolver,
     verify_governance_authorization_envelope,
 )
-from governed_llm_gateway_core.adapters.policy_router import PolicyRouterHttpAdapter
+from governed_llm_gateway_core.adapters.policy_router import (
+    PolicyRouterHttpAdapter,
+    PolicyTransport,
+)
 from governed_llm_gateway_core.adapters.policy_router_runtime import (
     EnvironmentPolicyRouterSecretResolver,
     build_policy_router_adapter,
@@ -153,11 +156,13 @@ def _forwardable(envelope: dict[str, object]) -> ForwardableGovernanceAuthorizat
     return verify_governance_authorization_envelope(json.dumps(envelope), keys=_key_resolver())
 
 
-def _adapter(endpoint: str) -> PolicyRouterHttpAdapter:
+def _adapter(endpoint: str, *, transport: PolicyTransport | None = None) -> PolicyRouterHttpAdapter:
     os.environ.setdefault(fixture.API_KEY_ENV_REFERENCE, fixture.API_KEY)
     document = load_policy_router_runtime_document(_CONFIG_PATH)
     runtime = replace(document.runtime, endpoint=endpoint)
-    adapter = build_policy_router_adapter(runtime, EnvironmentPolicyRouterSecretResolver())
+    adapter = build_policy_router_adapter(
+        runtime, EnvironmentPolicyRouterSecretResolver(), transport=transport
+    )
     if adapter is None:
         raise RuntimeError("composition-proof Policy Router configuration is disabled")
     return adapter

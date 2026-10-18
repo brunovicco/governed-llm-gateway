@@ -21,7 +21,8 @@ the portfolio guide; open a technical reference when reviewing that specific bou
   [streaming](STREAMING.md), [structured output and tools](STRUCTURED_OUTPUT_AND_TOOLS.md).
 - **Run or review a demonstration:** [portfolio demo plan](PORTFOLIO_DEMO_PLAN.md),
   [local operations demo](LOCAL_OPERATIONS_DEMO.md),
-  [cross-repository PDP proof](PDP_COMPOSITION_PROOF.md).
+  [cross-repository PDP proof](PDP_COMPOSITION_PROOF.md),
+  [local real-PDP HTTPS exercise](PDP_REAL_HTTPS_EXERCISE.md).
 - **Review provider and client boundaries:** [provider contract](PROVIDER_CONTRACT.md),
   [protocol guide](PROTOCOL_MULTIMODAL_GATEWAY.md),
   [client authentication](GATEWAY_CLIENT_AUTHENTICATION.md).
@@ -65,7 +66,8 @@ references; most readers can start with the six documents above and the topic li
 - [Operations access](OPERATIONS_ACCESS.md), [access artifact](OPERATIONS_ACCESS_ARTIFACT.md), [read model](OPERATIONS_READ_MODEL.md), [HTTP contract](OPERATIONS_HTTP.md), [evidence binding](OPERATIONAL_EVIDENCE_BINDING.md)
 - [Console](GATEWAY_CONSOLE.md), [local demo orchestration](LOCAL_DEMO_ORCHESTRATION.md), [operational readiness history](OPERATIONAL_READINESS.md)
 - [Observability](OBSERVABILITY.md), [local stack](LOCAL_OBSERVABILITY.md), [Collector receipt](COLLECTOR_RECEIPT.md), [Tempo query proof](TEMPO_QUERY_PROOF.md), [Grafana dashboard](GRAFANA_TRACE_DASHBOARD.md)
-- [PDP transport comparison](PDP_TRANSPORT_COMPARISON.md), [pool lifecycle](PDP_POOL_LIFECYCLE.md), [HTTP cache policy](HTTP_CACHE_POLICY.md)
+- [PDP transport comparison](PDP_TRANSPORT_COMPARISON.md), [pool lifecycle](PDP_POOL_LIFECYCLE.md),
+  [local real-PDP HTTPS exercise](PDP_REAL_HTTPS_EXERCISE.md), [HTTP cache policy](HTTP_CACHE_POLICY.md)
 
 </details>
 

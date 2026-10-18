@@ -11,9 +11,10 @@ The repository owner's portfolio objective is recorded in
    [PORTFOLIO_GUIDE.md](PORTFOLIO_GUIDE.md).
 2. Local execution demonstration with the real Gateway/PDP and explicitly simulated providers —
    complete (PR #277; local and hosted checks passed).
-3. Two consolidated optional live paths, `rag.answer` and `agent.tool-use` — next delivery, building
-   on separately identified existing evidence; read-only artifact/evidence review is complete.
-4. Local verified-HTTPS PDP exercise for deadline/pool behavior — planned.
+3. Two consolidated optional live paths, `rag.answer` and `agent.tool-use` — artifacts and historical
+   evidence reviewed; walkthrough packaging/live refresh remains operator-bounded.
+4. Local verified-HTTPS PDP exercise for deadline/pool behavior — complete locally on 2026-10-18;
+   [recorded evidence](PDP_REAL_HTTPS_EXERCISE.md). No serving default changed.
 
 The [delivery plan](PORTFOLIO_DEMO_PLAN.md) defines acceptance and evidence. AWS deployment,
 durable credential/spend controls and further consumer migrations are conditional future work.

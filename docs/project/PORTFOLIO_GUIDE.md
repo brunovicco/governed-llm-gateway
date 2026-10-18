@@ -65,6 +65,11 @@ Compose project on exit. Its hosted execution-demo and quality checks passed on 
 uv run --frozen --python 3.13 --all-packages python -m scripts.portfolio_execution_demo
 ```
 
+For the local real-PDP HTTPS exercise covering fresh decisions, denial, certificate validation, pool
+lifecycle/saturation and both deadline boundaries, run
+[`pdp_real_https_exercise`](PDP_REAL_HTTPS_EXERCISE.md). It uses the same pinned local Router with
+synthetic credentials and simulated providers, and never calls a model provider.
+
 ## Capability and evidence status
 
 | Area | Current status | Portfolio decision |
@@ -74,7 +79,7 @@ uv run --frozen --python 3.13 --all-packages python -m scripts.portfolio_executi
 | Full local execution demo with simulated providers | Local end-to-end proof passed (5/5); hosted workflow passed on PR #277 | Keep the five outcomes visible and report simulation explicitly. |
 | `rag.answer` live path | Active pinned artifact and historical governed live evidence; artifact/snapshot identities audited on 2026-10-18 | Retain the exact pin and refresh bounded evidence when consolidating the walkthrough. |
 | `agent.tool-use` live path | Historical Claude Code proof; separate portfolio artifact is pinned and validated, but not active in the stock runtime | Use the explicit portfolio artifact only for its walkthrough; keep the default launcher RAG-only. |
-| Deadline and PDP HTTPS pool | Implemented opt-ins; contract and synthetic TLS evidence | Add a local real-PDP HTTPS exercise; default changes and production performance claims remain deferred. |
+| Deadline and PDP HTTPS pool | Local real-PDP HTTPS exercise passed against the pinned Router on 2026-10-18; timings varied and showed no general win | Review [the exact results and limits](PDP_REAL_HTTPS_EXERCISE.md); serving defaults and production performance claims remain deferred. |
 | Credential availability and conservative spend admission | Tested private process-local references; outside serving | Preserve executable design evidence; durable authorities/controllers are future work. |
 | AWS Terraform | Two validated roots and historical read-only plan previews; never applied | Maintain formatting/validation in credential-free CI; deployment is optional future work. |
 | Consumer integrations | Two complete; OpsLens deferred; RAGForge and Governance consumer migrations not started | Use completed cases as evidence. Remaining migrations are not portfolio completion prerequisites. |
@@ -90,7 +95,8 @@ uv run --frozen --python 3.13 --all-packages python -m scripts.portfolio_executi
   activate that workload under today's default artifact.
 
 A future consolidated walkthrough must identify the exact approved artifact, request scope and
-observed deployment. The current local untracked tool-use candidate is not published evidence.
+observed deployment. PR #278 publishes a separate `agent.tool-use` portfolio artifact; the original
+candidate and scorecards remain local, and no new provider run is represented as evidence.
 
 ## Completion boundary
 

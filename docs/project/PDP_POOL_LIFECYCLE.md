@@ -58,7 +58,9 @@ There is no decision cache, retry, redirect, fallback, policy reacquisition or s
 warmup. Cancellation cannot reverse remote consumption of a single-use envelope.
 
 Rollback means omitting the option and reconstructing the app, not switching transports mid-request.
-Production credential operations and representative real-PDP/load/proxy validation remain deferred.
+The pinned local Router's verified-HTTPS exercise now covers fresh decisions and the owned lifecycle;
+see [the run and evidence](PDP_REAL_HTTPS_EXERCISE.md). AWS, production credentials, representative
+load/proxy validation and any serving activation remain deferred.
 
 ## Separate local warmup diagnostic — 2026-09-18
 

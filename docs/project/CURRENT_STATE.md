@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-10-17 (portfolio scope based on `main@8f179d2`, PR #275).
+Last updated: 2026-10-18 (portfolio evidence through PR #278 and local real-PDP HTTPS exercise).
 
 This document states only what is true today. For the dated, PR-by-PR narrative of how each of these
 facts was established — proof records, security reviews, real bugs found and fixed — see
@@ -9,9 +9,13 @@ facts was established — proof records, security reviews, real bugs found and f
 ## Portfolio objective and active work
 
 [ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md) prioritizes demonstrable engineering and
-reproducible evidence. The [reviewer guide](PORTFOLIO_GUIDE.md) is available; the next runtime
-delivery is the [local execution demonstration](PORTFOLIO_DEMO_PLAN.md), followed by two explicit
-live walkthroughs and local real-PDP HTTPS validation. These deliveries remain planned.
+reproducible evidence. The [reviewer guide](PORTFOLIO_GUIDE.md) and credential-free
+[local execution demonstration](PORTFOLIO_DEMO_PLAN.md) are complete. PR #278 versions the separate
+`agent.tool-use` portfolio artifact while the default launcher remains pinned to RAG. The local
+real-PDP HTTPS exercise is complete against the pinned Router revision; its variable measurements
+do not justify changing defaults ([recorded evidence](PDP_REAL_HTTPS_EXERCISE.md)). Optional live
+walkthrough packaging/refresh remains operator-bounded and requires an explicit spend ceiling before
+provider traffic.
 
 Credential/spend code remains an executable private reference. PR #275's AWS Terraform roots are
 validated infrastructure references; no resources have been applied. Their credential-free
@@ -81,6 +85,7 @@ migrations are conditional future work, not prerequisites for portfolio completi
 | PR #271 | Explicit opt-in total execution deadline; default behavior remains without that limit. |
 | PRs #272–#273 | Injectable PDP HTTPS pool and explicit ASGI lifecycle; default transport remains unchanged and production activation is deferred. |
 | PR #275 | Post-core evidence plan, ranking coverage audit and AWS Terraform foundation. No AWS resource or serving control was activated; deployment is now deferred under ADR-0028. |
+| PR #278 and local exercise | Separate `agent.tool-use` portfolio artifact plus local verified-HTTPS real-PDP comparison, denial, pool lifecycle and deadline evidence. No provider calls or serving-default changes. |
 
 The provider-credential reference does not rotate serving credentials or quarantine live bindings;
 see [its proof boundary](PROVIDER_CREDENTIAL_AVAILABILITY.md). SpendGuard still reads observed spend
