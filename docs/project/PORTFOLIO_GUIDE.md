@@ -14,8 +14,9 @@ tradeoffs. Its scope decision is [ADR-0028](../adr/ADR-0028-portfolio-scope-and-
    architecture has separate authorization, selection and execution boundaries.
 3. Run the local operations smoke or the repository quality gate below. Choose the separate PDP
    composition proof when a sibling Policy Model Router checkout and Docker are available.
-4. Use the optional live walkthroughs only with operator-owned credentials and approved artifacts.
-   The full credential-free execution demonstration is the next planned increment.
+4. Run the credential-free execution demonstration below to see the real Gateway/PDP boundary and
+   simulated-provider recovery paths. Use optional live walkthroughs only with operator-owned
+   credentials and approved artifacts.
 
 ## Three engineering cases
 
@@ -52,7 +53,17 @@ session; see [local orchestration](LOCAL_DEMO_ORCHESTRATION.md).
 
 The [PDP composition instructions](PDP_COMPOSITION_PROOF.md#running-it) run a real Router and Redis
 with a fixture issuer. They verify accepted authorization, missing authorization, untrusted signing
-key and replay denial. They stop before provider execution and currently run separately from CI.
+key and replay denial. They stop before provider execution. The full execution workflow below also
+checks the live Router/PDP execution boundary in credential-free CI.
+
+The separate full execution harness passed locally on 2026-10-18 against the pinned real Router. It
+requires Docker Compose and the sibling checkout pinned in `config/composition-proof/router.commit`;
+it exercises the real Gateway and PDP with conspicuously simulated providers and removes its isolated
+Compose project on exit. The first hosted CI run is pending:
+
+```sh
+uv run --frozen --python 3.13 --all-packages python -m scripts.portfolio_execution_demo
+```
 
 ## Capability and evidence status
 
@@ -60,7 +71,7 @@ key and replay denial. They stop before provider execution and currently run sep
 | --- | --- | --- |
 | Authorization, deterministic ranking, retry/fallback, streaming and SDK | Implemented, contract-tested, with bounded historical live proofs | Maintain as the core; make critical success/failure paths easy to reproduce. |
 | Console, metadata-only traces and operations demo | Implemented; real local runs recorded | Reuse existing surfaces and screenshots. Do not invent traffic to populate them. |
-| Full local execution demo with simulated providers | Planned; current operations demo has no inference route | Next implementation, with explicit simulation and five observable scenarios. |
+| Full local execution demo with simulated providers | Local end-to-end proof passed (5/5); hosted workflow added, first remote run pending | Keep the five outcomes visible and report simulation explicitly. |
 | `rag.answer` live path | Approved artifact is active in `personal-default`; historical live evidence exists | Retain the exact pin and refresh bounded evidence when consolidating the walkthrough. |
 | `agent.tool-use` live path | Separate historical Claude Code proof; absent from the stock runtime's approved artifact | Consolidate a separate reviewed walkthrough; do not silently activate the local candidate. |
 | Deadline and PDP HTTPS pool | Implemented opt-ins; contract and synthetic TLS evidence | Add a local real-PDP HTTPS exercise; default changes and production performance claims remain deferred. |

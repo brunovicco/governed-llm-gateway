@@ -1,0 +1,78 @@
+name: portfolio-execution-demo
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/portfolio-execution-demo.yml
+      - compose.pdp-composition.yml
+      - config/composition-proof/**
+      - packages/gateway-contracts/**
+      - packages/gateway-core/**
+      - apps/gateway-api/**
+      - pyproject.toml
+      - uv.lock
+      - docs/project/PDP_COMPOSITION_PROOF.md
+      - docs/project/PORTFOLIO_DEMO_PLAN.md
+      - scripts/composition_fixture.py
+      - scripts/composition_pin.py
+      - scripts/demo_authorization.py
+      - scripts/demo_pdp_https.py
+      - scripts/portfolio_execution_demo.py
+      - tests/contract/test_composition_pin.py
+      - tests/contract/test_demo_authorization.py
+      - tests/contract/test_demo_pdp_https.py
+      - tests/contract/test_portfolio_execution_demo.py
+  push:
+    branches:
+      - main
+      - feat/**
+    paths:
+      - .github/workflows/portfolio-execution-demo.yml
+      - compose.pdp-composition.yml
+      - config/composition-proof/**
+      - packages/gateway-contracts/**
+      - packages/gateway-core/**
+      - apps/gateway-api/**
+      - pyproject.toml
+      - uv.lock
+      - docs/project/PDP_COMPOSITION_PROOF.md
+      - docs/project/PORTFOLIO_DEMO_PLAN.md
+      - scripts/composition_fixture.py
+      - scripts/composition_pin.py
+      - scripts/demo_authorization.py
+      - scripts/demo_pdp_https.py
+      - scripts/portfolio_execution_demo.py
+      - tests/contract/test_composition_pin.py
+      - tests/contract/test_demo_authorization.py
+      - tests/contract/test_demo_pdp_https.py
+      - tests/contract/test_portfolio_execution_demo.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  execution-demo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: brunovicco/policy-model-router
+          ref: 3140181c45ce55a3139a292dbe30448012909fdf
+          path: policy-model-router
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Sync locked dependencies
+        run: uv sync --frozen
+      - name: Run real Gateway and PDP with simulated providers
+        env:
+          POLICY_MODEL_ROUTER_PATH: ${{ github.workspace }}/policy-model-router
+        run: uv run --frozen --python 3.13 --all-packages python -m scripts.portfolio_execution_demo

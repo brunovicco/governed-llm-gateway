@@ -24,8 +24,9 @@ This stack is what notices.
 
 A real Policy Model Router container with `RUNTIME_AUTHORIZATION_REQUIRED=true`, Redis behind it
 for replay state, and the Gateway's own PDP adapter — loaded from a real
-`policy_router.json` through `build_policy_router_adapter`, not hand-assembled — calling it over
-the loopback transport.
+`policy_router.json` through `build_policy_router_adapter`, not hand-assembled — calling it through
+a local HTTPS bridge signed by a fresh trusted test CA. Certificate verification remains enabled;
+the bridge forwards only bounded health and route paths to the loopback-only Router port.
 
 Four scenarios:
 
@@ -57,6 +58,11 @@ docker compose -f compose.pdp-composition.yml logs policy-model-router
 
 The Router is built from a sibling checkout. Clone it next to this repository, or point
 `POLICY_MODEL_ROUTER_PATH` somewhere else.
+
+The proof now checks that checkout against the full commit in
+`config/composition-proof/router.commit` before contacting the running service. Review and update
+that pin explicitly when adopting another Router revision; Docker will build the checked-out code,
+so a floating sibling `HEAD` is not sufficient evidence.
 
 ```bash
 uv run python -m scripts.composition_fixture \
