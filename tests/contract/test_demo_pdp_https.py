@@ -28,13 +28,22 @@ def test_local_proxy_serves_router_over_certificate_verified_https() -> None:
             assert parsed.hostname is not None
             connection = http.client.HTTPSConnection(parsed.hostname, parsed.port, timeout=3)
             try:
-                connection.request("GET", "/health")
-                response = connection.getresponse()
-                assert response.status == 200
-                assert response.read() == b"ok"
+                for _ in range(2):
+                    connection.request("GET", "/health")
+                    response = connection.getresponse()
+                    assert response.status == 200
+                    assert response.read() == b"ok"
+                assert proxy.metrics == (1, 2)
             finally:
                 connection.close()
     finally:
         upstream.shutdown()
         upstream.server_close()
         upstream_thread.join(timeout=3)
+
+
+def test_local_proxy_bounds_response_delay() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="response delay"):
+        LocalVerifiedHttpsProxy(response_delay_seconds=5.1)

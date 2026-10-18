@@ -103,8 +103,12 @@ are retained, not replaced by best-of-round values or generalized into a product
 Conclusion: real local TLS reuse is established; a general performance improvement is not. This
 does not justify switching the default. Optional application lifecycle ownership is now documented
 separately; any production rollout still needs representative authorized PDP/load/proxy evidence.
-No real credentials,
-production services, approved benchmark/ranking artifacts, model scores or dependency files changed.
+No real credentials, production services, approved benchmark/ranking artifacts, model scores or
+dependency files changed.
+
+The [later local real-PDP exercise](PDP_REAL_HTTPS_EXERCISE.md) adds fresh authorization decisions
+against the pinned Router, verified HTTPS, and the Gateway deadline boundaries. It reports variable
+latency and still makes no production-load or default-change claim.
 
 ## Verification boundaries
 

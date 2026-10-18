@@ -141,6 +141,8 @@ class _SimulatedProvider:
                     retryable=True,
                 )
             yield ProviderContentDelta(delta="simulated output")
+            if self.scenario == "deadline":
+                await asyncio.Event().wait()
             if self.scenario == "partial-failure":
                 raise ProviderError(
                     provider="nvidia",
@@ -351,7 +353,11 @@ def _event_types(body: str) -> list[str]:
 
 
 def _build_services(
-    directory: Path, endpoint: str, provider: _SimulatedProvider
+    directory: Path,
+    endpoint: str,
+    provider: _SimulatedProvider,
+    *,
+    execution_timeout_ms: int | None = None,
 ) -> GovernedGatewayServices:
     directory.mkdir(parents=True, exist_ok=True)
     paths = _fixture_documents(directory, endpoint)
@@ -387,6 +393,7 @@ def _build_services(
             max_delay_seconds=0,
             jitter_ratio=0,
         ),
+        execution_timeout_ms=execution_timeout_ms,
     )
 
 
@@ -416,7 +423,12 @@ def _scenario(
 ) -> ScenarioResult:
     provider = _SimulatedProvider()
     provider.scenario = behavior
-    services = _build_services(directory, endpoint, provider)
+    services = _build_services(
+        directory,
+        endpoint,
+        provider,
+        execution_timeout_ms=100 if name == "deadline-after-output" else None,
+    )
     headers = {"X-Gateway-API-Key": _GATEWAY_KEY}
 
     if name == "authorized-success":
@@ -494,6 +506,27 @@ def _scenario(
             name,
             passed,
             "partial output ended without replay or completion",
+            _events(response.text),
+            calls,
+            _digests(services),
+        )
+
+    if name == "deadline-after-output":
+        response = TestClient(services.app).post("/v1/generate", headers=headers, json=_payload())
+        event_types = _event_types(response.text)
+        calls = _provider_calls(provider)
+        passed = (
+            response.status_code == 200
+            and event_types.count("content.delta") == 1
+            and event_types.count("response.failed") == 1
+            and "response.completed" not in event_types
+            and calls == {_PRIMARY: 1, _SECONDARY: 0, _UNAUTHORIZED: 0}
+            and provider.closed[_MODEL_IDS[_PRIMARY]] == 1
+        )
+        return ScenarioResult(
+            name,
+            passed,
+            "deadline closed provider stream after content; no replay or late completion",
             _events(response.text),
             calls,
             _digests(services),
