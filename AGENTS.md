@@ -11,7 +11,10 @@
 - Independent reviewer: Claude Code
 - Current phase: Phase 14 — incremental consumer integrations; Cases 1/2 complete, OpsLens deferred
 - Phases 1–13: complete; see `docs/project/ROADMAP.md` for the merged PRs
-- Current checked-in baseline: `main@2bdbf68` (PR #273, 2026-09-18)
+- Baseline for the portfolio scope decision: `main@8f179d2` (PR #275, 2026-10-17)
+- Primary purpose: engineering portfolio; prioritize reproducible evidence under ADR-0028.
+- Active delivery plan: `docs/project/PORTFOLIO_DEMO_PLAN.md`; AWS deployment and durable
+  credential/spend controls are conditional future work, not portfolio completion requirements.
 
 Read, in order:
 
@@ -20,7 +23,7 @@ Read, in order:
 3. `docs/project/ARCHITECTURE.md`
 4. `docs/project/ROADMAP.md`
 5. ADR-0007, ADR-0011, ADR-0013, ADR-0017, ADR-0018, ADR-0020, ADR-0024, ADR-0025,
-   and ADR-0026
+   ADR-0026, and ADR-0028
 6. `docs/project/FALLBACK_AND_RETRY.md`
 7. `docs/project/STRUCTURED_OUTPUT_AND_TOOLS.md`
 8. `docs/project/STREAMING.md`

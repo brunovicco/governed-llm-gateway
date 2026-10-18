@@ -1,5 +1,10 @@
 # Process-local spend admission reference
 
+Portfolio classification: executable private reference under
+[ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md). Preserve the contracts and tests;
+durable reservations, provider-price issuance, reconciliation and serving activation remain
+conditional future work. They are not prerequisites for completing the portfolio demonstration.
+
 This is the second internal slice of [ADR-0021](../adr/ADR-0021-conservative-spend-admission-and-settlement.md).
 It implements [private ports](SPEND_ADMISSION_CONTRACTS.md) for synthetic conformance only.
 Serving/bootstrap, executors, cache/health, legacy observed-spend components, public contracts,

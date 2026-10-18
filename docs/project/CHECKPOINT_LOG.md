@@ -537,3 +537,30 @@ This review did not perform a new live PDP/provider request, frontend Node 24 ga
 production credential-rotation proof, durable spend-admission proof or real PDP pool/load proof.
 PR #259 remains the last recorded bounded live-provider proof in this log. No runtime or provider
 configuration was changed by the documentation reconciliation.
+
+## Portfolio scope and evidence plan — 2026-10-18
+
+ADR-0028 records the repository owner's portfolio objective and prioritizes reproducible demonstrations
+and reviewer evidence. `PORTFOLIO_GUIDE.md` now provides a short review path, three engineering cases,
+commands for the existing quality gate/operations demo/PDP composition proof, and an explicit status
+matrix. `PORTFOLIO_DEMO_PLAN.md` specifies, but does not claim completion of, a credential-free local
+execution demo, two optional live walkthroughs and a local verified-HTTPS PDP exercise. The active
+ranking artifact remains `rag.answer`; broader coverage remains deferred. Credential/spend code remains
+reference-only, and AWS infrastructure remains unapplied. Phase 14's numbered history and consumer
+order are unchanged.
+
+The new read-only `terraform-validate` workflow covers both AWS roots on relevant pull requests,
+`main` pushes and manual dispatch. It uses Terraform 1.15.8, the committed provider lockfiles,
+backend-disabled initialization and no AWS credentials. It performs no plan or apply.
+
+Validation on the local checkout:
+
+- `uv run python scripts/quality_gate.py` — PASS; 3556 passed, 9 skipped, 86.67% coverage;
+- `actionlint .github/workflows/terraform-validate.yml` — PASS;
+- Terraform 1.15.8 `fmt -check -recursive`, `init -backend=false -lockfile=readonly`, and
+  `validate` — PASS for both roots;
+- local Markdown link-target check — 275 targets, all present; `git diff --check` — PASS.
+
+These checks do not establish that the GitHub workflow has run, that AWS resources were deployed, or
+that simulated provider behavior is live inference. The pre-existing untracked local benchmark and
+ranking artifacts were not included in this change.

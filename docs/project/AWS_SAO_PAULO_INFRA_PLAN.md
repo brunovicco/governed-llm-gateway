@@ -1,5 +1,10 @@
 # AWS São Paulo infrastructure review checkpoint
 
+**Historical preview, deployment deferred.**
+[ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md) places local demonstrations ahead of
+cloud provisioning. The findings and prerequisites below are retained as dated reference material;
+they are not the current execution queue.
+
 Status: Terraform plans reviewed locally on 2026-10-17; **nothing applied**. This is post-core
 readiness infrastructure, not a new numbered phase or serving activation. See
 [ADR-0027](../adr/ADR-0027-aws-sao-paulo-readiness-infrastructure.md), the

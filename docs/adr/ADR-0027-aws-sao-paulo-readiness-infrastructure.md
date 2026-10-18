@@ -2,7 +2,10 @@
 
 ## Status
 
-Proposed for infrastructure review. AWS, `sa-east-1`, Terraform, a new isolated VPC and the private
+Validated infrastructure reference; deployment deferred under
+[ADR-0028](ADR-0028-portfolio-scope-and-evidence.md). The technical design below is retained for
+conditional future use; provisioning is no longer the active next step. AWS, `sa-east-1`, Terraform,
+a new isolated VPC and the private
 `internal.viccolabs.com.br` domain were selected by the operator. An authenticated account and its
 public `viccolabs.com.br` zone were inspected; no infrastructure was applied.
 
@@ -86,6 +89,9 @@ existing SSO profile uses a bootstrap admin role, which must be replaced by scop
 permissions before apply.
 
 ## Follow-up
+
+These steps apply only if a separately scoped deployment is resumed. The current portfolio work
+is defined in [PORTFOLIO_DEMO_PLAN.md](../project/PORTFOLIO_DEMO_PLAN.md).
 
 1. Review the isolated bootstrap and integration plans against the selected account. Provision the
    state bucket first, then initialize the integration backend; verify scoped IAM, CIDR and cost

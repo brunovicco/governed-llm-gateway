@@ -1,8 +1,10 @@
 # AWS São Paulo cost and access review
 
-Status: read-only estimate, 2026-10-17. No AWS resource was created. This document is the next
-review step after the [infrastructure preview](AWS_SAO_PAULO_INFRA_PLAN.md); it is not approval to
-run `terraform apply` or activate a serving control.
+Status: historical read-only estimate, 2026-10-17. No AWS resource was created. Under
+[ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md), deployment is deferred and the active
+work is the local portfolio demonstration. This document retains the cost/access review associated
+with the [infrastructure preview](AWS_SAO_PAULO_INFRA_PLAN.md) for a possible future deployment.
+It is not approval to run `terraform apply` or activate a serving control.
 
 ## Estimated monthly baseline
 

@@ -1,10 +1,23 @@
 # Current State
 
-Last updated: 2026-10-17 (checked against `main@2bdbf68`)
+Last updated: 2026-10-17 (portfolio scope based on `main@8f179d2`, PR #275).
 
 This document states only what is true today. For the dated, PR-by-PR narrative of how each of these
 facts was established — proof records, security reviews, real bugs found and fixed — see
 `docs/project/CHECKPOINT_LOG.md`.
+
+## Portfolio objective and active work
+
+[ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md) prioritizes demonstrable engineering and
+reproducible evidence. The [reviewer guide](PORTFOLIO_GUIDE.md) is available; the next runtime
+delivery is the [local execution demonstration](PORTFOLIO_DEMO_PLAN.md), followed by two explicit
+live walkthroughs and local real-PDP HTTPS validation. These deliveries remain planned.
+
+Credential/spend code remains an executable private reference. PR #275's AWS Terraform roots are
+validated infrastructure references; no resources have been applied. Their credential-free
+format/init/validate workflow is added with the portfolio scope change; a remote CI pass is a
+separate claim. Durable authorities, permanent AWS infrastructure and remaining Phase 14 consumer
+migrations are conditional future work, not prerequisites for portfolio completion.
 
 ## Phase status
 
@@ -67,6 +80,7 @@ facts was established — proof records, security reviews, real bugs found and f
 | PRs #266–#270 | Observed-spend concurrency regressions and private process-local spend-admission/cost-evidence references, including native OpenAI counter parsing. No spend reservation or native cost source is wired into serving. |
 | PR #271 | Explicit opt-in total execution deadline; default behavior remains without that limit. |
 | PRs #272–#273 | Injectable PDP HTTPS pool and explicit ASGI lifecycle; default transport remains unchanged and production activation is deferred. |
+| PR #275 | Post-core evidence plan, ranking coverage audit and AWS Terraform foundation. No AWS resource or serving control was activated; deployment is now deferred under ADR-0028. |
 
 The provider-credential reference does not rotate serving credentials or quarantine live bindings;
 see [its proof boundary](PROVIDER_CREDENTIAL_AVAILABILITY.md). SpendGuard still reads observed spend
@@ -196,7 +210,7 @@ Remains after the preceding integration cases.
 
 ## Current working boundary
 
-Current checked-in main: `2bdbf68a8a4e4dd71452f6ed2b610997856e82cd` (PR #273). A local,
+Historical PR #273 validation at `2bdbf68a8a4e4dd71452f6ed2b610997856e82cd`: a local,
 credential-free `uv run python scripts/quality_gate.py` run on 2026-10-17 passed with 86.67% coverage;
 3554 tests passed and 9 were skipped. Lockfile, Ruff, mypy, governed composition, both coverage
 checks, Bandit, pip-audit, architecture, secret scan and Phase 0 all passed. This run did not perform
@@ -213,7 +227,11 @@ JSON probe. These are bounded local proofs, not production certification; direct
 not be presented as full governed E2E. See the
 [dated proof record](CHECKPOINT_LOG.md#deterministic-streaming-preflight--pr-259-executed-2026-09-15).
 
-1. Start new increments from the then-current `main`; retain the distinction between credential-free CI, direct adapter checks and governed live proofs.
+The portfolio decision starts from `main@8f179d2` (PR #275). That increment recorded 3556 passed,
+9 skipped and 86.67% coverage, plus local Terraform validation and read-only plan previews; see
+[POST_CORE_READINESS.md](POST_CORE_READINESS.md). These are dated checks, not fresh live evidence.
+
+1. Start new increments from the then-current `main`; follow the portfolio delivery plan and retain the distinction between credential-free CI, direct adapter checks and governed live proofs.
 2. OR-9's minimum-appropriate hardening for the demonstrated operational surfaces is complete (bounded increments PC-34..PC-51 plus a dedicated 2026-09-09 gap investigation found no further non-production gap). Production identity/TLS/rate-limit/CSRF concerns remain separate, explicit future work, not a silently missing minimum. Continue only with separately justified, consumer-independent security increments that preserve existing serving semantics.
 3. Do not modify OpsLens until its independent development state is ready for reconciliation.
 4. Do not begin RAGForge in parallel unless the normative roadmap order is explicitly revised.

@@ -12,6 +12,11 @@ An application declares a workload and its requirements, while the Gateway decid
 model serves it, calls the provider and returns the answer with the evidence of how it was chosen. No
 provider SDK, no API key and no `if provider == ...` in the consumer.
 
+This is an engineering portfolio centered on implemented behavior and reproducible evidence.
+Start with the [portfolio review guide](docs/project/PORTFOLIO_GUIDE.md) for three engineering
+cases, commands you can run today, and the distinction between runtime features, executable
+references and future work. AWS infrastructure is a validated reference, with deployment deferred.
+
 ```text
 Application/Agent
         │

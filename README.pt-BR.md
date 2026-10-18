@@ -12,6 +12,11 @@ A aplicação declara um workload e seus requisitos, enquanto o Gateway decide q
 o provider e devolve a resposta com a evidência de como ela foi escolhida. Nenhum SDK de provider,
 nenhuma API key e nenhum `if provider == ...` no consumidor.
 
+Este é um portfólio de engenharia centrado em comportamento implementado e evidências reproduzíveis.
+Comece pelo [guia de avaliação do portfólio](docs/project/PORTFOLIO_GUIDE.md), com três casos de
+engenharia, comandos disponíveis hoje e a distinção entre funcionalidades, referências executáveis
+e trabalhos futuros. A infraestrutura AWS permanece como referência validada, com implantação adiada.
+
 ```text
 Aplicação/Agente
         │

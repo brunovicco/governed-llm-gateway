@@ -1,7 +1,12 @@
-# Post-core readiness work
+# Post-core evidence and conditional production readiness
 
-Status: execution plan and local evidence checkpoint, 2026-10-17. This is consumer-independent
-work outside the numbered phases. Phase 14 and its ordered consumer migrations retain their status
+Status: historical local evidence checkpoint and conditional production requirements, 2026-10-17.
+[ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md) supersedes this document as the active
+implementation queue. Follow [PORTFOLIO_DEMO_PLAN.md](PORTFOLIO_DEMO_PLAN.md) for current work:
+local demonstration, two explicit live walkthroughs and local HTTPS evidence. AWS deployment and
+durable credential/spend controls remain future work. The evidence below is preserved; the
+conditional increments are not started by recording them here. Phase 14 and its ordered consumer
+migrations retain their status
 in [ROADMAP.md](ROADMAP.md#phase-14--real-project-integrations). Nothing in this plan authorizes a
 new model group, provider, credential, spend limit, or production rollout.
 
@@ -9,7 +14,7 @@ new model group, provider, credential, spend limit, or production rollout.
 
 | Workstream | Verified local baseline | Decision now |
 | --- | --- | --- |
-| Credential availability | Private values, ports, process-local conformance and an adapter-only exact-version secret boundary exist. The focused contract/reference suite passed on 2026-10-17. | Keep out of serving. No trusted publisher, exact-version backend, durable quarantine or multi-replica recovery has been selected and proven. |
+| Credential availability | Private values, ports, process-local conformance and an adapter-only exact-version secret boundary exist. The focused contract/reference suite passed on 2026-10-17. | Retain as an executable reference outside serving. AWS is the conditional infrastructure direction; a trusted publisher, backend, durable quarantine and multi-replica recovery remain unimplemented. |
 | Spend admission and cost evidence | Private admission and v2 cost contracts/references exist. The focused contract/reference suite passed on 2026-10-17. | Keep out of serving. Native counters and synthetic reports do not prove charging, exact-attempt finality, durable holds or a billing ceiling. |
 | `personal-default` ranking | The pinned artifact validates at `sha256:4d58f86b791267b2d38c6a95edad576ab35a5b97a8ee43a78a9d527ac8ee56ad` and covers only `rag.answer`. A separate, untracked local artifact validates at `sha256:53cb9aeca737b2b4daa1e62b977bcb74128e238175f936292f74d515ca28274d` for `agent.tool-use`; it remains outside the launcher and this change. The read-only coverage audit and local Gateway/PDP readiness smoke passed on 2026-10-17. | Keep the existing pin and fail-closed behavior. Startup readiness is not a governed inference proof; a valid single-workload artifact is not nine-workload coverage or authorization to combine artifacts. |
 | Explicit deadline | The focused deadline suite passed on 2026-10-17. The feature remains opt-in. | Keep the default off until representative governed traffic proves the chosen budget and termination behavior. |
@@ -47,7 +52,7 @@ uv run --frozen --all-packages --python 3.13.12 \
 uv run python scripts/quality_gate.py
 ```
 
-## Increment 1 — qualify evidence before changing serving
+## Conditional increment 1 — qualify evidence before changing serving
 
 1. Record the target deployment, operator, exact code/configuration identities, rollback owner,
    approved request budget and metadata-only evidence destination. Use a real HTTPS Policy Model
@@ -60,7 +65,11 @@ uv run python scripts/quality_gate.py
    activation explicit and reversible; do not revise Phase 14 ordering or infer permission from this
    plan.
 
-## Increment 2 — ranking coverage, one workload at a time
+## Ranking evidence — two portfolio paths, broader coverage deferred
+
+The active portfolio target is `rag.answer` plus a separately reviewed `agent.tool-use` walkthrough.
+The remaining workload expansion and general artifact merging are future work. The requirements
+below apply if that expansion is resumed; nine-workload coverage is not a portfolio completion gate.
 
 The current launcher and Compose pin cover `rag.answer` only. `classification.simple`,
 `extraction.structured`, `reasoning.complex`, `security.analysis`, `code.generate`, `code.review`,
@@ -90,7 +99,7 @@ key can fill a missing workload. Validate the resulting pinned startup and an au
 each enabled workload before updating the profile's operational claim. Roll back by restoring the
 previous artifact and pin together.
 
-## Increment 3 — credential availability
+## Conditional increment 3 — durable credential availability (deferred)
 
 The selected infrastructure direction is AWS `sa-east-1` with Terraform: AWS Secrets Manager for
 exact-version credential material and private Multi-AZ PostgreSQL RDS for durable control state.
@@ -101,8 +110,8 @@ have been applied. The [infrastructure checkpoint](AWS_SAO_PAULO_INFRA_PLAN.md) 
 read-only inventory and plan previews. This choice does not activate serving or satisfy the backend
 conformance steps below.
 
-Implement the versioned secret authority and authenticated controller on the selected AWS
-account/network.
+If a named operational requirement reactivates this work, implement the versioned secret authority
+and authenticated controller on the selected AWS account/network.
 Specify exact-version retrieval, stable material identity across aliases, activation epochs and
 runtime/authentication-scope provenance. Implement an authoritative durable shared store with
 atomic admission, fencing, retained material quarantine, restart/failover recovery and separately
@@ -116,7 +125,10 @@ behind an explicit deployment opt-in with a documented rollback; never substitut
 reference for shared production state. See [credential availability](PROVIDER_CREDENTIAL_AVAILABILITY.md)
 and [ADR-0019](../adr/ADR-0019-provider-credential-binding-availability.md).
 
-## Increment 4 — conservative spend admission
+## Conditional increment 4 — durable spend admission (deferred)
+
+The process-local reference remains portfolio evidence. The following requirements apply only if
+a real consumer need justifies durable serving integration.
 
 Qualify an immutable provider/model/account/tier price source and exact native count semantics for
 each enabled shape. Establish charged-category completeness, output/reasoning inclusion, drift and
@@ -132,7 +144,10 @@ recovery, then use an explicit opt-in and controlled real-provider proof. No cur
 reference or native counter is a billing ceiling. See [v2 slices C–E](SPEND_COST_EVIDENCE_V2_PLAN.md)
 and [ADR-0021](../adr/ADR-0021-conservative-spend-admission-and-settlement.md).
 
-## Increment 5 — deadline and PDP pool on representative deployments
+## Conditional increment 5 — production deadline/pool qualification (deferred)
+
+The active portfolio plan first exercises a real PDP behind verified local HTTPS. That bounded
+laboratory needs no AWS deployment and will not satisfy the production claims below.
 
 The same AWS foundation proposes an internal HTTPS ALB and private DNS for a future Policy Model
 Router integration deployment. It has no Router targets or Governance Runtime Control projection;
@@ -154,7 +169,10 @@ the application. A default change requires its own evidence and review. See
 [deadline behavior](STREAMING.md#explicit-local-execution-deadline) and
 [pool lifecycle](PDP_POOL_LIFECYCLE.md).
 
-## Completion criteria
+## Completion criteria for resumed production work
+
+These criteria are separate from the portfolio acceptance criteria in
+[PORTFOLIO_DEMO_PLAN.md](PORTFOLIO_DEMO_PLAN.md).
 
 Mark an increment complete only with its reviewed artifact/ADR where needed, exact deployment
 configuration and pin, passing focused and full quality gates, representative governed proof,

@@ -1,5 +1,22 @@
 # Dedicated Terraform state bucket
 
+**Portfolio status:** validated reference; deployment deferred under
+[ADR-0028](../../../docs/adr/ADR-0028-portfolio-scope-and-evidence.md). No state bucket is needed to
+run the portfolio's local demonstrations or credential-free Terraform validation.
+
+The [terraform-validate workflow](../../../.github/workflows/terraform-validate.yml) checks this
+root and the integration root with read-only GitHub permissions and no AWS credentials. From this
+directory, reproduce its Terraform checks with:
+
+```sh
+terraform fmt -check -recursive
+terraform init -backend=false -input=false -lockfile=readonly -no-color
+terraform validate -no-color
+```
+
+These checks validate configuration, not a deployed bucket. The remaining instructions apply only
+if a future deployment is explicitly resumed.
+
 This separate Terraform root defines a versioned S3 bucket in `sa-east-1`, encrypted with a
 rotating KMS key, with public access blocked, TLS-only bucket policy and deletion protection.
 Its state is **local during bootstrap**. Neither this root nor the integration root has been
