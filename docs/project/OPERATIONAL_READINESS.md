@@ -1,5 +1,10 @@
 # Gateway Operational Readiness
 
+Portfolio priority update, 2026-10-17: preserve the implemented operational surfaces and their
+historical evidence below. [ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md) sets the
+current scope; [PORTFOLIO_DEMO_PLAN.md](PORTFOLIO_DEMO_PLAN.md) is the active delivery plan.
+Production infrastructure and identity/operations work remain conditional future extensions.
+
 This track is independent from Phase 14 consumer integrations. It turns the existing governed execution
 core into a locally demonstrable operational platform without changing the permanent authorization
 sequence or pulling forward OpsLens, RAGForge, or Verifiable AI Governance work.

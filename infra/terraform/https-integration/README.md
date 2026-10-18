@@ -1,5 +1,10 @@
 # AWS São Paulo HTTPS integration foundation
 
+**Portfolio status:** validated infrastructure reference; deployment deferred under
+[ADR-0028](../../../docs/adr/ADR-0028-portfolio-scope-and-evidence.md). The active next step is the
+[local demonstration plan](../../../docs/project/PORTFOLIO_DEMO_PLAN.md). The preparation and
+deployment instructions below are retained for conditional future use.
+
 This Terraform root is a reviewable **foundation**, not an activated PDP or credential/spend
 control. It creates an isolated two-AZ VPC and private subnets, with one NAT gateway per AZ only
 when `enable_private_egress = true`, plus a private
@@ -62,11 +67,20 @@ the plan.
 
 ## Validate and review
 
+The [terraform-validate workflow](../../../.github/workflows/terraform-validate.yml) checks both
+Terraform roots on relevant pull requests and `main` pushes, and supports manual dispatch. It uses
+Terraform 1.15.8, committed provider locks, `contents: read`, and no cloud credentials. Run its
+configuration checks locally from this directory:
+
 ```sh
 terraform fmt -check -recursive
-terraform init -backend=false
-terraform validate
+terraform init -backend=false -input=false -lockfile=readonly -no-color
+terraform validate -no-color
 ```
+
+Initialization may download providers, but it does not initialize the S3 backend. Validation does
+not query AWS or prove a deployed endpoint, database, IAM policy or cost. CI contains no plan/apply.
+See the [Terraform validation contract](https://developer.hashicorp.com/terraform/cli/commands/validate).
 
 With the state bucket and scoped Terraform role ready, the operator can prepare a saved plan:
 

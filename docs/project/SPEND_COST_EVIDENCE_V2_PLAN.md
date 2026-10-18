@@ -1,5 +1,10 @@
 # Private cost-evidence v2 implementation proposal
 
+Portfolio status under [ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md): retain the
+implemented private slices as executable references. Trusted issuance, durable admission and
+serving integration in later slices are conditional future work, outside the active
+[portfolio delivery plan](PORTFOLIO_DEMO_PLAN.md).
+
 Date: 2026-09-17. Baseline: merged `main@0ac0193` plus the local
 [native counters checkpoint](SPEND_OPENAI_NATIVE_USAGE_COUNTERS.md).
 This is the plan for proposed [ADR-0023](../adr/ADR-0023-versioned-cache-category-cost-evidence.md).

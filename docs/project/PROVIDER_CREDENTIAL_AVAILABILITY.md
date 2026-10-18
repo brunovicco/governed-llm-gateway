@@ -159,6 +159,10 @@ shared-control admission, restart/failover durability, or provider acceptance.
 
 ## Operational backend direction — AWS selected, authority not implemented
 
+Under [ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md), retain this implementation as a
+tested private reference. Durable authority/controller work and serving activation are conditional
+future work. The cloud choice below describes that possible evolution, not the active portfolio queue.
+
 The operator selected AWS `sa-east-1` with Terraform for post-core infrastructure. The proposed
 [ADR-0027](../adr/ADR-0027-aws-sao-paulo-readiness-infrastructure.md) chooses Secrets Manager
 exact-version material and private Multi-AZ PostgreSQL for future shared control state. The account

@@ -2,7 +2,24 @@
 
 The normative detailed roadmap is preserved verbatim at `SOURCE_ROADMAP.txt`.
 
-Current execution sequence:
+## Portfolio delivery priority
+
+The repository owner's portfolio objective is recorded in
+[ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md). The active work is:
+
+1. Reviewer guide and clear implemented/reference/future status — available in
+   [PORTFOLIO_GUIDE.md](PORTFOLIO_GUIDE.md).
+2. Local execution demonstration with the real Gateway/PDP and explicitly simulated providers — planned.
+3. Two consolidated optional live paths, `rag.answer` and `agent.tool-use` — planned, building on
+   separately identified existing evidence.
+4. Local verified-HTTPS PDP exercise for deadline/pool behavior — planned.
+
+The [delivery plan](PORTFOLIO_DEMO_PLAN.md) defines acceptance and evidence. AWS deployment,
+durable credential/spend controls and further consumer migrations are conditional future work.
+Terraform remains a validated reference with credential-free CI. None of these priorities creates
+a new numbered phase, changes the original consumer order or completes a deferred migration.
+
+## Numbered phase history
 
 0. Architecture Gate — COMPLETE BASELINE.
 1. Generalize `policy-model-router` contract/vocabulary — COMPLETE (`policy-model-router` PR #20).
@@ -132,7 +149,7 @@ Snapshots may remain historical schema `1.0`, or opt into schema `1.1` target-ma
 
 Completion of these gateway-internal increments does not alter the Phase 14 consumer order. See `docs/evaluation/BENCHMARK_MATRIX.md`.
 
-## Post-core gateway increments through PR #273
+## Post-core gateway increments through PR #275
 
 These merged, consumer-independent increments do not change the Phase 14 migration order or create
 new authorization authority:
@@ -144,6 +161,7 @@ new authorization authority:
 | #266–#270 | Observed-spend concurrency proof and private conservative admission/cost-evidence references, including OpenAI native count parsing ([ADR-0021](../adr/ADR-0021-conservative-spend-admission-and-settlement.md)–[ADR-0023](../adr/ADR-0023-versioned-cache-category-cost-evidence.md)). No reservation, trusted native cost issuance or billing ceiling is active in serving. |
 | #271 | Explicit opt-in total execution deadline, independent of policy `max_latency_ms` ([ADR-0024](../adr/ADR-0024-explicit-execution-deadline.md)). |
 | #272–#273 | Injectable PDP HTTPS pool with explicit ASGI lifecycle; default transport and production activation are unchanged ([ADR-0025](../adr/ADR-0025-pdp-connection-pooling.md), [ADR-0026](../adr/ADR-0026-asgi-owned-pdp-pool-lifecycle.md)). |
+| #275 | Ranking coverage audit, local readiness evidence and validated AWS infrastructure reference. Resources remain unapplied; ADR-0028 defers deployment in favor of portfolio demonstrations. |
 
 The detailed implementation/non-claims live in [CURRENT_STATE.md](CURRENT_STATE.md#post-core-implementation-scope)
 and the [project documentation index](README.md). Reference-only designs require their own
@@ -282,14 +300,17 @@ bounded local proofs certify a production deployment.
 
 ## Current gateway baseline
 
-Checked-in main as of this documentation update: `2bdbf68a8a4e4dd71452f6ed2b610997856e82cd`
-(PR #273). The complete local credential-free quality gate passed on 2026-10-17 with 86.67% coverage;
-see [CURRENT_STATE.md](CURRENT_STATE.md#current-working-boundary). The PR #259 proof above remains
-the last recorded bounded live-provider proof, not a live test of PRs #260–#273.
+Baseline for this scope update: `8f179d2` (PR #275). That increment recorded 3556 passing tests,
+9 skipped and 86.67% coverage, plus Terraform validation and read-only previews; see
+[CURRENT_STATE.md](CURRENT_STATE.md#current-working-boundary). The PR #259 proof above remains
+the last recorded bounded live-provider proof, not a live test of PRs #260–#275.
 
 The default checked-in runtime remains credential-free and fail-closed. All new work starts from the then-current `main`.
 
 ## Next boundary
+
+Execute [PORTFOLIO_DEMO_PLAN.md](PORTFOLIO_DEMO_PLAN.md) first. The conditions below govern any
+future serving or consumer work; they do not require cloud deployment to finish the portfolio.
 
 Until OpsLens is ready for reconciliation:
 

@@ -7,6 +7,13 @@ phase deferral.
 
 ## Objective
 
+The repository's primary purpose is an engineering portfolio. Prioritize reproducible demonstrations
+and evidence of the implemented core under [ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md).
+Use [PORTFOLIO_GUIDE.md](PORTFOLIO_GUIDE.md) for evaluation and
+[PORTFOLIO_DEMO_PLAN.md](PORTFOLIO_DEMO_PLAN.md) for the active delivery sequence. AWS deployment,
+durable credential/spend authorities and additional consumer migrations are conditional future work;
+their deferral does not weaken runtime invariants or mark unfinished phases complete.
+
 Build a reusable, provider-neutral LLM execution gateway that resolves and invokes only models already
 authorized by deterministic policy, while retaining explainable routing provenance, capability
 enforcement, safe fallback, runtime health handling, structured-output/tool normalization, safe

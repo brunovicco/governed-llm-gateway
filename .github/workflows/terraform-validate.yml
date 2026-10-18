@@ -1,0 +1,48 @@
+name: terraform-validate
+
+on:
+  pull_request:
+    paths:
+      - infra/terraform/**
+      - .github/workflows/terraform-validate.yml
+  push:
+    branches: [main]
+    paths:
+      - infra/terraform/**
+      - .github/workflows/terraform-validate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        root: [state-bootstrap, https-integration]
+    defaults:
+      run:
+        working-directory: infra/terraform/${{ matrix.root }}
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      AWS_EC2_METADATA_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+      - name: Check formatting
+        run: terraform fmt -check -recursive
+      - name: Initialize providers without a state backend
+        run: terraform init -backend=false -input=false -lockfile=readonly -no-color
+      - name: Validate reference configuration
+        run: terraform validate -no-color
+      - name: Require unchanged provider lockfile
+        run: git diff --exit-code -- .terraform.lock.hcl

@@ -1,127 +1,86 @@
-# Project documentation index
+# Project documentation
 
-This folder holds the working documentation of the Governed LLM Gateway: the current state, the
-architecture contracts, and the record of how each capability was built and proven.
-
-The documents were written increment by increment, so many open with an internal identifier. You do
-not need those identifiers to read them — this index says what each document answers — but they
-decode as:
-
-| Identifier | Meaning |
-| --- | --- |
-| `Phase N` | One numbered stage of the original roadmap, preserved verbatim in `SOURCE_ROADMAP.txt` and summarized in [`ROADMAP.md`](ROADMAP.md) |
-| `PC-n` | One numbered increment of the post-core hardening sequence; each corresponds to one merged pull request |
-| `OR-n` | One increment of the operational-readiness track described in [`OPERATIONAL_READINESS.md`](OPERATIONAL_READINESS.md) |
-| `CR-n` | One increment of the complexity-routing track described in [`COMPLEXITY_ROUTING.md`](COMPLEXITY_ROUTING.md) |
-
-A document scoped to a past phase (for example [`THREAT_MODEL.md`](THREAT_MODEL.md), "through Phase 8")
-states that scope in its own title or first lines. Where a later increment changed something, the change
-is recorded in [`CHECKPOINT_LOG.md`](CHECKPOINT_LOG.md), which is append-only.
+This library records the gateway's contracts, implementation details and dated proof. Start with
+the portfolio guide; open a technical reference when reviewing that specific boundary.
 
 ## Start here
 
-| Document | What it answers |
+| Document | Purpose |
 | --- | --- |
-| [`CURRENT_STATE.md`](CURRENT_STATE.md) | Current serving baseline, reference-only work, and validated scope |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | How authorization, selection and execution are separated |
-| [`ROADMAP.md`](ROADMAP.md) | Which phases exist, which are complete, and what comes next |
-| [`CHECKPOINT_LOG.md`](CHECKPOINT_LOG.md) | The dated, append-only proof record behind every claim |
-| [`POST_CORE_READINESS.md`](POST_CORE_READINESS.md) | Evidence gates and executed local checks for consumer-independent readiness work outside numbered phases |
-| [AWS São Paulo Terraform foundation](../../infra/terraform/https-integration/README.md) | Proposed private HTTPS PDP ingress, Secrets Manager containers and durable PostgreSQL substrate; no runtime activation |
-| [`AWS_PROFILE_SETUP.md`](AWS_PROFILE_SETUP.md) | Step-by-step AWS CLI profile setup and account/region verification before a Terraform plan |
-| [`AWS_SAO_PAULO_INFRA_PLAN.md`](AWS_SAO_PAULO_INFRA_PLAN.md) | Read-only account findings, Terraform preview and prerequisites before any apply |
-| [`AWS_SAO_PAULO_COST_AND_ACCESS.md`](AWS_SAO_PAULO_COST_AND_ACCESS.md) | Regional cost baseline and scoped Terraform state-access requirements |
-| [`PROJECT_INSTRUCTIONS.md`](PROJECT_INSTRUCTIONS.md) | The original objective and the constraints the project is held to |
-| [`SOURCES.md`](SOURCES.md) | Which inputs are normative and which are derived |
+| [Portfolio guide](PORTFOLIO_GUIDE.md) | Short reviewer path, engineering cases, runnable checks and evidence limits |
+| [Current state](CURRENT_STATE.md) | What is implemented, active, reference-only and deferred |
+| [Architecture](ARCHITECTURE.md) | Authorization, selection, execution and package boundaries |
+| [Roadmap](ROADMAP.md) | Numbered phase history and current portfolio delivery priority |
+| [Checkpoint log](CHECKPOINT_LOG.md) | Dated, append-only implementation and proof record |
+| [Project instructions](PROJECT_INSTRUCTIONS.md) | Normative engineering constraints |
 
-## Authorization and security boundaries
+## Choose a topic
 
-| Document | What it answers |
-| --- | --- |
-| [`SECURITY_MODEL.md`](SECURITY_MODEL.md) | What is secret, who owns it, and where each asset may travel |
-| [`THREAT_MODEL.md`](THREAT_MODEL.md) | Which abuse cases are controlled, and which are deferred to a named phase |
-| [`GATEWAY_CLIENT_AUTHENTICATION.md`](GATEWAY_CLIENT_AUTHENTICATION.md) | How a consumer authenticates without ever holding a provider credential |
-| [`POLICY_ROUTER_RUNTIME.md`](POLICY_ROUTER_RUNTIME.md) | How the Gateway reaches the external policy decision point, and why that connection cannot authorize anything |
-| [`PDP_TRANSPORT_COMPARISON.md`](PDP_TRANSPORT_COMPARISON.md) | Bounded local evidence comparing per-request and pooled PDP transport |
-| [`PDP_POOL_LIFECYCLE.md`](PDP_POOL_LIFECYCLE.md) | Explicit ASGI-owned PDP HTTPS pool, readiness, shutdown and non-claims |
-| [`PDP_COMPOSITION_PROOF.md`](PDP_COMPOSITION_PROOF.md) | How to run the Gateway against a real enforcing Policy Model Router, and what that run proves |
-| [`OPERATIONS_ACCESS.md`](OPERATIONS_ACCESS.md) | Why permission to run a workload is not permission to see process-wide state |
-| [`OPERATIONS_ACCESS_ARTIFACT.md`](OPERATIONS_ACCESS_ARTIFACT.md) | How a deployment declares, without secrets, who may read operations state |
-| [`HTTP_CACHE_POLICY.md`](HTTP_CACHE_POLICY.md) | Why authenticated evidence responses are never storable |
+- **Understand the request path:** [PDP/PEP contract](../architecture/PDP_PEP_CONTRACT_DRAFT.md),
+  [routing](ROUTING.md), [fallback and retry](FALLBACK_AND_RETRY.md),
+  [streaming](STREAMING.md), [structured output and tools](STRUCTURED_OUTPUT_AND_TOOLS.md).
+- **Run or review a demonstration:** [portfolio demo plan](PORTFOLIO_DEMO_PLAN.md),
+  [local operations demo](LOCAL_OPERATIONS_DEMO.md),
+  [cross-repository PDP proof](PDP_COMPOSITION_PROOF.md).
+- **Review provider and client boundaries:** [provider contract](PROVIDER_CONTRACT.md),
+  [protocol guide](PROTOCOL_MULTIMODAL_GATEWAY.md),
+  [client authentication](GATEWAY_CLIENT_AUTHENTICATION.md).
+- **Review deployment and operations:** [container deployment](CONTAINER_DEPLOYMENT.md),
+  [deployment activation](DEPLOYMENT_ACTIVATION.md),
+  [security model](SECURITY_MODEL.md), [observability](OBSERVABILITY.md).
+- **Review evaluation and ranking:** [evaluation guide](EVALUATION.md),
+  [benchmark matrix](../evaluation/BENCHMARK_MATRIX.md),
+  [operational evidence](../evaluation/OPERATIONAL_EVIDENCE.md).
+- **Review future and reference work:** [post-core evidence](POST_CORE_READINESS.md),
+  [credential reference](PROVIDER_CREDENTIAL_AVAILABILITY.md),
+  [spend reference](SPEND_ADMISSION_REFERENCE.md),
+  [AWS infrastructure reference](../../infra/terraform/https-integration/README.md).
 
-## Model resolution and execution
+## Technical reference library
 
-| Document | What it answers |
-| --- | --- |
-| [`MODEL_REGISTRY.md`](MODEL_REGISTRY.md) | How deployments are declared as reviewed configuration rather than routing branches |
-| [`ROUTING.md`](ROUTING.md) | What the policy decision point returns and what the Gateway may do with it |
-| [`PROVIDER_CONTRACT.md`](PROVIDER_CONTRACT.md) | The provider-neutral execution contract every adapter implements |
-| [`FALLBACK_AND_RETRY.md`](FALLBACK_AND_RETRY.md) | How resilience moves between deployments without widening authorization |
-| [`STREAMING.md`](STREAMING.md) | How provider streams are normalized, and how cancellation behaves |
-| [`STRUCTURED_OUTPUT_AND_TOOLS.md`](STRUCTURED_OUTPUT_AND_TOOLS.md) | How structured output and tool calls are normalized without owning tool execution |
-| [`MULTIMODAL_INPUT.md`](MULTIMODAL_INPUT.md) | What image input supports today, and what it deliberately does not |
-| [`COMPLEXITY_ROUTING.md`](COMPLEXITY_ROUTING.md) | How task complexity narrows an already-authorized set, as evidence only |
-| [`COMPLEXITY_GENERATION.md`](COMPLEXITY_GENERATION.md) | How that narrowing reaches streaming execution, behind an opt-in |
-| [`SPEND_ACCOUNTING.md`](SPEND_ACCOUNTING.md) | Observed-spend components and why they are not current serving enforcement |
-| [`SPEND_ADMISSION_CONTRACTS.md`](SPEND_ADMISSION_CONTRACTS.md) | Private conservative reservation/settlement port and value contracts |
-| [`SPEND_ADMISSION_REFERENCE.md`](SPEND_ADMISSION_REFERENCE.md) | Process-local synthetic spend-admission reference and its proof limits |
-| [`SPEND_COST_EVIDENCE_CONTRACTS.md`](SPEND_COST_EVIDENCE_CONTRACTS.md) | Private two-rate cost-bound and finality contracts |
-| [`SPEND_COST_EVIDENCE_REFERENCE.md`](SPEND_COST_EVIDENCE_REFERENCE.md) | Synthetic version-one cost-evidence source and non-claims |
-| [`SPEND_COST_EVIDENCE_V2_CONTRACTS.md`](SPEND_COST_EVIDENCE_V2_CONTRACTS.md) | Private cache-category pricing values and exact arithmetic |
-| [`SPEND_COST_EVIDENCE_V2_REFERENCE.md`](SPEND_COST_EVIDENCE_V2_REFERENCE.md) | Finite synthetic version-two lookup reference |
-| [`SPEND_COST_EVIDENCE_V2_PLAN.md`](SPEND_COST_EVIDENCE_V2_PLAN.md) | Remaining trusted-source, finality and activation slices |
-| [`SPEND_OPENAI_CAPABILITY_ASSESSMENT.md`](SPEND_OPENAI_CAPABILITY_ASSESSMENT.md) | Evidence limits for native OpenAI cost accounting |
-| [`SPEND_OPENAI_INPUT_COUNT_PROJECTION.md`](SPEND_OPENAI_INPUT_COUNT_PROJECTION.md) | Private Responses input-count projection and its limits |
-| [`SPEND_OPENAI_NATIVE_USAGE_COUNTERS.md`](SPEND_OPENAI_NATIVE_USAGE_COUNTERS.md) | Native usage-counter parsing without cost authority |
-| [`OPENAI_COMPATIBLE_INGRESS.md`](OPENAI_COMPATIBLE_INGRESS.md) | How an existing OpenAI client can repoint at the Gateway without a second execution path |
-| [`PROTOCOL_MULTIMODAL_GATEWAY.md`](PROTOCOL_MULTIMODAL_GATEWAY.md) | Anthropic Messages, OpenAI Responses, Claude Code/Codex setup, multimodal capabilities and fail-closed limits |
+These focused documents preserve implementation contracts and proof details. They are supporting
+references; most readers can start with the six documents above and the topic links.
 
-## Runtime composition and deployment
+<details>
+<summary>Architecture and runtime composition</summary>
 
-| Document | What it answers |
-| --- | --- |
-| [`APPLICATION_BOOTSTRAP.md`](APPLICATION_BOOTSTRAP.md) | In what order artifacts are staged before any secret is materialized |
-| [`PROCESS_BOOTSTRAP.md`](PROCESS_BOOTSTRAP.md) | Why every bootstrap must fail closed before credentials resolve |
-| [`GATEWAY_RUNTIME_BOOTSTRAP.md`](GATEWAY_RUNTIME_BOOTSTRAP.md) | How runtime artifacts and secret resolvers compose without a module-level singleton |
-| [`SERVICE_COMPOSITION.md`](SERVICE_COMPOSITION.md) | Which layer is pure composition and therefore does no I/O |
-| [`GATEWAY_APPLICATION_COMPOSITION.md`](GATEWAY_APPLICATION_COMPOSITION.md) | What the single FastAPI application factory mounts |
-| [`DEPLOYMENT_ACTIVATION.md`](DEPLOYMENT_ACTIVATION.md) | Where a deployment declares the exact artifacts one activation uses |
-| [`PROVIDER_RUNTIME_CONFIGURATION.md`](PROVIDER_RUNTIME_CONFIGURATION.md) | How provider endpoints and credentials stay a deployment concern |
-| [`PROVIDER_RUNTIME_ARTIFACT.md`](PROVIDER_RUNTIME_ARTIFACT.md) | The committed, secret-free shape of that provider binding |
-| [`PROVIDER_CREDENTIAL_AVAILABILITY.md`](PROVIDER_CREDENTIAL_AVAILABILITY.md) | Private credential-generation contracts and process-local reference, not serving integration |
-| [`PROCESS_ENTRYPOINT.md`](PROCESS_ENTRYPOINT.md) | How the Gateway runs as an installed executable process |
-| [`PROCESS_HEALTH.md`](PROCESS_HEALTH.md) | What liveness and readiness claim — and what they deliberately do not probe |
-| [`SHARED_RUNTIME_STATE.md`](SHARED_RUNTIME_STATE.md) | How health and circuit state are shared across replicas |
-| [`CONTAINER_DEPLOYMENT.md`](CONTAINER_DEPLOYMENT.md) | How the image is built and the two ways it runs |
+- [PDP runtime](POLICY_ROUTER_RUNTIME.md), [application bootstrap](APPLICATION_BOOTSTRAP.md), [process bootstrap](PROCESS_BOOTSTRAP.md), [process entrypoint](PROCESS_ENTRYPOINT.md), [runtime bootstrap](GATEWAY_RUNTIME_BOOTSTRAP.md)
+- [Service composition](SERVICE_COMPOSITION.md), [Gateway application composition](GATEWAY_APPLICATION_COMPOSITION.md), [process health](PROCESS_HEALTH.md), [shared runtime state](SHARED_RUNTIME_STATE.md)
+- [Model registry](MODEL_REGISTRY.md), [trusted attributes](../architecture/TRUSTED_ATTRIBUTES.md), [threat model](THREAT_MODEL.md), [complexity routing](COMPLEXITY_ROUTING.md), [complexity generation](COMPLEXITY_GENERATION.md)
 
-## Operational surfaces
+</details>
 
-| Document | What it answers |
-| --- | --- |
-| [`OPERATIONS_READ_MODEL.md`](OPERATIONS_READ_MODEL.md) | The typed projection the operations surface is allowed to expose |
-| [`OPERATIONS_HTTP.md`](OPERATIONS_HTTP.md) | The authenticated read-only endpoints and their exact contracts |
-| [`OPERATIONAL_EVIDENCE_BINDING.md`](OPERATIONAL_EVIDENCE_BINDING.md) | How reviewed evidence reaches that read path without gaining authority |
-| [`GATEWAY_CONSOLE.md`](GATEWAY_CONSOLE.md) | What the browser console is, and why it is not a control plane |
-| [`OPERATIONAL_READINESS.md`](OPERATIONAL_READINESS.md) | The readiness track that turns the execution core into a demonstrable platform |
-| [`LOCAL_OPERATIONS_DEMO.md`](LOCAL_OPERATIONS_DEMO.md) | The credential-free local demo that exposes no inference route |
-| [`LOCAL_DEMO_ORCHESTRATION.md`](LOCAL_DEMO_ORCHESTRATION.md) | How that demo's processes are started, waited on and torn down |
+<details>
+<summary>Credentials, cost and spend references</summary>
 
-## Observability and evidence
+- [Credential availability](PROVIDER_CREDENTIAL_AVAILABILITY.md), [spend accounting](SPEND_ACCOUNTING.md), [admission contracts](SPEND_ADMISSION_CONTRACTS.md), [admission reference](SPEND_ADMISSION_REFERENCE.md)
+- [Cost evidence contracts](SPEND_COST_EVIDENCE_CONTRACTS.md), [v1 reference](SPEND_COST_EVIDENCE_REFERENCE.md), [v2 contracts](SPEND_COST_EVIDENCE_V2_CONTRACTS.md), [v2 reference](SPEND_COST_EVIDENCE_V2_REFERENCE.md), [v2 plan](SPEND_COST_EVIDENCE_V2_PLAN.md)
+- [OpenAI cost capability](SPEND_OPENAI_CAPABILITY_ASSESSMENT.md), [input-count projection](SPEND_OPENAI_INPUT_COUNT_PROJECTION.md), [native usage counters](SPEND_OPENAI_NATIVE_USAGE_COUNTERS.md)
 
-| Document | What it answers |
-| --- | --- |
-| [`OBSERVABILITY.md`](OBSERVABILITY.md) | What telemetry carries, and why it stays metadata-only |
-| [`LOCAL_OBSERVABILITY.md`](LOCAL_OBSERVABILITY.md) | The reproducible local Collector, Tempo and Grafana foundation |
-| [`COLLECTOR_RECEIPT.md`](COLLECTOR_RECEIPT.md) | Proof that the Collector actually received Gateway telemetry |
-| [`TEMPO_QUERY_PROOF.md`](TEMPO_QUERY_PROOF.md) | Proof that a trace survives the full path and is queryable |
-| [`GRAFANA_TRACE_DASHBOARD.md`](GRAFANA_TRACE_DASHBOARD.md) | The provisioned dashboard, and why Grafana holds no authority |
-| [`EVALUATION.md`](EVALUATION.md) | How benchmark evidence is produced, promoted, and kept out of authorization |
+</details>
 
-## Related documentation outside this folder
+<details>
+<summary>Operations and observability proofs</summary>
 
-| Location | Contents |
-| --- | --- |
-| [`../adr/`](../adr/) | Architecture decision records — the decisions, their alternatives, and their consequences |
-| [`../architecture/`](../architecture/) | The policy decision point / enforcement point wire contract, trusted attributes and admin surfaces |
-| [`../evaluation/`](../evaluation/) | The benchmark matrix and the operational-evidence contracts |
-| [`../../config/profiles/`](../../config/profiles/) | Runnable profiles, each with its own scope, proof status and non-claims |
+- [Operations access](OPERATIONS_ACCESS.md), [access artifact](OPERATIONS_ACCESS_ARTIFACT.md), [read model](OPERATIONS_READ_MODEL.md), [HTTP contract](OPERATIONS_HTTP.md), [evidence binding](OPERATIONAL_EVIDENCE_BINDING.md)
+- [Console](GATEWAY_CONSOLE.md), [local demo orchestration](LOCAL_DEMO_ORCHESTRATION.md), [operational readiness history](OPERATIONAL_READINESS.md)
+- [Observability](OBSERVABILITY.md), [local stack](LOCAL_OBSERVABILITY.md), [Collector receipt](COLLECTOR_RECEIPT.md), [Tempo query proof](TEMPO_QUERY_PROOF.md), [Grafana dashboard](GRAFANA_TRACE_DASHBOARD.md)
+- [PDP transport comparison](PDP_TRANSPORT_COMPARISON.md), [pool lifecycle](PDP_POOL_LIFECYCLE.md), [HTTP cache policy](HTTP_CACHE_POLICY.md)
+
+</details>
+
+<details>
+<summary>Deployment, protocols and multimodal details</summary>
+
+- [Provider runtime configuration](PROVIDER_RUNTIME_CONFIGURATION.md), [provider artifact](PROVIDER_RUNTIME_ARTIFACT.md), [OpenAI-compatible ingress](OPENAI_COMPATIBLE_INGRESS.md)
+- [Multimodal input](MULTIMODAL_INPUT.md), [protocol scope](PROTOCOL_MULTIMODAL_GATEWAY.md), [deployment activation](DEPLOYMENT_ACTIVATION.md)
+- [AWS profile setup](AWS_PROFILE_SETUP.md), [AWS plan checkpoint](AWS_SAO_PAULO_INFRA_PLAN.md), [AWS cost and access](AWS_SAO_PAULO_COST_AND_ACCESS.md)
+
+</details>
+
+## Decisions and source material
+
+- [Architecture decisions](../adr/README.md) — durable choices and their alternatives.
+- [Architecture references](../architecture/) — protocol contract and Phase 0 reviews.
+- [Evaluation references](../evaluation/) — benchmark and operational evidence contracts.
+- [Sources](SOURCES.md) — normative inputs and derived documentation.

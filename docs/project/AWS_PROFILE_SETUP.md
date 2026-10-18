@@ -1,5 +1,10 @@
 # Create an AWS profile for Terraform in São Paulo
 
+**Optional future deployment guide.** Under
+[ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md), AWS remains an infrastructure reference.
+The local portfolio demonstrations and Terraform CI need no AWS profile. Use this procedure only
+when preparing a separately scoped AWS experiment or deployment.
+
 This procedure creates a **local AWS CLI profile** to prepare a plan for the
 [HTTPS integration infrastructure](../../infra/terraform/https-integration/README.md). Creating
 the profile does not create AWS resources, activate LLM provider credentials, or run

@@ -27,6 +27,7 @@ Accepted after Phase 0 when implementation evidence became available:
 - [ADR-0024 — Explicit local execution deadline](ADR-0024-explicit-execution-deadline.md)
 - [ADR-0025 — Explicit PDP-only connection pooling](ADR-0025-pdp-connection-pooling.md)
 - [ADR-0026 — Explicit ASGI-owned PDP pool lifecycle](ADR-0026-asgi-owned-pdp-pool-lifecycle.md)
+- [ADR-0028 — Portfolio scope and evidence priorities](ADR-0028-portfolio-scope-and-evidence.md) — accepted scope decision; demonstration delivery status is tracked separately.
 
 The ADR numbers preserve the original roadmap reservations. Acceptance order follows implementation
 evidence rather than numeric order; later decisions do not rewrite earlier accepted records.
@@ -36,7 +37,6 @@ accepted ADR.
 
 Proposed for implementation review:
 
-- [ADR-0027 — AWS São Paulo post-core readiness foundation](ADR-0027-aws-sao-paulo-readiness-infrastructure.md)
 - [ADR-0021 — Conservative estimated-spend admission and settlement](ADR-0021-conservative-spend-admission-and-settlement.md)
 - [ADR-0022 — Bounded provider cost-evidence acquisition](ADR-0022-bounded-provider-cost-evidence-acquisition.md)
 - [ADR-0023 — Versioned cache-category cost evidence](ADR-0023-versioned-cache-category-cost-evidence.md)
@@ -44,3 +44,10 @@ Proposed for implementation review:
 Proposed design with private reference contracts only (not serving integration):
 
 - [ADR-0019 — Versioned provider credential-binding availability](ADR-0019-provider-credential-binding-availability.md)
+
+Validated infrastructure reference, deployment deferred under ADR-0028:
+
+- [ADR-0027 — AWS São Paulo post-core readiness foundation](ADR-0027-aws-sao-paulo-readiness-infrastructure.md)
+
+ADR-0019 and ADRs 0021–0023 retain their executable reference scope. Durable implementations and
+serving activation are conditional future work, not the active portfolio delivery queue.
