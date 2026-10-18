@@ -1,8 +1,9 @@
 # Portfolio demonstration implementation plan
 
-Status: accepted direction, implementation pending. Prepared against the PR #275 baseline on
+Status: Delivery 1 implemented and locally verified on 2026-10-18; the credential-free CI workflow
+has been added and its first remote run is pending. Prepared against the PR #275 baseline on
 2026-10-17 under [ADR-0028](../adr/ADR-0028-portfolio-scope-and-evidence.md). These are bounded
-portfolio deliveries, not new numbered phases. No completed demo is implied by this plan.
+deliveries, not new numbered phases.
 
 ## Baseline and assumptions
 
@@ -23,6 +24,26 @@ external PDP, plus deterministic simulated provider adapters. Pin the Router ver
 validate its policy/catalog. Reuse existing configuration loaders and service composition wherever
 their contracts permit injection. Fixtures must live in demonstration/test code and must not become
 a production provider type, implicit startup default or endpoint-validation exception.
+
+The working-branch harness entry point is:
+
+```bash
+uv run --frozen --python 3.13 --all-packages python -m scripts.portfolio_execution_demo
+```
+
+It requires Docker Compose and a sibling Policy Model Router checkout at the exact revision in
+`config/composition-proof/router.commit`. The harness creates an isolated Compose project, local
+ephemeral runtime credentials, a trusted loopback HTTPS bridge, temporary artifacts and simulated
+providers, then tears down the project.
+
+Local proof, 2026-10-18: 5/5 scenarios passed against Policy Model Router
+`3140181c45ce55a3139a292dbe30448012909fdf`; the final Compose checks found no remaining
+containers, project networks or project volumes.
+The model registry digest was `cd9381414b170a63e2356c0ed66c0efb343ced8a063d77c79e368a983863da18`
+and ranking-policy digest was `fe55bd3118554745cf01e9bf9c6b3fb631e0c158acee8ee5e8d7b0d6d37d4d32`.
+Focused lifecycle tests also cover cleanup after a failed scenario, unexpected outcome and
+`KeyboardInterrupt`. The read-only workflow is
+`.github/workflows/portfolio-execution-demo.yml`; its first hosted run has not yet been observed.
 
 Begin with a CLI report over actual execution; reuse the Console/trace stack only after the
 underlying execution assertions pass. Do not make UI work a prerequisite for correctness.

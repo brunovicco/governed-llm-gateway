@@ -39,7 +39,7 @@ import json
 import os
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -76,6 +76,8 @@ from governed_llm_gateway_core.domain.governance import ForwardableGovernanceAut
 from governed_llm_gateway_core.domain.trust import EffectivePolicyContext
 
 from scripts import composition_fixture as fixture
+from scripts.composition_pin import verify_router_revision
+from scripts.demo_pdp_https import LocalVerifiedHttpsProxy
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 _CONFIG_PATH = _REPOSITORY_ROOT / "config" / "composition-proof" / "policy_router.json"
@@ -151,10 +153,11 @@ def _forwardable(envelope: dict[str, object]) -> ForwardableGovernanceAuthorizat
     return verify_governance_authorization_envelope(json.dumps(envelope), keys=_key_resolver())
 
 
-def _adapter() -> PolicyRouterHttpAdapter:
+def _adapter(endpoint: str) -> PolicyRouterHttpAdapter:
     os.environ.setdefault(fixture.API_KEY_ENV_REFERENCE, fixture.API_KEY)
     document = load_policy_router_runtime_document(_CONFIG_PATH)
-    adapter = build_policy_router_adapter(document.runtime, EnvironmentPolicyRouterSecretResolver())
+    runtime = replace(document.runtime, endpoint=endpoint)
+    adapter = build_policy_router_adapter(runtime, EnvironmentPolicyRouterSecretResolver())
     if adapter is None:
         raise RuntimeError("composition-proof Policy Router configuration is disabled")
     return adapter
@@ -235,8 +238,8 @@ async def _denied(
     return Outcome(scenario, expected, f"authorized model group {group!r}", passed=False)
 
 
-async def run() -> list[Outcome]:
-    adapter = _adapter()
+async def run(endpoint: str) -> list[Outcome]:
+    adapter = _adapter(endpoint)
     now = datetime.now(UTC)
 
     accepted_envelope = fixture.mint_envelope(now=now, authorization_id=str(uuid4()))
@@ -268,8 +271,21 @@ def main() -> int:
     )
     arguments = parser.parse_args()
 
+    router_path = Path(
+        os.environ.get(
+            "POLICY_MODEL_ROUTER_PATH", str(_REPOSITORY_ROOT.parent / "policy-model-router")
+        )
+    )
+    try:
+        revision = verify_router_revision(router_path)
+    except RuntimeError as error:
+        print(f"composition proof unavailable: {error}", file=sys.stderr)
+        return 2
+    print(f"Policy Model Router revision: {revision}")
+
     _wait_for_router(timeout_seconds=arguments.wait_seconds)
-    outcomes = asyncio.run(run())
+    with LocalVerifiedHttpsProxy(upstream_port=_ROUTER_PORT) as proxy:
+        outcomes = asyncio.run(run(proxy.endpoint))
 
     width = max(len(outcome.scenario) for outcome in outcomes)
     for outcome in outcomes:

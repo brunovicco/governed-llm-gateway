@@ -24,6 +24,7 @@ from typing import Any
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from governed_llm_gateway_core.adapters.governance_authorization import StaticGovernanceKeyResolver
 
 _TRUSTED_SEED_PHRASE = b"governed-llm-gateway composition proof: trusted issuer, not a real key"
 _UNTRUSTED_SEED_PHRASE = b"governed-llm-gateway composition proof: untrusted issuer, not a real key"
@@ -90,6 +91,16 @@ def public_key_bytes(private_key: Ed25519PrivateKey) -> bytes:
     )
 
 
+def gateway_key_resolver() -> StaticGovernanceKeyResolver:
+    """Return the test-only keys trusted by the Gateway composition proofs."""
+    return StaticGovernanceKeyResolver(
+        {
+            TRUSTED_KEY_ID: public_key_bytes(trusted_private_key()),
+            UNTRUSTED_KEY_ID: public_key_bytes(untrusted_private_key()),
+        }
+    )
+
+
 def _b64url(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).decode().rstrip("=")
 
@@ -139,6 +150,14 @@ def mint_envelope(
     authorization_id: str,
     key_id: str = TRUSTED_KEY_ID,
     private_key: Ed25519PrivateKey | None = None,
+    workload: str = WORKLOAD,
+    risk_tier: str = RISK_TIER,
+    data_classification: str = DATA_CLASSIFICATION,
+    context_tokens_estimated: int = CONTEXT_TOKENS_ESTIMATED,
+    max_output_tokens_estimated: int = MAX_OUTPUT_TOKENS_ESTIMATED,
+    structured_output_required: bool = STRUCTURED_OUTPUT_REQUIRED,
+    max_latency_ms: int = MAX_LATENCY_MS,
+    max_cost_usd_micros: int = MAX_COST_USD_MICROS,
 ) -> dict[str, Any]:
     """Mint one signed envelope bound to this proof's request."""
     issued_at = now.replace(microsecond=0)
@@ -170,16 +189,16 @@ def mint_envelope(
         "request": {
             "workflow_id": WORKFLOW_ID,
             "task_id": TASK_ID,
-            "workload": WORKLOAD,
-            "context_tokens_estimated": CONTEXT_TOKENS_ESTIMATED,
-            "max_output_tokens_estimated": MAX_OUTPUT_TOKENS_ESTIMATED,
-            "structured_output_required": STRUCTURED_OUTPUT_REQUIRED,
-            "max_latency_ms": MAX_LATENCY_MS,
-            "max_cost_usd_micros": MAX_COST_USD_MICROS,
+            "workload": workload,
+            "context_tokens_estimated": context_tokens_estimated,
+            "max_output_tokens_estimated": max_output_tokens_estimated,
+            "structured_output_required": structured_output_required,
+            "max_latency_ms": max_latency_ms,
+            "max_cost_usd_micros": max_cost_usd_micros,
         },
         "scope": {
-            "risk_tier": RISK_TIER,
-            "data_classification": DATA_CLASSIFICATION,
+            "risk_tier": risk_tier,
+            "data_classification": data_classification,
             "autonomy_level": "a1_recommendation",
             "models": [
                 {
@@ -188,7 +207,9 @@ def mint_envelope(
                     "model_version": "2026-09-01",
                     "routing_group": MODEL_GROUP,
                     "review_digest": "4" * 64,
-                    "allowed_data_classes": ["confidential", "internal", "public"],
+                    "allowed_data_classes": sorted(
+                        {data_classification, "confidential", "internal", "public"}
+                    ),
                 }
             ],
             "allowed_tools": [],
