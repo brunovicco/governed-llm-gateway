@@ -18,10 +18,13 @@ client therefore cannot gain authority by choosing a different `model` alias or 
 
 Protocol support is separate from active ranking coverage. The stock `personal-default` launcher
 and governed Compose configuration select `approved_ranking.json`, which covers only `rag.answer`.
-The `agent.tool-use` examples below require a separately reviewed approved ranking artifact covering
-that workload, explicitly selected with its matching artifact ID, as well as client/PDP permission
-and eligible tool-capable deployments. The stock startup returns `ranking_policy_unavailable` for
-`agent.tool-use`; neither a model alias nor provider credentials bypass that boundary.
+The `agent.tool-use` examples below require a separately approved ranking artifact covering that
+workload, explicitly selected with its matching artifact ID, as well as client/PDP permission and
+eligible tool-capable deployments. The portfolio-only artifact is
+`config/portfolio/agent-tool-use/approved_ranking.json`, pinned to
+`sha256:53cb9aeca737b2b4daa1e62b977bcb74128e238175f936292f74d515ca28274d`. The stock startup
+returns `ranking_policy_unavailable` for `agent.tool-use`; neither a model alias nor provider
+credentials bypass that boundary.
 
 Anthropic Messages and OpenAI Responses do not carry the Gateway-native `risk_level` and
 `data_classification` vocabulary. Their adapters therefore enter the existing trust pipeline with the
@@ -109,6 +112,21 @@ This startup serves the approved artifact's `rag.answer` scope. It does not prov
 ranking artifact for Claude Code or Codex. Before running either client below, explicitly configure
 the Gateway with an approved artifact covering `agent.tool-use` and its matching pin; changing only
 `APPROVED_RANKING_ARTIFACT_ID` while leaving the artifact path unchanged will fail startup closed.
+
+For a separate local `agent.tool-use` walkthrough, start the Router and invoke the Gateway CLI
+directly with the same profile paths shown under the
+[Two terminals](#two-terminals-what-the-launcher-automates) heading, replacing only its two ranking
+arguments with:
+
+```bash
+--approved-ranking-artifact-path config/portfolio/agent-tool-use/approved_ranking.json \
+--expected-ranking-artifact-id sha256:53cb9aeca737b2b4daa1e62b977bcb74128e238175f936292f74d
+```
+
+Do not use `scripts/personal_default_launcher.py` for this path: it intentionally pins the active
+RAG-only artifact. This separate portfolio artifact authorizes only `agent.tool-use` and does not
+enable the other workloads missing from the active profile pin. Keep the operator's existing
+credentials in the environment; the Gateway retains the provider keys.
 
 ## Claude Code
 
