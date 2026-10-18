@@ -59,7 +59,7 @@ checks the live Router/PDP execution boundary in credential-free CI.
 The separate full execution harness passed locally on 2026-10-18 against the pinned real Router. It
 requires Docker Compose and the sibling checkout pinned in `config/composition-proof/router.commit`;
 it exercises the real Gateway and PDP with conspicuously simulated providers and removes its isolated
-Compose project on exit. The first hosted CI run is pending:
+Compose project on exit. Its hosted execution-demo and quality checks passed on PR #277:
 
 ```sh
 uv run --frozen --python 3.13 --all-packages python -m scripts.portfolio_execution_demo
@@ -71,9 +71,9 @@ uv run --frozen --python 3.13 --all-packages python -m scripts.portfolio_executi
 | --- | --- | --- |
 | Authorization, deterministic ranking, retry/fallback, streaming and SDK | Implemented, contract-tested, with bounded historical live proofs | Maintain as the core; make critical success/failure paths easy to reproduce. |
 | Console, metadata-only traces and operations demo | Implemented; real local runs recorded | Reuse existing surfaces and screenshots. Do not invent traffic to populate them. |
-| Full local execution demo with simulated providers | Local end-to-end proof passed (5/5); hosted workflow added, first remote run pending | Keep the five outcomes visible and report simulation explicitly. |
-| `rag.answer` live path | Approved artifact is active in `personal-default`; historical live evidence exists | Retain the exact pin and refresh bounded evidence when consolidating the walkthrough. |
-| `agent.tool-use` live path | Separate historical Claude Code proof; absent from the stock runtime's approved artifact | Consolidate a separate reviewed walkthrough; do not silently activate the local candidate. |
+| Full local execution demo with simulated providers | Local end-to-end proof passed (5/5); hosted workflow passed on PR #277 | Keep the five outcomes visible and report simulation explicitly. |
+| `rag.answer` live path | Active pinned artifact and historical governed live evidence; artifact/snapshot identities audited on 2026-10-18 | Retain the exact pin and refresh bounded evidence when consolidating the walkthrough. |
+| `agent.tool-use` live path | Historical Claude Code proof; separate portfolio artifact is pinned and validated, but not active in the stock runtime | Use the explicit portfolio artifact only for its walkthrough; keep the default launcher RAG-only. |
 | Deadline and PDP HTTPS pool | Implemented opt-ins; contract and synthetic TLS evidence | Add a local real-PDP HTTPS exercise; default changes and production performance claims remain deferred. |
 | Credential availability and conservative spend admission | Tested private process-local references; outside serving | Preserve executable design evidence; durable authorities/controllers are future work. |
 | AWS Terraform | Two validated roots and historical read-only plan previews; never applied | Maintain formatting/validation in credential-free CI; deployment is optional future work. |
